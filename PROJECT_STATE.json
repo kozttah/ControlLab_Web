@@ -9,7 +9,7 @@
     "default_model": "gemini-4-hydrogen-high",
     "escalation_model": "orchestrator-argon",
     "history": {
-      "2026-11-13": 5
+      "2026-11-13": 6
     }
   },
   "gates": {
@@ -193,8 +193,9 @@
         "T-PVM-01",
         "T-PVM-02"
       ],
-      "status": "PENDING",
-      "f9_review": "PENDING"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "pending_followup": "Validacao externa real do .pvm no aplicativo PathView pendente do Gate G-0D (external_pathview_verified=False); backlog menor F1: estender tratamento de UnicodeDecodeError para strict_json_loads em control_lab/diagnostics/errors.py."
     },
     {
       "wp_id": "WP-06-F8-UI-MVP-LQR",

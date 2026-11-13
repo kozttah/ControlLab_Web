@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://controllab.org/schemas/v1.0.0/state_space.schema.json",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/state_space.schema.json",
   "title": "Canonical StateSpace Schema v1.0.0",
   "description": "Modelo LTI em espaço de estados contínuo ou discreto conforme Seção 4.1 e Apêndice B.",
   "type": "object",

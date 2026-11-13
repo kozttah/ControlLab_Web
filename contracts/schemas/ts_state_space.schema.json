@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://controllab.org/schemas/v1.0.0/ts_state_space.schema.json",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/ts_state_space.schema.json",
   "title": "Canonical TSStateSpace Schema v1.0.0",
   "description": "Modelo Takagi-Sugeno / politópico com distinção semântica obrigatória (ADR-006, Seção 4.1, Seção 4.3 e Apêndice B).",
   "type": "object",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://controllab.org/schemas/v1.0.0/ctrlab_manifest.schema.json",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/ctrlab_manifest.schema.json",
   "title": "ControlLab .ctrlab Container Manifest Schema v1.0.0",
   "description": "Manifesto tipado do contêiner ZIP .ctrlab conforme Seção 9.1.",
   "type": "object",

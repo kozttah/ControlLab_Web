@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://controllab.org/schemas/v1.0.0/golden_fixture.schema.json",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/golden_fixture.schema.json",
   "title": "Golden Fixture Structural Schema v1.0.0",
   "description": "Schema estrutural para fixtures ouro independentes gerenciadas pela Frente F9 conforme Seções 10.2, 10.4 e 13.11.",
   "type": "object",

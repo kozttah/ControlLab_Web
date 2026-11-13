@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://controllab.org/schemas/v1.0.0/rpc_request.schema.json",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/rpc_request.schema.json",
   "title": "ControlLab RPC Request Schema v1.0",
   "description": "Contrato RPC de requisição (api_version = '1.0') conforme Seção 8.1 e Apêndice A.",
   "type": "object",

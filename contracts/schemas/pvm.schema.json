@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://controllab.org/schemas/v1.0.0/pvm.schema.json",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/pvm.schema.json",
   "title": "PathView Model (.pvm) Schema v1.0.0",
   "description": "Especificação estrutural .pvm v1.0.0 para interoperabilidade passiva/exportação ao PathView conforme Seção 9.3 e Apêndice D.",
   "type": "object",

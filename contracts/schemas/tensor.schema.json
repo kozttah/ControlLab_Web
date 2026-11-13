@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://controllab.org/schemas/v1.0.0/tensor.schema.json",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/tensor.schema.json",
   "title": "Canonical Tensor Schema v1.0.0",
   "description": "Representação científica canônica de tensores reais, complexos explícitos e descritores de ArrayBuffer transferíveis (Seção 4.1 e Apêndice A).",
   "oneOf": [

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://controllab.org/schemas/v1.0.0/controller.schema.json",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/controller.schema.json",
   "title": "Canonical Controller Hierarchy Schema v1.0.0",
   "description": "Controladores distintos conforme ADR-005, Seção 4.1, Seção 4.2 e Apêndice B: StateFeedbackController, DynamicController e PDCController.",
   "oneOf": [

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://controllab.org/schemas/v1.0.0/result.schema.json",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/result.schema.json",
   "title": "Scientific Result Envelope Schema v1.0.0",
   "description": "Envelope imutável de retorno científico comum conforme Seção 4.4 e categorias de erro da Seção 8.4.",
   "type": "object",

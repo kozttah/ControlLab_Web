@@ -9,7 +9,7 @@
     "default_model": "gemini-4-hydrogen-high",
     "escalation_model": "orchestrator-argon",
     "history": {
-      "2026-11-13": 3
+      "2026-11-13": 4
     }
   },
   "gates": {
@@ -135,8 +135,8 @@
         "T-SDP-D1",
         "T-SDP-D2"
       ],
-      "status": "PENDING",
-      "f9_review": "PENDING"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted"
     },
     {
       "wp_id": "WP-04-F7-RPC-BRIDGE-WORKER",

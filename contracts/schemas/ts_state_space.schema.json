@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://controllab.org/schemas/v1.0.0/ts_state_space.schema.json",
+  "title": "Canonical TSStateSpace Schema v1.0.0",
+  "description": "Modelo Takagi-Sugeno / politópico com distinção semântica obrigatória (ADR-006, Seção 4.1, Seção 4.3 e Apêndice B).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "revision",
+    "kind",
+    "dt",
+    "membership_spec",
+    "premise_availability",
+    "domain",
+    "vertices",
+    "state_names",
+    "input_names",
+    "output_names",
+    "units",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.0\\.\\d+$"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["ts_measured", "polytopic_uncertain", "ts_partially_observed"]
+    },
+    "dt": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "number", "exclusiveMinimum": 0 }
+      ]
+    },
+    "membership_spec": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version", "premise_variables", "sum_to_one_domain"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "premise_variables": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "sum_to_one_domain": { "type": "boolean" },
+        "functions": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "premise_availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "measured_premises", "unmeasured_premises"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["all_measured", "partially_observed", "unknown_uncertain"]
+        },
+        "measured_premises": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "unmeasured_premises": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "estimator_required_for_pdc": { "type": "boolean" }
+      }
+    },
+    "domain": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["bounds"],
+      "properties": {
+        "bounds": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    },
+    "vertices": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vertex_id", "A", "B", "C", "D"],
+        "properties": {
+          "vertex_id": { "type": "string", "minLength": 1 },
+          "A": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+          "B": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+          "C": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+          "D": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" }
+        }
+      }
+    },
+    "state_names": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "input_names": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "output_names": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "units": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

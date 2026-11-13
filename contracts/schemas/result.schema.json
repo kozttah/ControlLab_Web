@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://controllab.org/schemas/v1.0.0/result.schema.json",
+  "title": "Scientific Result Envelope Schema v1.0.0",
+  "description": "Envelope imutável de retorno científico comum conforme Seção 4.4 e categorias de erro da Seção 8.4.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "data",
+    "assumptions",
+    "diagnostics",
+    "provenance",
+    "warnings",
+    "error"
+  ],
+  "properties": {
+    "status": {
+      "$ref": "#/$defs/ResultStatus"
+    },
+    "data": {
+      "type": ["object", "null"]
+    },
+    "assumptions": {
+      "type": "object"
+    },
+    "diagnostics": {
+      "type": "object"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          { "$ref": "#/$defs/WarningItem" }
+        ]
+      }
+    },
+    "error": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/TypedError" }
+      ]
+    }
+  },
+  "if": {
+    "properties": { "status": { "const": "failure" } }
+  },
+  "then": {
+    "properties": {
+      "error": { "$ref": "#/$defs/TypedError" }
+    }
+  },
+  "$defs": {
+    "ResultStatus": {
+      "type": "string",
+      "enum": ["success", "warning", "inconclusive", "failure"]
+    },
+    "ErrorCategory": {
+      "type": "string",
+      "enum": [
+        "VALIDATION_ERROR",
+        "DIMENSION_MISMATCH",
+        "UNSUPPORTED_MODEL",
+        "HYPOTHESIS_VIOLATED",
+        "NUMERICAL_INCONCLUSIVE",
+        "SOLVER_UNAVAILABLE",
+        "RESOURCE_LIMIT",
+        "CANCELLED",
+        "WORKER_RESTARTED",
+        "SCHEMA_UNSUPPORTED",
+        "IMPORT_UNTRUSTED_CODE",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "WarningItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "details": { "type": "object" }
+      }
+    },
+    "TypedError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "$ref": "#/$defs/ErrorCategory" },
+        "message": { "type": "string", "minLength": 1 },
+        "parameters": { "type": "object" },
+        "next_step": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["algorithm", "lib_versions"],
+      "properties": {
+        "algorithm": { "type": "string", "minLength": 1 },
+        "lib_versions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "seed": { "type": ["integer", "null"] },
+        "tolerances": { "type": "object" },
+        "model_revision": { "type": ["integer", "null"], "minimum": 0 },
+        "timestamp": { "type": "string" }
+      }
+    }
+  }
+}

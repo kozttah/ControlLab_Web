@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "created": "2026-11-13T00:00:00Z",
+    "modified": "2026-11-13T00:00:00Z",
+    "name": "ControlLab_LQR"
+  },
+  "graph": {
+    "nodes": [],
+    "connections": [],
+    "annotations": []
+  },
+  "events": [],
+  "codeContext": {
+    "code": "import numpy as np\nA_plant = np.array([[0,1],[-2,-3]])\n"
+  },
+  "simulationSettings": {
+    "duration": "10",
+    "dt": "0.01",
+    "solver": "RKCK54",
+    "adaptive": true,
+    "atol": "1e-6",
+    "rtol": "1e-4",
+    "ftol": "1e-9",
+    "dt_min": "",
+    "dt_max": "",
+    "ghostTraces": 0,
+    "plotResults": true
+  }
+}

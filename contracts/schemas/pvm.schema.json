@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://controllab.org/schemas/v1.0.0/pvm.schema.json",
+  "title": "PathView Model (.pvm) Schema v1.0.0",
+  "description": "Especificação estrutural .pvm v1.0.0 para interoperabilidade passiva/exportação ao PathView conforme Seção 9.3 e Apêndice D.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "metadata",
+    "graph",
+    "events",
+    "codeContext",
+    "simulationSettings"
+  ],
+  "properties": {
+    "version": {
+      "const": "1.0.0"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["created", "modified", "name"],
+      "properties": {
+        "created": { "type": "string", "minLength": 1 },
+        "modified": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["nodes", "connections"],
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PvmNode" }
+        },
+        "connections": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PvmConnection" }
+        },
+        "annotations": {
+          "type": "array"
+        }
+      }
+    },
+    "events": {
+      "type": "array"
+    },
+    "codeContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["code"],
+      "properties": {
+        "code": { "type": "string" }
+      }
+    },
+    "simulationSettings": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "duration",
+        "dt",
+        "solver",
+        "adaptive",
+        "atol",
+        "rtol",
+        "ftol",
+        "dt_min",
+        "dt_max",
+        "ghostTraces",
+        "plotResults"
+      ],
+      "properties": {
+        "duration": { "type": ["string", "number"] },
+        "dt": { "type": ["string", "number"] },
+        "solver": { "type": "string", "minLength": 1 },
+        "adaptive": { "type": "boolean" },
+        "atol": { "type": ["string", "number"] },
+        "rtol": { "type": ["string", "number"] },
+        "ftol": { "type": ["string", "number"] },
+        "dt_min": { "type": ["string", "number"] },
+        "dt_max": { "type": ["string", "number"] },
+        "ghostTraces": { "type": "integer", "minimum": 0 },
+        "plotResults": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "PvmPort": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["nodeId", "direction", "index"],
+      "properties": {
+        "nodeId": { "type": "string", "minLength": 1 },
+        "direction": { "type": "string", "enum": ["input", "output"] },
+        "index": { "type": "integer", "minimum": 0 },
+        "name": { "type": "string" }
+      }
+    },
+    "PvmNode": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "type", "name", "position", "inputs", "outputs", "params"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "position": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PvmPort" }
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PvmPort" }
+        },
+        "params": {
+          "type": "object"
+        }
+      }
+    },
+    "PvmConnection": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["sourceNodeId", "sourcePortIndex", "targetNodeId", "targetPortIndex"],
+      "properties": {
+        "id": { "type": "string" },
+        "sourceNodeId": { "type": "string", "minLength": 1 },
+        "sourcePortIndex": { "type": "integer", "minimum": 0 },
+        "targetNodeId": { "type": "string", "minLength": 1 },
+        "targetPortIndex": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

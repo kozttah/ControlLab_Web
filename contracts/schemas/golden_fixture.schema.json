@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://controllab.org/schemas/v1.0.0/golden_fixture.schema.json",
+  "title": "Golden Fixture Structural Schema v1.0.0",
+  "description": "Schema estrutural para fixtures ouro independentes gerenciadas pela Frente F9 conforme Seções 10.2, 10.4 e 13.11.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "fixture_id",
+    "schema_version",
+    "benchmark_type",
+    "description",
+    "normative_tests",
+    "tolerances",
+    "provenance",
+    "data"
+  ],
+  "properties": {
+    "fixture_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.0\\.\\d+$"
+    },
+    "benchmark_type": {
+      "type": "string",
+      "enum": [
+        "care_analytical",
+        "care_numerical",
+        "dare_numerical",
+        "arx_prbs",
+        "mimo_freq",
+        "sdp_suite",
+        "pvm_lqr"
+      ]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "normative_tests": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "tolerances": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["oracle", "generated_by", "python_version", "lib_versions"],
+      "properties": {
+        "oracle": { "type": "string", "minLength": 1 },
+        "generated_by": { "type": "string", "minLength": 1 },
+        "python_version": { "type": "string", "minLength": 1 },
+        "lib_versions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "seed": { "type": ["integer", "null"] }
+      }
+    },
+    "data": {
+      "type": "object",
+      "minProperties": 1
+    }
+  }
+}

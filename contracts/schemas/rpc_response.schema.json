@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://controllab.org/schemas/v1.0.0/rpc_response.schema.json",
+  "title": "ControlLab RPC Response Schema v1.0",
+  "description": "Contrato RPC de resposta (api_version = '1.0') e categorias de erro tipadas conforme Seções 8.1, 8.4 e Apêndice A.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "api_version",
+    "request_id",
+    "project_id",
+    "project_revision",
+    "status",
+    "result",
+    "assumptions",
+    "diagnostics",
+    "provenance",
+    "warnings",
+    "error"
+  ],
+  "properties": {
+    "api_version": {
+      "const": "1.0"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "$ref": "result.schema.json#/$defs/ResultStatus"
+    },
+    "result": {
+      "type": ["object", "null"]
+    },
+    "assumptions": {
+      "type": "object"
+    },
+    "diagnostics": {
+      "type": "object"
+    },
+    "provenance": {
+      "$ref": "result.schema.json#/$defs/Provenance"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          { "$ref": "result.schema.json#/$defs/WarningItem" }
+        ]
+      }
+    },
+    "error": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "result.schema.json#/$defs/TypedError" }
+      ]
+    }
+  },
+  "if": {
+    "properties": { "status": { "const": "failure" } }
+  },
+  "then": {
+    "properties": {
+      "error": { "$ref": "result.schema.json#/$defs/TypedError" }
+    }
+  }
+}

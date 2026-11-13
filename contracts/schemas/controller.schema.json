@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://controllab.org/schemas/v1.0.0/controller.schema.json",
+  "title": "Canonical Controller Hierarchy Schema v1.0.0",
+  "description": "Controladores distintos conforme ADR-005, Seção 4.1, Seção 4.2 e Apêndice B: StateFeedbackController, DynamicController e PDCController.",
+  "oneOf": [
+    { "$ref": "#/$defs/StateFeedbackController" },
+    { "$ref": "#/$defs/DynamicController" },
+    { "$ref": "#/$defs/PDCController" }
+  ],
+  "$defs": {
+    "FeedbackSign": {
+      "type": "string",
+      "enum": ["negative", "positive"]
+    },
+    "SampleTime": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "number", "exclusiveMinimum": 0 }
+      ]
+    },
+    "ReferenceMap": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "matrix"],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["output_prefilter", "state_equilibrium", "zero_feedforward"]
+            },
+            "matrix": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+            "reference_names": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+    "StateFeedbackController": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "id",
+        "revision",
+        "kind",
+        "feedback_sign",
+        "K",
+        "state_coordinates",
+        "reference_map",
+        "dt",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "pattern": "^1\\.0\\.\\d+$" },
+        "id": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer", "minimum": 0 },
+        "kind": { "const": "StateFeedbackController" },
+        "feedback_sign": { "$ref": "#/$defs/FeedbackSign" },
+        "K": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+        "state_coordinates": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "reference_map": { "$ref": "#/$defs/ReferenceMap" },
+        "dt": { "$ref": "#/$defs/SampleTime" },
+        "input_names": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "units": { "type": "object" },
+        "provenance": { "type": "object" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "DynamicController": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "id",
+        "revision",
+        "kind",
+        "feedback_sign",
+        "dt",
+        "Ac",
+        "Bc",
+        "Cc",
+        "Dc",
+        "ports",
+        "initial_state",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "pattern": "^1\\.0\\.\\d+$" },
+        "id": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer", "minimum": 0 },
+        "kind": { "const": "DynamicController" },
+        "feedback_sign": { "$ref": "#/$defs/FeedbackSign" },
+        "dt": { "$ref": "#/$defs/SampleTime" },
+        "Ac": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+        "Bc": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+        "Cc": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+        "Dc": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+        "ports": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["inputs", "outputs"],
+          "properties": {
+            "inputs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "role", "size"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 },
+                  "role": { "type": "string", "enum": ["y", "r", "w", "u_ff", "error"] },
+                  "size": { "type": "integer", "minimum": 1 }
+                }
+              },
+              "minItems": 1
+            },
+            "outputs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "role", "size"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 },
+                  "role": { "type": "string", "enum": ["u", "z", "aux"] },
+                  "size": { "type": "integer", "minimum": 1 }
+                }
+              },
+              "minItems": 1
+            }
+          }
+        },
+        "interconnection_scheme": {
+          "type": "string",
+          "enum": ["output_feedback", "error_feedback", "two_dof", "observer_based", "custom"]
+        },
+        "initial_state": { "$ref": "tensor.schema.json#/$defs/RealTensor" },
+        "state_names": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "units": { "type": "object" },
+        "provenance": { "type": "object" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "PDCController": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "id",
+        "revision",
+        "kind",
+        "feedback_sign",
+        "K_i",
+        "membership_ref",
+        "measurement_requirements",
+        "dt",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "pattern": "^1\\.0\\.\\d+$" },
+        "id": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer", "minimum": 0 },
+        "kind": { "const": "PDCController" },
+        "feedback_sign": { "$ref": "#/$defs/FeedbackSign" },
+        "K_i": {
+          "type": "array",
+          "items": { "$ref": "tensor.schema.json#/$defs/MatrixFloat64" },
+          "minItems": 1
+        },
+        "membership_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model_id", "model_revision", "membership_version"],
+          "properties": {
+            "model_id": { "type": "string", "minLength": 1 },
+            "model_revision": { "type": "integer", "minimum": 0 },
+            "membership_version": { "type": "string", "minLength": 1 }
+          }
+        },
+        "measurement_requirements": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required_premise_variables",
+            "requires_full_state",
+            "allowed_ts_kinds"
+          ],
+          "properties": {
+            "required_premise_variables": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "requires_full_state": { "type": "boolean" },
+            "allowed_ts_kinds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["ts_measured", "ts_partially_observed"]
+              },
+              "minItems": 1
+            }
+          }
+        },
+        "state_coordinates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "reference_map": { "$ref": "#/$defs/ReferenceMap" },
+        "dt": { "$ref": "#/$defs/SampleTime" },
+        "units": { "type": "object" },
+        "provenance": { "type": "object" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

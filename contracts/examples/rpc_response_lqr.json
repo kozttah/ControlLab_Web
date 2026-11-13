@@ -1,0 +1,64 @@
+{
+  "api_version": "1.0",
+  "request_id": "req-000021",
+  "project_id": "proj-exemplo",
+  "project_revision": 7,
+  "status": "success",
+  "result": {
+    "controller_ref": {
+      "id": "ctrl-lqr-001",
+      "revision": 1
+    },
+    "controller_kind": "StateFeedbackController",
+    "feedback_sign": "negative",
+    "closed_loop_poles": {
+      "real": [
+        -2.0817763457266225,
+        -1.926643763849002,
+        -1.357750048635302,
+        -1.1252128780228765,
+        -1.1252128780228765,
+        -1.119938291857983,
+        -1.119938291857983,
+        -0.446660755257946,
+        -0.446660755257946,
+        -0.4138559794842961,
+        -0.3700840351985709,
+        -0.3700840351985709
+      ],
+      "imag": [
+        0.0,
+        0.0,
+        0.0,
+        -1.950233802490095,
+        1.950233802490095,
+        -2.3081647974592108,
+        2.3081647974592108,
+        -1.1619977182149155,
+        1.1619977182149155,
+        0.0,
+        -1.622711637365418,
+        1.622711637365418
+      ]
+    }
+  },
+  "assumptions": {
+    "stabilizable": true,
+    "detectable": true,
+    "R_positive_definite": true
+  },
+  "diagnostics": {
+    "care_residual_rel": 1.2913794169329007e-15,
+    "symmetry_error": 0.0
+  },
+  "provenance": {
+    "algorithm": "scipy.linalg.solve_continuous_are",
+    "lib_versions": {
+      "numpy": "2.4.6",
+      "scipy": "1.17.1"
+    },
+    "model_revision": 3
+  },
+  "warnings": [],
+  "error": null
+}

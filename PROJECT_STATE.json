@@ -8,7 +8,9 @@
     "burn_day_max_tasks": 10,
     "default_model": "gemini-4-hydrogen-high",
     "escalation_model": "orchestrator-argon",
-    "history": {}
+    "history": {
+      "2026-11-13": 1
+    }
   },
   "gates": {
     "G-0A": {
@@ -46,8 +48,8 @@
       ],
       "dependencies": [],
       "acceptance_cmd": "pytest tests/oracles/test_golden_fixtures.py -v",
-      "status": "PENDING",
-      "f9_review": "PENDING"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted"
     },
     {
       "wp_id": "WP-01-F1-CORE-MODELS",

@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://controllab.org/schemas/v1.0.0/tensor.schema.json",
+  "title": "Canonical Tensor Schema v1.0.0",
+  "description": "Representação científica canônica de tensores reais, complexos explícitos e descritores de ArrayBuffer transferíveis (Seção 4.1 e Apêndice A).",
+  "oneOf": [
+    { "$ref": "#/$defs/RealTensor" },
+    { "$ref": "#/$defs/ComplexTensor" },
+    { "$ref": "#/$defs/ComplexVectorPair" },
+    { "$ref": "#/$defs/BufferTensorRef" }
+  ],
+  "$defs": {
+    "RealDType": {
+      "type": "string",
+      "enum": ["float64", "float32", "int64", "int32", "bool"]
+    },
+    "ComplexDType": {
+      "type": "string",
+      "enum": ["complex128", "complex64"]
+    },
+    "MemoryOrder": {
+      "type": "string",
+      "enum": ["C", "F"]
+    },
+    "Shape": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "minItems": 1
+    },
+    "Shape2D": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "FiniteNumberArray": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "RealTensor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shape", "dtype", "order", "data"],
+      "properties": {
+        "shape": { "$ref": "#/$defs/Shape" },
+        "dtype": { "$ref": "#/$defs/RealDType" },
+        "order": { "$ref": "#/$defs/MemoryOrder" },
+        "data": { "$ref": "#/$defs/FiniteNumberArray" }
+      }
+    },
+    "MatrixFloat64": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shape", "dtype", "order", "data"],
+      "properties": {
+        "shape": { "$ref": "#/$defs/Shape2D" },
+        "dtype": { "const": "float64" },
+        "order": { "$ref": "#/$defs/MemoryOrder" },
+        "data": { "$ref": "#/$defs/FiniteNumberArray" }
+      }
+    },
+    "ComplexTensor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shape", "dtype", "order", "real", "imag"],
+      "properties": {
+        "shape": { "$ref": "#/$defs/Shape" },
+        "dtype": { "$ref": "#/$defs/ComplexDType" },
+        "order": { "$ref": "#/$defs/MemoryOrder" },
+        "real": { "$ref": "#/$defs/FiniteNumberArray" },
+        "imag": { "$ref": "#/$defs/FiniteNumberArray" }
+      }
+    },
+    "ComplexVectorPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["real", "imag"],
+      "properties": {
+        "real": { "$ref": "#/$defs/FiniteNumberArray" },
+        "imag": { "$ref": "#/$defs/FiniteNumberArray" }
+      }
+    },
+    "BufferTensorRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shape", "dtype", "order", "buffer_ref"],
+      "properties": {
+        "shape": { "$ref": "#/$defs/Shape" },
+        "dtype": {
+          "type": "string",
+          "enum": ["float64", "float32", "int64", "int32", "complex128", "complex64", "bool"]
+        },
+        "order": { "$ref": "#/$defs/MemoryOrder" },
+        "buffer_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

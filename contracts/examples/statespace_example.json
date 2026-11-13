@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "id": "plant-001",
+  "revision": 3,
+  "kind": "StateSpace",
+  "dt": null,
+  "state_names": ["x1", "x2"],
+  "input_names": ["u"],
+  "output_names": ["y"],
+  "matrices": {
+    "A": {
+      "shape": [2, 2],
+      "dtype": "float64",
+      "order": "C",
+      "data": [0.0, 1.0, -2.0, -3.0]
+    },
+    "B": {
+      "shape": [2, 1],
+      "dtype": "float64",
+      "order": "C",
+      "data": [0.0, 1.0]
+    },
+    "C": {
+      "shape": [1, 2],
+      "dtype": "float64",
+      "order": "C",
+      "data": [1.0, 0.0]
+    },
+    "D": {
+      "shape": [1, 1],
+      "dtype": "float64",
+      "order": "C",
+      "data": [0.0]
+    }
+  },
+  "units": {
+    "time": "s",
+    "inputs": ["V"],
+    "outputs": ["rad"]
+  },
+  "provenance": {
+    "source": "example"
+  }
+}

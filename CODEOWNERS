@@ -1,0 +1,23 @@
+# Ownership estrito por Frente conforme Seção 13.2 de CL-DIR-001 (v1.0.0)
+/control_lab/core/                         @f1-core-io
+/control_lab/diagnostics/                  @f1-core-io
+/control_lab/io/                           @f1-core-io
+/control_lab/statespace/                   @f2-statespace
+/control_lab/frequency/                    @f3-frequency
+/control_lab/identification/               @f4-identification
+/control_lab/fuzzy/                        @f5-fuzzy-ts
+/control_lab/optimization/                 @f6-optimization-lmi
+/control_lab/experimental/sdp_educational/ @f6-optimization-lmi
+/web/bridge/                               @f7-worker-bridge
+/web/worker/                               @f7-worker-bridge
+/web/storage/                              @f7-worker-bridge
+/web/features/                             @f8-ui-charts
+/web/charts/                               @f8-ui-charts
+/web/app/                                  @f8-ui-charts
+/contracts/                                @f9-integration-qa @f1-core-io
+/tests/oracles/                            @f9-integration-qa
+/tests/e2e/                                @f9-integration-qa
+/tests/wasm/                               @f9-integration-qa
+/tests/security/                           @f9-integration-qa
+/pyproject.toml                            @f9-integration-qa
+/.github/workflows/                        @f9-integration-qa

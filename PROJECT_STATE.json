@@ -1,0 +1,327 @@
+{
+  "document_id": "CL-DIR-001",
+  "spec_version": "1.0.0",
+  "budget_policy": {
+    "weekly_reset_weekday": "Monday",
+    "burn_day_weekday": "Sunday",
+    "daily_cruise_max_tasks": 1,
+    "burn_day_max_tasks": 10,
+    "default_model": "gemini-4-hydrogen-high",
+    "escalation_model": "orchestrator-argon",
+    "history": {}
+  },
+  "gates": {
+    "G-0A": {
+      "status": "PENDING",
+      "description": "Núcleo Python/Pyodide e benchmark B-CARE-12x3 (Seção 14.1)"
+    },
+    "G-0B": {
+      "status": "PENDING",
+      "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)"
+    },
+    "G-0C": {
+      "status": "PENDING",
+      "description": "UI mínima e contrato RPC v1.0 com Mock e Engine real (Seção 14.1)"
+    },
+    "G-0D": {
+      "status": "PENDING",
+      "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)"
+    }
+  },
+  "work_packages": [
+    {
+      "wp_id": "WP-00-F9-BOOTSTRAP",
+      "requirement_ids": [
+        "R-23",
+        "R-24"
+      ],
+      "front": "f9-integration-qa",
+      "phase": "Gate-0",
+      "title": "Bootstrap pyproject.toml, schemas JSON iniciais em contracts/ e fixtures ouro B-CARE-02, B-CARE-12x3 e B-SDP-A-D",
+      "allowed_paths": [
+        "pyproject.toml",
+        "contracts/",
+        "tests/oracles/",
+        "scripts/"
+      ],
+      "dependencies": [],
+      "acceptance_cmd": "pytest tests/oracles/test_golden_fixtures.py -v",
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-01-F1-CORE-MODELS",
+      "requirement_ids": [
+        "R-02",
+        "R-03",
+        "R-04",
+        "R-05",
+        "R-27"
+      ],
+      "front": "f1-core-io",
+      "phase": "Gate-0A",
+      "title": "Implementar Result, StateSpace, TransferFunction, TSStateSpace (3 tipos) e hierarquia Controller (StateFeedback, Dynamic, PDC) com interconnect()",
+      "allowed_paths": [
+        "control_lab/core/",
+        "control_lab/diagnostics/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-00-F9-BOOTSTRAP"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f1/test_core_models_and_interconnect.py -v",
+      "normative_tests": [
+        "T-CORE-01",
+        "T-CORE-02",
+        "T-CORE-03",
+        "T-TS-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-02-F2-CARE-LQR",
+      "requirement_ids": [
+        "R-02",
+        "R-09"
+      ],
+      "front": "f2-statespace",
+      "phase": "Gate-0A",
+      "title": "Implementar PBH, Lyapunov, CARE/DARE e design_lqr com diagnóstico rCARE e teste metamórfico T-CARE-04 (x_tilde_0 = T x0)",
+      "allowed_paths": [
+        "control_lab/statespace/",
+        "tests/unit/f2/"
+      ],
+      "dependencies": [
+        "WP-01-F1-CORE-MODELS"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f2/test_care_lqr.py -v",
+      "normative_tests": [
+        "T-CARE-01",
+        "T-CARE-02",
+        "T-CARE-03",
+        "T-CARE-04"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-03-F6-SDP-MODELING-AND-GATE0B",
+      "requirement_ids": [
+        "R-11",
+        "R-12",
+        "R-14",
+        "R-15"
+      ],
+      "front": "f6-optimization-lmi",
+      "phase": "Gate-0B",
+      "title": "Implementar CanonicalSDPProblem (sdpvar/bmat/svec), Verificador Independente (5 dimensões de status) e ensaio do Gate G-0B",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-01-F1-CORE-MODELS"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f6/test_sdp_modeling_and_verification.py -v",
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-04-F7-RPC-BRIDGE-WORKER",
+      "requirement_ids": [
+        "R-01",
+        "R-16",
+        "R-17",
+        "R-28"
+      ],
+      "front": "f7-worker-bridge",
+      "phase": "Gate-0C",
+      "title": "Implementar protocolo RPC v1.0, WorkerModelStore, MockWorkerAdapter, PyodideEngineClient e snapshots IndexedDB",
+      "allowed_paths": [
+        "web/bridge/",
+        "web/worker/",
+        "web/storage/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-01-F1-CORE-MODELS",
+        "WP-02-F2-CARE-LQR"
+      ],
+      "acceptance_cmd": "npm --prefix web test",
+      "normative_tests": [
+        "T-RPC-01",
+        "T-RPC-02",
+        "T-SEC-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-05-F1-IO-CTRLAB-PVM",
+      "requirement_ids": [
+        "R-19",
+        "R-20",
+        "R-21"
+      ],
+      "front": "f1-core-io",
+      "phase": "Gate-0D",
+      "title": "Implementar contêiner .ctrlab ZIP (importação passiva/anti-traversal) e exportador .pvm v1.0.0 para PathView",
+      "allowed_paths": [
+        "control_lab/io/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-02-F2-CARE-LQR"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f1/test_io_ctrlab_and_pvm.py -v",
+      "normative_tests": [
+        "T-IO-01",
+        "T-IO-02",
+        "T-PVM-01",
+        "T-PVM-02"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-06-F8-UI-MVP-LQR",
+      "requirement_ids": [
+        "R-18",
+        "R-26",
+        "R-27"
+      ],
+      "front": "f8-ui-charts",
+      "phase": "Gate-0C",
+      "title": "Implementar shell da aplicação, ToolDescriptor renderer, tela LQR com Fast-Preview + pending_commit e acessibilidade",
+      "allowed_paths": [
+        "web/features/",
+        "web/charts/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-04-F7-RPC-BRIDGE-WORKER",
+        "WP-05-F1-IO-CTRLAB-PVM"
+      ],
+      "acceptance_cmd": "npm --prefix web test",
+      "normative_tests": [
+        "T-UI-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-07-F3-FREQ-SISO-MIMO",
+      "requirement_ids": [
+        "R-07",
+        "R-08"
+      ],
+      "front": "f3-frequency",
+      "phase": "Fase-3-e-5",
+      "title": "Implementar núcleo de frequência SISO (Bode, RL, margens, compensadores) e MIMO (RGA, valores singulares, S+T=I)",
+      "allowed_paths": [
+        "control_lab/frequency/",
+        "tests/unit/f3/"
+      ],
+      "dependencies": [
+        "WP-01-F1-CORE-MODELS"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f3/ -v",
+      "normative_tests": [
+        "T-FREQ-01",
+        "T-FREQ-02",
+        "T-MIMO-01",
+        "T-MIMO-02"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-08-F4-IDENTIFICATION",
+      "requirement_ids": [
+        "R-06"
+      ],
+      "front": "f4-identification",
+      "phase": "Fase-4",
+      "title": "Implementar ARX por QR/SVD, previsão/simulação livre, FIT%, posto/PE e publicação de IdentifiedModel",
+      "allowed_paths": [
+        "control_lab/identification/",
+        "tests/unit/f4/"
+      ],
+      "dependencies": [
+        "WP-01-F1-CORE-MODELS"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f4/ -v",
+      "normative_tests": [
+        "T-ID-01",
+        "T-ID-02",
+        "T-ID-03"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-09-F5-FUZZY-FML-ANFIS",
+      "requirement_ids": [
+        "R-05",
+        "R-10"
+      ],
+      "front": "f5-fuzzy-ts",
+      "phase": "Fase-5",
+      "title": "Implementar inferência Mamdani/TS, parser/exportador IEEE 1855-2016 FML (anti-XXE), ANFIS e especificações PDC",
+      "allowed_paths": [
+        "control_lab/fuzzy/",
+        "tests/unit/f5/"
+      ],
+      "dependencies": [
+        "WP-01-F1-CORE-MODELS"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f5/ -v",
+      "normative_tests": [
+        "T-FML-01",
+        "T-FML-02",
+        "T-TS-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    },
+    {
+      "wp_id": "WP-10-F6-SDP-EDUCATIONAL-SOLVER",
+      "requirement_ids": [
+        "R-13"
+      ],
+      "front": "f6-optimization-lmi",
+      "phase": "Fase-6",
+      "title": "Implementar solver didático isolado em experimental/sdp_educational/ e aprovar bateria escalonada Níveis A–D",
+      "allowed_paths": [
+        "control_lab/experimental/sdp_educational/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-03-F6-SDP-MODELING-AND-GATE0B"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f6/test_educational_solver_levels_a_to_d.py -v",
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "status": "PENDING",
+      "f9_review": "PENDING"
+    }
+  ]
+}

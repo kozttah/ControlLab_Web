@@ -9,7 +9,7 @@
     "default_model": "gemini-4-hydrogen-high",
     "escalation_model": "orchestrator-argon",
     "history": {
-      "2026-11-13": 1
+      "2026-11-13": 2
     }
   },
   "gates": {
@@ -78,8 +78,8 @@
         "T-CORE-03",
         "T-TS-01"
       ],
-      "status": "PENDING",
-      "f9_review": "PENDING"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted"
     },
     {
       "wp_id": "WP-02-F2-CARE-LQR",

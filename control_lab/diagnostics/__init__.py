@@ -1,1 +1,53 @@
-"""Pacote ControlLab Web v1.0."""
+"""Pacote de diagnósticos, erros tipados, proveniência e envelope Result."""
+
+from .errors import (
+    ERROR_CATEGORIES,
+    CancelledError,
+    ControlLabError,
+    DimensionMismatchError,
+    HypothesisViolatedError,
+    ImportUntrustedCodeError,
+    InternalError,
+    NumericalInconclusiveError,
+    ResourceLimitError,
+    SchemaUnsupportedError,
+    SolverUnavailableError,
+    TypedError,
+    UnsupportedModelError,
+    ValidationError,
+    WarningItem,
+    WorkerRestartedError,
+    ensure_json_finite,
+    strict_json_dumps,
+    strict_json_loads,
+)
+from .provenance import Provenance, build_provenance, default_lib_versions, utc_now_iso
+from .result import RESULT_STATUSES, Result
+
+__all__ = [
+    "ERROR_CATEGORIES",
+    "RESULT_STATUSES",
+    "CancelledError",
+    "ControlLabError",
+    "DimensionMismatchError",
+    "HypothesisViolatedError",
+    "ImportUntrustedCodeError",
+    "InternalError",
+    "NumericalInconclusiveError",
+    "Provenance",
+    "ResourceLimitError",
+    "Result",
+    "SchemaUnsupportedError",
+    "SolverUnavailableError",
+    "TypedError",
+    "UnsupportedModelError",
+    "ValidationError",
+    "WarningItem",
+    "WorkerRestartedError",
+    "build_provenance",
+    "default_lib_versions",
+    "ensure_json_finite",
+    "strict_json_dumps",
+    "strict_json_loads",
+    "utc_now_iso",
+]

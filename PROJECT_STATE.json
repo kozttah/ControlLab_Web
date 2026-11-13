@@ -9,7 +9,7 @@
     "default_model": "gemini-4-hydrogen-high",
     "escalation_model": "orchestrator-argon",
     "history": {
-      "2026-11-13": 2
+      "2026-11-13": 3
     }
   },
   "gates": {
@@ -104,8 +104,8 @@
         "T-CARE-03",
         "T-CARE-04"
       ],
-      "status": "PENDING",
-      "f9_review": "PENDING"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted"
     },
     {
       "wp_id": "WP-03-F6-SDP-MODELING-AND-GATE0B",

@@ -9,7 +9,7 @@
     "default_model": "gemini-4-hydrogen-high",
     "escalation_model": "orchestrator-argon",
     "history": {
-      "2026-11-13": 4
+      "2026-11-13": 5
     }
   },
   "gates": {
@@ -165,8 +165,9 @@
         "T-RPC-02",
         "T-SEC-01"
       ],
-      "status": "PENDING",
-      "f9_review": "PENDING"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "pending_followup": "control_lab/web_rpc.py com dispatch(dict)->dict (entrypoint Pyodide) ainda nao existe; fora do ownership F7. Criar via frente dona de control_lab/ e empacotar no wheel antes do gate WASM (tests/wasm)."
     },
     {
       "wp_id": "WP-05-F1-IO-CTRLAB-PVM",

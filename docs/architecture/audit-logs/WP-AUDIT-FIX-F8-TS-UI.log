@@ -1,0 +1,54 @@
+WP-AUDIT-FIX-F8-TS-UI — BLOCKED_NEEDS_ARGON / changes_requested
+F9 documental; nenhuma reexecução após STOP.
+ORIGEM: transcrição parcial real enviada pelo produtor f8_implementation.
+Não é saída integral dos comandos; não havia log integral salvo.
+CWD: /workspace/scratch/ba21e63c86f4/ControlLab_Web
+
+Comando informado para cada tentativa:
+PATH=/workspace/scratch/ba21e63c86f4/testdeps/bin:/workspace/scratch/ba21e63c86f4/toolchain/node_modules/.bin:$PATH PYTHONPATH=/workspace/scratch/ba21e63c86f4/testdeps npm --prefix web run typecheck && PATH=/workspace/scratch/ba21e63c86f4/testdeps/bin:/workspace/scratch/ba21e63c86f4/toolchain/node_modules/.bin:$PATH PYTHONPATH=/workspace/scratch/ba21e63c86f4/testdeps npm --prefix web test
+
+Tentativa 1 — sessão 54485 — exit 2
+../tests/unit/f8/ui_mvp_lqr.test.ts(584,13): error TS7022: 'unlisted' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+
+Tentativa 2 — sessão 93300 — exit 2
+app/main.ts(843,116): error TS2345: Argument of type '"offline"' is not assignable to parameter of type 'AnnouncementCategory | undefined'.
+
+As duas falhas TypeScript foram corrigidas pelo produtor antes da tentativa 3.
+
+Tentativa 3 — sessão 83202 — poll chunk 95cd37 — exit 1
+> controllab-web@1.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+> controllab-web@1.0.0 test
+> node ../scripts/run_web_tests.mjs
+[run_web_tests] Executando typecheck (all, 23 arquivo(s) TS)...
+[typecheck] PASS (all, 23 arquivo(s) TS)
+[run_web_tests] Executando 4 arquivo(s) de teste com node --test...
+✔ T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava em IndexedDB nem libera exportação; pointerup exige pending_commit e comita fixture, sem prova Wasm (83.894808ms)
+✔ UI Node: Pyodide sem worker explícito falha e não permite commit/exportação (1.751369ms)
+✔ test_tool_descriptor_unlisted_operation_and_typecheck (2.679869ms)
+✔ UI Node/adapter explícito: resposta inconclusive não vira snapshot nem libera exportação (2.254978ms)
+✔ Bootstrap Node: contrato de URLs de build e registro SW module, sem prova offline (0.61707ms)
+✖ Auditoria F8: web/{app,charts,features} não importam Python, Node globals nem duplicam síntese CARE/Riccati (1.543526ms)
+ℹ tests 44
+ℹ suites 0
+ℹ pass 43
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4571.10999
+test at tests/unit/f8/ui_mvp_lqr.test.ts:904:1
+AssertionError [ERR_ASSERTION]: Padrão proibido (Python control_lab import) encontrado em /workspace/scratch/ba21e63c86f4/ControlLab_Web/web/app/main.ts
+true !== false
+at TestContext.<anonymous> (file:///workspace/scratch/ba21e63c86f4/ControlLab_Web/tests/unit/f8/ui_mvp_lqr.test.ts:926:16)
+{ generatedMessage: false, code: 'ERR_ASSERTION', actual: true, expected: false, operator: 'strictEqual', diff: 'simple' }
+[unit-tests] FAIL: node --test retornou código 1 (escopo 'all').
+
+Inspeção documental F9 (sem novo teste):
+tests/unit/f8/ui_mvp_lqr.test.ts contém regex /\bcontrol_lab\b/ sob rótulo Python control_lab import.
+web/app/main.ts contém URL wheels/control_lab-1.0.0-py3-none-any.whl.
+A presença dessa URL não comprova, por si só, importação Python na UI.
+Seis sondas F9 foram escritas em tests/oracles/ui_remediation_independent.test.mjs, mas NÃO EXECUTADAS.
+Auditoria F9 incompleta; required_backend e indicação de persistência inconclusive F7 seguem para verificação/triagem.
+Nenhum quarto ensaio, nenhum aceite F8, nenhum fechamento de gate, nenhum record-task de F8.
+Ciclo 1 F5 aceito; ciclo 2 F8 bloqueado; ciclo 3 F9-BUILD-CI não iniciado.

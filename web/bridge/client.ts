@@ -150,6 +150,7 @@ export interface ControlLabEngineClient {
   resetWorker(reason?: string): Promise<void>;
   getCapabilities(): CapabilityDescriptor;
   getMetrics(): ExecutionMetrics;
+  getCommittedRevision(projectId: string): number;
   getLifecycleState(): EngineLifecycleState;
   subscribe(listener: EngineEventListener): () => void;
   dispose(): void;
@@ -548,8 +549,21 @@ export abstract class BaseEngineClient implements ControlLabEngineClient {
   ): Promise<RpcResponse> {
     const request = validateRpcRequest(rawRequest);
 
-    if (this.lifecycleState === "uninitialized") {
-      await this.init();
+    if (this.lifecycleState !== "ready") {
+      try {
+        await this.init();
+      } catch (error: unknown) {
+        const bridgeError = error instanceof ControlLabBridgeError ? error :
+          new ControlLabBridgeError("INTERNAL_ERROR", error instanceof Error ? error.message : String(error));
+        return buildFailureRpcResponse({
+          request_id: request.request_id, project_id: request.project_id,
+          project_revision: request.project_revision, code: bridgeError.code,
+          message: bridgeError.message, parameters: bridgeError.typedError.parameters,
+          next_step: bridgeError.typedError.next_step, algorithm: request.operation,
+          lib_versions: this.getCapabilities().lib_versions,
+          diagnostics: { committed: false },
+        });
+      }
     }
 
     const reg = this.coordinator.registerRequest(request);
@@ -809,3 +823,4 @@ export abstract class BaseEngineClient implements ControlLabEngineClient {
 }
 
 export { RPC_API_VERSION };
+export type { ExecutionMetrics } from "./protocol.ts";

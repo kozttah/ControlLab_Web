@@ -38,17 +38,18 @@ import {
 } from "./pyproxy_guard.ts";
 
 /**
- * Contrato do entrypoint Python RPC: módulo `control_lab.web_rpc` expõe
+ * Contrato do entrypoint Python RPC: módulo `control_lab.core.rpc` expõe
  * `dispatch(input) -> dict`, onde `input` é um PyProxy de
  * `{request, payload}` (criado por toPy) e o retorno é um RpcResponse
  * (PyProxy de dict ou valor JS). Invocado via pyimport, nunca via execução
- * de string. PENDÊNCIA: control_lab/web_rpc.py está fora do ownership F7.
+ * de string. O dispatcher e sua validação pertencem à F1.
  */
-export const PY_RPC_ENTRYPOINT_MODULE = "control_lab.web_rpc";
+export const PY_RPC_ENTRYPOINT_MODULE = "control_lab.core.rpc";
 export const PY_RPC_ENTRYPOINT_FUNCTION = "dispatch";
 
 export interface PyRpcEntrypointModuleLike {
   dispatch?: (input: PyProxyLike) => unknown;
+  install?: { callKwargs: (wheels: string[], kwargs: { deps: boolean }) => unknown };
   destroy?: () => void;
   [key: string]: unknown;
 }
@@ -318,12 +319,8 @@ export class PyodideWorkerRuntime {
   private readonly postFn: (message: unknown, transfer?: ArrayBuffer[]) => void;
   private pyodideLoader: PyodideLoaderFn | null;
   private pyodide: PyodideInterfaceLike | null = null;
-  private libVersions: Record<string, string> = {
-    pyodide: "0.27.5",
-    numpy: "2.0.2",
-    scipy: "1.14.1",
-    control_lab: "1.0.0",
-  };
+  private libVersions: Record<string, string> = {};
+  private pythonOperations: string[] = [];
   private initialized = false;
   private readonly activeRequests = new Map<
     string,
@@ -350,43 +347,26 @@ export class PyodideWorkerRuntime {
   }
 
   public getCapabilities(): CapabilityDescriptor {
+    const operations = ["worker.ping", "worker.get_stats", ...this.pythonOperations];
     return {
       api_version: RPC_API_VERSION,
       engine_kind: "pyodide",
       runtime_id: this.workerId,
-      operations: [
-        "statespace.design_lqr",
-        "statespace.analyze",
-        "statespace.check_pbh",
-        "statespace.solve_care",
-        "statespace.solve_dare",
-        "statespace.solve_lyapunov",
-        "statespace.simulate_lti",
-        "optimization.solve",
-        "optimization.verify",
-        "worker.ping",
-        "worker.get_stats",
-      ],
+      operations: Array.from(new Set(operations)).sort(),
+      // Importabilidade não comprova aprovação de backend/gate Wasm.
       backends: {
-        numpy_scipy: { available: this.initialized, maturity: "stable" },
+        numpy_scipy: { available: this.initialized && !!this.libVersions.numpy && !!this.libVersions.scipy, maturity: "beta" },
         clarabel_cvxpy: { available: false, maturity: "unavailable_wasm" },
-        scipy_linprog: { available: this.initialized, maturity: "beta" },
+        scipy_linprog: { available: false, maturity: "unavailable_wasm" },
       },
       supports_transferables: true,
-      supports_cooperative_cancel: true,
-      offline_ready: true,
+      supports_cooperative_cancel: this.interruptBuffer !== null,
+      // A prova de cache transitivo pertence a WP-AUDIT-FIX-F7-OFFLINE-SW.
+      offline_ready: false,
       max_memory_bytes: this.modelStore.getStats().max_bytes,
-      maturity: {
-        "statespace.design_lqr": "stable",
-        "statespace.analyze": "stable",
-        "statespace.check_pbh": "stable",
-        "statespace.solve_care": "stable",
-        "statespace.solve_dare": "stable",
-        "statespace.solve_lyapunov": "stable",
-        "statespace.simulate_lti": "stable",
-        "optimization.solve": "unavailable_wasm",
-        "optimization.verify": "beta",
-      },
+      maturity: Object.fromEntries(this.pythonOperations.map((operation) => [
+        operation, operation === "optimization.solve" ? "unavailable_wasm" : "beta",
+      ])),
       lib_versions: { ...this.libVersions },
     };
   }
@@ -482,14 +462,43 @@ export class PyodideWorkerRuntime {
     }
   }
 
+  private async provisionPackages(py: PyodideInterfaceLike, packages: string[]): Promise<void> {
+    if (typeof py.loadPackage !== "function") {
+      throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "Runtime sem loadPackage().");
+    }
+    const pureWheels = packages.filter((name) => /-py3-none-any\.whl$/.test(name));
+    const distributionPackages = packages.filter((name) => !pureWheels.includes(name));
+    if (distributionPackages.length > 0) await py.loadPackage(distributionPackages);
+    if (pureWheels.length === 0) return;
+    await py.loadPackage("micropip");
+    if (typeof py.pyimport !== "function") {
+      throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "Runtime sem pyimport(): instalação de wheel indisponível.");
+    }
+    const micropip = py.pyimport("micropip");
+    const install = micropip.install;
+    let installation: unknown;
+    try {
+      if (!install || typeof install.callKwargs !== "function") {
+        throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "micropip.install.callKwargs indisponível.");
+      }
+      const urls = pureWheels.map((wheel) => new URL(wheel, this.origin).href);
+      // Dependências NumPy/SciPy vêm da distribuição local; nenhum resolver PyPI implícito.
+      installation = install.callKwargs(urls, { deps: false });
+      await installation;
+    } finally {
+      if (installation && typeof (installation as PyProxyLike).destroy === "function") (installation as PyProxyLike).destroy();
+      if (typeof (install as unknown as PyProxyLike)?.destroy === "function") (install as unknown as PyProxyLike).destroy();
+      micropip.destroy?.();
+    }
+  }
+
   private async handleInit(
     msg: Extract<WorkerInboundMessage, { kind: "init" }>,
   ): Promise<void> {
     try {
       const indexURL = msg.config?.indexURL ?? "/pyodide/";
       const packages = msg.config?.packages ?? [
-        "/wheels/numpy-2.0.2-cp312-cp312-pyodide_2024_0_wasm32.whl",
-        "/wheels/scipy-1.14.1-cp312-cp312-pyodide_2024_0_wasm32.whl",
+        "numpy", "scipy",
         "/wheels/control_lab-1.0.0-py3-none-any.whl",
       ];
       // BUG-2: msg.config.allowedOrigins é ignorado; a allowlist é fixada
@@ -539,7 +548,7 @@ export class PyodideWorkerRuntime {
         });
         const t1 = nowMs();
         this.pyodide = loaded.pyodide;
-        this.libVersions = { ...this.libVersions, ...loaded.libVersions };
+        this.libVersions = { ...loaded.libVersions };
         downloadMs = loaded.downloadMs ?? 0;
         initPyodideMs = loaded.initMs ?? Math.max(0.01, t1 - t0);
         importPackagesMs = loaded.importMs ?? 0;
@@ -566,16 +575,58 @@ export class PyodideWorkerRuntime {
           initPyodideMs = t1 - t0;
           if (this.pyodide.loadPackage) {
             const t2 = nowMs();
-            await this.pyodide.loadPackage(packages);
+            await this.provisionPackages(this.pyodide, packages);
             importPackagesMs = nowMs() - t2;
           }
         } else {
-          // Modo determinístico offline local sem WASM externo montado
-          initPyodideMs = 0.5;
-          importPackagesMs = 0.5;
+          // Worker module não herda loadPyodide da janela: carregar o módulo local.
+          // indexURL e packages já foram validados contra a política de origem.
+          let loaderModule: { loadPyodide?: (opts: { indexURL: string }) => Promise<PyodideInterfaceLike> };
+          try {
+            loaderModule = await import(new URL("pyodide.mjs", indexCheck.resolvedUrl).href);
+          } catch (cause: unknown) {
+            throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "Runtime Pyodide local indisponível; nenhum resultado científico será simulado.", {
+              parameters: { indexURL: indexCheck.resolvedUrl },
+              next_step: "Provisione pyodide.mjs, Wasm e wheels locais antes de inicializar o Worker.",
+              cause,
+            });
+          }
+          if (typeof loaderModule.loadPyodide !== "function") {
+            throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "Módulo local sem loadPyodide().");
+          }
+          const start = nowMs();
+          this.pyodide = await loaderModule.loadPyodide({ indexURL: indexCheck.resolvedUrl });
+          initPyodideMs = nowMs() - start;
+          if (typeof this.pyodide.loadPackage !== "function") {
+            throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "Runtime sem loadPackage(): pacote científico não provisionado.");
+          }
+          const importStart = nowMs();
+          await this.provisionPackages(this.pyodide, packages);
+          importPackagesMs = nowMs() - importStart;
         }
       }
 
+      if (this.pyodide === null) {
+        throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "Loader não forneceu runtime Pyodide.");
+      }
+      if (typeof this.pyodide.version === "string") {
+        this.libVersions.pyodide = this.pyodide.version;
+      }
+      const capabilityRequest: RpcRequest = {
+        api_version: RPC_API_VERSION,
+        request_id: `capabilities-${generateUuid()}`,
+        project_id: "runtime-capabilities",
+        project_revision: 0,
+        operation: "core.capabilities",
+        payload: {}, options: {}, timeout_policy: { hard_timeout_ms: 30000 },
+      };
+      const observed = validateRpcResponse(await this.executeOperation(capabilityRequest, {}, new AbortController().signal));
+      if (observed.status !== "success" || !Array.isArray(observed.result?.supported_operations) ||
+          !observed.result.supported_operations.every((op) => typeof op === "string" && /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(op))) {
+        throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "Dispatcher Python não confirmou suas capacidades.");
+      }
+      this.pythonOperations = observed.result.supported_operations as string[];
+      this.libVersions = { ...this.libVersions, ...observed.provenance.lib_versions };
       this.initialized = true;
       this.emit({
         kind: "init_ok",
@@ -590,7 +641,15 @@ export class PyodideWorkerRuntime {
         },
       });
     } catch (err: unknown) {
-      const bridgeErr = toBridgeError(err);
+      this.initialized = false;
+      this.pyodide = null;
+      this.pythonOperations = [];
+      this.libVersions = {};
+      this.interruptBuffer = null;
+      this.pyproxyRegistry.destroyAll();
+      const bridgeErr = err instanceof ControlLabBridgeError ? err : new ControlLabBridgeError(
+        "SOLVER_UNAVAILABLE", err instanceof Error ? err.message : String(err), { cause: err },
+      );
       this.emit({
         kind: "init_error",
         msg_id: msg.msg_id,
@@ -833,7 +892,15 @@ export class PyodideWorkerRuntime {
       );
 
       const tSer0 = nowMs();
-      const validResponse = validateRpcResponse(rawResult);
+      const parsedResponse = validateRpcResponse(rawResult);
+      if (parsedResponse.request_id !== request.request_id || parsedResponse.project_id !== request.project_id || parsedResponse.project_revision !== request.project_revision) {
+        throw new ControlLabBridgeError("VALIDATION_ERROR", "Dispatcher retornou identidade/revisão divergente da requisição.");
+      }
+      const validResponse: RpcResponse = { ...parsedResponse, diagnostics: {
+        ...parsedResponse.diagnostics,
+        worker_id: this.workerId,
+        store_instance_id: this.modelStore.storeInstanceId,
+      } };
       const tSer1 = nowMs();
       const execElapsed = Math.max(0, tSer0 - execStart);
       const serElapsed = Math.max(0, tSer1 - tSer0);
@@ -955,9 +1022,7 @@ export class PyodideWorkerRuntime {
             throw new ControlLabBridgeError("CANCELLED", "Cancelado durante ponte PyProxy.");
           }
           // Contrato do entrypoint Python (ver PyRpcEntrypointModuleLike):
-          // módulo `control_lab.web_rpc` com `dispatch(input: dict) -> dict`.
-          // PENDÊNCIA (fora do ownership F7): o módulo Python
-          // control_lab/web_rpc.py deve ser provido pela frente dona de control_lab/.
+          // módulo F1 `control_lab.core.rpc` com `dispatch(input: dict) -> dict`.
           // Os dados trafegam apenas como PyProxy (toPy), nunca como código.
           if (typeof py.pyimport !== "function") {
             throw new ControlLabBridgeError(
@@ -1004,35 +1069,6 @@ export class PyodideWorkerRuntime {
       );
     }
 
-    // Fallback determinístico em TypeScript quando executado sem WASM carregado
-    // (ex.: ambiente Node 24 ou pré-carga offline) utilizando a mesma validação e store.
-    if (request.operation === "worker.ping") {
-      return validateRpcResponse({
-        api_version: RPC_API_VERSION,
-        request_id: request.request_id,
-        project_id: request.project_id,
-        project_revision: request.project_revision,
-        status: "success",
-        result: {
-          pong: true,
-          worker_id: this.workerId,
-          store_instance_id: this.modelStore.storeInstanceId,
-        },
-        assumptions: {},
-        diagnostics: { store_stats: this.modelStore.getStats() },
-        provenance: {
-          algorithm: "worker.ping",
-          lib_versions: { ...this.libVersions },
-        },
-        warnings: [],
-        error: null,
-      });
-    }
-
-    if (request.operation === "statespace.design_lqr") {
-      return this.executeFallbackDesignLqr(request, resolvedPayload);
-    }
-
     throw new ControlLabBridgeError(
       "SOLVER_UNAVAILABLE",
       `Operação '${request.operation}' requer runtime Pyodide carregado no Worker.`,
@@ -1043,121 +1079,6 @@ export class PyodideWorkerRuntime {
     );
   }
 
-  private executeFallbackDesignLqr(
-    request: RpcRequest,
-    resolvedPayload: Record<string, unknown>,
-  ): RpcResponse {
-    const plantObj = resolvedPayload.plant as Record<string, unknown> | undefined;
-    const plantRef = resolvedPayload.plant_ref as
-      | { id?: string; revision?: number }
-      | undefined;
-
-    let nStates = 2;
-    let modelRev: number | null = plantRef?.revision ?? null;
-    if (isPlainObject(plantObj) && isPlainObject(plantObj.matrices)) {
-      const matA = plantObj.matrices.A as { shape?: number[] } | undefined;
-      if (matA && Array.isArray(matA.shape) && matA.shape.length === 2) {
-        nStates = matA.shape[0];
-      }
-      if (typeof plantObj.revision === "number") {
-        modelRev = plantObj.revision;
-      }
-    } else if (isPlainObject(resolvedPayload.Q)) {
-      const qShape = (resolvedPayload.Q as { shape?: number[] }).shape;
-      if (Array.isArray(qShape) && qShape.length === 2) {
-        nStates = qShape[0];
-      }
-    }
-
-    if (nStates === 2) {
-      return validateRpcResponse({
-        api_version: RPC_API_VERSION,
-        request_id: request.request_id,
-        project_id: request.project_id,
-        project_revision: request.project_revision,
-        status: "success",
-        result: {
-          controller_ref: {
-            id: `ctrl-lqr-rev${request.project_revision}`,
-            revision: 1,
-          },
-          controller_kind: "StateFeedbackController",
-          feedback_sign: "negative",
-          K: {
-            shape: [1, 2],
-            dtype: "float64",
-            order: "C",
-            data: [2.0, 3.0],
-          },
-          P: {
-            shape: [2, 2],
-            dtype: "float64",
-            order: "C",
-            data: [6.0, 2.0, 2.0, 3.0],
-          },
-          closed_loop_poles: {
-            real: [-2.0, -1.0],
-            imag: [0.0, 0.0],
-          },
-          optimal_cost: 13.0,
-        },
-        assumptions: {
-          stabilizable: true,
-          detectable: true,
-          R_positive_definite: true,
-        },
-        diagnostics: {
-          care_residual_rel: 0.0,
-          symmetry_error: 0.0,
-          store_instance_id: this.modelStore.storeInstanceId,
-        },
-        provenance: {
-          algorithm: "scipy.linalg.solve_continuous_are",
-          lib_versions: { ...this.libVersions },
-          model_revision: modelRev,
-        },
-        warnings: [],
-        error: null,
-      });
-    }
-
-    return validateRpcResponse({
-      api_version: RPC_API_VERSION,
-      request_id: request.request_id,
-      project_id: request.project_id,
-      project_revision: request.project_revision,
-      status: "success",
-      result: {
-        controller_ref: {
-          id: `ctrl-lqr-rev${request.project_revision}`,
-          revision: 1,
-        },
-        controller_kind: "StateFeedbackController",
-        feedback_sign: "negative",
-        closed_loop_poles: {
-          real: Array.from({ length: nStates }, (_, i) => -(i + 1) * 0.5),
-          imag: Array.from({ length: nStates }, () => 0.0),
-        },
-      },
-      assumptions: {
-        stabilizable: true,
-        detectable: true,
-        R_positive_definite: true,
-      },
-      diagnostics: {
-        care_residual_rel: 1.2913794169329007e-15,
-        symmetry_error: 0.0,
-        store_instance_id: this.modelStore.storeInstanceId,
-      },
-      provenance: {
-        algorithm: "scipy.linalg.solve_continuous_are",
-        lib_versions: { ...this.libVersions },
-        model_revision: modelRev,
-      },
-      warnings: [],
-      error: null,
-    });
-  }
 }
 
 function replaceBufferRefsInObject(

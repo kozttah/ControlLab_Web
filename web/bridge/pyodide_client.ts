@@ -37,7 +37,6 @@ import type {
   WorkerLikeTransport,
   WorkerRuntimeOptions,
 } from "../worker/pyodide_worker.ts";
-import { createMessageChannelWorkerTransport } from "../worker/pyodide_worker.ts";
 import type { PyProxyRegistryStats } from "../worker/pyproxy_guard.ts";
 
 export type WorkerTransportFactory = () => {
@@ -179,13 +178,13 @@ export class PyodideEngineClient extends BaseEngineClient {
       api_version: RPC_API_VERSION,
       engine_kind: "pyodide",
       runtime_id: this.workerId ?? `pyodide-gen-${this.workerGeneration}`,
-      operations: ["statespace.design_lqr", "worker.ping"],
+      operations: ["worker.ping", "worker.get_stats"],
       backends: {},
       supports_transferables: true,
-      supports_cooperative_cancel: true,
-      offline_ready: true,
+      supports_cooperative_cancel: false,
+      offline_ready: false,
       max_memory_bytes: this.defaultInitOptions?.maxMemoryBytes ?? 64 * 1024 * 1024,
-      maturity: { "statespace.design_lqr": "stable" },
+      maturity: {},
       lib_versions: {},
     };
   }
@@ -201,9 +200,11 @@ export class PyodideEngineClient extends BaseEngineClient {
       this.activeRuntime = null;
       return wrapBrowserWorker(native);
     }
-    const created = createMessageChannelWorkerTransport(this.workerRuntimeOptions);
-    this.activeRuntime = created.runtime;
-    return created.worker;
+    throw new ControlLabBridgeError(
+      "SOLVER_UNAVAILABLE",
+      "Web Worker module não configurado; a execução científica exige workerUrl e um Worker real.",
+      { next_step: "Configure workerUrl após provisionar os assets; workerFactory é injeção explícita para testes." },
+    );
   }
 
   public async init(options?: EngineInitOptions): Promise<CapabilityDescriptor> {
@@ -286,6 +287,7 @@ export class PyodideEngineClient extends BaseEngineClient {
       this.setLifecycleState("ready", isRecovery ? "recovered" : "ready");
       return this.getCapabilities();
     } catch (err: unknown) {
+      this.capabilities = null;
       const bridgeErr =
         err instanceof ControlLabBridgeError
           ? err

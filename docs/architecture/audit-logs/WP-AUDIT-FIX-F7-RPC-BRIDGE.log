@@ -1,0 +1,125 @@
+$ node scripts/run_web_tests.mjs --scope f7
+[run_web_tests] Executando typecheck (f7, 13 arquivo(s) TS)...
+[typecheck] PASS (f7, 13 arquivo(s) TS)
+[run_web_tests] Executando 3 arquivo(s) de teste com node --test...
+✔ F7-CONTRACT-01: sha256Hex puro coincide com node:crypto e checksums.sha256 das fixtures ouro (3.981937ms)
+✔ F7-CONTRACT-02: valida exemplos normativos rpc_request_lqr.json e rpc_response_lqr.json e rejeita NaN/Infinity/versão/campos extras (2.890629ms)
+✔ F7-CONTRACT-03: todas as 12 categorias normativas de erro funcionam e são validadas pelo contrato (7.171686ms)
+✔ T-RPC-01 (MockWorkerAdapter): 25 requisições rápidas fora de ordem — apenas revisão mais recente comita no IndexedDB (62.996898ms)
+✔ T-RPC-01 unidade (MessageChannel + fixture double; sem Wasm): 24 requisições fora de ordem e sem vazamento PyProxy (68.74031ms)
+✔ F7-COALESCE-01: DebouncedRequestCoalescer consolida disparos rápidos e cancela intermediários (26.349945ms)
+✔ T-RPC-02 (MockWorkerAdapter): cancel(), terminate()/resetWorker(), ciclo recovering->ready e reidratação fiel (19.082556ms)
+✔ T-RPC-02 unidade (MessageChannel + IDB em memória + fixture double): terminate() fecha o transporte, recria WorkerModelStore vazio e reidrata snapshot do IndexedDB (21.330711ms)
+✔ F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLED e preserva Worker/PyProxy limpos (16.948562ms)
+✔ F7-SEC-UNIT: cache em memória e fetch stub exercitam política; não comprovam T-SEC-01 em browser (14.596051ms)
+✔ T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMPORT_UNTRUSTED_CODE (1.157338ms)
+✔ F7-BUFFER-01 (fixture double): transferência de ArrayBuffer via postMessage destaca original (byteLength===0), bloqueia reúso e suporta preserveSenderCopy (3.592072ms)
+✔ F7-PYPROXY-01: PyProxyRegistry e withPyProxy garantem destroy() em retorno normal, exceção e cancelamento e proíbem saída por postMessage (0.723867ms)
+✔ F7-MODELSTORE-01: WorkerModelStore implementa LRU, pinning de projeto ativo e falha RESOURCE_LIMIT antes de alocar (0.673962ms)
+✔ F7-PARITY-01 local: mock certificado versus dispatcher CPython real via bridge; não prova Pyodide/Wasm (1731.733165ms)
+✔ F7-PYPROXY-02: erro em runtime Pyodide dentro do Worker destrói PyProxy e mantém activeProxies===0 (1.416646ms)
+✔ F7-BUFFER-02 (fixture double): transporte bidirecional Worker -> Main com return_binary_buffers=true reidrata tensores K e P fielmente (1.795355ms)
+✔ F7-SUPERSEDE-TIMEOUT-01: cancel_on_supersede=true cancela revisão anterior em voo e hard_timeout_ms retorna RESOURCE_LIMIT (39.506566ms)
+✔ test_no_python_runtime_no_scientific_success: no silent MessageChannel and no commit/provenance invented (8.079478ms)
+✔ test_no_python_runtime_no_scientific_success: explicit MessageChannel without loader fails initialization (5.69528ms)
+✔ F7-PROVISION-UNIT: local wheel is loaded before core.rpc handshake; capabilities require observed dispatcher (1.469496ms)
+✔ test_unstabilizable_plant_through_real_rpc: actual CPython dispatcher through bridge returns HYPOTHESIS_VIOLATED (1873.365406ms)
+✔ F7-CPYTHON-UNIT: real dispatcher respects Q/R, x0 and revision; no fixed two-state result (2413.156498ms)
+✔ F7-SEC-ALLOWLIST: http: externo é recusado, localhost http permitido (1.202465ms)
+✔ F7-SEC-ALLOWLIST: config.allowedOrigins na mensagem init não amplia a allowlist (1.741375ms)
+✔ F7-ENTRYPOINT: sem toPy retorna erro estruturado e nunca chama runPythonAsync (2.547575ms)
+✔ F7-ENTRYPOINT: sem pyimport retorna erro estruturado sem executar código (0.760802ms)
+✔ F7-SCHEMA: protocol.ts aceita exemplos e rejeita violações dos schemas rpc_* (1.0791ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 28
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4446.320881
+[unit-tests] PASS (f7, 3 arquivo(s) de teste)
+exit_code=0
+
+$ node --test tests/oracles/rpc_bridge_cpython.test.mjs
+✔ F9 independent: registered-reference bridge calls real CPython and matches frozen analytic CARE fixture (2145.976657ms)
+✔ F9 independent: unstabilizable plant through real CPython RPC never produces a controller (1566.860338ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3906.943004
+exit_code=0
+
+$ python3 scripts/verify_fixtures.py
+[F9-VERIFY] 10 schemas JSON Draft 2020-12 válidos.
+[F9-VERIFY] Fixture B-CARE-02.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-CARE-12x3.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-SDP-A-D.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Exemplo rpc_request_lqr.json validado contra rpc_request.schema.json.
+[F9-VERIFY] Exemplo rpc_response_lqr.json validado contra rpc_response.schema.json.
+[F9-VERIFY] Exemplo statespace_example.json validado contra state_space.schema.json.
+[F9-VERIFY] Exemplo pvm_skeleton.json validado contra pvm.schema.json.
+exit_code=0
+
+$ python3 -m pytest tests/oracles/ tests/integration/ -v
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/ba21e63c86f4/ControlLab_Web
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 17 items
+
+tests/oracles/test_golden_fixtures.py::test_pyproject_toml_structure PASSED [  5%]
+tests/oracles/test_golden_fixtures.py::test_all_expected_schemas_exist_and_are_valid PASSED [ 11%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_request_lqr.json-rpc_request.schema.json] PASSED [ 17%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_response_lqr.json-rpc_response.schema.json] PASSED [ 23%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[statespace_example.json-state_space.schema.json] PASSED [ 29%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[pvm_skeleton.json-pvm.schema.json] PASSED [ 35%]
+tests/oracles/test_golden_fixtures.py::test_rpc_response_rejects_illustrative_strings_and_invalid_errors PASSED [ 41%]
+tests/oracles/test_golden_fixtures.py::test_controller_ts_and_manifest_schemas_positive_and_negative PASSED [ 47%]
+tests/oracles/test_golden_fixtures.py::test_golden_fixtures_checksums_and_schema PASSED [ 52%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_02_analytical PASSED [ 58%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_12x3_numerical PASSED [ 64%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_sdp_levels_a_to_d PASSED [ 70%]
+tests/integration/test_governance_and_ownership.py::test_codeowners_covers_all_tracked_paths_and_fixtures_exclusive_to_f9 PASSED [ 76%]
+tests/integration/test_governance_and_ownership.py::test_project_state_governance_and_handoff_invariants PASSED [ 82%]
+tests/integration/test_governance_and_ownership.py::test_appendix_e_handoff_template_and_evidence_matrix PASSED [ 88%]
+tests/integration/test_governance_and_ownership.py::test_accepted_dossier_validator_rejects_pending_and_template_false_positives PASSED [ 94%]
+tests/integration/test_governance_and_ownership.py::test_acceptance_runner_requires_tsc_and_tests PASSED [100%]
+
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 17 passed, 1 warning in 3.30s =========================
+exit_code=0
+
+$ node --test tests/integration/test_run_web_tests_fail_closed.test.mjs
+▶ test_acceptance_runner_requires_tsc_and_tests
+  ✔ parseCliArgs valida escopos e rejeita flags/argumentos inválidos (1.193392ms)
+  ✔ CLI real falha fechado sem tsc no PATH (sem argumentos, --scope all, --scope f7, --scope f8) (523.501647ms)
+  ✔ CLI real rejeita escopos e flags inválidas com código != 0 (276.029606ms)
+  ✔ runWebTests falha com código != 0 para pasta de teste vazia/ausente, falta de TS ou falta de tsconfig (520.548234ms)
+  ✔ runWebTests com tsc mock, TS válido e .test.mjs válido retorna 0 e registra [typecheck] PASS e [unit-tests] PASS (733.741148ms)
+  ✔ falha de tsc interrompe antes dos testes unitários e falha de unitário reporta [typecheck] PASS + [unit-tests] FAIL (352.971477ms)
+  ✔ resolveTscCommand respeita precedência web/node_modules/.bin -> node_modules/.bin -> PATH -> null (77.149682ms)
+✔ test_acceptance_runner_requires_tsc_and_tests (2488.090522ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2568.555617
+exit_code=0

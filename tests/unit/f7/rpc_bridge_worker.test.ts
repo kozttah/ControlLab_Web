@@ -54,6 +54,9 @@ import {
   ServiceWorkerController,
 } from "../../../web/worker/service_worker.ts";
 
+import { fixturePyodideLoader, makeFixturePyodideLoader } from "./fixture_runtime.ts";
+import { cpythonLoader } from "./cpython_runtime.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, "../../..");
@@ -352,67 +355,17 @@ test("T-RPC-01 (MockWorkerAdapter): 25 requisições rápidas fora de ordem — 
   assert.equal(afterStaleAttempt?.committed_revision, total);
 });
 
-test("T-RPC-01 (PyodideEngineClient + MessageChannel Worker): 24 requisições fora de ordem e sem vazamento PyProxy", async () => {
+test("T-RPC-01 unidade (MessageChannel + fixture double; sem Wasm): 24 requisições fora de ordem e sem vazamento PyProxy", async () => {
   const idbFactory = new InMemoryIDBFactory();
   const store = new IndexedDBProjectStore({ idbFactory, dbName: "t_rpc_01_pyodide" });
 
   let proxiesCreated = 0;
   let proxiesDestroyed = 0;
 
-  const pyodideLoader: PyodideLoaderFn = async () => {
-    const pyodide: PyodideInterfaceLike = {
-      version: "0.27.5",
-      toPy: (val: unknown): PyProxyLike => {
-        proxiesCreated += 1;
-        let destroyed = false;
-        return {
-          __isPyProxy: true,
-          toJs: () => {
-            const input = val as { request: RpcRequest };
-            return {
-              api_version: RPC_API_VERSION,
-              request_id: input.request.request_id,
-              project_id: input.request.project_id,
-              project_revision: input.request.project_revision,
-              status: "success",
-              result: {
-                controller_ref: {
-                  id: `ctrl-rev-${input.request.project_revision}`,
-                  revision: 1,
-                },
-                controller_kind: "StateFeedbackController",
-                feedback_sign: "negative",
-                closed_loop_poles: { real: [-2.0, -1.0], imag: [0.0, 0.0] },
-              },
-              assumptions: { stabilizable: true, detectable: true },
-              diagnostics: { care_residual_rel: 0.0 },
-              provenance: {
-                algorithm: "scipy.linalg.solve_continuous_are",
-                lib_versions: { numpy: "2.0.2", scipy: "1.14.1" },
-              },
-              warnings: [],
-              error: null,
-            } satisfies RpcResponse;
-          },
-          destroy: () => {
-            if (!destroyed) {
-              destroyed = true;
-              proxiesDestroyed += 1;
-            }
-          },
-        };
-      },
-      runPythonAsync: async () => null,
-      pyimport: () => ({ dispatch: (p: PyProxyLike) => p.toJs?.() }),
-    };
-    return {
-      pyodide,
-      libVersions: { pyodide: "0.27.5", numpy: "2.0.2", scipy: "1.14.1" },
-      downloadMs: 2,
-      initMs: 3,
-      importMs: 4,
-    };
-  };
+  const pyodideLoader = makeFixturePyodideLoader({
+    created: () => { proxiesCreated += 1; },
+    destroyed: () => { proxiesDestroyed += 1; },
+  });
 
   const client = new PyodideEngineClient({
     store,
@@ -472,8 +425,8 @@ test("T-RPC-01 (PyodideEngineClient + MessageChannel Worker): 24 requisições f
 
     const stats = await client.getWorkerStats();
     assert.equal(stats.pyproxy.activeProxies, 0);
-    assert.equal(proxiesCreated, total);
-    assert.equal(proxiesDestroyed, total);
+    assert.equal(proxiesCreated, total + 1); // handshake core.capabilities
+    assert.equal(proxiesDestroyed, total + 1);
   } finally {
     client.dispose();
   }
@@ -607,7 +560,7 @@ test("T-RPC-02 (MockWorkerAdapter): cancel(), terminate()/resetWorker(), ciclo r
   assert.equal(snapAfter?.project_revision, 4);
 });
 
-test("T-RPC-02 (PyodideEngineClient + MessageChannel): terminate() real destrói Worker, recria WorkerModelStore vazio e reidrata snapshot do IndexedDB", async () => {
+test("T-RPC-02 unidade (MessageChannel + IDB em memória + fixture double): terminate() fecha o transporte, recria WorkerModelStore vazio e reidrata snapshot do IndexedDB", async () => {
   const store = new IndexedDBProjectStore({
     idbFactory: new InMemoryIDBFactory(),
     dbName: "t_rpc_02_pyodide",
@@ -620,7 +573,7 @@ test("T-RPC-02 (PyodideEngineClient + MessageChannel): terminate() real destrói
     store,
     cancelGraceMs: 40,
     workerFactory: () => {
-      const created = createMessageChannelWorkerTransport();
+      const created = createMessageChannelWorkerTransport({ pyodideLoader: fixturePyodideLoader });
       workerStoreIds.push(created.runtime.modelStore.storeInstanceId);
       const origTerminate = created.worker.terminate.bind(created.worker);
       created.worker.terminate = () => {
@@ -732,7 +685,7 @@ test("T-RPC-02 (PyodideEngineClient + MessageChannel): terminate() real destrói
 
 test("F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLED e preserva Worker/PyProxy limpos", async () => {
   const store = new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory() });
-  const client = new PyodideEngineClient({ store, cancelGraceMs: 2000 });
+  const client = new PyodideEngineClient({ store, cancelGraceMs: 2000, workerFactory: () => createMessageChannelWorkerTransport({ pyodideLoader: fixturePyodideLoader }) });
   try {
     await client.init();
 
@@ -761,10 +714,10 @@ test("F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLE
 });
 
 // ---------------------------------------------------------------------------
-// 4. T-SEC-01: Service Worker versionado, offline real pós-provisionamento e bloqueio CDN
+// 4. T-SEC-01: Service Worker versionado, política unitária de cache em memória e bloqueio CDN (T-SEC-01 real permanece pendente)
 // ---------------------------------------------------------------------------
 
-test("T-SEC-01: Service Worker versionado controllab-static-v1.0.0 provê offline real (0 requisições externas) e bloqueia CDNs/telemetria", async () => {
+test("F7-SEC-UNIT: cache em memória e fetch stub exercitam política; não comprovam T-SEC-01 em browser", async () => {
   const cacheStorage = new InMemoryCacheStorage();
   // Simula cache legado de versão anterior e cache de usuário não relacionado
   await cacheStorage.open(`${CACHE_NAME_PREFIX}v0.9.0`);
@@ -800,7 +753,7 @@ test("T-SEC-01: Service Worker versionado controllab-static-v1.0.0 provê offlin
   assert.equal(readiness.ready, true);
   assert.equal(readiness.missingUrls.length, 0);
 
-  // Modo offline real: rede desconectada (lança erro se chamada!)
+  // Simulação unitária da ausência de rede; não é provisionamento offline real.
   let offlineNetworkCalls = 0;
   const offlineBlockedFetch = async (): Promise<Response> => {
     offlineNetworkCalls += 1;
@@ -867,6 +820,7 @@ test("T-SEC-01: Service Worker versionado controllab-static-v1.0.0 provê offlin
 test("T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMPORT_UNTRUSTED_CODE", async () => {
   const client = new PyodideEngineClient({
     store: new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory() }),
+    workerFactory: () => createMessageChannelWorkerTransport({ pyodideLoader: fixturePyodideLoader }),
   });
 
   try {
@@ -889,9 +843,9 @@ test("T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMP
 // 5. Transferência binária de ArrayBuffer (posse/detached vs preserveSenderCopy)
 // ---------------------------------------------------------------------------
 
-test("F7-BUFFER-01: transferência de ArrayBuffer via postMessage destaca original (byteLength===0), bloqueia reúso e suporta preserveSenderCopy", async () => {
+test("F7-BUFFER-01 (fixture double): transferência de ArrayBuffer via postMessage destaca original (byteLength===0), bloqueia reúso e suporta preserveSenderCopy", async () => {
   const store = new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory() });
-  const client = new PyodideEngineClient({ store });
+  const client = new PyodideEngineClient({ store, workerFactory: () => createMessageChannelWorkerTransport({ pyodideLoader: fixturePyodideLoader }) });
   try {
     await client.init();
 
@@ -1132,7 +1086,7 @@ test("F7-MODELSTORE-01: WorkerModelStore implementa LRU, pinning de projeto ativ
 // 8. Paridade MockWorkerAdapter vs PyodideEngineClient e Snapshot Portátil IndexedDB
 // ---------------------------------------------------------------------------
 
-test("F7-PARITY-01: MockWorkerAdapter (com fixtures certificadas) e PyodideEngineClient convergem no mesmo contrato e round-trip de snapshot portátil", async () => {
+test("F7-PARITY-01 local: mock certificado versus dispatcher CPython real via bridge; não prova Pyodide/Wasm", async () => {
   const checksums = loadChecksums();
   const bCare02Raw = fs.readFileSync(path.join(FIXTURES_DIR, "B-CARE-02.json"), "utf8");
   const bCare12Raw = fs.readFileSync(path.join(FIXTURES_DIR, "B-CARE-12x3.json"), "utf8");
@@ -1176,7 +1130,7 @@ test("F7-PARITY-01: MockWorkerAdapter (com fixtures certificadas) e PyodideEngin
       },
     },
   });
-  const pyClient = new PyodideEngineClient({ store: pyStore });
+  const pyClient = new PyodideEngineClient({ store: pyStore, workerFactory: () => createMessageChannelWorkerTransport({ pyodideLoader: cpythonLoader }) });
 
   try {
     await mockClient.init();
@@ -1186,6 +1140,10 @@ test("F7-PARITY-01: MockWorkerAdapter (com fixtures certificadas) e PyodideEngin
       request_id: "parity-req-1",
       project_id: "proj-parity",
       project_revision: 3,
+      payload: (() => {
+        const data = JSON.parse(bCare02Raw).data;
+        return { A: data.A, B: data.B, Q: data.Q, R: data.R, x0: data.x0, dt: data.dt };
+      })(),
     });
 
     const [mockResp, pyResp] = await Promise.all([
@@ -1195,13 +1153,21 @@ test("F7-PARITY-01: MockWorkerAdapter (com fixtures certificadas) e PyodideEngin
 
     assert.equal(mockResp.status, "success");
     assert.equal(pyResp.status, "success");
-    assert.deepEqual(mockResp.result?.K, pyResp.result?.K);
-    assert.deepEqual(mockResp.result?.P, pyResp.result?.P);
-    assert.deepEqual(
-      mockResp.result?.closed_loop_poles,
-      pyResp.result?.closed_loop_poles,
-    );
-    assert.equal(mockResp.result?.optimal_cost, pyResp.result?.optimal_cost);
+    // Compare with F9's unchanged analytic oracle and its own tolerances.
+    const oracle = JSON.parse(bCare02Raw);
+    for (const name of ["K", "P"] as const) {
+      const actual = pyResp.result?.[name] as { data: number[]; shape: number[] };
+      const expected = oracle.data.expected[name].data as number[];
+      assert.deepEqual(actual.shape, oracle.data.expected[name].shape);
+      actual.data.forEach((value: number, i: number) => assert.ok(
+        Math.abs(value - expected[i]) <= oracle.tolerances[`${name}_atol`], `${name}[${i}]`,
+      ));
+    }
+    const actualPoles = pyResp.result?.closed_loop_poles as { real: number[]; imag: number[] };
+    for (const part of ["real", "imag"] as const) actualPoles[part].forEach((value, i) => assert.ok(
+      Math.abs(value - oracle.data.expected.closed_loop_poles[part][i]) <= oracle.tolerances.poles_atol,
+    ));
+    assert.ok(Math.abs(Number(pyResp.result?.optimal_cost) - Number(mockResp.result?.optimal_cost)) <= oracle.tolerances.cost_atol);
 
     // Fixture B-SDP-A-D via MockWorkerAdapter
     const sdpResp = await mockClient.execute({
@@ -1257,25 +1223,13 @@ test("F7-PYPROXY-02: erro em runtime Pyodide dentro do Worker destrói PyProxy e
     store: new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory() }),
     workerFactory: () =>
       createMessageChannelWorkerTransport({
-        pyodideLoader: async () => ({
-          pyodide: {
-            version: "0.27.5",
-            toPy: (): PyProxyLike => ({
-              __isPyProxy: true,
-              toJs: () => {
-                throw new ControlLabBridgeError(
-                  "NUMERICAL_INCONCLUSIVE",
-                  "Resíduo CARE excedeu tolerância em Pyodide.",
-                );
-              },
-              destroy: () => {
-                proxyDestroyed += 1;
-              },
-            }),
-            runPythonAsync: async () => null,
-      pyimport: () => ({ dispatch: (p: PyProxyLike) => p.toJs?.() }),
+        pyodideLoader: makeFixturePyodideLoader({
+          destroyed: () => { proxyDestroyed += 1; },
+          beforeDispatch: (request) => {
+            if (request.operation === "statespace.design_lqr") throw new ControlLabBridgeError(
+              "NUMERICAL_INCONCLUSIVE", "Erro numérico injetado em fixture double; não é prova Wasm.",
+            );
           },
-          libVersions: { pyodide: "0.27.5" },
         }),
       }),
   });
@@ -1291,20 +1245,21 @@ test("F7-PYPROXY-02: erro em runtime Pyodide dentro do Worker destrói PyProxy e
     );
     assert.equal(failResp.status, "failure");
     assert.equal(failResp.error?.code, "NUMERICAL_INCONCLUSIVE");
-    assert.equal(proxyDestroyed, 1);
+    assert.equal(proxyDestroyed, 2); // init handshake + failing request
 
     const stats = await client.getWorkerStats();
     assert.equal(stats.pyproxy.activeProxies, 0);
-    assert.equal(stats.pyproxy.totalCreated, 1);
-    assert.equal(stats.pyproxy.totalDestroyed, 1);
+    assert.equal(stats.pyproxy.totalCreated, 2);
+    assert.equal(stats.pyproxy.totalDestroyed, 2);
   } finally {
     client.dispose();
   }
 });
 
-test("F7-BUFFER-02: transporte bidirecional Worker -> Main com return_binary_buffers=true reidrata tensores K e P fielmente", async () => {
+test("F7-BUFFER-02 (fixture double): transporte bidirecional Worker -> Main com return_binary_buffers=true reidrata tensores K e P fielmente", async () => {
   const client = new PyodideEngineClient({
     store: new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory() }),
+    workerFactory: () => createMessageChannelWorkerTransport({ pyodideLoader: fixturePyodideLoader }),
   });
 
   try {
@@ -1331,7 +1286,7 @@ test("F7-BUFFER-02: transporte bidirecional Worker -> Main com return_binary_buf
 
 test("F7-SUPERSEDE-TIMEOUT-01: cancel_on_supersede=true cancela revisão anterior em voo e hard_timeout_ms retorna RESOURCE_LIMIT", async () => {
   const store = new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory() });
-  const client = new PyodideEngineClient({ store, cancelGraceMs: 2000 });
+  const client = new PyodideEngineClient({ store, cancelGraceMs: 2000, workerFactory: () => createMessageChannelWorkerTransport({ pyodideLoader: fixturePyodideLoader }) });
   const cancelledIds: string[] = [];
   client.subscribe((ev) => {
     if (ev.type === "request_cancelled") {

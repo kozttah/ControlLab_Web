@@ -1484,7 +1484,10 @@ def make_educational_barrier_backend(
         merged = {**base_opts, **dict(call_opts or {})}
         return solve_sdp_educational_raw(prob, options=merged)
 
-    return EducationalBarrierBackend(solver_fn=_runner)
+    return EducationalBarrierBackend(
+        solver_fn=_runner,
+        solver_capabilities=EducationalPrimalDualSDPBackend(options=base_opts).capabilities(),
+    )
 
 
 def solve_sdp_educational(

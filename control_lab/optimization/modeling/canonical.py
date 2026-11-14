@@ -9,10 +9,10 @@ Formato canônico (CL-DIR-001 Seção 6.1):
 
 from __future__ import annotations
 
-import copy
 import json
 import math
 from typing import Any, Mapping, Sequence
+from types import MappingProxyType
 
 import numpy as np
 
@@ -36,8 +36,48 @@ from .dsl import (
 from .svec import DEFAULT_SYMMETRY_TOL, is_diagonal_matrix, symmetry_error_rel
 
 
-class SDPBlock:
+# Canonical data are stored as immutable Python values, not owning ndarrays.
+# Every access creates a fresh view, so even ndarray shape/base metadata cannot
+# change the canonical shape; bytes prevent re-enabling WRITEABLE on any base.
+_ArraySpec = tuple[bytes, tuple[int, ...]]
+
+
+def _array_spec(array: np.ndarray) -> _ArraySpec:
+    return array.tobytes(order="C"), tuple(array.shape)
+
+
+def _array_view(spec: _ArraySpec) -> np.ndarray:
+    data, shape = spec
+    return np.frombuffer(data, dtype=np.float64).reshape(shape)
+
+
+def _freeze_json(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_json(item) for item in value)
+    return value
+
+
+class _ImmutableCanonicalBase:
+    __slots__ = ("_locked",)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if getattr(self, "_locked", False):
+            raise AttributeError(f"{type(self).__name__} is immutable; construct a new problem/block.")
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError(f"{type(self).__name__} is immutable; attributes cannot be deleted.")
+
+    def _lock(self) -> None:
+        object.__setattr__(self, "_locked", True)
+
+
+class SDPBlock(_ImmutableCanonicalBase):
     """Bloco simétrico semidefinido positivo F_b(x) = F_{b,0} + sum_k x_k F_{b,k} >= 0."""
+
+    __slots__ = ("_name", "_dim", "_n_vars", "_F0_spec", "_F_terms_specs", "_is_diagonal")
 
     def __init__(
         self,
@@ -87,7 +127,7 @@ class SDPBlock:
         if resolved_n_vars < 1:
             raise ValidationError("SDPBlock requer n_vars >= 1.")
 
-        diag_flag = is_diagonal_matrix(F0_sym)
+        diag_flag = is_diagonal_matrix(F0_sym, tol=0.0)
         for k, raw_fk in items:
             if isinstance(k, bool) or not isinstance(k, int) or k < 0 or k >= resolved_n_vars:
                 raise ValidationError(f"Índice de variável inválido em bloco {self._name!r}: {k!r}.")
@@ -100,16 +140,25 @@ class SDPBlock:
                 )
             fk_sym = 0.5 * (fk_arr + fk_arr.T)
             if np.any(fk_sym != 0.0):
-                if diag_flag and not is_diagonal_matrix(fk_sym):
+                if diag_flag and not is_diagonal_matrix(fk_sym, tol=0.0):
                     diag_flag = False
                 fk_sym.setflags(write=False)
                 terms[k] = fk_sym
 
         self._dim = nb
         self._n_vars = resolved_n_vars
-        self._F0 = F0_sym
-        self._F_terms = terms
+        self._F0_spec = _array_spec(F0_sym)
+        self._F_terms_specs = MappingProxyType({k: _array_spec(fk) for k, fk in terms.items()})
         self._is_diagonal = diag_flag
+        self._lock()
+
+    @property
+    def _F0(self) -> np.ndarray:
+        return _array_view(self._F0_spec)
+
+    @property
+    def _F_terms(self) -> dict[int, np.ndarray]:
+        return {k: _array_view(spec) for k, spec in self._F_terms_specs.items()}
 
     @property
     def name(self) -> str:
@@ -136,11 +185,10 @@ class SDPBlock:
         return self._is_diagonal
 
     def get_Fk(self, k: int) -> np.ndarray:
-        if k in self._F_terms:
-            return self._F_terms[k]
+        if k in self._F_terms_specs:
+            return _array_view(self._F_terms_specs[k])
         z = np.zeros((self._dim, self._dim), dtype=np.float64)
-        z.setflags(write=False)
-        return z
+        return _array_view(_array_spec(z))
 
     @property
     def F_k(self) -> tuple[np.ndarray, ...]:
@@ -186,8 +234,14 @@ class SDPBlock:
         return cls(name=str(data["name"]), F0=F0, F_k=fk_list, n_vars=n_vars)
 
 
-class CanonicalSDPProblem:
+class CanonicalSDPProblem(_ImmutableCanonicalBase):
     """Problema SDP/LMI canônico desacoplado de qualquer solver específico."""
+
+    __slots__ = (
+        "_name", "_n_vars", "_c_spec", "_c0", "_blocks", "_E_spec", "_d_spec",
+        "_H_spec", "_h_spec", "_variable_map", "_constraint_map", "_scaling",
+        "_recovery_plan", "_metadata",
+    )
 
     def __init__(
         self,
@@ -218,7 +272,7 @@ class CanonicalSDPProblem:
 
         if not _is_scalar_number(c0) or not math.isfinite(float(c0)):
             raise ValidationError(f"Termo constante c0 deve ser escalar finito, recebido {c0!r}.")
-        self._c = c_arr
+        self._c_spec = _array_spec(c_arr)
         self._c0 = float(c0)
         self._n_vars = n_vars
 
@@ -258,10 +312,10 @@ class CanonicalSDPProblem:
         for arr in (E_arr, d_arr, H_arr, h_arr):
             arr.setflags(write=False)
 
-        self._E = E_arr
-        self._d = d_arr
-        self._H = H_arr
-        self._h = h_arr
+        self._E_spec = _array_spec(E_arr)
+        self._d_spec = _array_spec(d_arr)
+        self._H_spec = _array_spec(H_arr)
+        self._h_spec = _array_spec(h_arr)
 
         if variable_map is None:
             self._variable_map: dict[str, Any] = {
@@ -305,9 +359,36 @@ class CanonicalSDPProblem:
             else {}
         )
 
+        self._variable_map = _freeze_json(self._variable_map)
+        self._constraint_map = _freeze_json(self._constraint_map)
+        self._scaling = _freeze_json(self._scaling)
+        self._recovery_plan = _freeze_json(self._recovery_plan)
+        self._metadata = _freeze_json(self._metadata)
+        self._lock()
+
     @property
     def name(self) -> str:
         return self._name
+
+    @property
+    def _c(self) -> np.ndarray:
+        return _array_view(self._c_spec)
+
+    @property
+    def _E(self) -> np.ndarray:
+        return _array_view(self._E_spec)
+
+    @property
+    def _d(self) -> np.ndarray:
+        return _array_view(self._d_spec)
+
+    @property
+    def _H(self) -> np.ndarray:
+        return _array_view(self._H_spec)
+
+    @property
+    def _h(self) -> np.ndarray:
+        return _array_view(self._h_spec)
 
     @property
     def n_vars(self) -> int:
@@ -355,23 +436,23 @@ class CanonicalSDPProblem:
 
     @property
     def variable_map(self) -> dict[str, Any]:
-        return copy.deepcopy(self._variable_map)
+        return ensure_json_finite(self._variable_map)
 
     @property
     def constraint_map(self) -> dict[str, Any]:
-        return copy.deepcopy(self._constraint_map)
+        return ensure_json_finite(self._constraint_map)
 
     @property
     def scaling(self) -> dict[str, Any]:
-        return copy.deepcopy(self._scaling)
+        return ensure_json_finite(self._scaling)
 
     @property
     def recovery_plan(self) -> dict[str, Any]:
-        return copy.deepcopy(self._recovery_plan)
+        return ensure_json_finite(self._recovery_plan)
 
     @property
     def metadata(self) -> dict[str, Any]:
-        return copy.deepcopy(self._metadata)
+        return ensure_json_finite(self._metadata)
 
     def all_blocks_diagonal(self) -> bool:
         return all(blk.is_diagonal for blk in self._blocks)

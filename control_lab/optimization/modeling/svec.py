@@ -60,8 +60,11 @@ def symmetry_error_rel(M: np.ndarray) -> float:
     return float(np.linalg.norm(M - M.T, "fro") / (1.0 + np.linalg.norm(M, "fro")))
 
 
-def is_diagonal_matrix(M: np.ndarray, *, tol: float = 1e-14) -> bool:
-    """Retorna True se todos os elementos fora da diagonal de M tiverem |M_ij| <= tol."""
+def is_diagonal_matrix(M: np.ndarray, *, tol: float = 0.0) -> bool:
+    """Teste estrutural exato por padrão; tol > 0 serve apenas para inspeção aproximada.
+
+    Redução de cone PSD a LP deve sempre usar tol=0.0.
+    """
     if M.ndim != 2 or M.shape[0] != M.shape[1]:
         return False
     n = M.shape[0]

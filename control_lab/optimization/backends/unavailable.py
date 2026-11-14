@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-from control_lab.diagnostics import ValidationError
+from control_lab.diagnostics import ValidationError, ensure_json_finite
 
 from ..modeling.canonical import CanonicalSDPProblem
 from .base import SDPBackend, SolverUnavailableError, UNAVAILABLE_REASONS
@@ -80,14 +80,19 @@ class EducationalBarrierBackend(SDPBackend):
     def __init__(
         self,
         solver_fn: Callable[[CanonicalSDPProblem, Mapping[str, Any] | None], Mapping[str, Any]] | None = None,
+        *,
+        solver_capabilities: Mapping[str, Any] | None = None,
     ) -> None:
         if solver_fn is not None and not callable(solver_fn):
             raise ValidationError("solver_fn de EducationalBarrierBackend deve ser callable.")
         self._solver_fn = solver_fn
+        # Registration metadata is explicit: an arbitrary callable does not imply
+        # support for dual solutions, Farkas/recession certificates or versions.
+        self._solver_capabilities = ensure_json_finite(dict(solver_capabilities or {}))
 
     def capabilities(self) -> dict[str, Any]:
         has_fn = self._solver_fn is not None
-        return {
+        caps = {
             "name": self.name,
             "maturity": "experimental",
             "available": has_fn,
@@ -104,6 +109,13 @@ class EducationalBarrierBackend(SDPBackend):
             "reason": None if has_fn else "experimental_not_registered",
             "lib_versions": {},
         }
+        if has_fn:
+            caps.update(ensure_json_finite(self._solver_capabilities))
+        # A descriptor cannot promote the educational adapter or certify a result.
+        caps.update(name=self.name, maturity="experimental", available=has_fn,
+                    experimental=True, certified=False,
+                    reason=None if has_fn else "experimental_not_registered")
+        return caps
 
     def solve_raw(
         self,

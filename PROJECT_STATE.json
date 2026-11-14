@@ -10,7 +10,7 @@
     "escalation_model": "orchestrator-argon",
     "history": {
       "2026-11-13": 6,
-      "2026-11-14": 8
+      "2026-11-14": 9
     }
   },
   "audit_reference": {
@@ -281,8 +281,14 @@
         "T-SDP-D1",
         "T-SDP-D2"
       ],
-      "status": "PENDING",
-      "f9_review": "pending"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "cpython_local_only",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F6-SDP.md",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     },
     {
       "wp_id": "WP-AUDIT-FIX-F5-FML",

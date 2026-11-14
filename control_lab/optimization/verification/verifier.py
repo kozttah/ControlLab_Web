@@ -181,9 +181,9 @@ def _audit_primal_point(
         min_eig = float(np.min(eigs))
         max_eig = float(np.max(eigs))
         viol_abs = max(0.0, -min_eig)
-        scale_b = 1.0 + float(np.linalg.norm(blk.F0, "fro"))
+        scale_b = 1.0 + float(np.linalg.norm(blk.F0, 2))
         for k, fk in blk.F_terms.items():
-            scale_b += abs(float(x_vec[k])) * float(np.linalg.norm(fk, "fro"))
+            scale_b += abs(float(x_vec[k])) * float(np.linalg.norm(fk, 2))
         viol_rel = viol_abs / scale_b
 
         block_min_eigs.append(min_eig)

@@ -26,6 +26,8 @@ from .tensors import (
     array_to_tensor,
     compute_canonical_sha256,
     ensure_finite_float64,
+    readonly_copy,
+    resolve_evolution_revision,
     tensor_to_array,
     validate_name_list,
     validate_non_empty_str,
@@ -219,19 +221,19 @@ class StateSpace(_ImmutableModelBase):
 
     @property
     def A(self) -> np.ndarray:
-        return self._A
+        return readonly_copy(self._A)
 
     @property
     def B(self) -> np.ndarray:
-        return self._B
+        return readonly_copy(self._B)
 
     @property
     def C(self) -> np.ndarray:
-        return self._C
+        return readonly_copy(self._C)
 
     @property
     def D(self) -> np.ndarray:
-        return self._D
+        return readonly_copy(self._D)
 
     @property
     def dt(self) -> float | None:
@@ -331,7 +333,7 @@ class StateSpace(_ImmutableModelBase):
         return self.with_revision(self._revision, content_hash=digest)
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> StateSpace:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         A = updates.pop("A", self._A)
         B = updates.pop("B", self._B)
         C = updates.pop("C", self._C)
@@ -358,7 +360,13 @@ class StateSpace(_ImmutableModelBase):
         provenance_val = updates.pop("provenance", self._provenance)
         schema_val = updates.pop("schema_version", self._schema_version)
         created_val = updates.pop("created_at", self._created_at)
-        hash_val = updates.pop("content_hash", None)
+        hash_provided = "content_hash" in raw_keys
+        same_rev = (
+            isinstance(revision, int)
+            and not isinstance(revision, bool)
+            and revision == self._revision
+        )
+        hash_val = updates.pop("content_hash", self._content_hash if same_rev else None)
         orders_val = updates.pop("matrix_orders", self._matrix_orders)
         if updates:
             raise ValidationError(
@@ -366,7 +374,18 @@ class StateSpace(_ImmutableModelBase):
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
 
-        return StateSpace(
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            allowed_same_revision_keys=frozenset({"content_hash", "provenance"}),
+            sealed_content_hash=self._content_hash,
+            content_hash_provided=hash_provided,
+            content_hash_value=hash_val,
+            cls_name="StateSpace",
+        )
+
+        out = StateSpace(
             A=A_new,
             B=B_new,
             C=C_new,
@@ -384,6 +403,12 @@ class StateSpace(_ImmutableModelBase):
             content_hash=hash_val,
             matrix_orders=orders_val,
         )
+        if new_rev == self._revision and hash_provided and out.content_hash != out.compute_content_hash():
+            raise ValidationError(
+                message="content_hash fornecido não corresponde ao conteúdo canônico na mesma revisão.",
+                parameters={"current_revision": self._revision},
+            )
+        return out
 
     def evolve(self, **updates: Any) -> StateSpace:
         rev = updates.pop("revision", None)
@@ -658,11 +683,11 @@ class TransferFunction(_ImmutableModelBase):
 
     @property
     def num(self) -> tuple[tuple[np.ndarray, ...], ...]:
-        return self._num
+        return tuple(tuple(readonly_copy(arr) for arr in row) for row in self._num)
 
     @property
     def den(self) -> tuple[tuple[np.ndarray, ...], ...]:
-        return self._den
+        return tuple(tuple(readonly_copy(arr) for arr in row) for row in self._den)
 
     @property
     def dt(self) -> float | None:
@@ -885,7 +910,7 @@ class TransferFunction(_ImmutableModelBase):
         )
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> TransferFunction:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         kwargs = dict(
             num=updates.pop("num", self._num),
             den=updates.pop("den", self._den),
@@ -893,7 +918,6 @@ class TransferFunction(_ImmutableModelBase):
             variable=updates.pop("variable", self._variable),
             poly_order=updates.pop("poly_order", self._poly_order),
             id=updates.pop("id", self._id),
-            revision=new_rev,
             input_names=updates.pop("input_names", self._input_names),
             output_names=updates.pop("output_names", self._output_names),
             units=updates.pop("units", self._units),
@@ -906,6 +930,13 @@ class TransferFunction(_ImmutableModelBase):
                 message=f"Argumentos desconhecidos em TransferFunction.with_revision: {sorted(updates.keys())}",
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            cls_name="TransferFunction",
+        )
+        kwargs["revision"] = new_rev
         return TransferFunction(**kwargs)
 
     def evolve(self, **updates: Any) -> TransferFunction:
@@ -1127,15 +1158,15 @@ class Dataset(_ImmutableModelBase):
 
     @property
     def t(self) -> np.ndarray:
-        return self._t
+        return readonly_copy(self._t)
 
     @property
     def u(self) -> np.ndarray:
-        return self._u
+        return readonly_copy(self._u)
 
     @property
     def y(self) -> np.ndarray:
-        return self._y
+        return readonly_copy(self._y)
 
     @property
     def dt(self) -> float | None:
@@ -1259,7 +1290,7 @@ class Dataset(_ImmutableModelBase):
         return ds_train, ds_val
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> Dataset:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         kwargs = dict(
             t=updates.pop("t", self._t),
             u=updates.pop("u", self._u),
@@ -1268,7 +1299,6 @@ class Dataset(_ImmutableModelBase):
             require_uniform=updates.pop("require_uniform", False),
             sampling_rtol=updates.pop("sampling_rtol", self._sampling_diagnostics["sampling_rtol"]),
             id=updates.pop("id", self._id),
-            revision=new_rev,
             input_names=updates.pop("input_names", self._input_names),
             output_names=updates.pop("output_names", self._output_names),
             units=updates.pop("units", self._units),
@@ -1281,6 +1311,13 @@ class Dataset(_ImmutableModelBase):
                 message=f"Argumentos desconhecidos em Dataset.with_revision: {sorted(updates.keys())}",
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            cls_name="Dataset",
+        )
+        kwargs["revision"] = new_rev
         return Dataset(**kwargs)
 
     def evolve(self, **updates: Any) -> Dataset:
@@ -1474,7 +1511,7 @@ class IdentifiedModel(_ImmutableModelBase):
 
     @property
     def covariance(self) -> np.ndarray | None:
-        return self._covariance
+        return readonly_copy(self._covariance) if self._covariance is not None else None
 
     @property
     def residual_diagnostics(self) -> dict[str, Any]:
@@ -1501,7 +1538,7 @@ class IdentifiedModel(_ImmutableModelBase):
         return self._created_at
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> IdentifiedModel:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         kwargs = dict(
             model=updates.pop("model", self._model),
             algorithm=updates.pop("algorithm", self._algorithm),
@@ -1513,7 +1550,6 @@ class IdentifiedModel(_ImmutableModelBase):
             covariance=updates.pop("covariance", self._covariance),
             residual_diagnostics=updates.pop("residual_diagnostics", self._residual_diagnostics),
             id=updates.pop("id", self._id),
-            revision=new_rev,
             provenance=updates.pop("provenance", self._provenance),
             schema_version=updates.pop("schema_version", self._schema_version),
             created_at=updates.pop("created_at", self._created_at),
@@ -1523,6 +1559,13 @@ class IdentifiedModel(_ImmutableModelBase):
                 message=f"Argumentos desconhecidos em IdentifiedModel.with_revision: {sorted(updates.keys())}",
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            cls_name="IdentifiedModel",
+        )
+        kwargs["revision"] = new_rev
         return IdentifiedModel(**kwargs)
 
     def evolve(self, **updates: Any) -> IdentifiedModel:
@@ -1865,10 +1908,10 @@ class TSStateSpace(_ImmutableModelBase):
         return tuple(
             {
                 "vertex_id": v["vertex_id"],
-                "A": v["A"],
-                "B": v["B"],
-                "C": v["C"],
-                "D": v["D"],
+                "A": readonly_copy(v["A"]),
+                "B": readonly_copy(v["B"]),
+                "C": readonly_copy(v["C"]),
+                "D": readonly_copy(v["D"]),
             }
             for v in self._vertices
         )
@@ -1926,16 +1969,15 @@ class TSStateSpace(_ImmutableModelBase):
         return self._created_at
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> TSStateSpace:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         kwargs = dict(
-            vertices=updates.pop("vertices", self.vertices),
+            vertices=updates.pop("vertices", self._vertices),
             kind=updates.pop("kind", self._kind),
             dt=updates.pop("dt", self._dt),
             membership_spec=updates.pop("membership_spec", self._membership_spec),
             premise_availability=updates.pop("premise_availability", self._premise_availability),
             domain=updates.pop("domain", self._domain),
             id=updates.pop("id", self._id),
-            revision=new_rev,
             state_names=updates.pop("state_names", self._state_names),
             input_names=updates.pop("input_names", self._input_names),
             output_names=updates.pop("output_names", self._output_names),
@@ -1949,6 +1991,13 @@ class TSStateSpace(_ImmutableModelBase):
                 message=f"Argumentos desconhecidos em TSStateSpace.with_revision: {sorted(updates.keys())}",
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            cls_name="TSStateSpace",
+        )
+        kwargs["revision"] = new_rev
         return TSStateSpace(**kwargs)
 
     def evolve(self, **updates: Any) -> TSStateSpace:
@@ -2267,7 +2316,7 @@ class FuzzySystem(_ImmutableModelBase):
         return self._created_at
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> FuzzySystem:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         kwargs = dict(
             inference_type=updates.pop("inference_type", self._inference_type),
             input_variables=updates.pop("input_variables", self._input_variables),
@@ -2278,7 +2327,6 @@ class FuzzySystem(_ImmutableModelBase):
             is_dynamic_model=updates.pop("is_dynamic_model", self._is_dynamic_model),
             dynamic_semantics=updates.pop("dynamic_semantics", self._dynamic_semantics),
             id=updates.pop("id", self._id),
-            revision=new_rev,
             provenance=updates.pop("provenance", self._provenance),
             schema_version=updates.pop("schema_version", self._schema_version),
             created_at=updates.pop("created_at", self._created_at),
@@ -2288,6 +2336,13 @@ class FuzzySystem(_ImmutableModelBase):
                 message=f"Argumentos desconhecidos em FuzzySystem.with_revision: {sorted(updates.keys())}",
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            cls_name="FuzzySystem",
+        )
+        kwargs["revision"] = new_rev
         return FuzzySystem(**kwargs)
 
     def evolve(self, **updates: Any) -> FuzzySystem:
@@ -2488,7 +2543,7 @@ class Experiment(_ImmutableModelBase):
         return self._created_at
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> Experiment:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         kwargs = dict(
             method=updates.pop("method", self._method),
             model_ref=updates.pop("model_ref", self._model_ref),
@@ -2498,7 +2553,6 @@ class Experiment(_ImmutableModelBase):
             results=updates.pop("results", self._results),
             data_source=updates.pop("data_source", self._data_source),
             id=updates.pop("id", self._id),
-            revision=new_rev,
             provenance=updates.pop("provenance", self._provenance),
             schema_version=updates.pop("schema_version", self._schema_version),
             created_at=updates.pop("created_at", self._created_at),
@@ -2508,6 +2562,13 @@ class Experiment(_ImmutableModelBase):
                 message=f"Argumentos desconhecidos em Experiment.with_revision: {sorted(updates.keys())}",
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            cls_name="Experiment",
+        )
+        kwargs["revision"] = new_rev
         return Experiment(**kwargs)
 
     def evolve(self, **updates: Any) -> Experiment:

@@ -529,3 +529,102 @@ def check_dt_compatible(dt_a: float | None, dt_b: float | None, *, label_a: str 
                 parameters={f"{label_a}_dt": dt_a, f"{label_b}_dt": dt_b},
                 next_step="Reamostre para que ambos tenham o mesmo dt.",
             )
+
+
+def readonly_copy(arr: np.ndarray) -> np.ndarray:
+    """Retorna cópia defensiva isolada e somente-leitura (write=False) de um ndarray."""
+    out = np.array(arr, copy=True, order="K")
+    out.setflags(write=False)
+    return out
+
+
+def resolve_evolution_revision(
+    current_revision: int,
+    requested_revision: int | None,
+    *,
+    raw_update_keys: frozenset[str],
+    allowed_same_revision_keys: frozenset[str] = frozenset({"provenance"}),
+    sealed_content_hash: str | None = None,
+    content_hash_provided: bool = False,
+    content_hash_value: Any = None,
+    cls_name: str = "Model",
+) -> int:
+    """Valida e resolve a revisão-alvo em with_revision(), impedindo regressão ou alteração silenciosa."""
+    if requested_revision is None:
+        return current_revision + 1
+    new_rev = validate_revision(requested_revision)
+    if new_rev < current_revision:
+        raise ValidationError(
+            message=(
+                f"{cls_name}.with_revision não permite regressão de revisão "
+                f"({new_rev} < {current_revision})."
+            ),
+            parameters={
+                "current_revision": current_revision,
+                "requested_revision": new_rev,
+            },
+            next_step="Forneça revision > self.revision ou omita revision para autoincrementar.",
+        )
+    if new_rev == current_revision:
+        if not raw_update_keys:
+            raise ValidationError(
+                message=(
+                    f"{cls_name}.with_revision com revisão igual ({new_rev}) "
+                    "exige operação explícita de metadados e não aceita atualização vazia."
+                ),
+                parameters={
+                    "current_revision": current_revision,
+                    "requested_revision": new_rev,
+                },
+                next_step="Incremente revision ou omita revision para criar uma nova revisão.",
+            )
+        if not raw_update_keys.issubset(allowed_same_revision_keys):
+            disallowed = sorted(raw_update_keys - allowed_same_revision_keys)
+            raise ValidationError(
+                message=(
+                    f"{cls_name}.with_revision na mesma revisão ({new_rev}) não permite "
+                    f"alterar campos científicos ou de identidade ({disallowed})."
+                ),
+                parameters={
+                    "current_revision": current_revision,
+                    "requested_revision": new_rev,
+                    "disallowed_fields": disallowed,
+                },
+                next_step="Incremente revision (ou omita revision) ao alterar dados científicos ou identidade.",
+            )
+        if sealed_content_hash is not None:
+            if "provenance" in raw_update_keys:
+                raise ValidationError(
+                    message=(
+                        f"{cls_name}.with_revision na mesma revisão ({new_rev}) não permite "
+                        "alterar provenance após selagem de content_hash."
+                    ),
+                    parameters={
+                        "current_revision": current_revision,
+                        "requested_revision": new_rev,
+                    },
+                )
+            if content_hash_provided and content_hash_value != sealed_content_hash:
+                raise ValidationError(
+                    message=(
+                        f"{cls_name}.with_revision na mesma revisão ({new_rev}) não permite "
+                        "substituir content_hash já selado."
+                    ),
+                    parameters={
+                        "current_revision": current_revision,
+                        "requested_revision": new_rev,
+                    },
+                )
+        if content_hash_provided and content_hash_value is None:
+            raise ValidationError(
+                message=(
+                    f"{cls_name}.with_revision na mesma revisão ({new_rev}) "
+                    "não aceita content_hash=None."
+                ),
+                parameters={
+                    "current_revision": current_revision,
+                    "requested_revision": new_rev,
+                },
+            )
+    return new_rev
+

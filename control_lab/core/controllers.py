@@ -24,6 +24,8 @@ from .tensors import (
     check_dt_compatible,
     compute_canonical_sha256,
     ensure_finite_float64,
+    readonly_copy,
+    resolve_evolution_revision,
     tensor_to_array,
     validate_name_list,
     validate_non_empty_str,
@@ -298,7 +300,7 @@ class StateFeedbackController(Controller):
 
     @property
     def K(self) -> np.ndarray:
-        return self._K
+        return readonly_copy(self._K)
 
     @property
     def n_inputs(self) -> int:
@@ -319,12 +321,17 @@ class StateFeedbackController(Controller):
     @property
     def reference_map(self) -> dict[str, Any] | np.ndarray | None:
         if isinstance(self._reference_map_raw, dict):
-            return copy.deepcopy(self._reference_map_raw)
+            copied = copy.deepcopy(self._reference_map_raw)
+            if isinstance(copied.get("matrix"), np.ndarray):
+                copied["matrix"] = readonly_copy(copied["matrix"])
+            return copied
+        if isinstance(self._reference_map_raw, np.ndarray):
+            return readonly_copy(self._reference_map_raw)
         return self._reference_map_raw
 
     @property
     def reference_matrix(self) -> np.ndarray | None:
-        return self._reference_matrix
+        return readonly_copy(self._reference_matrix) if self._reference_matrix is not None else None
 
     @property
     def reference_kind(self) -> str | None:
@@ -367,7 +374,7 @@ class StateFeedbackController(Controller):
         return self._created_at
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> StateFeedbackController:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         K_new = updates.pop("K", self._K)
         K_arr = ensure_finite_float64(K_new, ndim=2, name="K")
         n_new = K_arr.shape[1]
@@ -382,7 +389,6 @@ class StateFeedbackController(Controller):
             reference_map=updates.pop("reference_map", self._reference_map_raw),
             dt=updates.pop("dt", self._dt),
             id=updates.pop("id", self._id),
-            revision=new_rev,
             input_names=updates.pop("input_names", self._input_names),
             units=updates.pop("units", self._units),
             provenance=updates.pop("provenance", self._provenance),
@@ -395,6 +401,13 @@ class StateFeedbackController(Controller):
                 message=f"Argumentos desconhecidos em StateFeedbackController.with_revision: {sorted(updates.keys())}",
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            cls_name="StateFeedbackController",
+        )
+        kwargs["revision"] = new_rev
         return StateFeedbackController(**kwargs)
 
     def evolve(self, **updates: Any) -> StateFeedbackController:
@@ -697,23 +710,23 @@ class DynamicController(Controller):
 
     @property
     def Ac(self) -> np.ndarray:
-        return self._Ac
+        return readonly_copy(self._Ac)
 
     @property
     def Bc(self) -> np.ndarray:
-        return self._Bc
+        return readonly_copy(self._Bc)
 
     @property
     def Cc(self) -> np.ndarray:
-        return self._Cc
+        return readonly_copy(self._Cc)
 
     @property
     def Dc(self) -> np.ndarray:
-        return self._Dc
+        return readonly_copy(self._Dc)
 
     @property
     def initial_state(self) -> np.ndarray:
-        return self._initial_state
+        return readonly_copy(self._initial_state)
 
     @property
     def n_states(self) -> int:
@@ -783,7 +796,7 @@ class DynamicController(Controller):
         return self._created_at
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> DynamicController:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         Ac_new = updates.pop("Ac", self._Ac)
         Ac_arr = ensure_finite_float64(Ac_new, ndim=2, name="Ac")
         nc_new = Ac_arr.shape[0]
@@ -801,7 +814,6 @@ class DynamicController(Controller):
             ),
             dt=updates.pop("dt", self._dt),
             id=updates.pop("id", self._id),
-            revision=new_rev,
             state_names=updates.pop(
                 "state_names",
                 self._state_names if nc_new == self.n_states else None,
@@ -816,6 +828,13 @@ class DynamicController(Controller):
                 message=f"Argumentos desconhecidos em DynamicController.with_revision: {sorted(updates.keys())}",
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            cls_name="DynamicController",
+        )
+        kwargs["revision"] = new_rev
         return DynamicController(**kwargs)
 
     def evolve(self, **updates: Any) -> DynamicController:
@@ -1061,7 +1080,7 @@ class PDCController(Controller):
 
     @property
     def K_i(self) -> tuple[np.ndarray, ...]:
-        return self._K_i
+        return tuple(readonly_copy(k) for k in self._K_i)
 
     @property
     def n_rules(self) -> int:
@@ -1094,12 +1113,17 @@ class PDCController(Controller):
     @property
     def reference_map(self) -> dict[str, Any] | np.ndarray | None:
         if isinstance(self._reference_map_raw, dict):
-            return copy.deepcopy(self._reference_map_raw)
+            copied = copy.deepcopy(self._reference_map_raw)
+            if isinstance(copied.get("matrix"), np.ndarray):
+                copied["matrix"] = readonly_copy(copied["matrix"])
+            return copied
+        if isinstance(self._reference_map_raw, np.ndarray):
+            return readonly_copy(self._reference_map_raw)
         return self._reference_map_raw
 
     @property
     def reference_matrix(self) -> np.ndarray | None:
-        return self._reference_matrix
+        return readonly_copy(self._reference_matrix) if self._reference_matrix is not None else None
 
     @property
     def reference_kind(self) -> str | None:
@@ -1246,7 +1270,7 @@ class PDCController(Controller):
                 )
 
     def with_revision(self, revision: int | None = None, **updates: Any) -> PDCController:
-        new_rev = (self._revision + 1) if revision is None else validate_revision(revision)
+        raw_keys = frozenset(updates.keys())
         kwargs = dict(
             K_i=updates.pop("K_i", self._K_i),
             feedback_sign=updates.pop("feedback_sign", self._feedback_sign),
@@ -1256,7 +1280,6 @@ class PDCController(Controller):
             reference_map=updates.pop("reference_map", self._reference_map_raw),
             dt=updates.pop("dt", self._dt),
             id=updates.pop("id", self._id),
-            revision=new_rev,
             units=updates.pop("units", self._units),
             provenance=updates.pop("provenance", self._provenance),
             schema_version=updates.pop("schema_version", self._schema_version),
@@ -1267,6 +1290,13 @@ class PDCController(Controller):
                 message=f"Argumentos desconhecidos em PDCController.with_revision: {sorted(updates.keys())}",
                 parameters={"unknown_fields": sorted(updates.keys())},
             )
+        new_rev = resolve_evolution_revision(
+            self._revision,
+            revision,
+            raw_update_keys=raw_keys,
+            cls_name="PDCController",
+        )
+        kwargs["revision"] = new_rev
         return PDCController(**kwargs)
 
     def evolve(self, **updates: Any) -> PDCController:

@@ -28,7 +28,7 @@ from .controllers import (
     _validate_feedback_sign,
 )
 from .models import StateSpace, TSStateSpace, _ImmutableModelBase
-from .tensors import array_to_tensor, check_dt_compatible, ensure_finite_float64, tensor_to_array
+from .tensors import array_to_tensor, check_dt_compatible, ensure_finite_float64, readonly_copy, tensor_to_array
 
 _ALLOWED_WIRING_KEYS = frozenset({"scheme", "reference_map", "premise_estimator", "feedback_sign", "port_map"})
 
@@ -111,11 +111,17 @@ class TSClosedLoop(_ImmutableModelBase):
 
     @property
     def cross_terms(self) -> tuple[tuple[dict[str, np.ndarray], ...], ...]:
-        return self._cross_terms
+        return tuple(
+            tuple({"A": readonly_copy(cell["A"]), "C": readonly_copy(cell["C"])} for cell in row)
+            for row in self._cross_terms
+        )
 
     @property
     def input_terms(self) -> tuple[dict[str, np.ndarray], ...]:
-        return self._input_terms
+        return tuple(
+            {"B": readonly_copy(item["B"]), "D": readonly_copy(item["D"])}
+            for item in self._input_terms
+        )
 
     @property
     def input_names(self) -> tuple[str, ...]:
@@ -127,7 +133,7 @@ class TSClosedLoop(_ImmutableModelBase):
 
     def get_cross_matrix(self, i: int, j: int) -> np.ndarray:
         """Retorna A_i + sign * B_i @ K_j para o par de índices (i, j)."""
-        return self._cross_terms[i][j]["A"]
+        return readonly_copy(self._cross_terms[i][j]["A"])
 
     def evaluate_at_weights(self, h: Sequence[float]) -> StateSpace:
         """Avalia o sistema instantâneo exato sum_i sum_j h_i h_j (A_i + sign*B_i K_j)."""

@@ -32,6 +32,7 @@ from .models import (
     TSStateSpace,
     TransferFunction,
 )
+from .rpc import RPC_API_VERSION, SUPPORTED_OPERATIONS, dispatch, dispatch_rpc
 from .serialization import load_model, restore_model, serialize_model
 from .tensors import (
     array_to_tensor,
@@ -49,6 +50,8 @@ __all__ = [
     "OUTPUT_PORT_ROLES",
     "PREMISE_MODES",
     "REFERENCE_MAP_KINDS",
+    "RPC_API_VERSION",
+    "SUPPORTED_OPERATIONS",
     "TS_MODEL_KINDS",
     "Controller",
     "Dataset",
@@ -65,6 +68,8 @@ __all__ = [
     "TransferFunction",
     "array_to_tensor",
     "complex_to_pair",
+    "dispatch",
+    "dispatch_rpc",
     "ensure_finite_float64",
     "get_closed_loop_matrix",
     "interconnect",

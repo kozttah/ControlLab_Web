@@ -181,10 +181,17 @@ def strict_json_dumps(obj: Any, *, indent: int | None = None, sort_keys: bool = 
     return json.dumps(sanitized, allow_nan=False, indent=indent, sort_keys=sort_keys)
 
 
-def strict_json_loads(raw: str | bytes) -> Any:
-    """Carrega string JSON rejeitando NaN, Infinity e -Infinity."""
-    if isinstance(raw, bytes):
-        raw = raw.decode("utf-8")
+def strict_json_loads(raw: str | bytes | bytearray) -> Any:
+    """Carrega string ou bytes UTF-8 JSON rejeitando NaN, Infinity e -Infinity."""
+    if isinstance(raw, (bytes, bytearray)):
+        try:
+            raw = bytes(raw).decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValidationError(
+                message=f"Bytes UTF-8 inválidos em entrada JSON: {exc.reason}",
+                parameters={"encoding": exc.encoding, "start": exc.start, "end": exc.end},
+                next_step="Forneça conteúdo JSON codificado validamente em UTF-8.",
+            ) from exc
     if not isinstance(raw, str):
         raise ValidationError(
             message=f"Conteúdo JSON deve ser str ou bytes, recebido {type(raw).__name__}",

@@ -10,7 +10,7 @@
     "escalation_model": "orchestrator-argon",
     "history": {
       "2026-11-13": 6,
-      "2026-11-14": 6
+      "2026-11-14": 7
     }
   },
   "audit_reference": {
@@ -173,8 +173,15 @@
         "T-IO-01",
         "T-IO-02"
       ],
-      "status": "PENDING",
-      "f9_review": "pending"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "cpython_local_only",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F7-RPC-BRIDGE",
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-CORE-RPC.md"
     },
     {
       "wp_id": "WP-AUDIT-FIX-F7-RPC-BRIDGE",

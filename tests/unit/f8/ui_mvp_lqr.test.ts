@@ -8,6 +8,7 @@ import {
   ControlLabBridgeError,
   ERROR_CATEGORIES,
   type RealTensor,
+  type CapabilityDescriptor,
 } from "../../../web/bridge/protocol.ts";
 import { MockWorkerAdapter } from "../../../web/bridge/mock_adapter.ts";
 import { PyodideEngineClient } from "../../../web/bridge/pyodide_client.ts";
@@ -34,6 +35,7 @@ import {
 import {
   PROJECT_TAB_IDS,
   ToolDescriptorRenderer,
+  resolveEffectiveMaturity,
   type ToolDescriptor,
 } from "../../../web/app/tool_descriptor.ts";
 import {
@@ -67,7 +69,7 @@ import {
   type CanonicalStateSpaceModel,
 } from "../../../web/features/lqr_workspace.ts";
 import { ProjectTabsController } from "../../../web/features/project_tabs.ts";
-import { mountControlLabApp } from "../../../web/app/main.ts";
+import { mountControlLabApp, registerControlLabServiceWorker, resolveBrowserRuntimeAssets } from "../../../web/app/main.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -172,16 +174,16 @@ function createMockSetup(options?: { latencyMs?: number }) {
   const client = new MockWorkerAdapter({
     store,
     fixtures: loaded.fixturesMap,
-    simulatedLatencyMs: options?.latencyMs ?? 0,
+    latencyMs: options?.latencyMs ?? 0,
   });
   return { loaded, store, client };
 }
 
 // ---------------------------------------------------------------------------
-// 1. Teste Normativo T-UI-01: Arraste a 60 FPS (Fast-Preview) vs Commit Python
+// 1. T-UI-01 parcial Node/Mock: custo local de preview vs commit de fixtures
 // ---------------------------------------------------------------------------
 
-test("T-UI-01 (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava em IndexedDB nem libera exportação; pointerup exige pending_commit e comita resultado final correto", async () => {
+test("T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava em IndexedDB nem libera exportação; pointerup exige pending_commit e comita fixture, sem prova Wasm", async () => {
   const { loaded, store, client } = createMockSetup({ latencyMs: 15 });
   await client.init();
 
@@ -201,10 +203,11 @@ test("T-UI-01 (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava 
     });
     const lqr = shell.getLqrWorkspace();
 
-    // Commit inicial autoritativo (revisão 1)
+    // Commit da fixture Mock (revisão 1); não executa Python.
     const initialCommitted = await lqr.commitCurrentDesign();
     assert.ok(initialCommitted !== null);
     assert.equal(initialCommitted.project_revision, 1);
+    assert.equal(initialCommitted.provenance.algorithm, "mock.certified_fixture.care");
     assert.deepEqual(initialCommitted.K?.data, [2.0, 3.0]);
     assert.equal(lqr.isPendingCommit(), false);
     assert.equal(lqr.canExport().allowed, true);
@@ -346,78 +349,23 @@ test("T-UI-01 (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava 
 });
 
 // ---------------------------------------------------------------------------
-// 2. Paridade Gate G-0C: MockWorkerAdapter vs PyodideEngineClient
+// 2. Falha fechada sem transporte: Node, sem prova de Gate G-0C/Wasm.
 // ---------------------------------------------------------------------------
 
-test("Gate G-0C Paridade: LqrWorkspaceController + ControlLabShell convergem entre MockWorkerAdapter e PyodideEngineClient", async () => {
-  const { loaded, store: mockStore, client: mockClient } = createMockSetup();
-  const pyStore = new IndexedDBProjectStore({
-    idbFactory: new InMemoryIDBFactory(),
-    dbName: "f8_parity_py",
-  });
-  const pyClient = new PyodideEngineClient({ store: pyStore });
-
-  await Promise.all([mockClient.init(), pyClient.init()]);
-
+test("UI Node: Pyodide sem worker explícito falha e não permite commit/exportação", async () => {
+  const store = new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory(), dbName: "f8_no_worker" });
+  const client = new PyodideEngineClient({ store });
+  const shell = new ControlLabShell({ client, project_id: "no-worker" });
   try {
-    const f02Mock = buildPlantFromFixtureJson(loaded.bCare02Raw, "plant-parity");
-    const f02Py = buildPlantFromFixtureJson(loaded.bCare02Raw, "plant-parity");
-
-    const mockShell = new ControlLabShell({
-      client: mockClient,
-      project_id: "proj-g0c",
-      lqrWorkspace: new LqrWorkspaceController({
-        client: mockClient,
-        project_id: "proj-g0c",
-        plant: f02Mock.plant,
-        Q: f02Mock.Q,
-        R: f02Mock.R,
-        x0: f02Mock.x0,
-      }),
-    });
-    const pyShell = new ControlLabShell({
-      client: pyClient,
-      project_id: "proj-g0c",
-      lqrWorkspace: new LqrWorkspaceController({
-        client: pyClient,
-        project_id: "proj-g0c",
-        plant: f02Py.plant,
-        Q: f02Py.Q,
-        R: f02Py.R,
-        x0: f02Py.x0,
-      }),
-    });
-
-    mockShell.getLqrWorkspace().pointerDown("slider-q");
-    mockShell.getLqrWorkspace().pointerMove({ qScale: 1.0 });
-    pyShell.getLqrWorkspace().pointerDown("slider-q");
-    pyShell.getLqrWorkspace().pointerMove({ qScale: 1.0 });
-
-    const [resMock, resPy] = await Promise.all([
-      mockShell.getLqrWorkspace().pointerUp(),
-      pyShell.getLqrWorkspace().pointerUp(),
-    ]);
-
-    assert.ok(resMock !== null && resPy !== null);
-    assert.deepEqual(resMock.K, resPy.K);
-    assert.deepEqual(resMock.P, resPy.P);
-    assert.deepEqual(resMock.closed_loop_poles, resPy.closed_loop_poles);
-    assert.equal(resMock.optimal_cost, resPy.optimal_cost);
-    assert.equal(resMock.controller_kind, resPy.controller_kind);
-    assert.equal(resMock.feedback_sign, resPy.feedback_sign);
-
-    const mockExport = await mockShell.exportCtrlLab();
-    const pyExport = await pyShell.exportCtrlLab();
-    assert.equal(mockExport.portable_snapshot.project_revision, 1);
-    assert.equal(pyExport.portable_snapshot.project_revision, 1);
-
-    mockShell.dispose();
-    pyShell.dispose();
+    await assert.rejects(() => client.init(), (err: unknown) =>
+      err instanceof ControlLabBridgeError && err.code === "SOLVER_UNAVAILABLE");
+    assert.equal(await shell.getLqrWorkspace().commitCurrentDesign(), null);
+    assert.equal(shell.getLqrWorkspace().getCommittedSnapshot(), null);
+    assert.equal(shell.getLqrWorkspace().canExport().allowed, false);
+    assert.equal(client.getCapabilities().offline_ready, false);
+    assert.equal((await store.getProject("no-worker"))?.committed_revision ?? 0, 0);
   } finally {
-    mockClient.dispose();
-    pyClient.dispose();
-    mockStore.close();
-    pyStore.close();
+    shell.dispose(); client.dispose(); store.close();
   }
 });
 
@@ -618,6 +566,73 @@ test("ToolDescriptor: descoberta dinâmica sem alterar roteamento global e selos
     client.dispose();
     store.close();
   }
+});
+
+test("test_tool_descriptor_unlisted_operation_and_typecheck", async () => {
+  const { client, store } = createMockSetup();
+  try {
+    await client.init();
+    const caps = client.getCapabilities();
+    const tabs = new ProjectTabsController({ client });
+    const descriptor = tabs.getRegistry().get("statespace.design_lqr");
+    assert.ok(descriptor);
+    assert.equal(descriptor.maturity, "beta");
+    assert.equal(caps.offline_ready, false);
+    assert.equal(resolveEffectiveMaturity(descriptor, null).available, false);
+    const omitted = { ...caps, operations: caps.operations.filter((op) => op !== descriptor.operation) };
+    // Mesmo com mapa de maturidade aparentemente utilizável, lista de operações é obrigatória.
+    for (const maturity of ["stable", "beta", "experimental", "unavailable_wasm"] as const) {
+      const unlisted: CapabilityDescriptor = { ...omitted, maturity: { ...omitted.maturity, [descriptor.operation]: maturity } };
+      assert.equal(resolveEffectiveMaturity(descriptor, unlisted).available, false);
+      const vm = new ToolDescriptorRenderer().render(descriptor, { capabilities: unlisted });
+      assert.equal(vm.canExecute, false);
+    }
+    assert.equal(resolveEffectiveMaturity(descriptor, caps).available, true);
+  } finally { client.dispose(); store.close(); }
+});
+
+test("UI Node/adapter explícito: resposta inconclusive não vira snapshot nem libera exportação", async () => {
+  const { client, store } = createMockSetup();
+  await client.init();
+  client.execute = async (request) => ({
+    api_version: request.api_version, request_id: request.request_id,
+    project_id: request.project_id, project_revision: request.project_revision,
+    status: "inconclusive", result: {}, diagnostics: { committed: false },
+    assumptions: {}, provenance: { algorithm: "test.inconclusive_adapter", lib_versions: {} },
+    warnings: ["Sem certificado"], error: null,
+  });
+  const shell = new ControlLabShell({ client, project_id: "inconclusive-ui" });
+  try {
+    assert.equal(await shell.getLqrWorkspace().commitCurrentDesign(), null);
+    assert.equal(shell.getLqrWorkspace().isPendingCommit(), false);
+    assert.equal(shell.getLqrWorkspace().getCommittedSnapshot(), null);
+    assert.equal(shell.getLqrWorkspace().canExport().allowed, false);
+    assert.equal(shell.getLqrWorkspace().getLastError()?.code, "VALIDATION_ERROR");
+    assert.throws(() => shell.exportGains(), ControlLabBridgeError);
+    assert.equal((await store.getProject("inconclusive-ui"))?.committed_revision ?? 0, 0);
+    assert.equal((await store.listObjects("inconclusive-ui")).length, 0);
+  } finally { shell.dispose(); client.dispose(); store.close(); }
+});
+
+test("Bootstrap Node: contrato de URLs de build e registro SW module, sem prova offline", async () => {
+  const calls: { url: string | URL; options?: RegistrationOptions }[] = [];
+  const registration = {} as ServiceWorkerRegistration;
+  const assets = resolveBrowserRuntimeAssets("https://example.org/ControlLab/app/main.js");
+  const result = await registerControlLabServiceWorker({
+    async register(url, options) { calls.push({ url, options }); return registration; },
+  }, assets);
+  assert.equal(result, registration);
+  assert.deepEqual(calls, [{ url: "https://example.org/ControlLab/service_worker.js", options: { type: "module", scope: "https://example.org/ControlLab/", updateViaCache: "none" } }]);
+  assert.equal(await registerControlLabServiceWorker(undefined), null);
+  await assert.rejects(() => registerControlLabServiceWorker({ async register() { throw new Error("registration failed"); } }));
+  assert.equal(assets.workerUrl, "https://example.org/ControlLab/worker/pyodide_worker.js");
+  assert.equal(assets.pyodideIndexUrl, "https://example.org/ControlLab/pyodide/");
+  assert.equal(assets.controlLabWheel, "https://example.org/ControlLab/wheels/control_lab-1.0.0-py3-none-any.whl");
+  const mainSource = fs.readFileSync(path.join(REPO_ROOT, "web/app/main.ts"), "utf8");
+  assert.ok(mainSource.includes("workerUrl: options?.workerUrl ?? BROWSER_RUNTIME_ASSETS.workerUrl"));
+  const html = fs.readFileSync(path.join(REPO_ROOT, "web/app/index.html"), "utf8");
+  assert.ok(html.includes('href="./app/styles.css"'));
+  assert.ok(html.includes('src="./app/main.js"'));
 });
 
 // ---------------------------------------------------------------------------
@@ -870,7 +885,7 @@ test("WCAG 2.2 AA: contraste (>=4.5:1 / >=3.0:1), toque >=44px, teclado, FocusRe
     const report = shell.buildScientificReport();
     assert.equal(report.project_id, "proj-r27");
     assert.equal(report.model_revision, 1);
-    assert.equal(report.algorithm, "scipy.linalg.solve_continuous_are");
+    assert.equal(report.algorithm, "mock.certified_fixture.care");
     assert.equal(report.series_semantics, "numeric_verified");
     assert.ok("care_residual_rel" in report.residuals);
     assert.ok("numpy" in report.lib_versions);
@@ -1708,7 +1723,7 @@ test("F8-EXT-05: mountControlLabApp renderiza tabela temporal, painel R-27, comp
     commitBtn.dispatchEvent("click");
     await new Promise((r) => setTimeout(r, 40));
 
-    assert.ok(diagPanel._innerHTML.includes("scipy.linalg.solve_continuous_are"));
+    assert.ok(diagPanel._innerHTML.includes("mock.certified_fixture.care"));
     assert.ok(pzTableSlot._innerHTML.includes("<table"));
     assert.ok(timeTableSlot._innerHTML.includes("Sem trajetória temporal comitada."));
 

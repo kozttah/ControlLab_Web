@@ -239,12 +239,9 @@ export function resolveEffectiveMaturity(
   if (!capabilities) {
     return {
       maturity: descriptor.maturity,
-      available: descriptor.maturity !== "unavailable_wasm",
+      available: false,
       badgeLabel: getMaturityBadgeLabel(descriptor.maturity),
-      reason:
-        descriptor.maturity === "unavailable_wasm"
-          ? "Recurso indisponível no runtime WASM selecionado."
-          : undefined,
+      reason: "Capacidades do motor ainda não verificadas.",
     };
   }
 
@@ -266,7 +263,7 @@ export function resolveEffectiveMaturity(
   }
 
   // 2. Verifica mapa de maturidade por operação no CapabilityDescriptor
-  const capMaturity = capabilities.maturity[descriptor.operation];
+  const capMaturity: MaturityLevel | undefined = capabilities.maturity[descriptor.operation];
   if (capMaturity === "unavailable_wasm") {
     return {
       maturity: "unavailable_wasm",
@@ -280,22 +277,20 @@ export function resolveEffectiveMaturity(
 
   // 3. Verifica se o runtime conhece a operação quando capability explicitamente lista operações
   const isListed = capabilities.operations.includes(descriptor.operation);
-  if (!isListed && effectiveMaturity === "unavailable_wasm") {
+  if (!isListed) {
     return {
-      maturity: "unavailable_wasm",
+      maturity: effectiveMaturity,
       available: false,
-      badgeLabel: getMaturityBadgeLabel("unavailable_wasm"),
+      badgeLabel: getMaturityBadgeLabel(effectiveMaturity),
       reason: `Operação '${descriptor.operation}' não suportada no runtime '${capabilities.runtime_id}'.`,
     };
   }
 
   return {
     maturity: effectiveMaturity,
-    available: effectiveMaturity !== "unavailable_wasm",
+    available: true,
     badgeLabel: getMaturityBadgeLabel(effectiveMaturity),
-    reason: !isListed
-      ? `Operação '${descriptor.operation}' aguardando implementação no motor '${capabilities.engine_kind}' (catálogo declarativo ativo).`
-      : undefined,
+    reason: undefined,
   };
 }
 

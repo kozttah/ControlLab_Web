@@ -374,8 +374,12 @@
       "normative_tests": [
         "T-UI-01"
       ],
-      "status": "PENDING",
-      "f9_review": "pending"
+      "status": "BLOCKED_NEEDS_ARGON",
+      "f9_review": "changes_requested",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F8-TS-UI.md",
+      "work_branch": "work/wp-audit-fix-f8-ts-ui-blocked-20261114",
+      "acceptance_attempts": 3,
+      "blocked_reason": "AGENTS.md §3.7: three failed acceptance attempts; last run typecheck PASS, 43/44 tests PASS. Legacy Python-import regex matches the control_lab wheel URL. Independent F9 review remains incomplete."
     },
     {
       "wp_id": "WP-AUDIT-FIX-F9-BUILD-CI",

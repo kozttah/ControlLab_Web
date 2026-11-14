@@ -38,6 +38,31 @@ export interface MountControlLabOptions {
   engineMode?: "pyodide" | "mock";
   client?: ControlLabEngineClient;
   project_id?: string;
+  workerUrl?: string | URL;
+}
+
+// Build F9 preserva app/main.js relativo à raiz publicada, inclusive sob prefixos.
+export function resolveBrowserRuntimeAssets(moduleUrl: string) {
+  const base = new URL("../", moduleUrl);
+  return Object.freeze({
+    workerUrl: new URL("worker/pyodide_worker.js", base).href,
+    serviceWorkerUrl: new URL("service_worker.js", base).href,
+    serviceWorkerScope: base.href,
+    pyodideIndexUrl: new URL("pyodide/", base).href,
+    controlLabWheel: new URL("wheels/control_lab-1.0.0-py3-none-any.whl", base).href,
+  });
+}
+export const BROWSER_RUNTIME_ASSETS = resolveBrowserRuntimeAssets(import.meta.url);
+
+/** Registro não é prova de cache completo nem de cálculo offline (G-0A/G-0C pendentes). */
+export async function registerControlLabServiceWorker(
+  serviceWorker: Pick<ServiceWorkerContainer, "register"> | undefined,
+  assets = BROWSER_RUNTIME_ASSETS,
+): Promise<ServiceWorkerRegistration | null> {
+  if (!serviceWorker) return null;
+  return serviceWorker.register(assets.serviceWorkerUrl, {
+    type: "module", scope: assets.serviceWorkerScope, updateViaCache: "none",
+  });
 }
 
 export interface MountedControlLabApp {
@@ -77,7 +102,13 @@ export function mountControlLabApp(
     options?.client ??
     (options?.engineMode === "mock"
       ? new MockWorkerAdapter()
-      : new PyodideEngineClient());
+      : new PyodideEngineClient({
+          workerUrl: options?.workerUrl ?? BROWSER_RUNTIME_ASSETS.workerUrl,
+          initOptions: {
+            indexURL: BROWSER_RUNTIME_ASSETS.pyodideIndexUrl,
+            packages: ["numpy", "scipy", BROWSER_RUNTIME_ASSETS.controlLabWheel],
+          },
+        }));
 
   const shell = new ControlLabShell({
     client,
@@ -87,6 +118,7 @@ export function mountControlLabApp(
   const tabsCtrl = shell.getTabsController();
   const doc = container.ownerDocument;
 
+  let serviceWorkerStatus = "cache não verificado";
   let dragStartQScale = 1.0;
   let lastExportPayload: ExportModalPayload | null = null;
   let lastToolsHtmlKey = "";
@@ -255,7 +287,8 @@ export function mountControlLabApp(
 
     if (engineBadgeEl) {
       engineBadgeEl.setAttribute("data-engine-state", engineState);
-      engineBadgeEl.textContent = `Motor: ${engineState}`;
+      const caps = client.getCapabilities();
+      engineBadgeEl.textContent = `Motor: ${engineState} | ${caps.engine_kind === "mock" ? "Mock de fixtures (beta)" : "Pyodide (beta; gates Web pendentes)"} | offline não verificado (${serviceWorkerStatus})`;
     }
     if (revSummaryEl) {
       revSummaryEl.textContent = `Rev. Projeto: ${lqr.getProjectRevision()} | Rev. Modelo: ${lqr.getPlant().revision}`;
@@ -800,7 +833,23 @@ export function mountControlLabApp(
   });
 
   render();
-  void client.init().catch(() => undefined);
+  void client.init().catch((err: unknown) => {
+    shell.getAnnouncer().announce(
+      `Motor indisponível: ${err instanceof Error ? err.message : String(err)}`,
+      "assertive", "error",
+    );
+    render();
+  });
+  if (typeof navigator !== "undefined" && options?.engineMode !== "mock" && !options?.client) {
+    void registerControlLabServiceWorker(navigator.serviceWorker).then((registration) => {
+      serviceWorkerStatus = registration ? "SW registrado; cache não verificado" : "SW indisponível";
+      render();
+    }).catch(() => {
+      serviceWorkerStatus = "falha ao registrar SW";
+      shell.getAnnouncer().announce("Falha ao registrar cache offline; cálculo offline não verificado.", "polite", "status");
+      render();
+    });
+  }
 
   return {
     shell,

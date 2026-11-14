@@ -1142,10 +1142,14 @@ export class LqrWorkspaceController {
       this.pendingCommit = false;
       this.inFlightRequestId = null;
 
-      if (resp.status === "failure") {
-        this.lastError = resp.error;
+      if (resp.status === "failure" || resp.status === "inconclusive" ||
+          !resp.result || resp.diagnostics.committed !== true) {
+        this.lastError = resp.error ?? {
+          code: "VALIDATION_ERROR",
+          message: "Resultado LQR inconclusivo ou sem confirmação de commit; exportação não autorizada.",
+        };
         this.announcer.announce(
-          `Erro no cálculo LQR [${resp.error?.code ?? "INTERNAL_ERROR"}]: ${resp.error?.message ?? "Falha desconhecida."}`,
+          `Erro no cálculo LQR [${this.lastError.code}]: ${this.lastError.message}`,
           "assertive",
           "error",
         );

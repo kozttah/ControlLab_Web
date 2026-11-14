@@ -360,8 +360,11 @@ def test_golden_fixtures_checksums_and_schema(
         digest, fname = line.split(None, 1)
         entries[fname.strip()] = digest
 
-    expected_files = {"B-CARE-02.json", "B-CARE-12x3.json", "B-SDP-A-D.json"}
-    assert expected_files.issubset(set(entries.keys()))
+    expected_files = {
+        "B-CARE-02.json", "B-CARE-12x3.json", "B-SDP-A-D.json",
+        "B-DARE-12x3.json", "B-ARX-PRBS.json", "B-MIMO-2x2.json", "B-PVM-LQR.json",
+    }
+    assert expected_files == set(entries.keys())
 
     for fname, expected_digest in entries.items():
         fpath = FIXTURES_DIR / fname

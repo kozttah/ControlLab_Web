@@ -1,0 +1,191 @@
+{
+  "assets": [
+    {
+      "path": "pyodide/micropip-0.8.0-py3-none-any.whl",
+      "sha256": "b496f99fdcc46fcce8c41f3f5ecba5b368f582ce01b3501cd3f8670cb0039398",
+      "size": 47948,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/micropip-0.8.0-py3-none-any.whl"
+    },
+    {
+      "path": "pyodide/numpy-2.0.2-cp312-cp312-pyodide_2024_0_wasm32.whl",
+      "sha256": "d9cc75a959bbfb14efe05e26ca04cb2c85acbdad8b0a07a1c0140c4b820b4eec",
+      "size": 3106119,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/numpy-2.0.2-cp312-cp312-pyodide_2024_0_wasm32.whl"
+    },
+    {
+      "path": "pyodide/openblas-0.3.26.zip",
+      "sha256": "779255bf4fe1fc8fb529b663acfa3b8dbe4e2e922f0b6e531b84af78a44526e7",
+      "size": 6117592,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/openblas-0.3.26.zip"
+    },
+    {
+      "path": "pyodide/packaging-24.2-py3-none-any.whl",
+      "sha256": "8702ed5471ec290c11d7b7792d70159ecb47b0dc476a5606acd891609a9ff7d0",
+      "size": 71930,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/packaging-24.2-py3-none-any.whl"
+    },
+    {
+      "path": "pyodide/pyodide-lock.json",
+      "sha256": "be1807745da93daa09d360b109c17a0e526e74d664d1f1b9870aafcce98ce426",
+      "size": 112205,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide-lock.json"
+    },
+    {
+      "path": "pyodide/pyodide.asm.js",
+      "sha256": "3a889f073e628c2196c705b42fa0e955ba2e25c034b1e3dd589c35be675bc01b",
+      "size": 1253804,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.asm.js"
+    },
+    {
+      "path": "pyodide/pyodide.asm.wasm",
+      "sha256": "f7fefe563134714a17abd65516d94960e8dbd96fe6778a7a842947fc9686b3a1",
+      "size": 10103326,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.asm.wasm"
+    },
+    {
+      "path": "pyodide/pyodide.js",
+      "sha256": "7fdbe66e53f68f6a4e93c295a667371759be093d2bd402bb44545514584039b6",
+      "size": 14928,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js"
+    },
+    {
+      "path": "pyodide/pyodide.mjs",
+      "sha256": "6bc4d7b4f6308c4bacd3aa784d7471ead9bf45f239aa5eb431815d6f1cffe58e",
+      "size": 13946,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.mjs"
+    },
+    {
+      "path": "pyodide/python_stdlib.zip",
+      "sha256": "6030964967e447c887abc46c5f0967c55688644d759496de82a3ef09f49f5cba",
+      "size": 2358894,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/python_stdlib.zip"
+    },
+    {
+      "path": "pyodide/scipy-1.14.1-cp312-cp312-pyodide_2024_0_wasm32.whl",
+      "sha256": "4f1a0684ce8c2f91a985fbd4ecfefc186b4ff8494c0a28556c210ea00899b233",
+      "size": 13477452,
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/scipy-1.14.1-cp312-cp312-pyodide_2024_0_wasm32.whl"
+    }
+  ],
+  "components": [
+    {
+      "license": "NOASSERTION",
+      "name": "pyodide",
+      "source": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/",
+      "version": "0.27.5"
+    },
+    {
+      "license": "NOASSERTION",
+      "name": "micropip",
+      "source": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/micropip-0.8.0-py3-none-any.whl",
+      "version": "0.8.0"
+    },
+    {
+      "license": "NOASSERTION",
+      "name": "numpy",
+      "source": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/numpy-2.0.2-cp312-cp312-pyodide_2024_0_wasm32.whl",
+      "version": "2.0.2"
+    },
+    {
+      "license": "NOASSERTION",
+      "name": "openblas",
+      "source": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/openblas-0.3.26.zip",
+      "version": "0.3.26"
+    },
+    {
+      "license": "NOASSERTION",
+      "name": "packaging",
+      "source": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/packaging-24.2-py3-none-any.whl",
+      "version": "24.2"
+    },
+    {
+      "license": "NOASSERTION",
+      "name": "scipy",
+      "source": "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/scipy-1.14.1-cp312-cp312-pyodide_2024_0_wasm32.whl",
+      "version": "1.14.1"
+    }
+  ],
+  "packages": {
+    "micropip": {
+      "depends": [
+        "packaging"
+      ],
+      "file_name": "micropip-0.8.0-py3-none-any.whl",
+      "imports": [
+        "micropip"
+      ],
+      "install_dir": "site",
+      "name": "micropip",
+      "package_type": "package",
+      "sha256": "b496f99fdcc46fcce8c41f3f5ecba5b368f582ce01b3501cd3f8670cb0039398",
+      "unvendored_tests": false,
+      "version": "0.8.0"
+    },
+    "numpy": {
+      "depends": [],
+      "file_name": "numpy-2.0.2-cp312-cp312-pyodide_2024_0_wasm32.whl",
+      "imports": [
+        "numpy"
+      ],
+      "install_dir": "site",
+      "name": "numpy",
+      "package_type": "package",
+      "sha256": "d9cc75a959bbfb14efe05e26ca04cb2c85acbdad8b0a07a1c0140c4b820b4eec",
+      "unvendored_tests": true,
+      "version": "2.0.2"
+    },
+    "openblas": {
+      "depends": [],
+      "file_name": "openblas-0.3.26.zip",
+      "imports": [],
+      "install_dir": "dynlib",
+      "name": "openblas",
+      "package_type": "shared_library",
+      "sha256": "779255bf4fe1fc8fb529b663acfa3b8dbe4e2e922f0b6e531b84af78a44526e7",
+      "unvendored_tests": false,
+      "version": "0.3.26"
+    },
+    "packaging": {
+      "depends": [],
+      "file_name": "packaging-24.2-py3-none-any.whl",
+      "imports": [
+        "packaging"
+      ],
+      "install_dir": "site",
+      "name": "packaging",
+      "package_type": "package",
+      "sha256": "8702ed5471ec290c11d7b7792d70159ecb47b0dc476a5606acd891609a9ff7d0",
+      "unvendored_tests": false,
+      "version": "24.2"
+    },
+    "scipy": {
+      "depends": [
+        "numpy",
+        "openblas"
+      ],
+      "file_name": "scipy-1.14.1-cp312-cp312-pyodide_2024_0_wasm32.whl",
+      "imports": [
+        "scipy"
+      ],
+      "install_dir": "site",
+      "name": "scipy",
+      "package_type": "package",
+      "sha256": "4f1a0684ce8c2f91a985fbd4ecfefc186b4ff8494c0a28556c210ea00899b233",
+      "unvendored_tests": true,
+      "version": "1.14.1"
+    }
+  },
+  "roots": [
+    "numpy",
+    "scipy",
+    "micropip"
+  ],
+  "runtime": {
+    "abi_version": "2024_0",
+    "arch": "wasm32",
+    "platform": "emscripten_3_1_58",
+    "python": "3.12.7",
+    "version": "0.27.5"
+  },
+  "version": "0.27.5"
+}

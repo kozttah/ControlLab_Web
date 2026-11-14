@@ -10,7 +10,7 @@
     "escalation_model": "orchestrator-argon",
     "history": {
       "2026-11-13": 6,
-      "2026-11-14": 11
+      "2026-11-14": 12
     }
   },
   "audit_reference": {
@@ -431,8 +431,14 @@
         "T-MIMO-01",
         "T-PVM-01"
       ],
-      "status": "PENDING",
-      "f9_review": "pending"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "local_reproducible_static_build_and_independent_cpython_goldens_only",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-BUILD-CI.md",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F7-OFFLINE-SW",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     },
     {
       "wp_id": "WP-AUDIT-FIX-F7-OFFLINE-SW",

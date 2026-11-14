@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0,==84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -45,3 +45,11 @@ include = ["control_lab*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.mypy]
+follow_imports = "skip"
+ignore_missing_imports = true

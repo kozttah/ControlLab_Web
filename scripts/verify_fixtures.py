@@ -15,6 +15,10 @@ ROOT = Path(__file__).resolve().parent.parent
 SCHEMAS_DIR = ROOT / "contracts" / "schemas"
 FIXTURES_DIR = ROOT / "contracts" / "fixtures"
 EXAMPLES_DIR = ROOT / "contracts" / "examples"
+REQUIRED_FIXTURES = {
+    "B-CARE-02.json", "B-CARE-12x3.json", "B-SDP-A-D.json",
+    "B-DARE-12x3.json", "B-ARX-PRBS.json", "B-MIMO-2x2.json", "B-PVM-LQR.json",
+}
 
 
 def build_schema_registry() -> tuple[Registry, dict[str, dict]]:
@@ -50,6 +54,10 @@ def verify_checksums() -> list[str]:
             continue
         expected_hash, filename = line.split(None, 1)
         filename = filename.strip()
+        if filename not in REQUIRED_FIXTURES:
+            raise ValueError(f"Fixture inesperada no manifesto: {filename}")
+        if filename in verified:
+            raise ValueError(f"Fixture duplicada no manifesto: {filename}")
         target = FIXTURES_DIR / filename
         if not target.exists():
             raise FileNotFoundError(f"Fixture listada no checksum não encontrada: {target}")
@@ -59,6 +67,11 @@ def verify_checksums() -> list[str]:
                 f"SHA-256 mismatch em {filename}: esperado {expected_hash}, obtido {actual_hash}"
             )
         verified.append(filename)
+    if set(verified) != REQUIRED_FIXTURES:
+        raise ValueError(f"Conjunto incompleto de fixtures: ausentes {sorted(REQUIRED_FIXTURES - set(verified))}")
+    present = {path.name for path in FIXTURES_DIR.glob("*.json")}
+    if present != REQUIRED_FIXTURES:
+        raise ValueError(f"Fixtures fora do manifesto: {sorted(present ^ REQUIRED_FIXTURES)}")
     return verified
 
 

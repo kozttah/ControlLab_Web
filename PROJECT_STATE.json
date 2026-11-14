@@ -10,7 +10,7 @@
     "escalation_model": "orchestrator-argon",
     "history": {
       "2026-11-13": 6,
-      "2026-11-14": 1
+      "2026-11-14": 2
     }
   },
   "gates": {
@@ -248,8 +248,8 @@
         "T-MIMO-01",
         "T-MIMO-02"
       ],
-      "status": "PENDING",
-      "f9_review": "PENDING"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted"
     },
     {
       "wp_id": "WP-08-F4-IDENTIFICATION",

@@ -9,7 +9,8 @@
     "default_model": "gemini-4-hydrogen-high",
     "escalation_model": "orchestrator-argon",
     "history": {
-      "2026-11-13": 6
+      "2026-11-13": 6,
+      "2026-11-14": 1
     }
   },
   "gates": {
@@ -221,8 +222,8 @@
       "normative_tests": [
         "T-UI-01"
       ],
-      "status": "PENDING",
-      "f9_review": "PENDING"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted"
     },
     {
       "wp_id": "WP-07-F3-FREQ-SISO-MIMO",

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline';" />
+  <title>ControlLab Web — Projeto e Verificação de Sistemas de Controle</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#controllab-main">Ir para o conteúdo principal</a>
+  <div id="controllab-app" class="controllab-shell" data-theme="standard_aa">
+    <noscript>
+      <p role="alert">ControlLab Web requer JavaScript/WebAssembly habilitado no navegador (execução 100% local).</p>
+    </noscript>
+  </div>
+  <script type="module" src="/app/main.js"></script>
+</body>
+</html>

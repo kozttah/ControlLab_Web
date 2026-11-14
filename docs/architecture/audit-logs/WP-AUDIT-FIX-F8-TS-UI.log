@@ -52,3 +52,232 @@ Seis sondas F9 foram escritas em tests/oracles/ui_remediation_independent.test.m
 Auditoria F9 incompleta; required_backend e indicação de persistência inconclusive F7 seguem para verificação/triagem.
 Nenhum quarto ensaio, nenhum aceite F8, nenhum fechamento de gate, nenhum record-task de F8.
 Ciclo 1 F5 aceito; ciclo 2 F8 bloqueado; ciclo 3 F9-BUILD-CI não iniciado.
+
+=== RETOMADA AUTORIZADA F8 — auditoria independente 2026-11-14 UTC ===
+Histórico acima preservado; usuário dispensou limite de 3 tentativas e orçamento para concluir F8 e terceiro ciclo, sem modificar política. IMPLEMENTATION_READY recebido de f8_resume; produtor congelou código.
+Escopo: UI Node + F7 real com IDB em memória e respostas controladas; CPython regressão. Sem navegador/Wasm/offline/60 FPS comprovados.
+Baseline SHA256 31 arquivos congelados (18 contracts, 4 oráculos aceitos, F7): todos preservados.
+{
+  "contracts/examples/pvm_skeleton.json": "ba47c103c7705d1d6201c87d8fe776f9e41ad5ff5d1f1ddcb36987a51d2dd2e7",
+  "contracts/examples/rpc_request_lqr.json": "994a93d0be1f9b14ac02bdf5bd01cfab4acad01e2ceca53f01a9daade0a3c548",
+  "contracts/examples/rpc_response_lqr.json": "32022341b3b2bf82592799ea2fa9d7c68a8014a7e4e5730fe3e1ddd90f7a063b",
+  "contracts/examples/statespace_example.json": "bd2a81a1492e49b55a48d3508a7fd4f447e13bc5f8ebcf8a4d1be0b1f43fb29b",
+  "contracts/fixtures/B-CARE-02.json": "f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f",
+  "contracts/fixtures/B-CARE-12x3.json": "0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4",
+  "contracts/fixtures/B-SDP-A-D.json": "4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076",
+  "contracts/fixtures/checksums.sha256": "df4b383e36fd191457914e8c29b880c841d497248ccf4ab821433038bd47ce56",
+  "contracts/schemas/controller.schema.json": "90d43ca117d3d01c25e9a1db3094fae6d21ff999321db1a2e0f9236fae775f92",
+  "contracts/schemas/ctrlab_manifest.schema.json": "034d30946d05882faef0f27662023831638b9ccf0c16643178129ec890ca1575",
+  "contracts/schemas/golden_fixture.schema.json": "7026ff72f5ded938a794e85c69687e2d32098f2a5ff7aa657a15246c0e5ea36e",
+  "contracts/schemas/pvm.schema.json": "0a5f5ec4b0ca0d9af9c8cf9ec8ad2f18a5aedf1b19c5553ec53ffbcf781bb3c9",
+  "contracts/schemas/result.schema.json": "51f2c3bf1d2730fa4edf05cf81b192b20b4a237c95fb5a6b9007ef15bf825948",
+  "contracts/schemas/rpc_request.schema.json": "0b86d7087e280adae7bccfbdfb81408e74b22293c5b71776785c8f6b728c9897",
+  "contracts/schemas/rpc_response.schema.json": "7440277996c69364f14e8337635dbd38ef397aec6276e24083b2c914313b9227",
+  "contracts/schemas/state_space.schema.json": "973c4fdd82a3666f791a066360495865029a72f0c95f623524ff57a2e53d8788",
+  "contracts/schemas/tensor.schema.json": "a7d2d745f3ed9b29b52cf8bc76f1a280e23124118cc3cd7e16c476c340183f31",
+  "contracts/schemas/ts_state_space.schema.json": "f48b245cfeb91c30162a2d09ad94dfcd4c4b3804da422c1ce96b3e92feb2a332",
+  "tests/oracles/rpc_bridge_cpython.test.mjs": "2999274053a4844030d58c5bcc652484eb9ea0eb704194e1b868fc14b44b8d3d",
+  "tests/oracles/test_fml_remediation_independent.py": "b7fedfe8961bf8e04cf55ff2a0972b1a31c6527ad33b240a498ab465a4494e2d",
+  "tests/oracles/test_golden_fixtures.py": "9bbfffe8c45f2cd9b6ab66172dbad25dd948f4b468354c9b6d2ace52ac2846e4",
+  "tests/oracles/test_sdp_remediation_independent.py": "1fa89e1635c446da562a1919b6f7e88f220b4c5984de8517e1e8ee25cc393fcd",
+  "web/bridge/client.ts": "9e3fc341d9b80471441d6c291ddde6040840fa55569fb49ee4a9edde2d6f0d1c",
+  "web/bridge/mock_adapter.ts": "8c34058c43e8ff9ede64aec2e3001c20a9b52ccfed286fd78360fb228e7ca0c3",
+  "web/bridge/protocol.ts": "4abd3cff2698928cd1d48c14d8ca999e15b1dc72429f54b054d5f512f7ce81cf",
+  "web/bridge/pyodide_client.ts": "b750c78e6c0848e0d78f724c822606912dc8fbd837b98d9907a028b1bb44ace9",
+  "web/storage/indexeddb_store.ts": "20903d7098688edc6d16ea41072cded7178811cab4ac6dfd604b4ac956689dfd",
+  "web/worker/model_store.ts": "0aa03b37c6e1e5bd740473893ba07f5abe7cf07a8f33b842c13f9a744cf31bd8",
+  "web/worker/pyodide_worker.ts": "c21168bb0b320e2e954a9c8d67829dc892157e17204edb8b28d502debbc3ecad",
+  "web/worker/pyproxy_guard.ts": "2d212fd4483ec7be928f28d370e817e9c32164f91e3d35f8f98ea7deb0deede9",
+  "web/worker/service_worker.ts": "098c983f5073cb81cbac269a60cffee36a2412674fccdaec9600551735a1c2ac"
+}
+SO: Linux-6.18.57-x86_64-with-glibc2.41
+numpy=2.3.5
+scipy=1.17.0
+pytest=unavailable
+jsonschema=4.26.0
+clarabel=unavailable
+cvxpy=unavailable
+
+$ git rev-parse HEAD
+f3049cf7c08786541d888489d69e35693d3b1bfa
+
+[exit_code=0]
+
+$ git status --short
+ M docs/architecture/audit-logs/WP-AUDIT-FIX-F8-TS-UI.log
+ M tests/unit/f8/ui_mvp_lqr.test.ts
+ M web/app/index.html
+ M web/app/main.ts
+ M web/app/tool_descriptor.ts
+ M web/features/lqr_workspace.ts
+ M web/features/tool_catalog.ts
+?? tests/oracles/ui_remediation_independent.test.mjs
+
+[exit_code=0]
+
+$ python3 --version
+Python 3.12.14
+
+[exit_code=0]
+
+$ node --version
+v24.22.1
+
+[exit_code=0]
+
+$ tsc --version
+Version 5.8.3
+
+[exit_code=0]
+
+$ bash -c npm --prefix web run typecheck && npm --prefix web test
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> controllab-web@1.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> controllab-web@1.0.0 test
+> node ../scripts/run_web_tests.mjs
+
+[run_web_tests] Executando typecheck (all, 23 arquivo(s) TS)...
+[typecheck] PASS (all, 23 arquivo(s) TS)
+[run_web_tests] Executando 4 arquivo(s) de teste com node --test...
+✔ F7-CONTRACT-01: sha256Hex puro coincide com node:crypto e checksums.sha256 das fixtures ouro (2.338318ms)
+✔ F7-CONTRACT-02: valida exemplos normativos rpc_request_lqr.json e rpc_response_lqr.json e rejeita NaN/Infinity/versão/campos extras (1.730724ms)
+✔ F7-CONTRACT-03: todas as 12 categorias normativas de erro funcionam e são validadas pelo contrato (4.571148ms)
+✔ T-RPC-01 (MockWorkerAdapter): 25 requisições rápidas fora de ordem — apenas revisão mais recente comita no IndexedDB (63.668182ms)
+✔ T-RPC-01 unidade (MessageChannel + fixture double; sem Wasm): 24 requisições fora de ordem e sem vazamento PyProxy (66.332942ms)
+✔ F7-COALESCE-01: DebouncedRequestCoalescer consolida disparos rápidos e cancela intermediários (25.958045ms)
+✔ T-RPC-02 (MockWorkerAdapter): cancel(), terminate()/resetWorker(), ciclo recovering->ready e reidratação fiel (21.454628ms)
+✔ T-RPC-02 unidade (MessageChannel + IDB em memória + fixture double): terminate() fecha o transporte, recria WorkerModelStore vazio e reidrata snapshot do IndexedDB (26.012225ms)
+✔ F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLED e preserva Worker/PyProxy limpos (20.208975ms)
+✔ F7-SEC-UNIT: cache em memória e fetch stub exercitam política; não comprovam T-SEC-01 em browser (17.549329ms)
+✔ T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMPORT_UNTRUSTED_CODE (6.593786ms)
+✔ F7-BUFFER-01 (fixture double): transferência de ArrayBuffer via postMessage destaca original (byteLength===0), bloqueia reúso e suporta preserveSenderCopy (3.24172ms)
+✔ F7-PYPROXY-01: PyProxyRegistry e withPyProxy garantem destroy() em retorno normal, exceção e cancelamento e proíbem saída por postMessage (0.603818ms)
+✔ F7-MODELSTORE-01: WorkerModelStore implementa LRU, pinning de projeto ativo e falha RESOURCE_LIMIT antes de alocar (0.606842ms)
+✔ F7-PARITY-01 local: mock certificado versus dispatcher CPython real via bridge; não prova Pyodide/Wasm (1499.505149ms)
+✔ F7-PYPROXY-02: erro em runtime Pyodide dentro do Worker destrói PyProxy e mantém activeProxies===0 (1.172213ms)
+✔ F7-BUFFER-02 (fixture double): transporte bidirecional Worker -> Main com return_binary_buffers=true reidrata tensores K e P fielmente (1.345311ms)
+✔ F7-SUPERSEDE-TIMEOUT-01: cancel_on_supersede=true cancela revisão anterior em voo e hard_timeout_ms retorna RESOURCE_LIMIT (36.643888ms)
+✔ test_no_python_runtime_no_scientific_success: no silent MessageChannel and no commit/provenance invented (6.059151ms)
+✔ test_no_python_runtime_no_scientific_success: explicit MessageChannel without loader fails initialization (4.123161ms)
+✔ F7-PROVISION-UNIT: local wheel is loaded before core.rpc handshake; capabilities require observed dispatcher (1.23051ms)
+✔ test_unstabilizable_plant_through_real_rpc: actual CPython dispatcher through bridge returns HYPOTHESIS_VIOLATED (1391.263496ms)
+✔ F7-CPYTHON-UNIT: real dispatcher respects Q/R, x0 and revision; no fixed two-state result (2003.563616ms)
+✔ F7-SEC-ALLOWLIST: http: externo é recusado, localhost http permitido (0.63893ms)
+✔ F7-SEC-ALLOWLIST: config.allowedOrigins na mensagem init não amplia a allowlist (1.268347ms)
+✔ F7-ENTRYPOINT: sem toPy retorna erro estruturado e nunca chama runPythonAsync (2.07787ms)
+✔ F7-ENTRYPOINT: sem pyimport retorna erro estruturado sem executar código (0.673121ms)
+✔ F7-SCHEMA: protocol.ts aceita exemplos e rejeita violações dos schemas rpc_* (0.794461ms)
+✔ T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava em IndexedDB nem libera exportação; pointerup exige pending_commit e comita fixture, sem prova Wasm (113.187143ms)
+✔ UI Node: Pyodide sem worker explícito falha e não permite commit/exportação (5.395064ms)
+✔ Concorrência, cancelamento (Escape), blur, troca de aba, undo, model_revision e 12 categorias de erro (153.511224ms)
+✔ ToolDescriptor: descoberta dinâmica sem alterar roteamento global e selos stable/beta/experimental/unavailable_wasm (7.309812ms)
+✔ test_tool_descriptor_unlisted_operation_and_typecheck (1.827748ms)
+✔ UI Node/adapter explícito: resposta inconclusive não vira snapshot nem libera exportação (6.116226ms)
+✔ Bootstrap Node: contrato de URLs de build e registro SW module, sem prova offline (0.401768ms)
+✔ Overlays semânticos (exact/sufficient/heuristic/estimated) e gráficos com valores repetidos + tabela acessível (4.750215ms)
+✔ WCAG 2.2 AA: contraste (>=4.5:1 / >=3.0:1), toque >=44px, teclado, FocusRestorer, AriaLive, decimais sem mutação e relatório R-27 (3.932157ms)
+✔ UI Node: adapter F7 bruto 12x3 com ref não resolvível falha fechado antes de persistir (1.856531ms)
+✔ Guard arquitetural distingue imports Python de URLs wheel (0.32972ms)
+✔ Auditoria F8: web/{app,charts,features} não importam Python, Node globals nem duplicam síntese CARE/Riccati (2.303706ms)
+✔ F8-EXT-01: suporte explícito a m!=p (3 entradas, 4 saídas), C!=I, feedback_sign positivo, ciclo de vida e buffers transferíveis (74.972961ms)
+✔ F8-EXT-02: contraste completo WCAG 2.2 AA, ToolDescriptor HTML (<select>/number), teclado preservando Q, analyzeOpenLoop concorrente e .pvm discreto (92.41468ms)
+✔ F8-EXT-03: mountControlLabApp mantém identidade do slider durante pointermove, atualiza aria-disabled e restaura foco ao fechar modal (46.813161ms)
+✔ F8-EXT-04: aderência aos schemas (.ctrlab, StateFeedbackController, StateSpace, .pvm), contraste WCAG total, CSV alta precisão, teclado durante preview e DOM completo (27.636141ms)
+✔ F8-EXT-05: mountControlLabApp renderiza tabela temporal, painel R-27, comparador de experimentos e executa ferramenta auxiliar sem sobrescrever snapshot LQR (127.239472ms)
+✔ F8-EXT-06: B3.1 cancelDrag durante registerObject, B3.2 updateWeights invalida exportação, B3.4 x0 DIMENSION_MISMATCH, axis-ticks/chart-legend/borda 0+0j, textarea/shape_hint/simulate_lti e apply-plant/apply-weights/save-experiment em main.ts (53.815235ms)
+ℹ tests 46
+ℹ suites 0
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3509.907927
+[unit-tests] PASS (all, 4 arquivo(s) de teste)
+
+[exit_code=0]
+
+$ node --test tests/oracles/ui_remediation_independent.test.mjs tests/oracles/rpc_bridge_cpython.test.mjs
+✔ F9 independent: registered-reference bridge calls real CPython and matches frozen analytic CARE fixture (1363.061674ms)
+✔ F9 independent: unstabilizable plant through real CPython RPC never produces a controller (1321.491405ms)
+✔ F9: unlisted operations stay unavailable despite catalog/runtime maturity (0.792049ms)
+✔ F9: required backend must be explicitly available (0.164886ms)
+✔ F9: browser catalog does not claim stable before Wasm gates (0.111315ms)
+✔ F9: preview/pending/failure never authorize export or persistence (5.972362ms)
+✔ F9: preview/pending/inconclusive never authorize export or persistence (1.171394ms)
+✔ F9: root HTML entry uses distributable JS and matching stylesheet location (0.343541ms)
+✔ F9: root and GitHub-prefix runtime URLs preserve module scope (0.684279ms)
+✔ F9: real F7 storage/export observes preview, pending and failure (5.690744ms)
+✔ F9: real F7 storage/export observes preview, pending and inconclusive (1.971286ms)
+✔ F9: real F7 storage/export observes preview, pending and success (4.584756ms)
+✔ F9: real F7 storage/export observes preview, pending and invalid_success (2.74727ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2792.136142
+
+[exit_code=0]
+
+$ python3 scripts/verify_fixtures.py
+[F9-VERIFY] 10 schemas JSON Draft 2020-12 válidos.
+[F9-VERIFY] Fixture B-CARE-02.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-CARE-12x3.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-SDP-A-D.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Exemplo rpc_request_lqr.json validado contra rpc_request.schema.json.
+[F9-VERIFY] Exemplo rpc_response_lqr.json validado contra rpc_response.schema.json.
+[F9-VERIFY] Exemplo statespace_example.json validado contra state_space.schema.json.
+[F9-VERIFY] Exemplo pvm_skeleton.json validado contra pvm.schema.json.
+
+[exit_code=0]
+
+$ python3 -m pytest -q tests/oracles tests/integration/test_governance_and_ownership.py
+.............................................                            [100%]
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+45 passed, 1 warning in 2.73s
+
+[exit_code=0]
+
+$ git diff --check
+
+[exit_code=0]
+
+Correção da consulta inicial metadata (processo controlador sem PYTHONPATH): ambiente efetivo dos comandos com PYTHONPATH=testdeps confirmou Python 3.12.14; numpy 2.3.5; scipy 1.17.0; pytest 9.2.0; jsonschema 4.26.0; clarabel 0.11.1; cvxpy 1.9.3. Ausências iniciais não descrevem o ambiente de aceite.
+Manifesto final do patch auditado:
+664ea05b351010be39c28de814b23d8671dc642b96778926c4a5227cbdad7f5b  tests/unit/f8/ui_mvp_lqr.test.ts
+738ec87bb64b4604e9d0e06cbfca699e0992933e2a5af6acdaa8d784c13ab33f  web/app/index.html
+b4e2d7ce1bad0d461f70aebf0926d8c718a08b395a6162065d9e18231cb355b7  web/app/main.ts
+a57860ebf891e9ee4f3246b17afa3a23e1fe01bd9bb48dbf29e74c004dccd848  web/app/tool_descriptor.ts
+b24330a391e6a7f95d523e3626b2eea84473119b87459717d9cb78725d12a2cb  web/features/lqr_workspace.ts
+1e77a2a3436b0ad5c27f788a6f4a5f9ca17bfeb626f5ae2372cdd949f83a2ede  web/features/tool_catalog.ts
+3544ca23cca9e588c55343984aa943f647deeb7cca8c1a0ce2dca2699f9b4031  tests/oracles/ui_remediation_independent.test.mjs
+
+$ python3 -c "import importlib.metadata as m,sys; print(sys.executable); [print(p+'='+m.version(p)) for p in ['numpy','scipy','pytest','jsonschema','clarabel','cvxpy']]" [ambiente efetivo PATH/PYTHONPATH de aceite]
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3
+numpy=2.3.5
+scipy=1.17.0
+pytest=9.2.0
+jsonschema=4.26.0
+clarabel=0.11.1
+cvxpy=1.9.3
+[exit_code=0]
+
+$ python3 -c "import runpy; from pathlib import Path; m=runpy.run_path('tests/integration/test_governance_and_ownership.py'); m['_validate_accepted_dossier'](Path('docs/audits/handoffs/WP-AUDIT-FIX-F8-TS-UI.md').read_text(),'WP-AUDIT-FIX-F8-TS-UI'); print('Dossiê accepted validator PASS')"
+Dossiê accepted validator PASS
+[exit_code=0]

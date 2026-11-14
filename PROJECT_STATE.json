@@ -10,7 +10,7 @@
     "escalation_model": "orchestrator-argon",
     "history": {
       "2026-11-13": 6,
-      "2026-11-14": 10
+      "2026-11-14": 11
     }
   },
   "audit_reference": {
@@ -374,12 +374,15 @@
       "normative_tests": [
         "T-UI-01"
       ],
-      "status": "BLOCKED_NEEDS_ARGON",
-      "f9_review": "changes_requested",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
       "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F8-TS-UI.md",
-      "work_branch": "work/wp-audit-fix-f8-ts-ui-blocked-20261114",
-      "acceptance_attempts": 3,
-      "blocked_reason": "AGENTS.md §3.7: three failed acceptance attempts; last run typecheck PASS, 43/44 tests PASS. Legacy Python-import regex matches the control_lab wheel URL. Independent F9 review remains incomplete."
+      "acceptance_scope": "node_local_ui_f7_storage_controlled_and_cpython_regression_only",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F7-OFFLINE-SW",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     },
     {
       "wp_id": "WP-AUDIT-FIX-F9-BUILD-CI",

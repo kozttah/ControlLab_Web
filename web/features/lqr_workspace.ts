@@ -684,7 +684,7 @@ export class LqrWorkspaceController {
           "Exportação bloqueada: nenhum resultado científico foi confirmado ainda.",
       };
     }
-    if (this.controllerInvalidated) {
+    if (this.controllerInvalidated || this.committedSnapshot.project_revision !== this.projectRevision) {
       return {
         allowed: false,
         reason:
@@ -738,6 +738,15 @@ export class LqrWorkspaceController {
    * Edita a planta StateSpace criando nova `model_revision` imutável e invalidando
    * o controlador dependente até novo projeto autoritativo (CL-DIR-001 Seção 4.1).
    */
+  private invalidatePendingExecution(): void {
+    if (!this.pendingCommit) return;
+    const requestId = this.inFlightRequestId;
+    this.activeCommitToken += 1;
+    this.pendingCommit = false;
+    this.inFlightRequestId = null;
+    if (requestId) void this.client.cancel(requestId, { reason: "Parâmetros editados na UI" }).catch(() => undefined);
+  }
+
   public updatePlant(nextModel: CanonicalStateSpaceModel): CanonicalStateSpaceModel {
     if (this.previewState.active) {
       this.cancelPreviewOnly();
@@ -754,6 +763,7 @@ export class LqrWorkspaceController {
     const nextN = validated.matrices.A.shape[0];
     const nextM = validated.matrices.B.shape[1];
 
+    this.invalidatePendingExecution();
     this.plant = validated;
     this.plantHistory.set(validated.revision, structuredClone(validated));
 
@@ -804,6 +814,7 @@ export class LqrWorkspaceController {
     const nextSign = weights.feedbackSign ?? this.feedbackSign;
 
     this.pushUndoSnapshot();
+    this.invalidatePendingExecution();
     this.Q = nextQ;
     this.R = nextR;
     this.x0 = nextX0;
@@ -1036,7 +1047,7 @@ export class LqrWorkspaceController {
     hardTimeoutMs?: number;
     extraRpcOptions?: Record<string, unknown>;
   }): Promise<CommittedLqrSnapshot | null> {
-    this.projectRevision += 1;
+    this.projectRevision = Math.max(this.projectRevision, this.client.getCommittedRevision(this.projectId)) + 1;
     const targetRevision = this.projectRevision;
     this.latestCommitRevision = targetRevision;
     this.activeCommitToken += 1;
@@ -1044,6 +1055,8 @@ export class LqrWorkspaceController {
     const reqId = `lqr-commit-r${targetRevision}-${generateUuid()}`;
     this.inFlightRequestId = reqId;
     this.pendingCommit = true;
+    this.controllerInvalidated = this.committedSnapshot !== null;
+    this.invalidationReason = "Novo cálculo pendente; resultado anterior permanece apenas histórico.";
     this.lastError = null;
 
     this.announcer.announce(
@@ -1122,7 +1135,7 @@ export class LqrWorkspaceController {
       };
 
       const resp = await this.client.execute(request, {
-        commitOnSuccess: true,
+        commitOnSuccess: false,
         buffers,
         preserveSenderCopy: true,
       });
@@ -1139,13 +1152,17 @@ export class LqrWorkspaceController {
         return this.committedSnapshot ? structuredClone(this.committedSnapshot) : null;
       }
 
-      this.pendingCommit = false;
-      this.inFlightRequestId = null;
-
-      if (resp.status === "failure") {
-        this.lastError = resp.error;
+      if (resp.status === "failure" || resp.status === "inconclusive" ||
+          !resp.result || resp.project_revision !== targetRevision ||
+          resp.project_id !== this.projectId || resp.request_id !== reqId) {
+        this.pendingCommit = false;
+        this.inFlightRequestId = null;
+        this.lastError = resp.error ?? {
+          code: "VALIDATION_ERROR",
+          message: "Resultado LQR inconclusivo, ausente ou de revisão divergente; exportação não autorizada.",
+        };
         this.announcer.announce(
-          `Erro no cálculo LQR [${resp.error?.code ?? "INTERNAL_ERROR"}]: ${resp.error?.message ?? "Falha desconhecida."}`,
+          `Erro no cálculo LQR [${this.lastError.code}]: ${this.lastError.message}`,
           "assertive",
           "error",
         );
@@ -1162,10 +1179,14 @@ export class LqrWorkspaceController {
           ? { id: ctrlRefRaw.id, revision: ctrlRefRaw.revision }
           : null;
 
+      // Referências são válidas no contrato; resolva o objeto autoritativo pelo cliente F7.
+      const referencedController = !resObj.K && ctrlRef
+        ? await this.client.getObject(this.projectId, ctrlRef.id, ctrlRef.revision) : null;
+      const rawK = resObj.K ?? referencedController?.K;
       const parsedK =
-        isPlainObject(resObj.K) && Array.isArray(resObj.K.data)
+        isPlainObject(rawK) && Array.isArray(rawK.data)
           ? assertRealFloat64Tensor(
-              validateTensorDescriptor(resObj.K, "result.K"),
+              validateTensorDescriptor(rawK, "result.K"),
               "result.K",
             )
           : null;
@@ -1188,6 +1209,36 @@ export class LqrWorkspaceController {
           ? resObj.feedback_sign
           : this.feedbackSign;
 
+      // Validação estrutural do resultado científico antes de qualquer persistência.
+      // A UI não reexecuta a síntese nem infere sucesso de dados parciais.
+      const n = this.plant.state_names.length;
+      const m = this.plant.input_names.length;
+      if (!parsedK || parsedK.shape.length !== 2 || parsedK.shape[0] !== m || parsedK.shape[1] !== n ||
+          (parsedP !== null && (parsedP.shape.length !== 2 || parsedP.shape[0] !== n || parsedP.shape[1] !== n)) ||
+          !closedPoles || closedPoles.real.length !== n || !ctrlRef ||
+          !Number.isInteger(ctrlRef.revision) || ctrlRef.revision < 0 ||
+          resObj.feedback_sign !== this.feedbackSign) {
+        throw new ControlLabBridgeError("VALIDATION_ERROR", "Resultado LQR incompleto ou incompatível com a planta; nenhum commit autorizado.");
+      }
+      if (myToken !== this.activeCommitToken || targetRevision !== this.latestCommitRevision) return null;
+      const confirmedResponse: RpcResponse = {
+        ...resp, diagnostics: { ...resp.diagnostics, committed: true },
+      };
+      const outcome = await this.client.commitProject(this.projectId, targetRevision, {
+        request_id: reqId,
+        committed_result: confirmedResponse,
+        require_strictly_greater: true,
+        objects: [{ object_id: this.plant.id, revision: this.plant.revision,
+          kind: "StateSpace", value: structuredClone(this.plant) as unknown as Record<string, unknown> }],
+      });
+      if (myToken !== this.activeCommitToken || targetRevision !== this.latestCommitRevision ||
+          outcome.project.committed_revision !== targetRevision) {
+        this.notify();
+        return null;
+      }
+      this.pendingCommit = false;
+      this.inFlightRequestId = null;
+
       const committed: CommittedLqrSnapshot = {
         project_id: this.projectId,
         project_revision: resp.project_revision,
@@ -1209,11 +1260,11 @@ export class LqrWorkspaceController {
         closed_loop_poles: closedPoles,
         time_response: timeResp,
         assumptions: { ...resp.assumptions },
-        diagnostics: { ...resp.diagnostics },
+        diagnostics: { ...confirmedResponse.diagnostics },
         provenance: { ...resp.provenance },
         warnings: [...resp.warnings],
         status: resp.status,
-        response: resp,
+        response: confirmedResponse,
         committed_at: new Date().toISOString(),
       };
 
@@ -1221,19 +1272,6 @@ export class LqrWorkspaceController {
       this.controllerInvalidated = false;
       this.invalidationReason = null;
       this.lastError = null;
-
-      // Só após commit confirmado persistimos a planta no IndexedDB
-      await this.client.registerObject(
-        this.projectId,
-        this.plant.id,
-        this.plant.revision,
-        this.plant as unknown as Record<string, unknown>,
-        {
-          kind: "StateSpace",
-          pinProject: true,
-          persistToIndexedDB: true,
-        },
-      );
 
       this.announcer.announce(
         `Controlador LQR confirmado na revisão ${committed.project_revision} (modelo rev. ${committed.model_revision}).`,
@@ -1463,10 +1501,13 @@ export class LqrWorkspaceController {
   }
 
   public buildPoleZeroChart(): PoleZeroChartModel {
+    // Um resultado de revisão anterior pode permanecer no histórico, nunca como curva atual.
+    const current = !this.controllerInvalidated && this.committedSnapshot?.project_revision === this.projectRevision
+      ? this.committedSnapshot : null;
     const isPreview = this.previewState.active;
     const semantics: ResultVerificationIndicator = isPreview
       ? "preview"
-      : this.committedSnapshot
+      : current
         ? "numeric_verified"
         : "experimental";
 
@@ -1476,14 +1517,14 @@ export class LqrWorkspaceController {
       dt: this.plant.dt,
       model_revision: this.plant.revision,
       project_revision:
-        this.committedSnapshot?.project_revision ?? this.projectRevision,
-      provenance: this.committedSnapshot?.provenance ?? null,
+        current?.project_revision ?? this.projectRevision,
+      provenance: current?.provenance ?? null,
       series_semantics: semantics,
-      feedback_sign: this.committedSnapshot?.feedback_sign ?? this.feedbackSign,
+      feedback_sign: current?.feedback_sign ?? this.feedbackSign,
       open_loop_poles:
-        this.committedSnapshot?.open_loop_poles ?? this.openLoopPoles,
+        current?.open_loop_poles ?? this.openLoopPoles,
       committed_closed_loop_poles:
-        this.committedSnapshot?.closed_loop_poles ?? null,
+        current?.closed_loop_poles ?? null,
       preview_poles: isPreview ? this.previewState.previewPoles : null,
       overlays: this.overlays,
       theme_mode: this.themeMode,
@@ -1491,6 +1532,7 @@ export class LqrWorkspaceController {
   }
 
   public buildTimeResponseChart(): TimeResponseChartModel | null {
+    if (this.controllerInvalidated || this.committedSnapshot?.project_revision !== this.projectRevision) return null;
     const tr = this.committedSnapshot?.time_response;
     if (!tr || tr.t.length === 0) {
       return null;

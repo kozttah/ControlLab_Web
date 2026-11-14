@@ -200,7 +200,7 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
       "Convenção explícita de feedback_sign e compatibilidade de dt",
     ],
     interaction_mode: "drag_preview_then_commit",
-    maturity: "stable",
+    maturity: "beta",
     required_backend: "numpy_scipy",
     limits: {
       max_states: 128,
@@ -248,7 +248,7 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
     visualizations: ["pole_zero_map", "provenance_report"],
     requirements: ["Matriz A quadrada e matrizes B, C, D com dimensões compatíveis"],
     interaction_mode: "immediate",
-    maturity: "stable",
+    maturity: "beta",
     limits: {
       max_states: 256,
       hard_timeout_ms: 15000,
@@ -309,7 +309,7 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
       "Dimensão de x0 compatível com n estados da planta",
     ],
     interaction_mode: "immediate",
-    maturity: "stable",
+    maturity: "beta",
     required_backend: "numpy_scipy",
     limits: {
       max_states: 128,

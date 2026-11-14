@@ -13,25 +13,492 @@
       "2026-11-14": 5
     }
   },
+  "audit_reference": {
+    "report_id": "AUD-EXT-CL-DIR-001-2026-11-14",
+    "external_report": "docs/audits/AUDITORIA_EXTERNA_CL_DIR_001.md",
+    "f9_triage": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+    "verdict": "NOT_APPROVED_FOR_STABLE_WEB_RELEASE",
+    "triaged_at_utc": "2026-11-14"
+  },
   "gates": {
     "G-0A": {
       "status": "PENDING",
-      "description": "Núcleo Python/Pyodide e benchmark B-CARE-12x3 (Seção 14.1)"
+      "description": "Núcleo Python/Pyodide e benchmark B-CARE-12x3 (Seção 14.1)",
+      "audit_verdict": "BLOCKED",
+      "blocking_findings": [
+        "AUD-001",
+        "AUD-002",
+        "AUD-003",
+        "AUD-010",
+        "AUD-013"
+      ],
+      "blocking_wps": [
+        "WP-AUDIT-FIX-F1-CORE-RPC",
+        "WP-AUDIT-FIX-F7-RPC-BRIDGE",
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F7-OFFLINE-SW",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
     },
     "G-0B": {
       "status": "PENDING",
-      "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)"
+      "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)",
+      "audit_verdict": "NOT_DEMONSTRATED",
+      "blocking_findings": [
+        "AUD-006",
+        "AUD-007",
+        "AUD-008",
+        "AUD-013"
+      ],
+      "blocking_wps": [
+        "WP-AUDIT-FIX-F6-SDP",
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
     },
     "G-0C": {
       "status": "PENDING",
-      "description": "UI mínima e contrato RPC v1.0 com Mock e Engine real (Seção 14.1)"
+      "description": "UI mínima e contrato RPC v1.0 com Mock e Engine real (Seção 14.1)",
+      "audit_verdict": "BLOCKED",
+      "blocking_findings": [
+        "AUD-001",
+        "AUD-002",
+        "AUD-003",
+        "AUD-010",
+        "AUD-014"
+      ],
+      "blocking_wps": [
+        "WP-AUDIT-FIX-F7-RPC-BRIDGE",
+        "WP-AUDIT-FIX-F8-TS-UI",
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F7-OFFLINE-SW",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
     },
     "G-0D": {
       "status": "PENDING",
-      "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)"
+      "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)",
+      "audit_verdict": "BLOCKED_EXTERNAL_ACCEPTANCE",
+      "blocking_findings": [
+        "AUD-011"
+      ],
+      "blocking_wps": [
+        "WP-AUDIT-FIX-F1-CORE-RPC",
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
     }
   },
   "work_packages": [
+    {
+      "wp_id": "WP-AUDIT-FIX-F9-GOV",
+      "requirement_ids": [
+        "R-23",
+        "R-24"
+      ],
+      "findings": [
+        "AUD-012",
+        "AUD-013",
+        "AUD-015"
+      ],
+      "rem_ids": [
+        "REM-01",
+        "REM-03"
+      ],
+      "front": "f9-integration-qa",
+      "phase": "Audit-Remediation",
+      "title": "Fechar fail-closed em scripts/run_web_tests.mjs, completar CODEOWNERS com exclusividade de /contracts/fixtures/ e instituir dossiês do Apêndice E (AUD-012, AUD-013, AUD-015)",
+      "allowed_paths": [
+        "CODEOWNERS",
+        "scripts/",
+        "tests/oracles/",
+        "tests/integration/",
+        "docs/audits/",
+        "docs/architecture/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [],
+      "acceptance_cmd": "pytest tests/oracles/ tests/integration/ -v && node --test tests/integration/*.test.mjs",
+      "regression_tests": [
+        "test_acceptance_runner_requires_tsc_and_tests"
+      ],
+      "normative_tests": [],
+      "status": "PENDING",
+      "f9_review": "pending"
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F1-CORE-RPC",
+      "requirement_ids": [
+        "R-01",
+        "R-02",
+        "R-03",
+        "R-16",
+        "R-19",
+        "R-27"
+      ],
+      "findings": [
+        "AUD-005",
+        "AUD-002"
+      ],
+      "rem_ids": [
+        "REM-04"
+      ],
+      "front": "f1-core-io",
+      "phase": "Audit-Remediation",
+      "title": "Blindar imutabilidade/revisão em control_lab/core/, tratar UnicodeDecodeError em strict_json_loads e implementar dispatcher control_lab/core/rpc.py conforme contratos F9 (AUD-005, AUD-002)",
+      "allowed_paths": [
+        "control_lab/core/",
+        "control_lab/diagnostics/",
+        "control_lab/io/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F9-GOV"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f1/ -v",
+      "regression_tests": [
+        "test_arrays_cannot_change_model_revision_content",
+        "test_unstabilizable_plant_through_real_rpc"
+      ],
+      "normative_tests": [
+        "T-CORE-01",
+        "T-CORE-02",
+        "T-CORE-03",
+        "T-IO-01",
+        "T-IO-02"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending"
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F7-RPC-BRIDGE",
+      "requirement_ids": [
+        "R-01",
+        "R-02",
+        "R-09",
+        "R-16",
+        "R-17",
+        "R-27",
+        "R-28"
+      ],
+      "findings": [
+        "AUD-001",
+        "AUD-002",
+        "AUD-014",
+        "AUD-010",
+        "AUD-013"
+      ],
+      "rem_ids": [
+        "REM-02",
+        "REM-07"
+      ],
+      "front": "f7-worker-bridge",
+      "phase": "Audit-Remediation",
+      "title": "Eliminar executeFallbackDesignLqr e capacidades inventadas, integrar Worker real com control_lab.core.rpc, expor getCommittedRevision/ExecutionMetrics em client.ts e adequar rótulos/testes F7 (AUD-001, AUD-002, AUD-014)",
+      "allowed_paths": [
+        "web/bridge/",
+        "web/worker/",
+        "web/storage/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F9-GOV",
+        "WP-AUDIT-FIX-F1-CORE-RPC"
+      ],
+      "acceptance_cmd": "node scripts/run_web_tests.mjs --scope f7",
+      "regression_tests": [
+        "test_no_python_runtime_no_scientific_success",
+        "test_unstabilizable_plant_through_real_rpc"
+      ],
+      "normative_tests": [
+        "T-RPC-01",
+        "T-RPC-02"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending"
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F6-SDP",
+      "requirement_ids": [
+        "R-11",
+        "R-12",
+        "R-13",
+        "R-14",
+        "R-15"
+      ],
+      "findings": [
+        "AUD-006",
+        "AUD-007",
+        "AUD-008"
+      ],
+      "rem_ids": [
+        "REM-05"
+      ],
+      "front": "f6-optimization-lmi",
+      "phase": "Audit-Remediation",
+      "title": "Congelar imutabilidade profunda em SDPBlock/CanonicalSDPProblem, exigir off_diag == 0.0 no fallback LP, usar norma espectral 2 no Verificador PSD e alinhar capabilities de EducationalBarrierBackend (AUD-006, AUD-007, AUD-008, OBS-F9-WP10-01)",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "control_lab/experimental/sdp_educational/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F1-CORE-RPC"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f6/ -v",
+      "regression_tests": [
+        "test_canonical_sdp_deep_immutability",
+        "test_lp_requires_exact_structural_diagonal",
+        "test_psd_violation_uses_spectral_norm"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending"
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F5-FML",
+      "requirement_ids": [
+        "R-05",
+        "R-10",
+        "R-21"
+      ],
+      "findings": [
+        "AUD-009"
+      ],
+      "rem_ids": [
+        "REM-06"
+      ],
+      "front": "f5-fuzzy-ts",
+      "phase": "Audit-Remediation",
+      "title": "Rejeitar estritamente operadores FML desconhecidos, parâmetros de pertinência inválidos e defaultvalue malformado sem reparo silencioso em control_lab/fuzzy/fml.py (AUD-009)",
+      "allowed_paths": [
+        "control_lab/fuzzy/",
+        "tests/unit/f5/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F1-CORE-RPC"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f5/ -v",
+      "regression_tests": [
+        "test_fml_invalid_parameters_are_not_silently_repaired"
+      ],
+      "normative_tests": [
+        "T-FML-01",
+        "T-FML-02",
+        "T-TS-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending"
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F8-TS-UI",
+      "requirement_ids": [
+        "R-01",
+        "R-16",
+        "R-17",
+        "R-18",
+        "R-22",
+        "R-24",
+        "R-26",
+        "R-27"
+      ],
+      "findings": [
+        "AUD-014",
+        "AUD-002",
+        "AUD-003",
+        "AUD-004",
+        "AUD-010",
+        "AUD-013"
+      ],
+      "rem_ids": [
+        "REM-08"
+      ],
+      "front": "f8-ui-charts",
+      "phase": "Audit-Remediation",
+      "title": "Corrigir erros TypeScript F8 e narrowing em tool_descriptor.ts (!isListed => available=false), configurar workerUrl e registro SW em main.ts, corrigir entry HTML/CSS e badges honestos de maturidade (AUD-014, parte F8 de AUD-002/003/004/010/013)",
+      "allowed_paths": [
+        "web/features/",
+        "web/charts/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F9-GOV",
+        "WP-AUDIT-FIX-F7-RPC-BRIDGE"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && npm --prefix web test",
+      "regression_tests": [
+        "test_tool_descriptor_unlisted_operation_and_typecheck"
+      ],
+      "normative_tests": [
+        "T-UI-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending"
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F9-BUILD-CI",
+      "requirement_ids": [
+        "R-02",
+        "R-20",
+        "R-22",
+        "R-23",
+        "R-24"
+      ],
+      "findings": [
+        "AUD-003",
+        "AUD-011"
+      ],
+      "rem_ids": [
+        "REM-09"
+      ],
+      "front": "f9-integration-qa",
+      "phase": "Audit-Remediation",
+      "title": "Construir pipeline reproduzível (wheel, bundle /app/main.js, lockfiles, release-manifest.json, SBOM, docs/legal/), CI Jobs A-G e gerar/assinar fixtures §10.4 B-DARE-12x3, B-ARX-PRBS, B-MIMO-2x2 e B-PVM-LQR (AUD-003)",
+      "allowed_paths": [
+        "pyproject.toml",
+        "web/package.json",
+        "web/package-lock.json",
+        "web/tsconfig.json",
+        "web/node-builtins.d.ts",
+        "tests/package.json",
+        "contracts/",
+        "scripts/",
+        "tests/oracles/",
+        "docs/legal/",
+        ".github/workflows/",
+        "docs/architecture/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F6-SDP",
+        "WP-AUDIT-FIX-F5-FML",
+        "WP-AUDIT-FIX-F8-TS-UI"
+      ],
+      "acceptance_cmd": "pytest tests/oracles/ -v && npm --prefix web run build && npm --prefix web run typecheck && npm --prefix web test",
+      "regression_tests": [],
+      "normative_tests": [
+        "T-CARE-02",
+        "T-FREQ-02",
+        "T-ID-03",
+        "T-MIMO-01",
+        "T-PVM-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending"
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F7-OFFLINE-SW",
+      "requirement_ids": [
+        "R-01",
+        "R-22"
+      ],
+      "findings": [
+        "AUD-004"
+      ],
+      "rem_ids": [
+        "REM-10"
+      ],
+      "front": "f7-worker-bridge",
+      "phase": "Audit-Remediation",
+      "title": "Gerar manifesto offline transitivo completo com SHA-256 (bundle + stdlib/wheels Pyodide) em service_worker.ts, validar integridade em checkOfflineReadiness e derivar offline_ready real (AUD-004)",
+      "allowed_paths": [
+        "web/worker/",
+        "web/bridge/",
+        "web/storage/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F9-BUILD-CI"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f7",
+      "regression_tests": [
+        "test_offline_real_calculation_after_reload"
+      ],
+      "normative_tests": [
+        "T-SEC-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending"
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F9-WASM-GATES",
+      "requirement_ids": [
+        "R-01",
+        "R-02",
+        "R-09",
+        "R-12",
+        "R-14",
+        "R-17",
+        "R-18",
+        "R-20",
+        "R-22",
+        "R-23",
+        "R-24"
+      ],
+      "findings": [
+        "AUD-010",
+        "AUD-011",
+        "AUD-013"
+      ],
+      "rem_ids": [
+        "REM-11",
+        "REM-12",
+        "REM-13",
+        "REM-14",
+        "REM-15"
+      ],
+      "front": "f9-integration-qa",
+      "phase": "Audit-Remediation",
+      "title": "Executar suítes reais em navegador/Wasm (tests/wasm, e2e, security, performance, metamorphic), ensaio G-0B, validação externa PathView oficial (G-0D), fechar dossiês Apêndice E e atualizar maturidade/release-manifest (AUD-010, AUD-011, AUD-013)",
+      "allowed_paths": [
+        "tests/wasm/",
+        "tests/e2e/",
+        "tests/security/",
+        "tests/performance/",
+        "tests/metamorphic/",
+        "tests/oracles/",
+        "contracts/",
+        "scripts/",
+        "docs/audits/",
+        "docs/architecture/",
+        ".github/workflows/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F7-OFFLINE-SW"
+      ],
+      "acceptance_cmd": "pytest tests/oracles/ tests/metamorphic/ tests/performance/ tests/wasm/ tests/e2e/ tests/security/ -v && npm --prefix web run typecheck && npm --prefix web test",
+      "regression_tests": [
+        "test_unstabilizable_plant_through_real_rpc",
+        "test_offline_real_calculation_after_reload"
+      ],
+      "normative_tests": [
+        "T-CARE-02",
+        "T-CARE-03",
+        "T-RPC-01",
+        "T-RPC-02",
+        "T-UI-01",
+        "T-SEC-01",
+        "T-PVM-01",
+        "T-PVM-02",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending"
+    },
     {
       "wp_id": "WP-00-F9-BOOTSTRAP",
       "requirement_ids": [
@@ -49,8 +516,24 @@
       ],
       "dependencies": [],
       "acceptance_cmd": "pytest tests/oracles/test_golden_fixtures.py -v",
-      "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted"
+      "status": "CHANGES_REQUESTED",
+      "f9_review": "changes_requested",
+      "historical_acceptance": {
+        "status": "ACCEPTED_BY_F9",
+        "f9_review": "accepted",
+        "superseded_by": "AUD-EXT-CL-DIR-001-2026-11-14",
+        "note": "Bootstrap inicial de schemas e 3 fixtures ouro preservado; reaberto em governança/CI/ownership."
+      },
+      "audit_findings": [
+        "AUD-003",
+        "AUD-012",
+        "AUD-013",
+        "AUD-015"
+      ],
+      "remediation_wps": [
+        "WP-AUDIT-FIX-F9-GOV",
+        "WP-AUDIT-FIX-F9-BUILD-CI"
+      ]
     },
     {
       "wp_id": "WP-01-F1-CORE-MODELS",
@@ -79,8 +562,21 @@
         "T-CORE-03",
         "T-TS-01"
       ],
-      "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted"
+      "status": "CHANGES_REQUESTED",
+      "f9_review": "changes_requested",
+      "historical_acceptance": {
+        "status": "ACCEPTED_BY_F9",
+        "f9_review": "accepted",
+        "superseded_by": "AUD-EXT-CL-DIR-001-2026-11-14"
+      },
+      "audit_findings": [
+        "AUD-005",
+        "AUD-002",
+        "AUD-013"
+      ],
+      "remediation_wps": [
+        "WP-AUDIT-FIX-F1-CORE-RPC"
+      ]
     },
     {
       "wp_id": "WP-02-F2-CARE-LQR",
@@ -106,7 +602,12 @@
         "T-CARE-04"
       ],
       "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted"
+      "f9_review": "accepted",
+      "acceptance_scope": "cpython_local_only",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     },
     {
       "wp_id": "WP-03-F6-SDP-MODELING-AND-GATE0B",
@@ -136,8 +637,23 @@
         "T-SDP-D1",
         "T-SDP-D2"
       ],
-      "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted"
+      "status": "CHANGES_REQUESTED",
+      "f9_review": "changes_requested",
+      "historical_acceptance": {
+        "status": "ACCEPTED_BY_F9",
+        "f9_review": "accepted",
+        "superseded_by": "AUD-EXT-CL-DIR-001-2026-11-14"
+      },
+      "audit_findings": [
+        "AUD-006",
+        "AUD-007",
+        "AUD-008",
+        "AUD-013"
+      ],
+      "remediation_wps": [
+        "WP-AUDIT-FIX-F6-SDP",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     },
     {
       "wp_id": "WP-04-F7-RPC-BRIDGE-WORKER",
@@ -166,9 +682,27 @@
         "T-RPC-02",
         "T-SEC-01"
       ],
-      "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted",
-      "pending_followup": "control_lab/web_rpc.py com dispatch(dict)->dict (entrypoint Pyodide) ainda nao existe; fora do ownership F7. Criar via frente dona de control_lab/ e empacotar no wheel antes do gate WASM (tests/wasm)."
+      "status": "CHANGES_REQUESTED",
+      "f9_review": "changes_requested",
+      "historical_acceptance": {
+        "status": "ACCEPTED_BY_F9",
+        "f9_review": "accepted",
+        "superseded_by": "AUD-EXT-CL-DIR-001-2026-11-14"
+      },
+      "audit_findings": [
+        "AUD-001",
+        "AUD-002",
+        "AUD-004",
+        "AUD-010",
+        "AUD-013",
+        "AUD-015"
+      ],
+      "remediation_wps": [
+        "WP-AUDIT-FIX-F7-RPC-BRIDGE",
+        "WP-AUDIT-FIX-F7-OFFLINE-SW",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "pending_followup": "Substituído por WP-AUDIT-FIX-F1-CORE-RPC (control_lab/core/rpc.py) e WP-AUDIT-FIX-F7-RPC-BRIDGE / WP-AUDIT-FIX-F7-OFFLINE-SW."
     },
     {
       "wp_id": "WP-05-F1-IO-CTRLAB-PVM",
@@ -194,9 +728,26 @@
         "T-PVM-01",
         "T-PVM-02"
       ],
-      "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted",
-      "pending_followup": "Validacao externa real do .pvm no aplicativo PathView pendente do Gate G-0D (external_pathview_verified=False); backlog menor F1: estender tratamento de UnicodeDecodeError para strict_json_loads em control_lab/diagnostics/errors.py."
+      "status": "BLOCKED_BY_GATE",
+      "f9_review": "blocked_by_gate",
+      "acceptance_scope": "local_io_ctrlab_and_internal_pvm_only",
+      "blocking_gate": "G-0D",
+      "historical_acceptance": {
+        "status": "ACCEPTED_BY_F9",
+        "f9_review": "accepted",
+        "superseded_by": "AUD-EXT-CL-DIR-001-2026-11-14"
+      },
+      "audit_findings": [
+        "AUD-011",
+        "AUD-005",
+        "AUD-013"
+      ],
+      "remediation_wps": [
+        "WP-AUDIT-FIX-F1-CORE-RPC",
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "pending_followup": "Validação externa real do .pvm no aplicativo PathView pendente do Gate G-0D (external_pathview_verified=False); tratamento de UnicodeDecodeError em strict_json_loads (control_lab/diagnostics/errors.py) incorporado em WP-AUDIT-FIX-F1-CORE-RPC."
     },
     {
       "wp_id": "WP-06-F8-UI-MVP-LQR",
@@ -222,8 +773,26 @@
       "normative_tests": [
         "T-UI-01"
       ],
-      "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted"
+      "status": "CHANGES_REQUESTED",
+      "f9_review": "changes_requested",
+      "historical_acceptance": {
+        "status": "ACCEPTED_BY_F9",
+        "f9_review": "accepted",
+        "superseded_by": "AUD-EXT-CL-DIR-001-2026-11-14"
+      },
+      "audit_findings": [
+        "AUD-014",
+        "AUD-001",
+        "AUD-002",
+        "AUD-003",
+        "AUD-010",
+        "AUD-013"
+      ],
+      "remediation_wps": [
+        "WP-AUDIT-FIX-F8-TS-UI",
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     },
     {
       "wp_id": "WP-07-F3-FREQ-SISO-MIMO",
@@ -249,7 +818,12 @@
         "T-MIMO-02"
       ],
       "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted"
+      "f9_review": "accepted",
+      "acceptance_scope": "cpython_local_only",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     },
     {
       "wp_id": "WP-08-F4-IDENTIFICATION",
@@ -273,7 +847,12 @@
         "T-ID-03"
       ],
       "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted"
+      "f9_review": "accepted",
+      "acceptance_scope": "cpython_local_only",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     },
     {
       "wp_id": "WP-09-F5-FUZZY-FML-ANFIS",
@@ -297,8 +876,20 @@
         "T-FML-02",
         "T-TS-01"
       ],
-      "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted"
+      "status": "CHANGES_REQUESTED",
+      "f9_review": "changes_requested",
+      "historical_acceptance": {
+        "status": "ACCEPTED_BY_F9",
+        "f9_review": "accepted",
+        "superseded_by": "AUD-EXT-CL-DIR-001-2026-11-14"
+      },
+      "audit_findings": [
+        "AUD-009",
+        "AUD-013"
+      ],
+      "remediation_wps": [
+        "WP-AUDIT-FIX-F5-FML"
+      ]
     },
     {
       "wp_id": "WP-10-F6-SDP-EDUCATIONAL-SOLVER",
@@ -325,9 +916,26 @@
         "T-SDP-D1",
         "T-SDP-D2"
       ],
-      "status": "ACCEPTED_BY_F9",
-      "f9_review": "accepted",
-      "pending_followup": "OBS-F9-WP10-01: alinhar EducationalBarrierBackend.capabilities em control_lab/optimization/backends/unavailable.py quando solver_fn e injetado; OBS-F9-WP10-03: validar runtime Pyodide/Wasm em Job D (Gates G-0A/G-0B)."
+      "status": "CHANGES_REQUESTED",
+      "f9_review": "changes_requested",
+      "maturity": "experimental",
+      "acceptance_scope": "experimental_solver_levels_a_to_d_cpython_local",
+      "historical_acceptance": {
+        "status": "ACCEPTED_BY_F9",
+        "f9_review": "accepted",
+        "superseded_by": "AUD-EXT-CL-DIR-001-2026-11-14"
+      },
+      "audit_findings": [
+        "AUD-006",
+        "AUD-007",
+        "AUD-008",
+        "AUD-013"
+      ],
+      "remediation_wps": [
+        "WP-AUDIT-FIX-F6-SDP",
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "pending_followup": "OBS-F9-WP10-01 (EducationalBarrierBackend.capabilities em control_lab/optimization/backends/unavailable.py) incorporado em WP-AUDIT-FIX-F6-SDP; OBS-F9-WP10-03 (runtime Pyodide/Wasm em Job D / Gates G-0A e G-0B) incorporado em WP-AUDIT-FIX-F9-WASM-GATES."
     }
   ]
 }

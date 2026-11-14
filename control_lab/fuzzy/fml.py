@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import xml.etree.ElementTree as ET
 from typing import Any, Mapping
@@ -47,6 +48,9 @@ def _local_name(tag: str) -> str:
 
 
 def _attr_ci(elem: ET.Element, *names: str, default: str | None = None) -> str | None:
+    matches = [v for k, v in elem.attrib.items() if k.lower() in {name.lower() for name in names}]
+    if len(matches) > 1:
+        raise ValidationError(f"Atributos FML ambíguos para {names!r}.")
     attrib_lower = {k.lower(): v for k, v in elem.attrib.items()}
     for nm in names:
         val = attrib_lower.get(nm.lower())
@@ -69,18 +73,20 @@ def _parse_float_attr(elem: ET.Element, *names: str, field_label: str) -> float:
 
 
 def _to_fml_and(method: str) -> str:
-    m = str(method or "min").strip().lower()
-    if m in ("prod", "product"):
+    m = str(method).strip().lower()
+    if m in ("prod", "product", "algebraic_product"):
         return "PROD"
     if m in ("eprod", "eins", "einstein", "einstein_prod"):
         return "EPROD"
     if m in ("lukasiewicz", "bounded_diff"):
         return "BDIF"
-    return "MIN"
+    if m in ("min", "minimum"):
+        return "MIN"
+    raise SchemaUnsupportedError(f"Operador T-norma FML não suportado: {method!r}.")
 
 
 def _from_fml_and(value: str | None, *, default: str = "min") -> str:
-    if not value:
+    if value is None:
         return default
     v = value.strip().upper()
     if v in ("PROD", "PRODUCT"):
@@ -89,22 +95,26 @@ def _from_fml_and(value: str | None, *, default: str = "min") -> str:
         return "eprod"
     if v in ("BDIF", "LUKASIEWICZ"):
         return "lukasiewicz"
-    return "min"
+    if v in ("MIN", "MINIMUM"):
+        return "min"
+    raise SchemaUnsupportedError(f"Operador T-norma FML não suportado: {value!r}.")
 
 
 def _to_fml_or(method: str) -> str:
-    m = str(method or "max").strip().lower()
-    if m in ("prob", "probor", "prob_or"):
+    m = str(method).strip().lower()
+    if m in ("prob", "probor", "prob_or", "algebraic_sum"):
         return "PROBOR"
     if m in ("esum", "eins", "einstein", "einstein_sum"):
         return "ESUM"
-    if m in ("sum", "bounded_sum", "bsum"):
+    if m in ("sum", "bounded_sum", "bsum", "lukasiewicz"):
         return "BSUM"
-    return "MAX"
+    if m in ("max", "maximum"):
+        return "MAX"
+    raise SchemaUnsupportedError(f"Operador S-norma FML não suportado: {method!r}.")
 
 
 def _from_fml_or(value: str | None, *, default: str = "max") -> str:
-    if not value:
+    if value is None:
         return default
     v = value.strip().upper()
     if v in ("PROBOR", "PROB", "PROB_OR"):
@@ -113,11 +123,16 @@ def _from_fml_or(value: str | None, *, default: str = "max") -> str:
         return "esum"
     if v in ("BSUM", "SUM", "BOUNDED_SUM"):
         return "bounded_sum"
-    return "max"
+    if v in ("MAX", "MAXIMUM"):
+        return "max"
+    raise SchemaUnsupportedError(f"Operador S-norma FML não suportado: {value!r}.")
 
 
 def _to_fml_defuzz(method: str, *, inference_type: str = "mamdani") -> str:
     canonical = normalize_defuzz_method(method, inference_type=inference_type)
+    allowed = {"wtaver", "wtsum"} if inference_type == "ts" else {"centroid", "bisector", "mom", "som", "lom"}
+    if canonical not in allowed:
+        raise SchemaUnsupportedError(f"Defuzzificação {method!r} não pertence ao perfil {inference_type!r}.")
     mapping = {
         "centroid": "COG",
         "bisector": "BOA",
@@ -131,7 +146,7 @@ def _to_fml_defuzz(method: str, *, inference_type: str = "mamdani") -> str:
 
 
 def _from_fml_defuzz(value: str | None, *, inference_type: str = "mamdani") -> str:
-    if not value:
+    if value is None:
         return "centroid" if inference_type == "mamdani" else "wtaver"
     v = value.strip().upper()
     mapping = {
@@ -149,7 +164,69 @@ def _from_fml_defuzz(value: str | None, *, inference_type: str = "mamdani") -> s
         "WTAVER": "wtaver",
         "WTSUM": "wtsum",
     }
-    return mapping.get(v, normalize_defuzz_method(value, inference_type=inference_type))
+    canonical = mapping.get(v)
+    if canonical is None:
+        raise SchemaUnsupportedError(f"Defuzzificação FML não suportada: {value!r}.")
+    _to_fml_defuzz(canonical, inference_type=inference_type)
+    return canonical
+
+
+def _finite_number(raw: str, *, field_label: str) -> float:
+    try:
+        value = float(raw)
+    except (ValueError, TypeError) as exc:
+        raise ValidationError(f"Valor numérico inválido em {field_label}: {raw!r}.") from exc
+    if not math.isfinite(value):
+        raise ValidationError(f"Valor numérico não finito em {field_label}: {raw!r}.")
+    return value
+
+
+def _boolean_attr(elem: ET.Element, name: str, *, default: bool) -> bool:
+    raw = _attr_ci(elem, name)
+    if raw is None:
+        return default
+    token = raw.strip().lower()
+    if token not in ("true", "false", "1", "0"):
+        raise ValidationError(f"Booleano FML inválido em {name}: {raw!r}.")
+    return token in ("true", "1")
+
+
+def _validate_membership_term(term: dict[str, Any]) -> dict[str, Any]:
+    """Valida parâmetros importados sem ordenar, refletir ou substituir valores."""
+    kind = term["mf"]
+    params = term["params"]
+    if kind in ("triangular", "trapezoidal", "z_shape", "s_shape"):
+        if any(a > b for a, b in zip(params, params[1:])):
+            raise ValidationError(f"Parâmetros fora de ordem no termo {term['name']!r}: {params!r}.")
+    if kind == "gaussian" and params[1] <= 0.0:
+        raise ValidationError(f"Sigma gaussiano deve ser positivo no termo {term['name']!r}.")
+    if kind == "bell" and (params[0] <= 0.0 or params[1] <= 0.0):
+        raise ValidationError(f"Largura e inclinação bell devem ser positivas no termo {term['name']!r}.")
+    return term
+
+
+def _parse_clauses(container: ET.Element, names: Mapping[str, str], *, consequent: bool = False) -> dict[str, str]:
+    """Accept only the flat conjunction/disjunction represented by FuzzySystem."""
+    children = list(container)
+    if consequent and len(children) == 1 and _local_name(children[0].tag).lower() == "then":
+        children = list(children[0])
+    result: dict[str, str] = {}
+    for clause in children:
+        if _local_name(clause.tag).lower() != "clause":
+            raise SchemaUnsupportedError("Estrutura de regra FML aninhada/não suportada; conversão silenciosa proibida.")
+        parts = list(clause)
+        if len(parts) != 2 or sorted(_local_name(p.tag).lower() for p in parts) != ["term", "variable"]:
+            raise SchemaUnsupportedError("Cláusula FML requer exatamente variable e term.")
+        if any(list(p) for p in parts):
+            raise SchemaUnsupportedError("Cláusulas FML aninhadas não são suportadas.")
+        fields = {_local_name(p.tag).lower(): (p.text or "").strip() for p in parts}
+        variable = names.get(fields["variable"].lower(), fields["variable"])
+        if not variable or not fields["term"]:
+            raise ValidationError("Cláusula FML requer nomes não vazios de variável e termo.")
+        if variable in result:
+            raise SchemaUnsupportedError(f"Cláusulas repetidas para {variable!r} não podem ser representadas fielmente.")
+        result[variable] = fields["term"]
+    return result
 
 
 def _check_xml_safety_and_limits(
@@ -237,7 +314,7 @@ def _check_xml_safety_and_limits(
     return root
 
 
-def _term_to_fml_xml(term: Mapping[str, Any], *, role: str, inference_type: str, indent: str = "      ") -> str:
+def _term_to_fml_xml(term: Mapping[str, Any], *, role: str, inference_type: str, n_inputs: int | None = None, indent: str = "      ") -> str:
     tname = xml_escape(str(term["name"]), {'"': "&quot;"})
     complement_str = "true" if term.get("complement", False) else "false"
     mf_type, params, _ = extract_term_spec(term)
@@ -250,6 +327,13 @@ def _term_to_fml_xml(term: Mapping[str, Any], *, role: str, inference_type: str,
                 f'{indent}  <tskValue>{repr(float(params[0]))}</tskValue>\n'
                 f"{indent}</tskTerm>"
             )
+        if n_inputs is not None:
+            if len(params) == n_inputs:
+                # Canonical homogeneous consequents acquire an explicit zero bias
+                # in the IEEE first-order affine coefficient representation.
+                params = [*params, 0.0] if term.get("bias_last", True) else [0.0, *params]
+            elif len(params) != n_inputs + 1:
+                raise ValidationError("Consequente TS linear possui coeficientes incompatíveis com as entradas.")
         vals = "\n".join(f"{indent}  <tskValue>{repr(float(p))}</tskValue>" for p in params)
         return (
             f'{indent}<tskTerm name="{tname}" order="1" biasLast="{bias_last}">\n'
@@ -333,7 +417,7 @@ def export_fml(system: FuzzySystem | Mapping[str, Any]) -> Result:
             scale = xml_escape(str(var.get("scale", var.get("unit", ""))), {'"': "&quot;"})
             default_val = repr(float(var.get("default_value", 0.0)))
             terms_xml = "\n".join(
-                _term_to_fml_xml(t, role="output", inference_type=inf_type) for t in var["terms"]
+                _term_to_fml_xml(t, role="output", inference_type=inf_type, n_inputs=len(fs.input_variables)) for t in var["terms"]
             )
             if inf_type == "ts":
                 comb = _to_fml_defuzz(ops.get("defuzzification", "wtaver"), inference_type="ts")
@@ -440,12 +524,11 @@ def export_fml(system: FuzzySystem | Mapping[str, Any]) -> Result:
         )
 
 
-def _parse_fml_term(term_el: ET.Element, *, role: str, is_tsk: bool) -> dict[str, Any]:
+def _parse_fml_term(term_el: ET.Element, *, role: str, is_tsk: bool, n_inputs: int | None = None) -> dict[str, Any]:
     tname = _attr_ci(term_el, "name")
     if not tname or not tname.strip():
         raise ValidationError("Elemento de termo FML sem atributo 'name'.")
-    comp_attr = _attr_ci(term_el, "complement", default="false")
-    complement = str(comp_attr).strip().lower() == "true"
+    complement = _boolean_attr(term_el, "complement", default=False)
 
     lname = _local_name(term_el.tag).lower()
     if is_tsk or lname == "tskterm":
@@ -456,11 +539,9 @@ def _parse_fml_term(term_el: ET.Element, *, role: str, is_tsk: bool) -> dict[str
                 txt = (child.text or "").strip()
                 if not txt:
                     txt = _attr_ci(child, "value", "param1", default="") or ""
-                try:
-                    v = float(txt)
-                except ValueError as exc:
-                    raise ValidationError(f"Valor numérico inválido em tskTerm {tname!r}: {txt!r}") from exc
-                vals.append(v)
+                vals.append(_finite_number(txt, field_label=f"tskTerm[{tname}]"))
+            else:
+                raise SchemaUnsupportedError(f"Elemento não suportado em tskTerm {tname!r}: {cl!r}.")
         if not vals:
             # Tenta ler atributos param1, param2...
             idx = 1
@@ -468,13 +549,18 @@ def _parse_fml_term(term_el: ET.Element, *, role: str, is_tsk: bool) -> dict[str
                 p_attr = _attr_ci(term_el, f"param{idx}")
                 if p_attr is None:
                     break
-                vals.append(float(p_attr))
+                vals.append(_finite_number(p_attr, field_label=f"tskTerm[{tname}].param{idx}"))
                 idx += 1
         if not vals:
             raise ValidationError(f"tskTerm {tname!r} não possui coeficientes numéricos.")
         order_attr = _attr_ci(term_el, "order")
-        bias_last_attr = _attr_ci(term_el, "biaslast", default="true")
-        bias_last = str(bias_last_attr).strip().lower() != "false"
+        if order_attr is not None and order_attr not in ("0", "1"):
+            raise SchemaUnsupportedError(f"Ordem TSK não suportada: {order_attr!r}.")
+        if order_attr == "0" and len(vals) != 1:
+            raise ValidationError(f"tskTerm de ordem zero {tname!r} requer exatamente um coeficiente.")
+        if order_attr == "1" and (n_inputs is None or len(vals) != n_inputs + 1):
+            raise ValidationError(f"tskTerm de primeira ordem {tname!r} requer n_inputs+1 coeficientes (incluindo bias).")
+        bias_last = _boolean_attr(term_el, "biaslast", default=True)
         if order_attr == "0" or len(vals) == 1:
             return {"name": tname, "type": "constant", "params": [vals[0]], "coefficients": [vals[0]]}
         return {
@@ -486,73 +572,75 @@ def _parse_fml_term(term_el: ET.Element, *, role: str, is_tsk: bool) -> dict[str
         }
 
     children = list(term_el)
-    if not children:
-        raise ValidationError(f"fuzzyTerm {tname!r} não contém elemento de formato (shape).")
+    if len(children) != 1:
+        raise SchemaUnsupportedError(f"fuzzyTerm {tname!r} requer exatamente um formato (shape).")
 
     shape_el = children[0]
     sname = _local_name(shape_el.tag).lower()
 
-    if "triangular" in sname:
+    if sname == "triangularshape":
         p1 = _parse_float_attr(shape_el, "param1", "a", field_label=f"{tname}.param1")
         p2 = _parse_float_attr(shape_el, "param2", "b", field_label=f"{tname}.param2")
         p3 = _parse_float_attr(shape_el, "param3", "c", field_label=f"{tname}.param3")
-        params = sorted([p1, p2, p3])
+        params = [p1, p2, p3]
         return {"name": tname, "mf": "triangular", "params": params, "complement": complement}
 
-    if "trapezoid" in sname:
+    if sname in ("trapezoidshape", "trapezoidalshape"):
         p1 = _parse_float_attr(shape_el, "param1", "a", field_label=f"{tname}.param1")
         p2 = _parse_float_attr(shape_el, "param2", "b", field_label=f"{tname}.param2")
         p3 = _parse_float_attr(shape_el, "param3", "c", field_label=f"{tname}.param3")
         p4 = _parse_float_attr(shape_el, "param4", "d", field_label=f"{tname}.param4")
-        params = sorted([p1, p2, p3, p4])
+        params = [p1, p2, p3, p4]
         return {"name": tname, "mf": "trapezoidal", "params": params, "complement": complement}
 
-    if "gaussian" in sname:
+    if sname == "gaussianshape":
         c = _parse_float_attr(shape_el, "param1", "c", "mean", field_label=f"{tname}.param1")
-        sigma = abs(_parse_float_attr(shape_el, "param2", "sigma", "std", field_label=f"{tname}.param2"))
-        if sigma <= 0.0:
-            sigma = 1e-3
+        sigma = _parse_float_attr(shape_el, "param2", "sigma", "std", field_label=f"{tname}.param2")
         return {"name": tname, "mf": "gaussian", "params": [c, sigma], "complement": complement}
 
-    if "bell" in sname:
-        a = abs(_parse_float_attr(shape_el, "param1", "a", field_label=f"{tname}.param1"))
-        b = abs(_parse_float_attr(shape_el, "param2", "b", field_label=f"{tname}.param2"))
+    if sname == "bellshape":
+        a = _parse_float_attr(shape_el, "param1", "a", field_label=f"{tname}.param1")
+        b = _parse_float_attr(shape_el, "param2", "b", field_label=f"{tname}.param2")
         c = _parse_float_attr(shape_el, "param3", "c", field_label=f"{tname}.param3")
-        return {"name": tname, "mf": "bell", "params": [max(a, 1e-6), max(b, 1e-6), c], "complement": complement}
+        return {"name": tname, "mf": "bell", "params": [a, b, c], "complement": complement}
 
-    if "sigmoid" in sname:
+    if sname == "sigmoidshape":
         a = _parse_float_attr(shape_el, "param1", "a", field_label=f"{tname}.param1")
         c = _parse_float_attr(shape_el, "param2", "c", field_label=f"{tname}.param2")
         return {"name": tname, "mf": "sigmoid", "params": [a, c], "complement": complement}
 
-    if "singleton" in sname or "pointset" in sname:
-        if shape_el.attrib:
+    if sname in ("singletonshape", "pointsetshape"):
+        if sname == "singletonshape":
             c = _parse_float_attr(shape_el, "param1", "value", "x", field_label=f"{tname}.param1")
         else:
             pts = [ch for ch in shape_el if _local_name(ch.tag).lower() == "point"]
-            if not pts:
-                raise ValidationError(f"Termo singleton/pointSet {tname!r} sem coordenadas.")
+            if len(pts) != 1 or len(list(shape_el)) != 1:
+                raise SchemaUnsupportedError(f"pointSet {tname!r} só é representável como singleton com um ponto.")
             c = _parse_float_attr(pts[0], "x", "param1", field_label=f"{tname}.point.x")
+            if _parse_float_attr(pts[0], "y", "param2", field_label=f"{tname}.point.y") != 1.0:
+                raise SchemaUnsupportedError(f"pointSet singleton {tname!r} exige pertinência y=1.")
         return {"name": tname, "mf": "singleton", "params": [c], "complement": complement}
 
     if sname in ("zshape", "z_shape"):
         p1 = _parse_float_attr(shape_el, "param1", "a", field_label=f"{tname}.param1")
         p2 = _parse_float_attr(shape_el, "param2", "b", field_label=f"{tname}.param2")
-        return {"name": tname, "mf": "z_shape", "params": sorted([p1, p2]), "complement": complement}
+        return {"name": tname, "mf": "z_shape", "params": [p1, p2], "complement": complement}
 
     if sname in ("sshape", "s_shape"):
         p1 = _parse_float_attr(shape_el, "param1", "a", field_label=f"{tname}.param1")
         p2 = _parse_float_attr(shape_el, "param2", "b", field_label=f"{tname}.param2")
-        return {"name": tname, "mf": "s_shape", "params": sorted([p1, p2]), "complement": complement}
+        return {"name": tname, "mf": "s_shape", "params": [p1, p2], "complement": complement}
 
-    if "linear" in sname:
+    if sname == "linearshape":
+        if role == "input":
+            raise SchemaUnsupportedError("linearShape não é uma função de pertinência escalar de entrada.")
         vals = []
         idx = 1
         while True:
             pa = _attr_ci(shape_el, f"param{idx}")
             if pa is None:
                 break
-            vals.append(float(pa))
+            vals.append(_finite_number(pa, field_label=f"linearShape[{tname}].param{idx}"))
             idx += 1
         if not vals:
             raise ValidationError(f"linearShape em {tname!r} sem parâmetros.")
@@ -592,7 +680,9 @@ def import_fml(
             )
 
         sys_name = _attr_ci(root, "name", default="fml-imported") or "fml-imported"
-        fml_profile = _attr_ci(root, "profile", default="IEEE-1855-2016") or "IEEE-1855-2016"
+        fml_profile = _attr_ci(root, "profile", default="IEEE-1855-2016")
+        if fml_profile != "IEEE-1855-2016":
+            raise SchemaUnsupportedError(f"Perfil FML não suportado: {fml_profile!r}.")
 
         # Detecta metadados opcionais em comentário (ControlLabMetadata ou FuzzyLabMetadata legado)
         ctrl_meta: dict[str, Any] = {}
@@ -618,25 +708,39 @@ def import_fml(
         for child in root:
             cname = _local_name(child.tag).lower()
             if cname == "knowledgebase":
+                if kb_el is not None:
+                    raise SchemaUnsupportedError("Múltiplas knowledgeBase não são suportadas.")
                 kb_el = child
             elif cname in ("mamdanirulebase", "rulebase"):
+                if rb_el is not None:
+                    raise SchemaUnsupportedError("Múltiplas ruleBase não são suportadas.")
                 rb_el = child
                 rb_kind = "mamdani"
             elif cname in ("tskrulebase", "tsrulebase", "takagisugenorulebase"):
+                if rb_el is not None:
+                    raise SchemaUnsupportedError("Múltiplas ruleBase não são suportadas.")
                 rb_el = child
                 rb_kind = "ts"
+            else:
+                raise SchemaUnsupportedError(f"Elemento raiz FML não suportado: {cname!r}.")
 
         if kb_el is None:
             raise ValidationError("Documento FML não contém elemento <knowledgeBase>.")
+        if rb_el is None:
+            raise ValidationError("Documento FML não contém elemento ruleBase.")
 
         input_vars: list[dict[str, Any]] = []
         output_vars: list[dict[str, Any]] = []
         has_tsk_var = False
+        n_inputs = sum(
+            str(_attr_ci(var_el, "type", default="input")).strip().lower() == "input"
+            for var_el in kb_el
+        )
 
         for var_el in kb_el:
             vtag = _local_name(var_el.tag).lower()
             if vtag not in ("fuzzyvariable", "tskvariable"):
-                continue
+                raise SchemaUnsupportedError(f"Elemento de knowledgeBase não suportado: {vtag!r}.")
             is_tsk_var = vtag == "tskvariable"
             if is_tsk_var:
                 has_tsk_var = True
@@ -644,7 +748,11 @@ def import_fml(
             vname = _attr_ci(var_el, "name")
             if not vname:
                 raise ValidationError("Variável FML sem atributo 'name'.")
-            vtype = (_attr_ci(var_el, "type", default="input") or "input").strip().lower()
+            vtype = str(_attr_ci(var_el, "type", default="input")).strip().lower()
+            if vtype not in ("input", "output"):
+                raise ValidationError(f"Tipo de variável FML desconhecido: {vtype!r}.")
+            if is_tsk_var and (vtype != "output" or rb_kind != "ts"):
+                raise SchemaUnsupportedError("tskVariable requer saída e uma ruleBase TSK.")
             lo = _parse_float_attr(var_el, "domainleft", "min", field_label=f"{vname}.domainleft")
             hi = _parse_float_attr(var_el, "domainright", "max", field_label=f"{vname}.domainright")
             scale = _attr_ci(var_el, "scale", "unit", default="") or ""
@@ -653,7 +761,12 @@ def import_fml(
             for t_el in var_el:
                 ttag = _local_name(t_el.tag).lower()
                 if ttag in ("fuzzyterm", "tskterm"):
-                    terms.append(_parse_fml_term(t_el, role=vtype, is_tsk=(is_tsk_var or ttag == "tskterm")))
+                    if (ttag == "tskterm") != is_tsk_var:
+                        raise SchemaUnsupportedError("tskTerm/fuzzyTerm incompatível com o tipo da variável.")
+                    parsed = _parse_fml_term(t_el, role=vtype, is_tsk=is_tsk_var, n_inputs=n_inputs)
+                    terms.append(_validate_membership_term(parsed) if "mf" in parsed else parsed)
+                else:
+                    raise SchemaUnsupportedError(f"Elemento de variável FML não suportado: {ttag!r}.")
 
             var_dict: dict[str, Any] = {
                 "name": vname,
@@ -666,15 +779,14 @@ def import_fml(
             if vtype == "output":
                 def_val = _attr_ci(var_el, "defaultvalue")
                 if def_val is not None:
-                    try:
-                        var_dict["default_value"] = float(def_val)
-                    except ValueError:
-                        pass
+                    var_dict["default_value"] = _finite_number(def_val, field_label=f"{vname}.defaultValue")
                 acc_attr = _attr_ci(var_el, "accumulation")
-                if acc_attr:
+                if acc_attr is not None:
+                    if is_tsk_var or rb_kind == "ts":
+                        raise SchemaUnsupportedError("Acumulação Mamdani em saída TSK não é suportada.")
                     var_dict["accumulation"] = _from_fml_or(acc_attr)
                 defuzz_attr = _attr_ci(var_el, "defuzzifier", "combination")
-                if defuzz_attr:
+                if defuzz_attr is not None:
                     var_dict["defuzzifier"] = _from_fml_defuzz(
                         defuzz_attr,
                         inference_type="ts" if (is_tsk_var or rb_kind == "ts") else "mamdani",
@@ -703,12 +815,16 @@ def import_fml(
             rb_and = _attr_ci(rb_el, "andmethod")
             rb_or = _attr_ci(rb_el, "ormethod")
             rb_act = _attr_ci(rb_el, "activationmethod")
-            if rb_and:
+            if rb_and is not None:
                 ops["and"] = _from_fml_and(rb_and, default=ops["and"])
-            if rb_or:
+            if rb_or is not None:
                 ops["or"] = _from_fml_or(rb_or, default=ops["or"])
-            if rb_act and inference_type == "mamdani":
-                ops["implication"] = _from_fml_and(rb_act, default=ops["implication"])
+            if rb_act is not None:
+                activation = _from_fml_and(rb_act)
+                if inference_type == "mamdani":
+                    ops["implication"] = activation
+                elif activation != ops["and"]:
+                    raise SchemaUnsupportedError("Ativação TSK distinta da conjunção não é representável neste perfil.")
 
             in_var_names = {v["name"] for v in input_vars}
             out_var_names = {v["name"] for v in output_vars}
@@ -717,10 +833,12 @@ def import_fml(
 
             for r_idx, r_el in enumerate(rb_el):
                 if _local_name(r_el.tag).lower() not in ("rule", "tskrule"):
-                    continue
+                    raise SchemaUnsupportedError("Elemento de ruleBase não suportado.")
                 rname = _attr_ci(r_el, "name", default=f"R{r_idx + 1}") or f"R{r_idx + 1}"
-                connector = (_attr_ci(r_el, "connector", default="and") or "and").strip().lower()
-                w_str = _attr_ci(r_el, "weight", default="1.0") or "1.0"
+                connector = str(_attr_ci(r_el, "connector", default="and")).strip().lower()
+                if connector not in ("and", "or"):
+                    raise SchemaUnsupportedError(f"Conector de regra FML não suportado: {connector!r}.")
+                w_str = _attr_ci(r_el, "weight", default="1.0")
                 try:
                     weight = float(w_str)
                 except ValueError as exc:
@@ -729,36 +847,16 @@ def import_fml(
                 ants: dict[str, str] = {}
                 cons: dict[str, str] = {}
 
+                sections: dict[str, ET.Element] = {}
                 for sub in r_el:
-                    sub_name = _local_name(sub.tag).lower()
-                    if sub_name == "antecedent":
-                        for cl in sub.iter():
-                            if _local_name(cl.tag).lower() == "clause":
-                                v_txt = ""
-                                t_txt = ""
-                                for c_ch in cl:
-                                    cn = _local_name(c_ch.tag).lower()
-                                    if cn == "variable":
-                                        v_txt = (c_ch.text or "").strip()
-                                    elif cn == "term":
-                                        t_txt = (c_ch.text or "").strip()
-                                v_resolved = in_var_ci.get(v_txt.lower(), v_txt)
-                                if v_resolved:
-                                    ants[v_resolved] = t_txt
-                    elif sub_name == "consequent":
-                        for cl in sub.iter():
-                            if _local_name(cl.tag).lower() == "clause":
-                                v_txt = ""
-                                t_txt = ""
-                                for c_ch in cl:
-                                    cn = _local_name(c_ch.tag).lower()
-                                    if cn == "variable":
-                                        v_txt = (c_ch.text or "").strip()
-                                    elif cn == "term":
-                                        t_txt = (c_ch.text or "").strip()
-                                v_resolved = out_var_ci.get(v_txt.lower(), v_txt)
-                                if v_resolved:
-                                    cons[v_resolved] = t_txt
+                    section = _local_name(sub.tag).lower()
+                    if section not in ("antecedent", "consequent") or section in sections:
+                        raise SchemaUnsupportedError("Regra FML requer um antecedent e um consequent, sem extensões silenciosas.")
+                    sections[section] = sub
+                if set(sections) != {"antecedent", "consequent"}:
+                    raise ValidationError(f"Regra FML {rname!r} incompleta.")
+                ants = _parse_clauses(sections["antecedent"], in_var_ci)
+                cons = _parse_clauses(sections["consequent"], out_var_ci, consequent=True)
 
                 rule_dict: dict[str, Any] = {
                     "name": rname,
@@ -768,10 +866,10 @@ def import_fml(
                     "weight": weight,
                 }
                 r_and_attr = _attr_ci(r_el, "andmethod")
-                if r_and_attr:
+                if r_and_attr is not None:
                     rule_dict["and_method"] = _from_fml_and(r_and_attr, default=ops["and"])
                 r_or_attr = _attr_ci(r_el, "ormethod")
-                if r_or_attr:
+                if r_or_attr is not None:
                     rule_dict["or_method"] = _from_fml_or(r_or_attr, default=ops["or"])
                 rules_list.append(rule_dict)
 

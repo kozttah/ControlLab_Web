@@ -1,0 +1,36 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/ba21e63c86f4/f9-ci-core/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/ba21e63c86f4/ControlLab_Web
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+tests/integration/test_governance_and_ownership.py::test_project_state_governance_and_handoff_invariants FAILED [100%]
+
+=================================== FAILURES ===================================
+_____________ test_project_state_governance_and_handoff_invariants _____________
+
+    def test_project_state_governance_and_handoff_invariants() -> None:
+        state = json.loads(PROJECT_STATE_PATH.read_text(encoding="utf-8"))
+        assert state["audit_reference"]["verdict"] == "NOT_APPROVED_FOR_STABLE_WEB_RELEASE"
+
+        gates = state["gates"]
+        assert set(gates.keys()) == {"G-0A", "G-0B", "G-0C", "G-0D"}
+        expected_gate_verdicts = {
+            "G-0A": "BLOCKED",
+            "G-0B": "NOT_DEMONSTRATED",
+            "G-0C": "BLOCKED",
+            "G-0D": "BLOCKED_EXTERNAL_ACCEPTANCE",
+        }
+        for gate_id, expected_verdict in expected_gate_verdicts.items():
+            assert gates[gate_id]["status"] == "PENDING", f"Gate {gate_id} deve permanecer PENDING."
+>           assert gates[gate_id]["audit_verdict"] == expected_verdict
+E           AssertionError: assert 'UNAVAILABLE_...VISIONED_WASM' == 'NOT_DEMONSTRATED'
+E
+E             - NOT_DEMONSTRATED
+E             + UNAVAILABLE_IN_PROVISIONED_WASM
+
+tests/integration/test_governance_and_ownership.py:246: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_governance_and_ownership.py::test_project_state_governance_and_handoff_invariants
+============================== 1 failed in 0.03s ===============================

@@ -1,0 +1,565 @@
+{
+  "base": "50ba04d16633e9cd96c3b90a7668466c30ee9ca7",
+  "files": [
+    {
+      "path": "ControlLab_Web_Documento_Diretor_v1.0.md",
+      "sha256": "f7f10b1a19eb6a145959693937e1c67c97717e6a93e2a690f0045c2f96768102",
+      "matches_base": true
+    },
+    {
+      "path": "contracts/fixtures/B-ARX-PRBS.json",
+      "sha256": "6fc72bebb5237aca36994b0fc71e06f6444fa9a1b163be79180764f07a18acc1",
+      "matches_base": true
+    },
+    {
+      "path": "contracts/fixtures/B-CARE-02.json",
+      "sha256": "f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f",
+      "matches_base": true
+    },
+    {
+      "path": "contracts/fixtures/B-CARE-12x3.json",
+      "sha256": "0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4",
+      "matches_base": true
+    },
+    {
+      "path": "contracts/fixtures/B-DARE-12x3.json",
+      "sha256": "2488dd78691a3a36ff96b7d00542fd506855191c0dbedc0e530c6131e6e47040",
+      "matches_base": true
+    },
+    {
+      "path": "contracts/fixtures/B-MIMO-2x2.json",
+      "sha256": "23d42ef684bcb5c4fe484ef24a624ae50020c883de986a617d21981bf5ff29ed",
+      "matches_base": true
+    },
+    {
+      "path": "contracts/fixtures/B-PVM-LQR.json",
+      "sha256": "eabcf5aff8a56c99c87a624857525977d3ea5c31477431d5a9ce2fbf34453fe8",
+      "matches_base": true
+    },
+    {
+      "path": "contracts/fixtures/B-SDP-A-D.json",
+      "sha256": "4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076",
+      "matches_base": true
+    },
+    {
+      "path": "contracts/fixtures/checksums.sha256",
+      "sha256": "4b7a39a4ad5d8eb6b48d2d28d8e8a3673e38105bce057909dbdb29884ef0cc7a",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/core/__init__.py",
+      "sha256": "58183e73880d9ad8f7f64e978490995c3e0f95bbb7a497d4e2c97ed84c3950cf",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/core/controllers.py",
+      "sha256": "8d838ce63a49157bfe3482b0d551fb1ae7126ec2b763730c5a461eee89d195fc",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/core/interconnect.py",
+      "sha256": "da50f38986d049aa0e496bdf2fb37808837228566f95546ef2e76f24e91f8e1f",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/core/models.py",
+      "sha256": "429983c93a583a50eed7ef0bc99bc532aba08622d753bcd46ed4bf3d537ab687",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/core/rpc.py",
+      "sha256": "c1f0da785567d718d3e4266956c43db53d8f617edcd21fc2d0e06ccfa3ffbb95",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/core/serialization.py",
+      "sha256": "5e2bb54034f62e36c6aebe23ee8f1f6015ccc43a743b7feab4c21a1bbae2be4f",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/core/tensors.py",
+      "sha256": "619615da829fc9a3acc2bb66c27bef2e498063c3f493a6a20830613ce5e4f618",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/diagnostics/__init__.py",
+      "sha256": "2e2790458ba5e29f1d5d2b667728dd9c2cef79dd566d1d174ebc923aedc57767",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/diagnostics/errors.py",
+      "sha256": "e34b4e57a95163d9ad6290f50b9cd899a91d709771e20affd8f89488c76dd343",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/diagnostics/provenance.py",
+      "sha256": "cbe5157a876c53083b99722d81313d72227915e0c3d2ae4826fb0b18d58994b2",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/diagnostics/result.py",
+      "sha256": "9e7b6913da927cf8c19a4b1c8139e41afe7e50e6ad3188d7ad4d1a9b411732d3",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/experimental/sdp_educational/__init__.py",
+      "sha256": "f1d1e52498192ab2cbb6d9cddc3aa0a4ee420c678fdc85e5d036747e2c4baf69",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/experimental/sdp_educational/solver.py",
+      "sha256": "cc1e4ef70fad74a3e551595df98f7caf94e0202579b1a4378ddfac5c416759ac",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/experimental/sdp_educational/suite.py",
+      "sha256": "bfcbdf5022558941f9ff69f0a4222f45893c4b224cafdd93ac8513653647ae96",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/frequency/__init__.py",
+      "sha256": "f44c2dd7dc1c1bb8fa34c64cfd92dd74768e442dc59d3dad860c0fd4ac625aa7",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/frequency/mimo/__init__.py",
+      "sha256": "d6468e36caa0d34d4a44b595d2825c4efb86b7c5041286da7de9ddd59cf100ee",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/frequency/mimo/analysis.py",
+      "sha256": "c55c04caad9186cb47ac972e0c31ab1797456ac1498094e55070b771dbf2c567",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/frequency/siso/__init__.py",
+      "sha256": "b6d70ce62a42151c96fd2d6f19bbf2ed67a3974ec0ef057cd076725d24900ee8",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/frequency/siso/_utils.py",
+      "sha256": "609ad02260356ed723bfcae69b7df134172623371e32cbce325c1f9c198dbb3d",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/frequency/siso/design.py",
+      "sha256": "f725da8ad7af5eddb6c3aab4d2df8ea426132dad8455d401ac208fda1c773d58",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/frequency/siso/margins.py",
+      "sha256": "608c44cfe24fa1ffbc00dd652abcde23fdacd3cf9ee39cc78a09fa888fecd1fc",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/frequency/siso/response.py",
+      "sha256": "86990a3a8e9701d78ffc3ae30dc5d040d39c5ff220c4b649e6c7fc9b3f90a5a1",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/frequency/siso/root_locus.py",
+      "sha256": "e7d0298d802cd9956c2321721be133c0700146eadb5f334a9e177eeebd3f6726",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/fuzzy/__init__.py",
+      "sha256": "a35867604369ad550f0f49cd96937468c79f21379e185ca4f225b172f55ec45e",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/fuzzy/anfis.py",
+      "sha256": "b4f73d6651547694775bea908a02a7251f180fb22c425de0d2635e6a3a5e7b5d",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/fuzzy/fml.py",
+      "sha256": "e1df9b54377052a0c10c37b7802916cbb22fc013c8c03e60cc473218b34a0b4b",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/fuzzy/inference.py",
+      "sha256": "81a9bf458dabb3b4a2f5549290585aff6aa44f97d97e24d80426c92085b7835e",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/fuzzy/membership.py",
+      "sha256": "91a78713202076931841ff77df8305448de81c57b439abb817b84546b4b7c953",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/fuzzy/ts_bridge.py",
+      "sha256": "a05144c8fddd4d5da257b70f609d8636428636f353e04bfffc28610ece6ce1f8",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/identification/__init__.py",
+      "sha256": "c3763adc9f1265e83465458c73bc03ce9453599a67c923065b421824ab4320da",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/identification/arx.py",
+      "sha256": "eaafe51e746cca4b4d7d59141af19fe1e9982c871dc13febb1bcbc9f4954ff46",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/identification/oe.py",
+      "sha256": "aa62ff88e4365b0c66955203a012d4522a4ce7443046c46334a79d22df655f5a",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/identification/preprocessing.py",
+      "sha256": "3befc9d67607778d4a29c002564e0a8939893b3b59905e1e5ab70f290e5dd10e",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/identification/subspace.py",
+      "sha256": "bdd78b995b2874e2fa503dd34fffa5f8a17964933a8e1820ae47155e45e94284",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/identification/validation.py",
+      "sha256": "de16717dbd571568d9d6b5d9cad154057374d3124e5f7c9b7e3aae371ad7ac69",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/io/__init__.py",
+      "sha256": "0f8f2ee6ff98a0f333e49c366350dd36d81e77d8a8e41437f8d8f36e70756009",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/io/ctrlab.py",
+      "sha256": "1a8a90785f0503743fcc6b3825cf18759e86347c128bacd1a5e1840e20a5595f",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/io/pvm.py",
+      "sha256": "1285d0daa12901b885fdd57ffe8c1e92ecede69a16db02df722d7b16a8c901e9",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/io/pvm_discrete.py",
+      "sha256": "be058d7c604336aed8929f8cda35f1dbf90b8f4c39219b4dcc123de901bf8cce",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/io/pvm_official.py",
+      "sha256": "eee1db143fd9ecd332805666a9f2818b92e805c86a5bfa8f004827bcdac8337b",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/__init__.py",
+      "sha256": "7859f16c369b747b1963d3ed76ca51dca7879a342b034452b4b8f362d949d8fa",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/backends/__init__.py",
+      "sha256": "d3f347889f1363f5aa861956aa22a85f14564a25c0b3797c862138cdee9b6b29",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/backends/base.py",
+      "sha256": "c5e6812e602580843addf5cf5faf20584fdc709d6fbcd32802d75c80510aa7d5",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/backends/capabilities.py",
+      "sha256": "5d2905441d46a2c860d7276b969e69b463ecfa174b1cf0038f97f3b72d279b23",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/backends/clarabel_cvxpy.py",
+      "sha256": "cfb3996bc95d6bd9126afcd5fd67cd1ac3b37f72431b432cb7c32222ed4e976e",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/backends/clarabel_direct.py",
+      "sha256": "2665285e33996e41033fdb1de7b157d72ad39f37e33ae28e8a0bed63c80a71bb",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/backends/scipy_linprog.py",
+      "sha256": "b838ec33d0d4daa372364ddee788f06844daa13fb407809eb399ce8f621dbc80",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/backends/solve.py",
+      "sha256": "9758fbdbfcdcb3b3457ef1510447197c8fc59304fa5e258fbc8cea8826feedc4",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/backends/unavailable.py",
+      "sha256": "f97c1d3b294a9a5e4913e01b381b173079989f91ade9c52fbe176a3b41716995",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/modeling/__init__.py",
+      "sha256": "64dae12470cc5089e06b937d9680e6e9e7e9cdfd794881a959c717bcbc1119f5",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/modeling/canonical.py",
+      "sha256": "dbb15557e624f4e017164c805a9440909bae7f4a076ac83ab6e9e65faa3eb549",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/modeling/dsl.py",
+      "sha256": "35b3f8958a13351659409f26649a87f334a13edaf3253be5659dda2bda35528f",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/modeling/svec.py",
+      "sha256": "e6c82fc0f12c1f3e8dd937de9d26ec54811f402235bbfe5b2d0ac6eb1b56c302",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/modeling/templates.py",
+      "sha256": "9c9c5da9f75bb02bcebc9457f49ea3c40ada6b8aecc673fc99ce72bc998d56d7",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/verification/__init__.py",
+      "sha256": "c1b7e1b5c8b11821ea07517af68e9217830c59462affc53c3ca0b8bc809a548f",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/verification/gate0b.py",
+      "sha256": "5dabae58d84aa9aaf224f50d17bde126fa6aa690f944ab904768302cdde349f5",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/verification/recovery.py",
+      "sha256": "80b7230b69d031e21590133c8f1b4865618986643d22d5b302eebea00b8184fb",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/optimization/verification/verifier.py",
+      "sha256": "f65d824b11f44e09bb9df59d4e2d4eb274eea8cda4d9c0faef61857baaac93d6",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/statespace/__init__.py",
+      "sha256": "44e2d85ede973e0e3adde45c9dde6ad70f6f5e8810b257b91a71c9c4491fc98d",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/statespace/_utils.py",
+      "sha256": "68f467908decdf019e25ef9d245b3210f7733d5d590d19418cdddefb62ccc3ed",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/statespace/analysis.py",
+      "sha256": "1cd887e69fa7e6b0c1c3eceffdd50703cb7345641e012f4a24904359f4dc8f30",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/statespace/design.py",
+      "sha256": "6574c6cf0dd93ceac648d96aa8cf98704741a43469d4d2c28655b5f76ca8337a",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/statespace/equations.py",
+      "sha256": "ad913f53ac4ed65f3c746e067aa71fb5b5863344898d309e82c864b970718dcc",
+      "matches_base": true
+    },
+    {
+      "path": "control_lab/statespace/simulation.py",
+      "sha256": "76b0745846c1354bc3c1b75bf7f8bed19e5398921175151d5ef316b10f5ff4fc",
+      "matches_base": true
+    },
+    {
+      "path": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+      "sha256": "b5a952fecc978986305c477c4b3b8ed4814982e1989ee4b565c2bfcf297d9fb8",
+      "matches_base": true
+    },
+    {
+      "path": "docs/audit/Relatorio_Auditoria_Externa_ControlLab_Auditoria_2_2026-11-15.pdf",
+      "sha256": "58bee7d4beaba364ec13ae9e872cfcced552eebb055386207ffb24a52ff847a7",
+      "matches_base": true
+    },
+    {
+      "path": "docs/audits/AUDITORIA_EXTERNA_CL_DIR_001.md",
+      "sha256": "1b2101658e86566ac8fe79a2b6669b0b202582e423479655a5ef7e4a1e6a7c15",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/offline_cache_wasm.mjs",
+      "sha256": "6c2f042a5bff2181cdb2cb5e4d911a8829caf0299a1d67789e7a8c91c85a8058",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/rpc_bridge_cpython.test.mjs",
+      "sha256": "2999274053a4844030d58c5bcc652484eb9ea0eb704194e1b868fc14b44b8d3d",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/test_build_independent_assets.py",
+      "sha256": "040f32c81e9664a7f7c887410dab550f332df5e267b6d117fb8dee0d3eb3006f",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/test_build_pipeline.py",
+      "sha256": "6e9d68069f303ee69bc651496a840676f13e0909539a5d95ad15ca3a27b3e202",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/test_fml_remediation_independent.py",
+      "sha256": "b7fedfe8961bf8e04cf55ff2a0972b1a31c6527ad33b240a498ab465a4494e2d",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/test_golden_fixtures.py",
+      "sha256": "2cf3748285d6728e5bbb3880c3d3def4aec7a286cf512ea40f82bf95fdbcecc2",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/test_release_fixtures.py",
+      "sha256": "e3f5beee52638d065a399b09948c0b1186b95fec2328fa0c6706c7c5936036bc",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/test_release_gate_state.py",
+      "sha256": "56c3fe8abaefcd9e06127c8949fff3479e925bc9df23974a795121cdd7bf9fee",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/test_release_independent_baseline.py",
+      "sha256": "8dca58c23da71e7d152b02d0628a3955eb2ab906e7053e9920c99427b09b16df",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/test_release_independent_math.py",
+      "sha256": "f61cd8019a4e2e9ab72623d0c0dbf0915d10e0c71c9c74f5501bc3e7b1871872",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/test_sdp_remediation_independent.py",
+      "sha256": "1fa89e1635c446da562a1919b6f7e88f220b4c5984de8517e1e8ee25cc393fcd",
+      "matches_base": true
+    },
+    {
+      "path": "tests/oracles/ui_remediation_independent.test.mjs",
+      "sha256": "3544ca23cca9e588c55343984aa943f647deeb7cca8c1a0ce2dca2699f9b4031",
+      "matches_base": true
+    },
+    {
+      "path": "web/app/accessibility.ts",
+      "sha256": "8a1bc858642a6fefc66e10e68e926f1a7c5fe43f75dbdf1e8776d9a4beefbc4c",
+      "matches_base": true
+    },
+    {
+      "path": "web/app/index.html",
+      "sha256": "738ec87bb64b4604e9d0e06cbfca699e0992933e2a5af6acdaa8d784c13ab33f",
+      "matches_base": true
+    },
+    {
+      "path": "web/app/main.ts",
+      "sha256": "b4e2d7ce1bad0d461f70aebf0926d8c718a08b395a6162065d9e18231cb355b7",
+      "matches_base": true
+    },
+    {
+      "path": "web/app/shell.ts",
+      "sha256": "5e27d80cf35c379e5d1ee47fd7712dfc6b8603ca8f9d52de84272f5eb9a141a0",
+      "matches_base": true
+    },
+    {
+      "path": "web/app/styles.css",
+      "sha256": "15962b1071163c6a198b1da4ba29761b91df1b4f66f280b93685929b34dfd74e",
+      "matches_base": true
+    },
+    {
+      "path": "web/app/tool_descriptor.ts",
+      "sha256": "a57860ebf891e9ee4f3246b17afa3a23e1fe01bd9bb48dbf29e74c004dccd848",
+      "matches_base": true
+    },
+    {
+      "path": "web/bridge/client.ts",
+      "sha256": "9e3fc341d9b80471441d6c291ddde6040840fa55569fb49ee4a9edde2d6f0d1c",
+      "matches_base": true
+    },
+    {
+      "path": "web/bridge/mock_adapter.ts",
+      "sha256": "8c34058c43e8ff9ede64aec2e3001c20a9b52ccfed286fd78360fb228e7ca0c3",
+      "matches_base": true
+    },
+    {
+      "path": "web/bridge/protocol.ts",
+      "sha256": "57a3e124756b9d46f5c7e9f7bd3ab0164cecfcf5adccca6fe6e7e874376361c2",
+      "matches_base": true
+    },
+    {
+      "path": "web/bridge/pyodide_client.ts",
+      "sha256": "7a79066eae133d338210199afb40b05953dae98f02d1bccef195f3fd4c0f20b9",
+      "matches_base": true
+    },
+    {
+      "path": "web/charts/overlays.ts",
+      "sha256": "5d89ab304e3050f980603f4a6b1b2f2279499d38960bc805655b03145ddebbff",
+      "matches_base": true
+    },
+    {
+      "path": "web/charts/scientific_chart.ts",
+      "sha256": "e05f1ecb8ff347dd6d72e601b8277ea16732467026f102c68661ecdbbecb48c1",
+      "matches_base": true
+    },
+    {
+      "path": "web/features/lqr_workspace.ts",
+      "sha256": "b24330a391e6a7f95d523e3626b2eea84473119b87459717d9cb78725d12a2cb",
+      "matches_base": true
+    },
+    {
+      "path": "web/features/project_tabs.ts",
+      "sha256": "48c27b236d463d389574d13612ec0e754c626769a4003c207f848febd666ff6d",
+      "matches_base": true
+    },
+    {
+      "path": "web/features/tool_catalog.ts",
+      "sha256": "1e77a2a3436b0ad5c27f788a6f4a5f9ca17bfeb626f5ae2372cdd949f83a2ede",
+      "matches_base": true
+    },
+    {
+      "path": "web/node-builtins.d.ts",
+      "sha256": "3f0563588c0c653db00d8c5b05143e67de5f3eafba51ff307f842f0b25c4d198",
+      "matches_base": true
+    },
+    {
+      "path": "web/package-lock.json",
+      "sha256": "a196a640c1907d0fda0e6753bb33c9e2beb2bf3f99befd3405ce86f7ea8f0711",
+      "matches_base": true
+    },
+    {
+      "path": "web/package.json",
+      "sha256": "5de91330bc29fface33d299cbc015259fbd1ff06cb0c634c04987e8439f579d6",
+      "matches_base": true
+    },
+    {
+      "path": "web/storage/indexeddb_store.ts",
+      "sha256": "20903d7098688edc6d16ea41072cded7178811cab4ac6dfd604b4ac956689dfd",
+      "matches_base": true
+    },
+    {
+      "path": "web/tsconfig.json",
+      "sha256": "f0b9b4c8f86213dd3cb5249902d67ff77d89022c7f48299554d1f548ea800431",
+      "matches_base": true
+    },
+    {
+      "path": "web/worker/model_store.ts",
+      "sha256": "0aa03b37c6e1e5bd740473893ba07f5abe7cf07a8f33b842c13f9a744cf31bd8",
+      "matches_base": true
+    },
+    {
+      "path": "web/worker/pyodide_worker.ts",
+      "sha256": "1ceebe5616c86e72d34ee5aa79ca486d7730adebac1bc2cf02c78b10e799e05a",
+      "matches_base": true
+    },
+    {
+      "path": "web/worker/pyproxy_guard.ts",
+      "sha256": "2d212fd4483ec7be928f28d370e817e9c32164f91e3d35f8f98ea7deb0deede9",
+      "matches_base": true
+    },
+    {
+      "path": "web/worker/service_worker.ts",
+      "sha256": "7f7811c58391f05488b6b187a08f75e68b82ec2b3d297c908d5eff3628388c21",
+      "matches_base": true
+    }
+  ]
+}

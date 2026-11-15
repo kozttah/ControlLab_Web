@@ -1,0 +1,21 @@
+{
+  "scope": "Actual F8 export methods replayed with read-only accessor stubs and a genuine CPython LQR result; not a fresh browser download E2E. No converted or injected Python executed.",
+  "AUD-019": {
+    "format": "controllab_ctrlab_export",
+    "download_prefix": "{\n",
+    "native_load_status": "failure",
+    "error": "VALIDATION_ERROR"
+  },
+  "AUD-020": {
+    "input_nodes": 5,
+    "input_connections": 5,
+    "unknown_blocks": [
+      "MatrixGain"
+    ],
+    "converted_connection_calls": 3
+  },
+  "AUD-021": {
+    "injected_ast_calls": 1,
+    "executed": false
+  }
+}

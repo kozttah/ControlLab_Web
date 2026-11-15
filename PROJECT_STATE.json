@@ -11,15 +11,25 @@
     "history": {
       "2026-11-13": 6,
       "2026-11-14": 12,
-      "2026-11-15": 3
+      "2026-11-15": 4
     }
   },
   "audit_reference": {
-    "report_id": "AUD-EXT-CL-DIR-001-2026-11-14",
-    "external_report": "docs/audits/AUDITORIA_EXTERNA_CL_DIR_001.md",
-    "f9_triage": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+    "report_id": "AUD-EXT-CL-DIR-001-2026-11-15",
+    "revision": 2,
+    "external_report": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+    "f9_triage": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
     "verdict": "NOT_APPROVED_FOR_STABLE_WEB_RELEASE",
-    "triaged_at_utc": "2026-11-14"
+    "triaged_against_commit": "50ba04d16633e9cd96c3b90a7668466c30ee9ca7",
+    "confirmed_findings": [
+      "AUD-016",
+      "AUD-017",
+      "AUD-018",
+      "AUD-019",
+      "AUD-020",
+      "AUD-021"
+    ],
+    "disputed_active_findings": []
   },
   "gates": {
     "G-0A": {
@@ -63,40 +73,381 @@
     "G-0C": {
       "status": "PENDING",
       "description": "UI mínima e contrato RPC v1.0 com Mock e Engine real (Seção 14.1)",
-      "audit_verdict": "BLOCKED",
+      "audit_verdict": "BLOCKED_UI_FILE_IO_AND_UNSAFE_METADATA_EXPORT",
       "blocking_findings": [
         "AUD-001",
         "AUD-002",
         "AUD-003",
         "AUD-010",
-        "AUD-014"
+        "AUD-014",
+        "AUD-019",
+        "AUD-020",
+        "AUD-021"
       ],
       "blocking_wps": [
         "WP-AUDIT-FIX-F7-RPC-BRIDGE",
         "WP-AUDIT-FIX-F8-TS-UI",
         "WP-AUDIT-FIX-F9-BUILD-CI",
         "WP-AUDIT-FIX-F7-OFFLINE-SW",
-        "WP-AUDIT-FIX-F9-WASM-GATES"
+        "WP-AUDIT-FIX-F9-WASM-GATES",
+        "WP-AUDIT2-FIX-F1-IO-RPC",
+        "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",
+        "WP-AUDIT2-FIX-F8-NATIVE-IO",
+        "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
       ],
-      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
+      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+      "previous_assessments": [
+        {
+          "status": "PENDING",
+          "description": "UI mínima e contrato RPC v1.0 com Mock e Engine real (Seção 14.1)",
+          "audit_verdict": "BLOCKED",
+          "blocking_findings": [
+            "AUD-001",
+            "AUD-002",
+            "AUD-003",
+            "AUD-010",
+            "AUD-014"
+          ],
+          "blocking_wps": [
+            "WP-AUDIT-FIX-F7-RPC-BRIDGE",
+            "WP-AUDIT-FIX-F8-TS-UI",
+            "WP-AUDIT-FIX-F9-BUILD-CI",
+            "WP-AUDIT-FIX-F7-OFFLINE-SW",
+            "WP-AUDIT-FIX-F9-WASM-GATES"
+          ],
+          "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
+        }
+      ],
+      "audit2_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md"
     },
     "G-0D": {
       "status": "PENDING",
       "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)",
-      "audit_verdict": "CONTINUOUS_AND_SINGLE_RATE_DISCRETE_EXTERNAL_INTEROP_VERIFIED_GATE_PENDING",
+      "audit_verdict": "BLOCKED_UI_FILE_IO_AND_UNSAFE_METADATA_EXPORT",
       "blocking_findings": [
-        "AUD-011"
+        "AUD-011",
+        "AUD-019",
+        "AUD-020",
+        "AUD-021"
       ],
       "blocking_wps": [
         "WP-AUDIT-FIX-F1-CORE-RPC",
         "WP-AUDIT-FIX-F9-BUILD-CI",
-        "WP-AUDIT-FIX-F9-WASM-GATES"
+        "WP-AUDIT-FIX-F9-WASM-GATES",
+        "WP-AUDIT2-FIX-F1-IO-RPC",
+        "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",
+        "WP-AUDIT2-FIX-F8-NATIVE-IO",
+        "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
       ],
       "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
-      "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md"
+      "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md",
+      "previous_assessments": [
+        {
+          "status": "PENDING",
+          "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)",
+          "audit_verdict": "CONTINUOUS_AND_SINGLE_RATE_DISCRETE_EXTERNAL_INTEROP_VERIFIED_GATE_PENDING",
+          "blocking_findings": [
+            "AUD-011"
+          ],
+          "blocking_wps": [
+            "WP-AUDIT-FIX-F1-CORE-RPC",
+            "WP-AUDIT-FIX-F9-BUILD-CI",
+            "WP-AUDIT-FIX-F9-WASM-GATES"
+          ],
+          "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md"
+        }
+      ],
+      "audit2_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md"
     }
   },
   "work_packages": [
+    {
+      "wp_id": "WP-AUDIT2-FIX-F9-GOV",
+      "requirement_ids": [
+        "R-23",
+        "R-24"
+      ],
+      "findings": [
+        "AUD-016"
+      ],
+      "front": "f9-integration-qa",
+      "phase": "Audit-2-Remediation",
+      "title": "Validar governança e handoffs por invariantes, sem congelar vereditos, contagens ou cabeçalhos históricos",
+      "allowed_paths": [
+        "scripts/",
+        "tests/integration/",
+        "docs/audits/",
+        "docs/architecture/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [],
+      "acceptance_cmd": "python3 scripts/ci_math.py core_no_sdp --reports docs/audits/audit2/evidence/core && node --test tests/integration/*.test.mjs",
+      "normative_tests": [
+        "T-PVM-01",
+        "T-PVM-02",
+        "T-UI-01",
+        "T-SEC-01"
+      ],
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "priority": "MAXIMUM_AUDIT2",
+      "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+      "normative_scope": "Guards de governança para não promover cobertura parcial; não declarar nova execução browser desses T-*.",
+      "regression_tests": [
+        "test_semantic_governance_accepts_queue_growth_and_factual_verdict_updates",
+        "test_acceptance_without_evidence_is_rejected",
+        "test_cycles_and_unknown_dependencies_are_rejected",
+        "test_unavailable_gate_cannot_be_promoted"
+      ],
+      "acceptance_scope": "local_governance_audit2_only",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT2-FIX-F9-GOV.md",
+      "acceptance_evidence": [
+        "docs/audits/audit2/evidence/core/B-core_no_sdp.json",
+        "docs/audits/audit2/evidence/acceptance-node.log"
+      ]
+    },
+    {
+      "wp_id": "WP-AUDIT2-FIX-F9-PROTECTION",
+      "requirement_ids": [
+        "R-23",
+        "R-24"
+      ],
+      "findings": [
+        "AUD-018"
+      ],
+      "front": "f9-integration-qa",
+      "phase": "Audit-2-Remediation",
+      "title": "Obter proteção efetiva do servidor para main, required checks e revisão F9; não simular enforcement local",
+      "allowed_paths": [
+        "scripts/",
+        "tests/security/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-AUDIT2-FIX-F9-GOV"
+      ],
+      "acceptance_cmd": "pytest tests/security/test_repository_protection.py -v",
+      "normative_tests": [],
+      "status": "PENDING",
+      "f9_review": "pending",
+      "priority": "MAXIMUM_AUDIT2",
+      "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+      "external_blockers": [
+        "Leitura atual: protected=false; rulesets indisponíveis (403 por plano/private). Exige ação explícita do responsável e capacidade do servidor; nenhum plano, visibilidade ou permissão será alterado nesta rodada."
+      ],
+      "acceptance_requirements": [
+        "API comprova proteção e checks/reviews obrigatórios",
+        "Mudança de fixture/merge com check falho bloqueados em ensaio autorizado"
+      ]
+    },
+    {
+      "wp_id": "WP-AUDIT2-FIX-F1-OPTIONAL-SDP-TEST",
+      "requirement_ids": [
+        "R-02",
+        "R-19",
+        "R-20",
+        "R-21"
+      ],
+      "findings": [
+        "AUD-017"
+      ],
+      "front": "f1-core-io",
+      "phase": "Audit-2-Remediation",
+      "title": "Separar hipóteses de ausência/presença do backend opcional no teste multidomínio real",
+      "allowed_paths": [
+        "control_lab/core/",
+        "control_lab/diagnostics/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-AUDIT2-FIX-F9-GOV"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f1/ -v",
+      "normative_tests": [
+        "T-SDP-B1",
+        "T-SDP-D1"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending",
+      "priority": "MAXIMUM_AUDIT2",
+      "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+      "required_profiles": [
+        "core_no_sdp",
+        "sdp_available"
+      ],
+      "acceptance_requirements": [
+        "Sem skip oportunista nem troca de expected científico",
+        "Backend presente: primal/dual/gap e auditor independente",
+        "Backend ausente: SOLVER_UNAVAILABLE sem ganho falso"
+      ]
+    },
+    {
+      "wp_id": "WP-AUDIT2-FIX-F1-IO-RPC",
+      "requirement_ids": [
+        "R-02",
+        "R-19",
+        "R-20",
+        "R-21"
+      ],
+      "findings": [],
+      "front": "f1-core-io",
+      "phase": "Audit-2-Remediation",
+      "title": "Fornecer RPC versionado para serializers PVM oficial e ctrlab ZIP/importação passiva com bytes e diagnósticos",
+      "allowed_paths": [
+        "control_lab/core/",
+        "control_lab/io/",
+        "control_lab/diagnostics/",
+        "tests/unit/f1/",
+        "contracts/schemas/"
+      ],
+      "dependencies": [
+        "WP-AUDIT2-FIX-F9-GOV",
+        "WP-AUDIT2-FIX-F1-OPTIONAL-SDP-TEST"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f1/ -v",
+      "normative_tests": [
+        "T-IO-01",
+        "T-IO-02",
+        "T-PVM-01",
+        "T-PVM-02"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending",
+      "priority": "MAXIMUM_AUDIT2",
+      "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+      "supports_findings": [
+        "AUD-019",
+        "AUD-020",
+        "AUD-021"
+      ],
+      "contract_review": "F1 propõe; F9 aprova antes do consumo F8"
+    },
+    {
+      "wp_id": "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",
+      "requirement_ids": [
+        "R-02",
+        "R-19",
+        "R-20",
+        "R-21"
+      ],
+      "findings": [
+        "AUD-020",
+        "AUD-021"
+      ],
+      "front": "f8-ui-charts",
+      "phase": "Audit-2-Remediation",
+      "title": "Conter imediatamente o download PVM incompatível e a injeção por metadados até integração canônica",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-AUDIT2-FIX-F9-GOV"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8",
+      "normative_tests": [
+        "T-PVM-01",
+        "T-IO-02"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending",
+      "priority": "MAXIMUM_AUDIT2",
+      "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+      "acceptance_scope": "Contenção honesta: bloquear artefato inseguro; não equivale ao fechamento integrado AUD-020/021",
+      "acceptance_requirements": [
+        "ID CR/LF/aspas/Unicode não introduz instrução Python",
+        "Sem copiar lowering científico para TypeScript"
+      ]
+    },
+    {
+      "wp_id": "WP-AUDIT2-FIX-F8-NATIVE-IO",
+      "requirement_ids": [
+        "R-02",
+        "R-19",
+        "R-20",
+        "R-21"
+      ],
+      "findings": [
+        "AUD-019",
+        "AUD-020",
+        "AUD-021"
+      ],
+      "front": "f8-ui-charts",
+      "phase": "Audit-2-Remediation",
+      "title": "Consumir I/O canônico F1 e remover geradores paralelos; salvar/reabrir ZIP e baixar PVM oficial",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-AUDIT2-FIX-F1-IO-RPC",
+        "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8",
+      "normative_tests": [
+        "T-IO-01",
+        "T-PVM-01",
+        "T-PVM-02",
+        "T-UI-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending",
+      "priority": "MAXIMUM_AUDIT2",
+      "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+      "acceptance_requirements": [
+        "Download real ZIP .ctrlab e reabertura com matrizes/revisões/unidades/sinais/proveniência",
+        "PVM real deriva de F1; previews e pending_commit não exportam",
+        "Metadados serializados como dados"
+      ]
+    },
+    {
+      "wp_id": "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E",
+      "requirement_ids": [
+        "R-23",
+        "R-24"
+      ],
+      "findings": [],
+      "front": "f9-integration-qa",
+      "phase": "Audit-2-Remediation",
+      "title": "Auditar os bytes realmente baixados pela UI com importador nativo e conversor/PathSim oficial",
+      "allowed_paths": [
+        "tests/e2e/",
+        "tests/security/",
+        "tests/oracles/",
+        "scripts/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-AUDIT2-FIX-F8-NATIVE-IO"
+      ],
+      "acceptance_cmd": "pytest tests/e2e/ tests/security/ -v",
+      "normative_tests": [
+        "T-IO-01",
+        "T-IO-02",
+        "T-PVM-01",
+        "T-PVM-02",
+        "T-UI-01"
+      ],
+      "status": "PENDING",
+      "f9_review": "pending",
+      "priority": "MAXIMUM_AUDIT2",
+      "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+      "supports_findings": [
+        "AUD-019",
+        "AUD-020",
+        "AUD-021"
+      ],
+      "acceptance_requirements": [
+        "Não substituir download por nova chamada Python",
+        "Casos C=I/C!=I/m!=p/±/discreto e dinâmico exposto",
+        "AST pós-conversão sem instruções de metadado injetadas"
+      ]
+    },
     {
       "wp_id": "WP-AUDIT-FIX-F9-GOV",
       "requirement_ids": [
@@ -384,8 +735,18 @@
       "release_blocker_wps": [
         "WP-AUDIT-FIX-F9-BUILD-CI",
         "WP-AUDIT-FIX-F7-OFFLINE-SW",
-        "WP-AUDIT-FIX-F9-WASM-GATES"
-      ]
+        "WP-AUDIT-FIX-F9-WASM-GATES",
+        "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",
+        "WP-AUDIT2-FIX-F8-NATIVE-IO",
+        "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
+      ],
+      "integration_status": "CONDITIONED_BY_AUDIT2",
+      "audit2_findings": [
+        "AUD-019",
+        "AUD-020",
+        "AUD-021"
+      ],
+      "audit2_evidence_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md"
     },
     {
       "wp_id": "WP-AUDIT-FIX-F9-BUILD-CI",
@@ -694,7 +1055,17 @@
           "required_work": "Provision a pinned production SDP backend and execute the full G-0B candidate assay in at least two browsers, including PSD non-diagonal, control BRL, infeasible and limit cases. Until then keep production SDP unavailable.",
           "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
         }
-      }
+      },
+      "audit2_findings": [
+        "AUD-018",
+        "AUD-019",
+        "AUD-020",
+        "AUD-021"
+      ],
+      "release_blocker_wps": [
+        "WP-AUDIT2-FIX-F9-PROTECTION",
+        "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
+      ]
     },
     {
       "wp_id": "WP-00-F9-BOOTSTRAP",
@@ -804,7 +1175,15 @@
       "release_blocker_wps": [
         "WP-AUDIT-FIX-F9-BUILD-CI",
         "WP-AUDIT-FIX-F9-WASM-GATES"
-      ]
+      ],
+      "legacy_acceptance_evidence": {
+        "format": "legacy_cpython_local.v1",
+        "evidence_refs": [
+          "tests/unit/f2/test_care_lqr.py"
+        ],
+        "recorded_before_report_id": "AUD-EXT-CL-DIR-001-2026-11-15",
+        "limitation": "Registro legado local preservado; não substitui dossiê final de produto nem autoriza release."
+      }
     },
     {
       "wp_id": "WP-03-F6-SDP-MODELING-AND-GATE0B",
@@ -989,6 +1368,18 @@
         "WP-AUDIT-FIX-F8-TS-UI",
         "WP-AUDIT-FIX-F9-BUILD-CI",
         "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "integration_status": "CONDITIONED_BY_AUDIT2",
+      "audit2_findings": [
+        "AUD-019",
+        "AUD-020",
+        "AUD-021"
+      ],
+      "audit2_evidence_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
+      "release_blocker_wps": [
+        "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",
+        "WP-AUDIT2-FIX-F8-NATIVE-IO",
+        "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
       ]
     },
     {
@@ -1020,7 +1411,15 @@
       "release_blocker_wps": [
         "WP-AUDIT-FIX-F9-BUILD-CI",
         "WP-AUDIT-FIX-F9-WASM-GATES"
-      ]
+      ],
+      "legacy_acceptance_evidence": {
+        "format": "legacy_cpython_local.v1",
+        "evidence_refs": [
+          "tests/unit/f3/test_frequency_siso_and_mimo.py"
+        ],
+        "recorded_before_report_id": "AUD-EXT-CL-DIR-001-2026-11-15",
+        "limitation": "Registro legado local preservado; não substitui dossiê final de produto nem autoriza release."
+      }
     },
     {
       "wp_id": "WP-08-F4-IDENTIFICATION",
@@ -1049,7 +1448,15 @@
       "release_blocker_wps": [
         "WP-AUDIT-FIX-F9-BUILD-CI",
         "WP-AUDIT-FIX-F9-WASM-GATES"
-      ]
+      ],
+      "legacy_acceptance_evidence": {
+        "format": "legacy_cpython_local.v1",
+        "evidence_refs": [
+          "tests/unit/f4/test_identification.py"
+        ],
+        "recorded_before_report_id": "AUD-EXT-CL-DIR-001-2026-11-15",
+        "limitation": "Registro legado local preservado; não substitui dossiê final de produto nem autoriza release."
+      }
     },
     {
       "wp_id": "WP-09-F5-FUZZY-FML-ANFIS",
@@ -1134,5 +1541,25 @@
       ],
       "pending_followup": "OBS-F9-WP10-01 (EducationalBarrierBackend.capabilities em control_lab/optimization/backends/unavailable.py) incorporado em WP-AUDIT-FIX-F6-SDP; OBS-F9-WP10-03 (runtime Pyodide/Wasm em Job D / Gates G-0A e G-0B) incorporado em WP-AUDIT-FIX-F9-WASM-GATES."
     }
-  ]
+  ],
+  "audit_history": [
+    {
+      "report_id": "AUD-EXT-CL-DIR-001-2026-11-14",
+      "external_report": "docs/audits/AUDITORIA_EXTERNA_CL_DIR_001.md",
+      "f9_triage": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+      "verdict": "NOT_APPROVED_FOR_STABLE_WEB_RELEASE",
+      "triaged_at_utc": "2026-11-14"
+    }
+  ],
+  "release_governance": {
+    "status": "BLOCKED",
+    "findings": [
+      "AUD-018"
+    ],
+    "remediation_wps": [
+      "WP-AUDIT2-FIX-F9-PROTECTION"
+    ],
+    "evidence_ref": "docs/audits/audit2/evidence/AUD-018-server.json",
+    "manual_process_is_not_server_enforcement": true
+  }
 }

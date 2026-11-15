@@ -1,0 +1,4 @@
+{"accepted": 14, "corrective_packages": 18, "work_packages": 29}
+Final selected WP: WP-AUDIT2-FIX-F1-OPTIONAL-SDP-TEST
+All four gates: [('G-0A', 'PENDING'), ('G-0B', 'PENDING'), ('G-0C', 'PENDING'), ('G-0D', 'PENDING')]
+Only WP-AUDIT2-FIX-F9-GOV accepted in Audit 2; remaining six PENDING.

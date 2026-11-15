@@ -1,0 +1,306 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "created": "2026-11-15T18:08:21.345Z",
+    "modified": "2026-11-15T18:08:21.345Z",
+    "name": "ControlLab_LQR_audit2-plant_r0",
+    "generator": "ControlLab Web",
+    "spec_version": "1.0.0",
+    "external_pathview_verified": false,
+    "gate_pending": "G-0D",
+    "gate_notice": "Exportação estrutural .pvm v1.0.0 gerada localmente; execução externa no PathView sujeita ao Gate G-0D.",
+    "interconnection_kind": "state_feedback",
+    "feedback_sign": "negative",
+    "plant_ref": {
+      "id": "audit2-plant",
+      "revision": 0
+    },
+    "controller_ref": {
+      "id": "ctrl-audit2",
+      "revision": 0
+    },
+    "project_id": "audit2\nprint(\"AUDIT_METADATA_INJECTION\")\n#",
+    "project_revision": 0,
+    "model_revision": 0
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "node-ref-source",
+        "type": "Source",
+        "name": "u_ff_reference",
+        "position": {
+          "x": 80,
+          "y": 180
+        },
+        "inputs": [],
+        "outputs": [
+          {
+            "nodeId": "node-ref-source",
+            "direction": "output",
+            "index": 0,
+            "name": "r"
+          }
+        ],
+        "params": {
+          "dim": 1,
+          "signal_type": "zero",
+          "value": [
+            0
+          ],
+          "channel_names": [
+            "u"
+          ]
+        }
+      },
+      {
+        "id": "node-sum",
+        "type": "Adder",
+        "name": "FeedbackSum(negative)",
+        "position": {
+          "x": 260,
+          "y": 180
+        },
+        "inputs": [
+          {
+            "nodeId": "node-sum",
+            "direction": "input",
+            "index": 0,
+            "name": "u_ff"
+          },
+          {
+            "nodeId": "node-sum",
+            "direction": "input",
+            "index": 1,
+            "name": "Kx"
+          }
+        ],
+        "outputs": [
+          {
+            "nodeId": "node-sum",
+            "direction": "output",
+            "index": 0,
+            "name": "u_cmd"
+          }
+        ],
+        "params": {
+          "signs": [
+            "+",
+            "-"
+          ],
+          "feedback_sign": "negative",
+          "dim": 1
+        }
+      },
+      {
+        "id": "node-plant",
+        "type": "StateSpace",
+        "name": "audit2-plant",
+        "position": {
+          "x": 460,
+          "y": 180
+        },
+        "inputs": [
+          {
+            "nodeId": "node-plant",
+            "direction": "input",
+            "index": 0,
+            "name": "u"
+          }
+        ],
+        "outputs": [
+          {
+            "nodeId": "node-plant",
+            "direction": "output",
+            "index": 0,
+            "name": "y"
+          },
+          {
+            "nodeId": "node-plant",
+            "direction": "output",
+            "index": 1,
+            "name": "x"
+          }
+        ],
+        "params": {
+          "n_states": 2,
+          "n_inputs": 1,
+          "n_outputs": 1,
+          "dt": null,
+          "initial_state": [
+            1,
+            0
+          ],
+          "expose_state": true,
+          "state_names": [
+            "x1",
+            "x2"
+          ],
+          "input_names": [
+            "u"
+          ],
+          "output_names": [
+            "y"
+          ],
+          "A": [
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "B": [
+            [
+              0
+            ],
+            [
+              1
+            ]
+          ],
+          "C": [
+            [
+              1,
+              0
+            ]
+          ],
+          "D": [
+            [
+              0
+            ]
+          ]
+        }
+      },
+      {
+        "id": "node-scope-y",
+        "type": "Scope",
+        "name": "OutputScope_y",
+        "position": {
+          "x": 660,
+          "y": 180
+        },
+        "inputs": [
+          {
+            "nodeId": "node-scope-y",
+            "direction": "input",
+            "index": 0,
+            "name": "y"
+          }
+        ],
+        "outputs": [],
+        "params": {
+          "dim": 1,
+          "channel_names": [
+            "y"
+          ],
+          "units": [
+            ""
+          ],
+          "label": "y"
+        }
+      },
+      {
+        "id": "node-gain-k",
+        "type": "MatrixGain",
+        "name": "K_lqr",
+        "position": {
+          "x": 340,
+          "y": 340
+        },
+        "inputs": [
+          {
+            "nodeId": "node-gain-k",
+            "direction": "input",
+            "index": 0,
+            "name": "x"
+          }
+        ],
+        "outputs": [
+          {
+            "nodeId": "node-gain-k",
+            "direction": "output",
+            "index": 0,
+            "name": "Kx"
+          }
+        ],
+        "params": {
+          "gain": [
+            [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          ],
+          "shape": [
+            1,
+            2
+          ],
+          "role": "feedback_gain",
+          "label": "K",
+          "feedback_sign": "negative"
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-1",
+        "sourceNodeId": "node-ref-source",
+        "sourcePortIndex": 0,
+        "targetNodeId": "node-sum",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn-2",
+        "sourceNodeId": "node-sum",
+        "sourcePortIndex": 0,
+        "targetNodeId": "node-plant",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn-3",
+        "sourceNodeId": "node-plant",
+        "sourcePortIndex": 0,
+        "targetNodeId": "node-scope-y",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn-4",
+        "sourceNodeId": "node-plant",
+        "sourcePortIndex": 1,
+        "targetNodeId": "node-gain-k",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn-5",
+        "sourceNodeId": "node-gain-k",
+        "sourcePortIndex": 0,
+        "targetNodeId": "node-sum",
+        "targetPortIndex": 1
+      }
+    ],
+    "annotations": [
+      {
+        "id": "ann-controllab-spec",
+        "text": "ControlLab .pvm v1.0.0 | feedback_sign=negative, m=1, p=1, model_revision=0, external_pathview_verified=false (Gate G-0D pendente)"
+      }
+    ]
+  },
+  "events": [],
+  "codeContext": {
+    "code": "# Gerado deterministicamente pelo ControlLab (não executar automaticamente na importação)\n# project_id=audit2\nprint(\"AUDIT_METADATA_INJECTION\")\n#, project_revision=0, model_revision=0\nfeedback_sign = \"negative\"\n"
+  },
+  "simulationSettings": {
+    "duration": "10",
+    "dt": "0.01",
+    "solver": "RKCK54",
+    "adaptive": true,
+    "atol": "1e-6",
+    "rtol": "1e-4",
+    "ftol": "1e-9",
+    "dt_min": "",
+    "dt_max": "",
+    "ghostTraces": 0,
+    "plotResults": true
+  }
+}

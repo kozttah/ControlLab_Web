@@ -1,0 +1,17 @@
+▶ test_acceptance_runner_requires_tsc_and_tests
+  ✔ parseCliArgs valida escopos e rejeita flags/argumentos inválidos (1.287027ms)
+  ✔ CLI real falha fechado sem tsc no PATH (sem argumentos, --scope all, --scope f7, --scope f8) (232.320858ms)
+  ✔ CLI real rejeita escopos e flags inválidas com código != 0 (283.66001ms)
+  ✔ runWebTests falha com código != 0 para pasta de teste vazia/ausente, falta de TS ou falta de tsconfig (554.221234ms)
+  ✔ runWebTests com tsc mock, TS válido e .test.mjs válido retorna 0 e registra [typecheck] PASS e [unit-tests] PASS (721.649931ms)
+  ✔ falha de tsc interrompe antes dos testes unitários e falha de unitário reporta [typecheck] PASS + [unit-tests] FAIL (349.780525ms)
+  ✔ resolveTscCommand respeita precedência web/node_modules/.bin -> node_modules/.bin -> PATH -> null (55.315205ms)
+✔ test_acceptance_runner_requires_tsc_and_tests (2200.363118ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2291.941048

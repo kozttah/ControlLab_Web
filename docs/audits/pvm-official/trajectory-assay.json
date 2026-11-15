@@ -1,0 +1,139 @@
+{
+  "document_id": "CL-DIR-001",
+  "work_package": "WP-AUDIT-FIX-F1-PVM-OFFICIAL",
+  "source_base_commit": "0d788634fceddca4aa34ee04b00877df5aa43a7d",
+  "control_lab_source_sha256": {
+    "control_lab/io/pvm.py": "0418e245f06da2af2f70c8d8c26d3ac00c14d41d86cb77017f11e04f0f32a0e7",
+    "control_lab/io/pvm_official.py": "fed6b493fa6d9e632eb6bc08b4e53bb63aed7dedd933fe0a442e27f8fce3ffc5"
+  },
+  "assay_script_sha256": "a0597b429608b063b01fb807a1592f80189a32bc5168cf33f2bbdf684d686dd4",
+  "upstream_commit": "4afdcc461ed63aa4231930170d20774428d51e8d",
+  "versions": {
+    "pathview": "0.21.0",
+    "pathsim": "0.31.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8"
+  },
+  "official_sources": {
+    "converter.py": {
+      "git_blob_sha1": "9993b6247434f712cd7fede6117f127c5988541e",
+      "sha256": "abb5449894a2407a2aa43407f90f0b0b7baaa53545ff495a249b944a874f7aa1"
+    },
+    "buses.py": {
+      "git_blob_sha1": "29a1953ab486205cbbaa4014800c7e57c120f0ee",
+      "sha256": "706d0486db79f83051980f9546a1f1e5ce01e8d8a88a405f1be7d2b8f1b77929"
+    },
+    "data/registry.json": {
+      "sha256": "39cb9fc5daef518bf6238cdf0655940078e0429df53eba5a73176e37e0f0e3cd"
+    }
+  },
+  "exported_registry_subset_compared_to_pinned_upstream": false,
+  "wheel_sha256": {
+    "pathsim-0.31.0-py3-none-any.whl": "2d667c96f2c6dcb115be9f8ce92fed8f157842f9dbac9650bd888dda239ed226",
+    "pathview-0.21.0-py3-none-any.whl": "6680906c1cbe75a729e8541c181e7a7c3644bc7cea653f6d10c3669f39849659"
+  },
+  "oracle": "independent ODE/algebraic-loop equations; scipy solve_ivp high accuracy; exact recurrence for discrete case",
+  "only_fresh_test_generated_code_executed": true,
+  "official_ui_not_part_of_this_script": true,
+  "all_passed": true,
+  "cases": [
+    {
+      "case": "static_negative_ci",
+      "samples": 501,
+      "max_output_abs_error": 1.1102230246251565e-16,
+      "max_plant_final_state_abs_error": 1.1102230246251565e-16,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 7,
+      "connections": 9,
+      "passed": true
+    },
+    {
+      "case": "static_negative_cneq",
+      "samples": 501,
+      "max_output_abs_error": 1.1102230246251565e-16,
+      "max_plant_final_state_abs_error": 0.0,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 6,
+      "connections": 7,
+      "passed": true
+    },
+    {
+      "case": "static_positive_ci",
+      "samples": 501,
+      "max_output_abs_error": 3.552713678800501e-15,
+      "max_plant_final_state_abs_error": 3.1086244689504383e-15,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 7,
+      "connections": 9,
+      "passed": true
+    },
+    {
+      "case": "static_positive_cneq",
+      "samples": 501,
+      "max_output_abs_error": 3.1086244689504383e-15,
+      "max_plant_final_state_abs_error": 2.4424906541753444e-15,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 6,
+      "connections": 7,
+      "passed": true
+    },
+    {
+      "case": "mimo_rectangular_reference",
+      "samples": 501,
+      "max_output_abs_error": 2.220446049250313e-16,
+      "max_plant_final_state_abs_error": 1.1102230246251565e-16,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 6,
+      "connections": 10,
+      "passed": true
+    },
+    {
+      "case": "saturated_negative",
+      "samples": 501,
+      "max_output_abs_error": 2.469290105722166e-09,
+      "max_plant_final_state_abs_error": 3.753094279801417e-09,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 7,
+      "connections": 8,
+      "passed": true
+    },
+    {
+      "case": "dynamic_nonzero_feedthrough",
+      "samples": 501,
+      "max_output_abs_error": 5.551115123125783e-16,
+      "max_plant_final_state_abs_error": 2.220446049250313e-16,
+      "max_controller_final_state_abs_error": 9.367506770274758e-17,
+      "error_limit": 2e-06,
+      "nodes": 5,
+      "connections": 5,
+      "passed": true
+    },
+    {
+      "case": "dynamic_zero_state",
+      "samples": 501,
+      "max_output_abs_error": 2.220446049250313e-16,
+      "max_plant_final_state_abs_error": 9.71445146547012e-17,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 5,
+      "connections": 5,
+      "passed": true
+    },
+    {
+      "case": "discrete_static",
+      "passed": true,
+      "supported": false,
+      "decision": "typed_export_rejection",
+      "reason": "[UNSUPPORTED_MODEL] Official PathView discrete export is unavailable: DiscreteStateSpace event scheduling does not preserve ControlLab's simultaneous x[k+1] feedback update.",
+      "trajectory_equivalence_verified": false,
+      "note": "Prior exported discrete graph failed the exact recurrence; refusing export is an honest capability restriction, not numerical validation."
+    }
+  ]
+}

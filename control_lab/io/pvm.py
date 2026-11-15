@@ -3,15 +3,20 @@
 Normas (CL-DIR-001 Seções 9.3, 10.4, 12.2, 13.3, Apêndice D e Gate G-0D):
 - Importação 100% passiva: nunca executa `codeContext.code`, `eval`, `exec` nem expressões
   Python em `params`.
-- Registro explícito de blocos (`PATHVIEW_BLOCK_REGISTRY`) com status transparente
+- Registro oficial fixado e lowering escalar (`pvm_official`), com status transparente
   `external_pathview_verified: False` até validação externa em Gate G-0D.
 - Topologia explícita sem fan-in proibido, com exposição de `x` para realimentação de
   estados quando `C != I`, `Adder` com sinais explícitos para `feedback_sign`,
-  `MatrixGain` para `K` e `N` (`u_ff = N r_y`), `Saturation` opcional e bloco
-  `DynamicController` completo (nunca colapsado em ganho estático).
-- Simulação/extração estrutural `extract_lti_from_pvm` e `simulate_pvm_graph` que
-  reconstrói o sistema exclusivamente a partir da topologia do grafo e `params`, usando
-  `np.linalg.solve` (nunca `inv`).
+  produto matricial `Function` para `K`/`N`, `Clip` opcional e controlador dinâmico
+  completo em `StateSpace` oficial (nunca colapsado em ganho estático).
+- `MatrixGain`, `DynamicController` e `Saturation` são somente a representação
+  numérica legada interna. A saída oficial usa Source/StateSpace/Function/Adder/Clip/Scope
+  e portas escalares; o adaptador valida parâmetros e conexões antes de reagrupá-los.
+- `extract_lti_from_pvm` e `simulate_pvm_graph` usam essa projeção numérica validada,
+  sem avaliar expressões importadas, e resolvem loops com `np.linalg.solve` (nunca `inv`).
+- A exportação oficial discreta é recusada até correção independente do relógio
+  de DiscreteStateSpace. O perfil explícito legacy_numeric serve apenas ao avaliador
+  interno e nunca é apresentado como exportação PathView compatível.
 """
 
 from __future__ import annotations
@@ -57,6 +62,9 @@ from control_lab.diagnostics import (
     strict_json_loads,
 )
 from control_lab.statespace.simulation import simulate_lti
+from control_lab.io.pvm_official import (
+    OFFICIAL_PARAMS, PATHVIEW_COMMIT, lower_to_official, restore_numeric_projection,
+)
 
 PATHVIEW_SPEC_VERSION: str = "1.0.0"
 DEFAULT_PVM_TIMESTAMP: str = "2026-11-13T00:00:00Z"
@@ -81,90 +89,26 @@ _SIM_SETTINGS_REQUIRED_KEYS = frozenset(
     }
 )
 _NUMERIC_PARAM_KEYS = frozenset(
-    {"A", "B", "C", "D", "Ac", "Bc", "Cc", "Dc", "gain", "initial_state", "u_min", "u_max", "value"}
+    {"A", "B", "C", "D", "Ac", "Bc", "Cc", "Dc", "gain", "initial_state", "u_min", "u_max", "value", "func", "initial_value", "min_val", "max_val"}
 )
 
-# Registro versionado de blocos PathView alvo (pendente validação externa G-0D)
+# Official constructor ABI pinned separately from the .pvm document version.
+# Legacy numeric graphs are still accepted by the passive importer/evaluator;
+# all new exports use official scalar channels via the versioned adapter.
 PATHVIEW_BLOCK_REGISTRY: dict[str, Any] = {
     "spec_version": PATHVIEW_SPEC_VERSION,
+    "pathview_version": "0.21.0",
+    "pathview_commit": PATHVIEW_COMMIT,
+    "adapter_version": "controllab.pathview.scalar.v1",
+    "supported_external_domains": ["continuous"],
+    "discrete_external_status": "unavailable_pending_clock_alignment",
     "external_pathview_verified": False,
     "gate_status": "PENDING_G0D",
     "blocks": {
-        "Source": {
-            "inputs": [],
-            "outputs": [{"index": 0, "name": "out"}],
-            "required_params": ["dim", "signal_type", "value"],
-            "optional_params": ["channel_names", "units"],
-            "supports_vector_signals": True,
-            "external_verified": False,
-        },
-        "StateSpace": {
-            "inputs": [{"index": 0, "name": "u"}],
-            "outputs": [
-                {"index": 0, "name": "y"},
-                {"index": 1, "name": "x", "optional": True},
-            ],
-            "required_params": ["A", "B", "C", "D", "initial_state", "dt"],
-            "optional_params": ["state_names", "input_names", "output_names", "expose_state"],
-            "supports_vector_signals": True,
-            "external_verified": False,
-        },
-        "DynamicController": {
-            "inputs": "dynamic_by_ports",
-            "outputs": "dynamic_by_ports",
-            "required_params": [
-                "Ac",
-                "Bc",
-                "Cc",
-                "Dc",
-                "initial_state",
-                "dt",
-                "feedback_sign",
-                "ports",
-                "interconnection_scheme",
-            ],
-            "optional_params": ["state_names", "resolved_scheme"],
-            "supports_vector_signals": True,
-            "external_verified": False,
-        },
-        "MatrixGain": {
-            "inputs": [{"index": 0, "name": "in"}],
-            "outputs": [{"index": 0, "name": "out"}],
-            "required_params": ["gain", "shape"],
-            "optional_params": ["role", "label"],
-            "supports_vector_signals": True,
-            "external_verified": False,
-        },
-        "Adder": {
-            "inputs": "dynamic_by_signs",
-            "outputs": [{"index": 0, "name": "out"}],
-            "required_params": ["signs"],
-            "optional_params": ["feedback_sign", "dim", "label"],
-            "supports_vector_signals": True,
-            "external_verified": False,
-        },
-        "Saturation": {
-            "inputs": [{"index": 0, "name": "in"}],
-            "outputs": [{"index": 0, "name": "out"}],
-            "required_params": ["enabled", "u_min", "u_max"],
-            "optional_params": ["dim", "label"],
-            "supports_vector_signals": True,
-            "external_verified": False,
-        },
-        "Scope": {
-            "inputs": [{"index": 0, "name": "y"}],
-            "outputs": [],
-            "required_params": ["dim"],
-            "optional_params": ["channel_names", "units", "label"],
-            "supports_vector_signals": True,
-            "external_verified": False,
-        },
+        name: {"params": params, "external_verified": False}
+        for name, params in OFFICIAL_PARAMS.items()
     },
-    "unsupported_pending_dec_open_07": [
-        "PDCController",
-        "FuzzySystem",
-        "TSStateSpace",
-    ],
+    "unsupported_pending_dec_open_07": ["PDCController", "FuzzySystem", "TSStateSpace"],
 }
 
 
@@ -407,6 +351,20 @@ def _build_simulation_settings(
     if not isinstance(raw_solver, str) or not raw_solver.strip():
         raise ValidationError(f"simulationSettings.solver deve ser string não vazia, recebido {raw_solver!r}.")
 
+    # The upstream converter interpolates this token into a Python import;
+    # only real, pinned PathSim solver classes may cross the export boundary.
+    supported_solvers = {
+        "RKCK54", "RK4", "RKBS32", "RKDP54", "RKDP87", "RKF21", "RKF45", "RKF78", "RKV65",
+        "SSPRK22", "SSPRK33", "SSPRK34", "EUF", "EUB", "DIRK2", "DIRK3",
+        "ESDIRK32", "ESDIRK4", "ESDIRK43", "ESDIRK54", "ESDIRK85",
+        "BDF", "BDF2", "BDF3", "BDF4", "BDF5", "BDF6",
+        "GEAR", "GEAR21", "GEAR32", "GEAR43", "GEAR52A", "GEAR54",
+    }
+    if is_disc:
+        supported_solvers.add("Discrete")  # Internal legacy numeric profile only.
+    if raw_solver.strip() not in supported_solvers:
+        raise ValidationError("simulationSettings.solver is not a supported PathSim solver class.")
+
     raw_adaptive = _pick("adaptive", default_adaptive)
     if not isinstance(raw_adaptive, (bool, np.bool_)):
         raise ValidationError(f"simulationSettings.adaptive deve ser booleano, recebido {raw_adaptive!r}.")
@@ -646,8 +604,15 @@ def make_pvm(
     name: str | None = None,
     return_result: bool = False,
     raise_on_error: bool = False,
+    runtime_profile: str = "official",
 ) -> dict[str, Any] | Result:
-    """Constrói arquivo estrutural `.pvm` v1.0.0 para PathView (Seção 9.3, 13.3, Apêndice D)."""
+    """Build an official continuous PathView graph, or an explicit internal legacy graph.
+
+    ``runtime_profile="legacy_numeric"`` is a migration/testing facility for the
+    passive numerical evaluator, not an external PathView export. The public
+    ``export_pvm`` always uses the official default and rejects discrete plants
+    until the upstream discrete scheduling mismatch has an independent fix.
+    """
     prov: Provenance = build_provenance(
         "control_lab.io.make_pvm",
         model_revision=getattr(plant, "revision", None),
@@ -667,7 +632,7 @@ def make_pvm(
         WarningItem(
             code="EXTERNAL_PATHVIEW_NOT_VERIFIED",
             message=(
-                "Exportação .pvm gerada contra registro interno v1.0.0; abertura e simulação "
+                "Exportação .pvm gerada para PathView 0.21.0 com registro oficial fixado; abertura e simulação "
                 "externa no PathView real ainda pendentes de Gate G-0D."
             ),
             details={"external_pathview_verified": False, "gate": "G-0D"},
@@ -742,6 +707,25 @@ def make_pvm(
                 sign_convention=sign_convention,
                 raise_on_error=True,
             )
+
+        if not isinstance(runtime_profile, str) or runtime_profile not in {"official", "legacy_numeric"}:
+            raise ValidationError("runtime_profile must be 'official' or 'legacy_numeric'.")
+        if runtime_profile == "official" and plant.dt is not None:
+            raise UnsupportedModelError(
+                message=("Official PathView discrete export is unavailable: DiscreteStateSpace event "
+                         "scheduling does not preserve ControlLab's simultaneous x[k+1] feedback update."),
+                parameters={"domain": "discrete", "external_compatible": False,
+                            "reason": "discrete_schedule_mismatch", "finding": "F9-WASM-PVM-001"},
+                next_step="Use the internal discrete simulator; official export needs a separately verified clock-alignment adapter.",
+            )
+        if runtime_profile == "legacy_numeric":
+            warnings_out = [WarningItem(
+                code="LEGACY_NUMERIC_PVM_ONLY",
+                message="Internal legacy numeric graph only; this graph is NOT compatible with official PathView export.",
+                details={"external_compatible": False, "runtime_profile": "legacy_numeric"},
+            )]
+            assumptions.update({"runtime_profile": "legacy_numeric", "external_compatible": False})
+            diagnostics.update({"runtime_profile": "legacy_numeric", "external_compatible": False})
 
         n, m, p = plant.n_states, plant.n_inputs, plant.n_outputs
         x_p0 = _resolve_initial_state(sc, n)
@@ -1289,7 +1273,12 @@ def make_pvm(
             "simulationSettings": sim_settings,
         }
 
-        validated = validate_pvm_structure(pvm_doc, require_known_blocks=True)
+        if runtime_profile == "legacy_numeric":
+            pvm_doc["metadata"].update({"runtime_profile": "legacy_numeric", "external_compatible": False})
+            pvm_doc["graph"]["annotations"][0]["text"] += " | INTERNAL LEGACY NUMERIC ONLY; NOT AN OFFICIAL PATHVIEW EXPORT"
+            validated = validate_pvm_structure(pvm_doc, require_known_blocks=False)
+        else:
+            validated = validate_pvm_structure(lower_to_official(pvm_doc), require_known_blocks=True)
         diagnostics.update(
             {
                 "node_count": len(validated["graph"]["nodes"]),
@@ -1592,6 +1581,7 @@ class _CompiledPVMNetwork:
     """Representação algébrico-dinâmica compilada puramente de graph.nodes/connections."""
 
     def __init__(self, validated_pvm: dict[str, Any]) -> None:
+        validated_pvm = restore_numeric_projection(validated_pvm)
         self.pvm = validated_pvm
         nodes_list: list[dict[str, Any]] = validated_pvm["graph"]["nodes"]
         conns_list: list[dict[str, Any]] = validated_pvm["graph"]["connections"]

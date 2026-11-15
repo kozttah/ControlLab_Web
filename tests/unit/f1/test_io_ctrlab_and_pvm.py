@@ -714,8 +714,8 @@ def test_t_io_02_pvm_passive_import_never_executes_code_context_or_eval(
     # Parâmetro string malicioso em params: import_pvm não avalia e simulate/extract bloqueia com ImportUntrustedCodeError
     pvm_expr = copy.deepcopy(pvm)
     for node in pvm_expr["graph"]["nodes"]:
-        if node["type"] == "MatrixGain":
-            node["params"]["gain"] = "__import__('os').system('echo pwned')"
+        if node["id"] == "gain_K":
+            node["params"]["func"] = "__import__('os').system('echo pwned')"
             break
     res_expr = import_pvm(pvm_expr)
     assert res_expr.status == "warning"
@@ -811,18 +811,18 @@ def test_t_pvm_01_b_pvm_lqr_c_eq_i_and_c_neq_i_and_prefilter_and_signs(
             pvm = exp_res.data["pvm"]  # type: ignore[index]
             _assert_schema_valid(pvm, "pvm.schema.json", schema_registry)
 
-            # Verificar que StateSpace expõe porta 1 = x e gain_K conecta à porta 1 (x), não à porta 0 (y)
+            # ABI oficial: canais escalares y seguidos dos estados x, nunca realimentar apenas y.
             plant_node = next(n for n in pvm["graph"]["nodes"] if n["type"] == "StateSpace")
-            assert len(plant_node["outputs"]) == 2
-            assert plant_node["outputs"][1]["name"] == "x"
+            assert len(plant_node["outputs"]) == plant.n_outputs + plant.n_states
+            assert plant_node["outputs"][plant.n_outputs]["name"] == "x0"
             conn_to_k = next(c for c in pvm["graph"]["connections"] if c["targetNodeId"] == "gain_K")
             assert conn_to_k["sourceNodeId"] == "plant_ss"
-            assert conn_to_k["sourcePortIndex"] == 1
+            assert conn_to_k["sourcePortIndex"] == plant.n_outputs
 
             # Verificar sinais explícitos do Adder
             adder_node = next(n for n in pvm["graph"]["nodes"] if n["type"] == "Adder")
             expected_sign_char = "-" if sign == "negative" else "+"
-            assert adder_node["params"]["signs"] == ["+", expected_sign_char]
+            assert adder_node["params"]["operations"] == repr("+" + expected_sign_char)
 
             # Equivalência exata com interconnect + simulate_lti
             cl_expected = interconnect(plant, ctrl)
@@ -863,7 +863,7 @@ def test_t_pvm_01_b_pvm_lqr_c_eq_i_and_c_neq_i_and_prefilter_and_signs(
     )
     pvm_ns = make_pvm(plant_nonsq, ctrl_nonsq)
     _assert_schema_valid(pvm_ns, "pvm.schema.json", schema_registry)
-    assert any(n["id"] == "gain_N" and n["type"] == "MatrixGain" for n in pvm_ns["graph"]["nodes"])
+    assert any(n["id"] == "gain_N" and n["type"] == "Function" for n in pvm_ns["graph"]["nodes"])
 
     cl_ns_expected = interconnect(plant_nonsq, ctrl_nonsq)
     cl_ns_pvm = extract_lti_from_pvm(pvm_ns)
@@ -906,8 +906,9 @@ def test_t_pvm_01_b_pvm_lqr_saturation_on_and_off(
         },
     )
     _assert_schema_valid(pvm_sat_off, "pvm.schema.json", schema_registry)
-    sat_node_off = next(n for n in pvm_sat_off["graph"]["nodes"] if n["type"] == "Saturation")
-    assert sat_node_off["params"]["enabled"] is False
+    sat_node_off = next(n for n in pvm_sat_off["graph"]["nodes"] if n["id"] == "actuator_sat")
+    assert sat_node_off["type"] == "Function"
+    assert sat_node_off["controlLab"]["legacy_node"]["params"]["enabled"] is False
 
     t = np.linspace(0.0, 6.0, 121)
     r_zero = np.zeros((t.size, 1))
@@ -929,8 +930,9 @@ def test_t_pvm_01_b_pvm_lqr_saturation_on_and_off(
         },
     )
     _assert_schema_valid(pvm_sat_on, "pvm.schema.json", schema_registry)
-    sat_node_on = next(n for n in pvm_sat_on["graph"]["nodes"] if n["type"] == "Saturation")
-    assert sat_node_on["params"]["enabled"] is True
+    sat_node_on = next(n for n in pvm_sat_on["graph"]["nodes"] if n["id"] == "actuator_sat")
+    assert sat_node_on["type"] == "Clip"
+    assert sat_node_on["controlLab"]["legacy_node"]["params"]["enabled"] is True
 
     with pytest.raises(UnsupportedModelError):
         extract_lti_from_pvm(pvm_sat_on)
@@ -1031,10 +1033,11 @@ def test_t_pvm_02_dynamic_controller_nonzero_feedthrough_and_initial_state(
     pvm = make_pvm(plant, ctrl, scenario={"initial_state": xp0})
     _assert_schema_valid(pvm, "pvm.schema.json", schema_registry)
 
-    # Confirmar bloco DynamicController completo (jamais colapsado em MatrixGain)
-    dyn_nodes = [n for n in pvm["graph"]["nodes"] if n["type"] == "DynamicController"]
-    assert len(dyn_nodes) == 1
-    assert dyn_nodes[0]["params"]["initial_state"] == pytest.approx(xc0.tolist())
+    # Controlador completo usa StateSpace oficial, preservando estado e feedthrough.
+    dyn_nodes = [n for n in pvm["graph"]["nodes"] if n["id"] == "ctrl_dynamic"]
+    assert len(dyn_nodes) == 1 and dyn_nodes[0]["type"] == "StateSpace"
+    assert dyn_nodes[0]["params"]["initial_value"] == "np.array([-0.8], dtype=float)"
+    assert dyn_nodes[0]["controlLab"]["legacy_node"]["params"]["initial_state"] == pytest.approx(xc0.tolist())
 
     # Equivalência estrutural exata de matrizes aumentadas
     cl_ref = interconnect(plant, ctrl)
@@ -1089,7 +1092,10 @@ def test_t_pvm_02_discrete_and_ill_posed_algebraic_loop_rejected() -> None:
         dt=0.1,
         initial_state=[0.3],
     )
-    pvm_d = make_pvm(plant_d, ctrl_d, scenario={"initial_state": [1.0]})
+    with pytest.raises(UnsupportedModelError, match="scheduling"):
+        make_pvm(plant_d, ctrl_d, scenario={"initial_state": [1.0]})
+    pvm_d = make_pvm(plant_d, ctrl_d, scenario={"initial_state": [1.0]}, runtime_profile="legacy_numeric")
+    assert pvm_d["metadata"]["external_compatible"] is False
     cl_d_ref = interconnect(plant_d, ctrl_d)
     cl_d_pvm = extract_lti_from_pvm(pvm_d)
     np.testing.assert_allclose(cl_d_pvm.A, cl_d_ref.A, atol=1e-13)
@@ -1239,6 +1245,7 @@ def test_b_care_12x3_mimo_pvm_and_ctrlab_stream_and_tsv_and_zero_state_dyn(
     pvm_dsat = make_pvm(
         plant_d,
         ctrl_d,
+        runtime_profile="legacy_numeric",
         scenario={"initial_state": [5.0], "saturation": {"enabled": True, "u_min": -1.0, "u_max": 1.0}},
     )
     sim_dsat = simulate_pvm_graph(pvm_dsat, np.arange(0, 6) * 0.1, r=np.zeros((6, 1)))

@@ -1,0 +1,23 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/ba21e63c86f4/f9-ci-core/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/ba21e63c86f4/ControlLab_Web
+configfile: pyproject.toml
+collecting ... collected 14 items
+
+tests/oracles/test_release_fixtures.py::test_t_care_02_production_against_preserved_gold PASSED [  7%]
+tests/oracles/test_release_fixtures.py::test_dare_zoh_production_and_independent_residual PASSED [ 14%]
+tests/oracles/test_release_fixtures.py::test_t_id_03_full_data_holdout_production PASSED [ 21%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_01_full_grid_production PASSED [ 28%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_02_singular_cases_are_undefined PASSED [ 35%]
+tests/oracles/test_release_fixtures.py::test_t_freq_02_all_polynomial_crossings_against_production PASSED [ 42%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[0] PASSED [ 50%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[1] PASSED [ 57%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[2] PASSED [ 64%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[3] PASSED [ 71%]
+tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic PASSED [ 78%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[missing] PASSED [ 85%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[duplicate] PASSED [ 92%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[unlisted] PASSED [100%]
+
+============================== 14 passed in 1.01s ==============================

@@ -1,0 +1,97 @@
+07:51:10 - INFO - LOGGING (log: True)
+07:51:10 - INFO - BLOCKS (total: 7, dynamic: 1, static: 6, eventful: 0)
+07:51:10 - INFO - GRAPH (nodes: 7, edges: 9, alg. depth: 3, loop depth: 0, runtime: 0.139ms)
+07:51:10 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+07:51:10 - INFO - --------------------   1% | 0.0s<0.1s | 3959.1 it/s
+07:51:10 - INFO - ####----------------  20% | 0.0s<0.1s | 5855.8 it/s
+07:51:10 - INFO - ########------------  40% | 0.0s<0.1s | 5731.4 it/s
+07:51:10 - INFO - ############--------  60% | 0.1s<0.0s | 5949.3 it/s
+07:51:10 - INFO - ################----  80% | 0.1s<0.0s | 4840.2 it/s
+07:51:10 - INFO - #################### 100% | 0.1s<--:-- | 5953.2 it/s
+07:51:10 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 92.25 ms)
+{"case": "static_negative_ci", "samples": 501, "max_output_abs_error": 1.1102230246251565e-16, "max_plant_final_state_abs_error": 1.1102230246251565e-16, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 7, "connections": 9, "passed": true}
+07:51:10 - INFO - LOGGING (log: True)
+07:51:10 - INFO - BLOCKS (total: 6, dynamic: 1, static: 5, eventful: 0)
+07:51:10 - INFO - GRAPH (nodes: 6, edges: 7, alg. depth: 2, loop depth: 3, runtime: 0.092ms)
+07:51:10 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+07:51:10 - INFO - --------------------   1% | 0.0s<0.2s | 2375.1 it/s
+07:51:10 - INFO - ####----------------  20% | 0.0s<0.1s | 2933.4 it/s
+07:51:10 - INFO - ########------------  40% | 0.1s<0.1s | 3060.0 it/s
+07:51:10 - INFO - ############--------  60% | 0.1s<0.1s | 2864.1 it/s
+07:51:10 - INFO - ################----  80% | 0.1s<0.0s | 2842.1 it/s
+07:51:10 - INFO - #################### 100% | 0.2s<--:-- | 3017.6 it/s
+07:51:10 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 172.14 ms)
+{"case": "static_negative_cneq", "samples": 501, "max_output_abs_error": 1.1102230246251565e-16, "max_plant_final_state_abs_error": 0.0, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 6, "connections": 7, "passed": true}
+07:51:10 - INFO - LOGGING (log: True)
+07:51:10 - INFO - BLOCKS (total: 7, dynamic: 1, static: 6, eventful: 0)
+07:51:10 - INFO - GRAPH (nodes: 7, edges: 9, alg. depth: 3, loop depth: 0, runtime: 0.051ms)
+07:51:10 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+07:51:10 - INFO - --------------------   1% | 0.0s<0.1s | 4648.1 it/s
+07:51:10 - INFO - ####----------------  20% | 0.0s<0.1s | 5935.2 it/s
+07:51:10 - INFO - ########------------  40% | 0.0s<0.1s | 5580.7 it/s
+07:51:10 - INFO - ############--------  60% | 0.1s<0.0s | 5870.7 it/s
+07:51:10 - INFO - ################----  80% | 0.1s<0.0s | 5167.0 it/s
+07:51:10 - INFO - #################### 100% | 0.1s<--:-- | 6005.4 it/s
+07:51:10 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 90.70 ms)
+{"case": "static_positive_ci", "samples": 501, "max_output_abs_error": 3.552713678800501e-15, "max_plant_final_state_abs_error": 3.1086244689504383e-15, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 7, "connections": 9, "passed": true}
+07:51:10 - INFO - LOGGING (log: True)
+07:51:10 - INFO - BLOCKS (total: 6, dynamic: 1, static: 5, eventful: 0)
+07:51:10 - INFO - GRAPH (nodes: 6, edges: 7, alg. depth: 2, loop depth: 3, runtime: 0.079ms)
+07:51:10 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+07:51:10 - INFO - --------------------   1% | 0.0s<0.2s | 2635.1 it/s
+07:51:10 - INFO - ####----------------  20% | 0.0s<0.1s | 3064.4 it/s
+07:51:10 - INFO - ########------------  40% | 0.1s<0.1s | 2831.6 it/s
+07:51:10 - INFO - ############--------  60% | 0.1s<0.1s | 3099.9 it/s
+07:51:10 - INFO - ################----  80% | 0.1s<0.0s | 3149.1 it/s
+07:51:10 - INFO - #################### 100% | 0.2s<--:-- | 3051.6 it/s
+07:51:10 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 169.98 ms)
+{"case": "static_positive_cneq", "samples": 501, "max_output_abs_error": 3.1086244689504383e-15, "max_plant_final_state_abs_error": 2.4424906541753444e-15, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 6, "connections": 7, "passed": true}
+07:51:10 - INFO - LOGGING (log: True)
+07:51:10 - INFO - BLOCKS (total: 6, dynamic: 1, static: 5, eventful: 0)
+07:51:10 - INFO - GRAPH (nodes: 6, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.073ms)
+07:51:10 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+07:51:10 - INFO - --------------------   1% | 0.0s<0.2s | 2054.7 it/s
+07:51:11 - INFO - ####----------------  20% | 0.0s<0.2s | 2166.0 it/s
+07:51:11 - INFO - ########------------  40% | 0.1s<0.1s | 2215.4 it/s
+07:51:11 - INFO - ############--------  60% | 0.1s<0.1s | 2250.6 it/s
+07:51:11 - INFO - ################----  80% | 0.2s<0.0s | 2233.0 it/s
+07:51:11 - INFO - #################### 100% | 0.2s<--:-- | 2346.2 it/s
+07:51:11 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 221.45 ms)
+{"case": "mimo_rectangular_reference", "samples": 501, "max_output_abs_error": 2.220446049250313e-16, "max_plant_final_state_abs_error": 1.1102230246251565e-16, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 6, "connections": 10, "passed": true}
+07:51:11 - INFO - LOGGING (log: True)
+07:51:11 - INFO - BLOCKS (total: 7, dynamic: 1, static: 6, eventful: 0)
+07:51:11 - INFO - GRAPH (nodes: 7, edges: 8, alg. depth: 2, loop depth: 4, runtime: 0.080ms)
+07:51:11 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+07:51:11 - INFO - --------------------   1% | 0.0s<0.2s | 2156.5 it/s
+07:51:11 - INFO - ####----------------  20% | 0.0s<0.1s | 2833.7 it/s
+07:51:11 - INFO - ########------------  40% | 0.1s<0.1s | 2783.1 it/s
+07:51:11 - INFO - ############--------  60% | 0.1s<0.1s | 2871.4 it/s
+07:51:11 - INFO - ################----  80% | 0.2s<0.0s | 2756.9 it/s
+07:51:11 - INFO - #################### 100% | 0.2s<--:-- | 2755.4 it/s
+07:51:11 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 499, runtime: 193.22 ms)
+{"case": "saturated_negative", "samples": 501, "max_output_abs_error": 2.469290105722166e-09, "max_plant_final_state_abs_error": 3.753094279801417e-09, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 7, "connections": 8, "passed": true}
+07:51:11 - INFO - LOGGING (log: True)
+07:51:11 - INFO - BLOCKS (total: 5, dynamic: 2, static: 3, eventful: 0)
+07:51:11 - INFO - GRAPH (nodes: 5, edges: 5, alg. depth: 1, loop depth: 3, runtime: 0.068ms)
+07:51:11 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+07:51:11 - INFO - --------------------   1% | 0.0s<0.3s | 1967.3 it/s
+07:51:11 - INFO - ####----------------  20% | 0.0s<0.2s | 2298.0 it/s
+07:51:11 - INFO - ########------------  40% | 0.1s<0.1s | 2049.4 it/s
+07:51:11 - INFO - ############--------  60% | 0.1s<0.1s | 2238.6 it/s
+07:51:11 - INFO - ################----  80% | 0.2s<0.0s | 2312.7 it/s
+07:51:11 - INFO - #################### 100% | 0.2s<--:-- | 2091.0 it/s
+07:51:11 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 229.77 ms)
+{"case": "dynamic_nonzero_feedthrough", "samples": 501, "max_output_abs_error": 5.551115123125783e-16, "max_plant_final_state_abs_error": 2.220446049250313e-16, "max_controller_final_state_abs_error": 9.367506770274758e-17, "error_limit": 2e-06, "nodes": 5, "connections": 5, "passed": true}
+07:51:11 - INFO - LOGGING (log: True)
+07:51:11 - INFO - BLOCKS (total: 5, dynamic: 1, static: 4, eventful: 0)
+07:51:11 - INFO - GRAPH (nodes: 5, edges: 5, alg. depth: 1, loop depth: 3, runtime: 0.067ms)
+07:51:11 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+07:51:11 - INFO - --------------------   1% | 0.0s<0.2s | 2087.8 it/s
+07:51:11 - INFO - ####----------------  20% | 0.0s<0.2s | 2493.1 it/s
+07:51:11 - INFO - ########------------  40% | 0.1s<0.1s | 2254.7 it/s
+07:51:11 - INFO - ############--------  60% | 0.1s<0.1s | 2416.6 it/s
+07:51:12 - INFO - ################----  80% | 0.2s<0.0s | 2332.6 it/s
+07:51:12 - INFO - #################### 100% | 0.2s<--:-- | 2134.7 it/s
+07:51:12 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 209.77 ms)
+{"case": "dynamic_zero_state", "samples": 501, "max_output_abs_error": 2.220446049250313e-16, "max_plant_final_state_abs_error": 9.71445146547012e-17, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 5, "connections": 5, "passed": true}
+{"case": "discrete_static", "passed": true, "supported": false, "decision": "typed_export_rejection", "reason": "[UNSUPPORTED_MODEL] Official PathView discrete export is unavailable: DiscreteStateSpace event scheduling does not preserve ControlLab's simultaneous x[k+1] feedback update.", "trajectory_equivalence_verified": false, "note": "Prior exported discrete graph failed the exact recurrence; refusing export is an honest capability restriction, not numerical validation."}

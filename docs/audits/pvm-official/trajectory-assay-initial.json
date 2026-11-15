@@ -1,0 +1,121 @@
+{
+  "document_id": "CL-DIR-001",
+  "work_package": "WP-AUDIT-FIX-F1-PVM-OFFICIAL",
+  "upstream_commit": "4afdcc461ed63aa4231930170d20774428d51e8d",
+  "versions": {
+    "pathview": "0.21.0",
+    "pathsim": "0.31.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8"
+  },
+  "wheel_sha256": {
+    "pathview-0.21.0-py3-none-any.whl": "6680906c1cbe75a729e8541c181e7a7c3644bc7cea653f6d10c3669f39849659",
+    "pathsim-0.31.0-py3-none-any.whl": "2d667c96f2c6dcb115be9f8ce92fed8f157842f9dbac9650bd888dda239ed226"
+  },
+  "oracle": "independent ODE/algebraic-loop equations; scipy solve_ivp high accuracy; exact recurrence for discrete case",
+  "only_fresh_test_generated_code_executed": true,
+  "official_ui_not_part_of_this_script": true,
+  "all_passed": false,
+  "cases": [
+    {
+      "case": "static_negative_ci",
+      "samples": 501,
+      "max_output_abs_error": 1.1102230246251565e-16,
+      "max_plant_final_state_abs_error": 1.1102230246251565e-16,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 7,
+      "connections": 9,
+      "passed": true
+    },
+    {
+      "case": "static_negative_cneq",
+      "samples": 501,
+      "max_output_abs_error": 1.1102230246251565e-16,
+      "max_plant_final_state_abs_error": 0.0,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 6,
+      "connections": 7,
+      "passed": true
+    },
+    {
+      "case": "static_positive_ci",
+      "samples": 501,
+      "max_output_abs_error": 3.552713678800501e-15,
+      "max_plant_final_state_abs_error": 3.1086244689504383e-15,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 7,
+      "connections": 9,
+      "passed": true
+    },
+    {
+      "case": "static_positive_cneq",
+      "samples": 501,
+      "max_output_abs_error": 3.1086244689504383e-15,
+      "max_plant_final_state_abs_error": 2.4424906541753444e-15,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 6,
+      "connections": 7,
+      "passed": true
+    },
+    {
+      "case": "mimo_rectangular_reference",
+      "samples": 501,
+      "max_output_abs_error": 2.220446049250313e-16,
+      "max_plant_final_state_abs_error": 1.1102230246251565e-16,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 6,
+      "connections": 10,
+      "passed": true
+    },
+    {
+      "case": "saturated_negative",
+      "samples": 501,
+      "max_output_abs_error": 2.469290105722166e-09,
+      "max_plant_final_state_abs_error": 3.753094279801417e-09,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 7,
+      "connections": 8,
+      "passed": true
+    },
+    {
+      "case": "dynamic_nonzero_feedthrough",
+      "samples": 501,
+      "max_output_abs_error": 5.551115123125783e-16,
+      "max_plant_final_state_abs_error": 2.220446049250313e-16,
+      "max_controller_final_state_abs_error": 9.367506770274758e-17,
+      "error_limit": 2e-06,
+      "nodes": 5,
+      "connections": 5,
+      "passed": true
+    },
+    {
+      "case": "dynamic_zero_state",
+      "samples": 501,
+      "max_output_abs_error": 2.220446049250313e-16,
+      "max_plant_final_state_abs_error": 9.71445146547012e-17,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 5,
+      "connections": 5,
+      "passed": true
+    },
+    {
+      "case": "discrete_static",
+      "samples": 6,
+      "max_output_abs_error": 0.10000000000000009,
+      "max_plant_final_state_abs_error": null,
+      "max_controller_final_state_abs_error": null,
+      "error_limit": 2e-06,
+      "nodes": 6,
+      "connections": 6,
+      "passed": false
+    }
+  ]
+}

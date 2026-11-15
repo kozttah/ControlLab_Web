@@ -1,0 +1,247 @@
+{
+  "pathview": "0.21.0",
+  "chromium": "153.0.8010.0",
+  "official_ui_modified": false,
+  "file_picker": "native input fallback (File System Access API disabled)",
+  "simulation_executed_in_this_check": false,
+  "cases": [
+    {
+      "case": "static_negative_ci",
+      "model_sha256": "13d7dd12c30b7de9f43874031668b7644f8dfe513fcb1c591838ca121787bda1",
+      "input_nodes": 7,
+      "rendered_nodes": [
+        {
+          "id": "src_ref",
+          "text": "ReferenceSource_0\nSource",
+          "x": 10,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "src_ref__ch1",
+          "text": "ReferenceSource_1\nSource",
+          "x": 10,
+          "y": 270,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "gain_N",
+          "text": "Prefilter_N\nFunction",
+          "x": 230,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "sum_feedback",
+          "text": "ControlSum_negative\nAdder",
+          "x": 410,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "plant_ss",
+          "text": "audit_plant\nStateSpace",
+          "x": 650,
+          "y": 160,
+          "width": 100,
+          "height": 80
+        },
+        {
+          "id": "scope_y",
+          "text": "OutputScope\nScope",
+          "x": 890,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "gain_K",
+          "text": "FeedbackGain_K\nFunction",
+          "x": 620,
+          "y": 400,
+          "width": 120,
+          "height": 40
+        }
+      ],
+      "page_errors": [],
+      "import_passed": true
+    },
+    {
+      "case": "static_negative_cneq",
+      "model_sha256": "15eea805e7d972ffbfc75bc01cd3b3a328ae2bd9d6d536a00931f67c19db3e04",
+      "input_nodes": 6,
+      "rendered_nodes": [
+        {
+          "id": "src_ref",
+          "text": "ReferenceSource_0\nSource",
+          "x": 10,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "gain_N",
+          "text": "Prefilter_N\nFunction",
+          "x": 230,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "sum_feedback",
+          "text": "ControlSum_negative\nAdder",
+          "x": 410,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "plant_ss",
+          "text": "audit_plant\nStateSpace",
+          "x": 650,
+          "y": 170,
+          "width": 100,
+          "height": 60
+        },
+        {
+          "id": "scope_y",
+          "text": "OutputScope\nScope",
+          "x": 890,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "gain_K",
+          "text": "FeedbackGain_K\nFunction",
+          "x": 620,
+          "y": 400,
+          "width": 120,
+          "height": 40
+        }
+      ],
+      "page_errors": [],
+      "import_passed": true
+    },
+    {
+      "case": "saturated_negative",
+      "model_sha256": "093018625d7b505bc085a2a2c3224501b736d530acb5e7c8d864159547c2aef9",
+      "input_nodes": 7,
+      "rendered_nodes": [
+        {
+          "id": "src_ref",
+          "text": "ReferenceSource_0\nSource",
+          "x": 10,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "gain_N",
+          "text": "Prefilter_N\nFunction",
+          "x": 230,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "sum_feedback",
+          "text": "ControlSum_negative\nAdder",
+          "x": 410,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "actuator_sat",
+          "text": "ActuatorSaturation\nClip",
+          "x": 610,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "plant_ss",
+          "text": "audit_plant\nStateSpace",
+          "x": 830,
+          "y": 170,
+          "width": 100,
+          "height": 60
+        },
+        {
+          "id": "scope_y",
+          "text": "OutputScope\nScope",
+          "x": 1050,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "gain_K",
+          "text": "FeedbackGain_K\nFunction",
+          "x": 620,
+          "y": 400,
+          "width": 120,
+          "height": 40
+        }
+      ],
+      "page_errors": [],
+      "import_passed": true
+    },
+    {
+      "case": "dynamic_nonzero_feedthrough",
+      "model_sha256": "d496a38aea545711b6fb21b25a65fc7c4cf4d5353c770322be810de02c11cd5c",
+      "input_nodes": 5,
+      "rendered_nodes": [
+        {
+          "id": "src_ref",
+          "text": "ReferenceSource_0\nSource",
+          "x": 30,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "sum_feedback",
+          "text": "ControlSum_negative\nAdder",
+          "x": 250,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "plant_ss",
+          "text": "audit_plant\nStateSpace",
+          "x": 510,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "scope_y",
+          "text": "OutputScope\nScope",
+          "x": 750,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "ctrl_dynamic",
+          "text": "ctrl-dyn-d2a9299df520\nStateSpace",
+          "x": 460,
+          "y": 400,
+          "width": 160,
+          "height": 40
+        }
+      ],
+      "page_errors": [],
+      "import_passed": true
+    }
+  ],
+  "global_g0d_approval": false,
+  "scope": "official UI file import/rendering only; full product gate prerequisites remain pending"
+}

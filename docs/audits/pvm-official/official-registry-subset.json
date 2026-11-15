@@ -1,0 +1,16 @@
+{
+  "upstream_commit": "4afdcc461ed63aa4231930170d20774428d51e8d",
+  "registry_git_blob_sha1": "b5a054b250843fe99dcd90d616768020594aac13",
+  "registry_sha256": "4abcbb5a482cd3de5810fe44c0faa27dc1f444e69e21b2723298ef910c97af7f",
+  "pathview_wheel_version": "0.21.0",
+  "exported_types": [
+    "Adder",
+    "Clip",
+    "Function",
+    "Scope",
+    "Source",
+    "StateSpace"
+  ],
+  "all_exported_definitions_identical_to_pinned_upstream": true,
+  "note": "Supplementary final comparison without regenerating or altering PVM outputs. Wheel registry differs only for unused Splitter carrier parameter."
+}

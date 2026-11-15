@@ -155,9 +155,14 @@ def test_t_pvm_01_local_graph_against_analytic_gold(index):
     np.testing.assert_allclose(array(design['K']),K,rtol=0,atol=tol['gain_atol'])
     ctrl = StateFeedbackController(K,feedback_sign=d['feedback_sign'],reference_map=array(case['reference_map']))
     pvm = make_pvm(plant,ctrl,scenario={'initial_state':array(d['x0']),'saturation':case['saturation']})
-    # Full state port is mandatory even when output has only one component.
-    conn = next(x for x in pvm['graph']['connections'] if x['targetNodeId']=='gain_K')
-    assert conn['sourcePortIndex']==1
+    # Official scalar ABI: y occupies ports [0,p); every x[j] must feed K[j].
+    # Check the complete channel map, including C=I and C!=I, without changing
+    # any numerical oracle value or tolerance below.
+    state_connections = [x for x in pvm['graph']['connections'] if x['targetNodeId']=='gain_K']
+    assert len(state_connections) == plant.n_states
+    assert sorted((x['sourceNodeId'],x['sourcePortIndex'],x['targetPortIndex']) for x in state_connections) == [
+        ('plant_ss',plant.n_outputs+j,j) for j in range(plant.n_states)
+    ]
     out = good(simulate_pvm_graph(pvm,array(d['t']),r=array(case['r']),rtol=1e-11,atol=1e-13))
     for key in ('x','u','y'):
         np.testing.assert_allclose(array(out[key]),array(case['expected'][key]),rtol=0,atol=tol['trajectory_atol'])

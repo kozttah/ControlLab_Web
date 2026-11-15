@@ -1,0 +1,9 @@
+{
+  "typecheck": "passed",
+  "node_tests": 50,
+  "passed": 50,
+  "failed": 0,
+  "skipped": 0,
+  "scope": "npm --prefix web run typecheck && npm --prefix web test",
+  "node": "v24.22.1"
+}

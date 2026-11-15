@@ -11,7 +11,7 @@
     "history": {
       "2026-11-13": 6,
       "2026-11-14": 12,
-      "2026-11-15": 1
+      "2026-11-15": 2
     }
   },
   "audit_reference": {
@@ -83,7 +83,7 @@
     "G-0D": {
       "status": "PENDING",
       "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)",
-      "audit_verdict": "FAILED_OFFICIAL_CONVERTER",
+      "audit_verdict": "CONTINUOUS_EXTERNAL_INTEROP_VERIFIED_GATE_PENDING",
       "blocking_findings": [
         "AUD-011"
       ],
@@ -93,7 +93,7 @@
         "WP-AUDIT-FIX-F9-WASM-GATES"
       ],
       "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
-      "evidence_ref": "docs/audits/pathview/official-converter-probe.json"
+      "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-OFFICIAL.md"
     }
   },
   "work_packages": [
@@ -483,6 +483,65 @@
       ]
     },
     {
+      "wp_id": "WP-AUDIT-FIX-F1-PVM-OFFICIAL",
+      "requirement_ids": [
+        "R-19",
+        "R-20",
+        "R-21"
+      ],
+      "findings": [
+        "F9-WASM-PVM-001"
+      ],
+      "front": "f1-core-io",
+      "phase": "Audit-Remediation",
+      "title": "Corrigir exportador PVM conforme registro oficial PathView fixado, preservando portas, sinais, estados iniciais e controladores estáticos/dinâmicos",
+      "allowed_paths": [
+        "control_lab/io/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F1-CORE-RPC",
+        "WP-AUDIT-FIX-F9-BUILD-CI"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f1/ -v",
+      "normative_tests": [
+        "T-IO-01",
+        "T-IO-02",
+        "T-PVM-01",
+        "T-PVM-02"
+      ],
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "origin_ref": "docs/audits/pathview/official-converter-probe.json",
+      "target_pathview_commit": "4afdcc461ed63aa4231930170d20774428d51e8d",
+      "scope": "Producer correction with official converter and independent PathSim trajectory checks; G-0D release approval remains a separate F9 decision requiring official UI import and complete gate evidence.",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-OFFICIAL.md",
+      "acceptance_scope": "continuous_official_pathview_converter_pathsim_ui_import_and_cpython_pyodide_parity_with_typed_discrete_refusal",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "capability_restrictions": {
+        "discrete_official_export": "unavailable_pending_clock_alignment",
+        "legacy_numeric": "explicit_internal_simulation_only_external_compatible_false"
+      },
+      "validation": {
+        "f1_tests": 72,
+        "regression_tests_including_wasm": 71,
+        "node_tests": 50,
+        "official_pathsim_continuous_cases": 8,
+        "official_ui_import_cases": 4,
+        "wasm_adapter_cases": 2,
+        "evidence_ref": "docs/audits/pvm-official/README.md"
+      },
+      "pending_followup": {
+        "F9-PVM-DISCRETE-001": {
+          "owner": "f1-core-io / f9-integration-qa",
+          "required_work": "A separate producer WorkPackage must demonstrate clock-aligned official discrete feedback and controller updates before enabling discrete export. Preserve exact recurrence comparisons and official PathSim independent validation.",
+          "evidence_ref": "docs/audits/pvm-official/discrete-pre-fix/"
+        }
+      }
+    },
+    {
       "wp_id": "WP-AUDIT-FIX-F9-WASM-GATES",
       "requirement_ids": [
         "R-01",
@@ -567,7 +626,10 @@
             "tests/unit/f1/"
           ],
           "required_work": "Create a dedicated producer WorkPackage to align PVM blocks, ports and parameters with a pinned official PathView registry; preserve feedback and initial states; independently reopen and simulate C=I, C!=I, saturation and dynamic-controller cases before rerunning G-0D.",
-          "evidence_ref": "docs/audits/pathview/official-converter-probe.json"
+          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-OFFICIAL.md",
+          "producer_wp": "WP-AUDIT-FIX-F1-PVM-OFFICIAL",
+          "producer_status": "ACCEPTED_BY_F9",
+          "remaining_gate_work": "Continuous converter, official UI import and external trajectories now verified. Reassess the full G-0D only with accepted prerequisite G-0C and complete persistence/release evidence; discrete export remains explicitly unavailable."
         },
         "F9-WASM-SDP-001": {
           "owner": "f6-optimization-lmi / f9-integration-qa",

@@ -1,0 +1,21 @@
+{
+  "work_package": "WP-AUDIT-FIX-F1-PVM-OFFICIAL",
+  "baseline_commit_local": "5dd19bb",
+  "remote_source_base_commit": "0d788634fceddca4aa34ee04b00877df5aa43a7d",
+  "fixture_count": 8,
+  "changed_fixture_paths": [],
+  "oracle_count": 12,
+  "changed_existing_oracle_paths": [
+    "tests/oracles/test_release_fixtures.py"
+  ],
+  "oracle_change_reason": "F9-only structural ABI assertion: complete scalar x[j] channels at p+j feed K port j; numerical assertions and tolerances unchanged.",
+  "numerical_assertion_ast_identical": true,
+  "other_production_count": 83,
+  "changed_other_production_paths": [],
+  "existing_changed_paths": [
+    "PROJECT_STATE.json",
+    "control_lab/io/pvm.py",
+    "tests/oracles/test_release_fixtures.py",
+    "tests/unit/f1/test_io_ctrlab_and_pvm.py"
+  ]
+}

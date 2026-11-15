@@ -1,0 +1,7 @@
+# Explicit external interoperability audit only, not shipped in the Web wheel.
+pathview==0.21.0
+pathsim==0.31.0
+# Numerical reference/runtime versions used by the recorded F9 assay.
+numpy==2.3.5
+scipy==1.17.0
+matplotlib==3.10.8

@@ -1,0 +1,463 @@
+FILE /tmp/f9-offline-final-build.log
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> controllab-web@1.0.0 build
+> node ../scripts/build_web.mjs
+
+* Getting build dependencies for wheel...
+running egg_info
+creating control_lab.egg-info
+writing control_lab.egg-info/PKG-INFO
+writing dependency_links to control_lab.egg-info/dependency_links.txt
+writing requirements to control_lab.egg-info/requires.txt
+writing top-level names to control_lab.egg-info/top_level.txt
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+reading manifest file 'control_lab.egg-info/SOURCES.txt'
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+* Building wheel...
+running bdist_wheel
+running build
+running build_py
+creating build/lib/control_lab/core
+copying control_lab/core/serialization.py -> build/lib/control_lab/core
+copying control_lab/core/interconnect.py -> build/lib/control_lab/core
+copying control_lab/core/__init__.py -> build/lib/control_lab/core
+copying control_lab/core/tensors.py -> build/lib/control_lab/core
+copying control_lab/core/rpc.py -> build/lib/control_lab/core
+copying control_lab/core/controllers.py -> build/lib/control_lab/core
+copying control_lab/core/models.py -> build/lib/control_lab/core
+creating build/lib/control_lab/optimization
+copying control_lab/optimization/__init__.py -> build/lib/control_lab/optimization
+creating build/lib/control_lab/frequency
+copying control_lab/frequency/__init__.py -> build/lib/control_lab/frequency
+creating build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/fml.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/membership.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/ts_bridge.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/__init__.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/inference.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/anfis.py -> build/lib/control_lab/fuzzy
+creating build/lib/control_lab/identification
+copying control_lab/identification/arx.py -> build/lib/control_lab/identification
+copying control_lab/identification/oe.py -> build/lib/control_lab/identification
+copying control_lab/identification/preprocessing.py -> build/lib/control_lab/identification
+copying control_lab/identification/__init__.py -> build/lib/control_lab/identification
+copying control_lab/identification/validation.py -> build/lib/control_lab/identification
+copying control_lab/identification/subspace.py -> build/lib/control_lab/identification
+creating build/lib/control_lab/io
+copying control_lab/io/pvm.py -> build/lib/control_lab/io
+copying control_lab/io/__init__.py -> build/lib/control_lab/io
+copying control_lab/io/ctrlab.py -> build/lib/control_lab/io
+creating build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/provenance.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/errors.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/__init__.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/result.py -> build/lib/control_lab/diagnostics
+creating build/lib/control_lab/statespace
+copying control_lab/statespace/equations.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/simulation.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/_utils.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/design.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/__init__.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/analysis.py -> build/lib/control_lab/statespace
+creating build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/svec.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/canonical.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/dsl.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/__init__.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/templates.py -> build/lib/control_lab/optimization/modeling
+creating build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/clarabel_direct.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/scipy_linprog.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/base.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/solve.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/__init__.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/capabilities.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/unavailable.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/clarabel_cvxpy.py -> build/lib/control_lab/optimization/backends
+creating build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/gate0b.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/verifier.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/__init__.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/recovery.py -> build/lib/control_lab/optimization/verification
+creating build/lib/control_lab/frequency/mimo
+copying control_lab/frequency/mimo/__init__.py -> build/lib/control_lab/frequency/mimo
+copying control_lab/frequency/mimo/analysis.py -> build/lib/control_lab/frequency/mimo
+creating build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/root_locus.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/response.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/_utils.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/design.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/__init__.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/margins.py -> build/lib/control_lab/frequency/siso
+creating build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/__init__.py -> build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/solver.py -> build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/suite.py -> build/lib/control_lab/experimental/sdp_educational
+running egg_info
+writing control_lab.egg-info/PKG-INFO
+writing dependency_links to control_lab.egg-info/dependency_links.txt
+writing requirements to control_lab.egg-info/requires.txt
+writing top-level names to control_lab.egg-info/top_level.txt
+reading manifest file 'control_lab.egg-info/SOURCES.txt'
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+installing to build/bdist.linux-x86_64/wheel
+running install
+running install_lib
+creating build/bdist.linux-x86_64/wheel
+creating build/bdist.linux-x86_64/wheel/control_lab
+creating build/bdist.linux-x86_64/wheel/control_lab/experimental
+creating build/bdist.linux-x86_64/wheel/control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/suite.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/solver.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+creating build/bdist.linux-x86_64/wheel/control_lab/statespace
+copying build/lib/control_lab/statespace/analysis.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/design.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/_utils.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/simulation.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/equations.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+creating build/bdist.linux-x86_64/wheel/control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/result.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/errors.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/provenance.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+creating build/bdist.linux-x86_64/wheel/control_lab/io
+copying build/lib/control_lab/io/ctrlab.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+creating build/bdist.linux-x86_64/wheel/control_lab/identification
+copying build/lib/control_lab/identification/subspace.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/validation.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/preprocessing.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/oe.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/arx.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+creating build/bdist.linux-x86_64/wheel/control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/anfis.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/inference.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/ts_bridge.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/membership.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/fml.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/margins.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/design.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/_utils.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/response.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/root_locus.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency/mimo
+copying build/lib/control_lab/frequency/mimo/analysis.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/mimo
+copying build/lib/control_lab/frequency/mimo/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/mimo
+copying build/lib/control_lab/frequency/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/recovery.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/verifier.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/gate0b.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/clarabel_cvxpy.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/unavailable.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/capabilities.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/solve.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/base.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/scipy_linprog.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/clarabel_direct.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/templates.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/dsl.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/canonical.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/svec.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization
+creating build/bdist.linux-x86_64/wheel/control_lab/core
+copying build/lib/control_lab/core/models.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/controllers.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/rpc.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/tensors.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/interconnect.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/serialization.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+running install_egg_info
+Copying control_lab.egg-info to build/bdist.linux-x86_64/wheel/./control_lab-1.0.0-py3.12.egg-info
+running install_scripts
+creating build/bdist.linux-x86_64/wheel/control_lab-1.0.0.dist-info/WHEEL
+creating '/tmp/tmpaxzod1ch/.tmp-5ptmnbt2/control_lab-1.0.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+adding 'control_lab/core/__init__.py'
+adding 'control_lab/core/controllers.py'
+adding 'control_lab/core/interconnect.py'
+adding 'control_lab/core/models.py'
+adding 'control_lab/core/rpc.py'
+adding 'control_lab/core/serialization.py'
+adding 'control_lab/core/tensors.py'
+adding 'control_lab/diagnostics/__init__.py'
+adding 'control_lab/diagnostics/errors.py'
+adding 'control_lab/diagnostics/provenance.py'
+adding 'control_lab/diagnostics/result.py'
+adding 'control_lab/experimental/sdp_educational/__init__.py'
+adding 'control_lab/experimental/sdp_educational/solver.py'
+adding 'control_lab/experimental/sdp_educational/suite.py'
+adding 'control_lab/frequency/__init__.py'
+adding 'control_lab/frequency/mimo/__init__.py'
+adding 'control_lab/frequency/mimo/analysis.py'
+adding 'control_lab/frequency/siso/__init__.py'
+adding 'control_lab/frequency/siso/_utils.py'
+adding 'control_lab/frequency/siso/design.py'
+adding 'control_lab/frequency/siso/margins.py'
+adding 'control_lab/frequency/siso/response.py'
+adding 'control_lab/frequency/siso/root_locus.py'
+adding 'control_lab/fuzzy/__init__.py'
+adding 'control_lab/fuzzy/anfis.py'
+adding 'control_lab/fuzzy/fml.py'
+adding 'control_lab/fuzzy/inference.py'
+adding 'control_lab/fuzzy/membership.py'
+adding 'control_lab/fuzzy/ts_bridge.py'
+adding 'control_lab/identification/__init__.py'
+adding 'control_lab/identification/arx.py'
+adding 'control_lab/identification/oe.py'
+adding 'control_lab/identification/preprocessing.py'
+adding 'control_lab/identification/subspace.py'
+adding 'control_lab/identification/validation.py'
+adding 'control_lab/io/__init__.py'
+adding 'control_lab/io/ctrlab.py'
+adding 'control_lab/io/pvm.py'
+adding 'control_lab/optimization/__init__.py'
+adding 'control_lab/optimization/backends/__init__.py'
+adding 'control_lab/optimization/backends/base.py'
+adding 'control_lab/optimization/backends/capabilities.py'
+adding 'control_lab/optimization/backends/clarabel_cvxpy.py'
+adding 'control_lab/optimization/backends/clarabel_direct.py'
+adding 'control_lab/optimization/backends/scipy_linprog.py'
+adding 'control_lab/optimization/backends/solve.py'
+adding 'control_lab/optimization/backends/unavailable.py'
+adding 'control_lab/optimization/modeling/__init__.py'
+adding 'control_lab/optimization/modeling/canonical.py'
+adding 'control_lab/optimization/modeling/dsl.py'
+adding 'control_lab/optimization/modeling/svec.py'
+adding 'control_lab/optimization/modeling/templates.py'
+adding 'control_lab/optimization/verification/__init__.py'
+adding 'control_lab/optimization/verification/gate0b.py'
+adding 'control_lab/optimization/verification/recovery.py'
+adding 'control_lab/optimization/verification/verifier.py'
+adding 'control_lab/statespace/__init__.py'
+adding 'control_lab/statespace/_utils.py'
+adding 'control_lab/statespace/analysis.py'
+adding 'control_lab/statespace/design.py'
+adding 'control_lab/statespace/equations.py'
+adding 'control_lab/statespace/simulation.py'
+adding 'control_lab-1.0.0.dist-info/METADATA'
+adding 'control_lab-1.0.0.dist-info/WHEEL'
+adding 'control_lab-1.0.0.dist-info/top_level.txt'
+adding 'control_lab-1.0.0.dist-info/RECORD'
+removing build/bdist.linux-x86_64/wheel
+Successfully built control_lab-1.0.0-py3-none-any.whl
+Verified 32 local assets; browser offline gate remains pending.
+
+
+FILE /tmp/f9-offline-accept.log
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> controllab-web@1.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+[run_web_tests] Executando typecheck (f7, 14 arquivo(s) TS)...
+[typecheck] PASS (f7, 14 arquivo(s) TS)
+[run_web_tests] Executando 4 arquivo(s) de teste com node --test...
+✔ F7 offline: prefix, reload, HEAD, no misses reach the network, scope isolation (57.173769ms)
+✔ F7 offline: rollback preserves active and same-version updates switch only on activation (77.460005ms)
+✔ F7 offline: missing, corrupt and altered manifest cannot attest readiness or serve damaged code (13.005271ms)
+✔ F7 offline: reject manifest escapes, duplicates, missing hashes and incomplete transitive closure (10.943298ms)
+✔ F7-CONTRACT-01: sha256Hex puro coincide com node:crypto e checksums.sha256 das fixtures ouro (13.131699ms)
+✔ F7-CONTRACT-02: valida exemplos normativos rpc_request_lqr.json e rpc_response_lqr.json e rejeita NaN/Infinity/versão/campos extras (2.933418ms)
+✔ F7-CONTRACT-03: todas as 12 categorias normativas de erro funcionam e são validadas pelo contrato (8.041256ms)
+✔ T-RPC-01 (MockWorkerAdapter): 25 requisições rápidas fora de ordem — apenas revisão mais recente comita no IndexedDB (64.01946ms)
+✔ T-RPC-01 unidade (MessageChannel + fixture double; sem Wasm): 24 requisições fora de ordem e sem vazamento PyProxy (66.217885ms)
+✔ F7-COALESCE-01: DebouncedRequestCoalescer consolida disparos rápidos e cancela intermediários (24.922798ms)
+✔ T-RPC-02 (MockWorkerAdapter): cancel(), terminate()/resetWorker(), ciclo recovering->ready e reidratação fiel (20.230533ms)
+✔ T-RPC-02 unidade (MessageChannel + IDB em memória + fixture double): terminate() fecha o transporte, recria WorkerModelStore vazio e reidrata snapshot do IndexedDB (21.287533ms)
+✔ F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLED e preserva Worker/PyProxy limpos (17.546733ms)
+✔ T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMPORT_UNTRUSTED_CODE (0.960417ms)
+✔ F7-BUFFER-01 (fixture double): transferência de ArrayBuffer via postMessage destaca original (byteLength===0), bloqueia reúso e suporta preserveSenderCopy (3.757435ms)
+✔ F7-PYPROXY-01: PyProxyRegistry e withPyProxy garantem destroy() em retorno normal, exceção e cancelamento e proíbem saída por postMessage (0.8067ms)
+✔ F7-MODELSTORE-01: WorkerModelStore implementa LRU, pinning de projeto ativo e falha RESOURCE_LIMIT antes de alocar (0.714505ms)
+✔ F7-PARITY-01 local: mock certificado versus dispatcher CPython real via bridge; não prova Pyodide/Wasm (1783.975726ms)
+✔ F7-PYPROXY-02: erro em runtime Pyodide dentro do Worker destrói PyProxy e mantém activeProxies===0 (1.64676ms)
+✔ F7-BUFFER-02 (fixture double): transporte bidirecional Worker -> Main com return_binary_buffers=true reidrata tensores K e P fielmente (1.900315ms)
+✔ F7-SUPERSEDE-TIMEOUT-01: cancel_on_supersede=true cancela revisão anterior em voo e hard_timeout_ms retorna RESOURCE_LIMIT (36.860163ms)
+✔ test_no_python_runtime_no_scientific_success: no silent MessageChannel and no commit/provenance invented (10.835649ms)
+✔ test_no_python_runtime_no_scientific_success: explicit MessageChannel without loader fails initialization (8.878492ms)
+✔ F7-PROVISION-UNIT: local wheel is loaded before core.rpc handshake; capabilities require observed dispatcher (2.147549ms)
+✔ test_unstabilizable_plant_through_real_rpc: actual CPython dispatcher through bridge returns HYPOTHESIS_VIOLATED (1793.266682ms)
+✔ F7-CPYTHON-UNIT: real dispatcher respects Q/R, x0 and revision; no fixed two-state result (2393.38849ms)
+✔ F7-PYTHON-NONE: proxy output preserves null fields and lists without relaxing ordinary JS JSON validation (0.949412ms)
+✔ F7-SEC-ALLOWLIST: http: externo é recusado, localhost http permitido (1.664466ms)
+✔ F7-SEC-ALLOWLIST: config.allowedOrigins na mensagem init não amplia a allowlist (1.934295ms)
+✔ F7-ENTRYPOINT: sem toPy retorna erro estruturado e nunca chama runPythonAsync (2.723569ms)
+✔ F7-ENTRYPOINT: sem pyimport retorna erro estruturado sem executar código (0.821062ms)
+✔ F7-SCHEMA: protocol.ts aceita exemplos e rejeita violações dos schemas rpc_* (1.145291ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4371.114455
+[unit-tests] PASS (f7, 4 arquivo(s) de teste)
+
+
+FILE /tmp/f9-offline-wasm.log
+Loading numpy, openblas, scipy
+Loaded numpy, openblas, scipy
+Loading control_lab
+Loaded control_lab
+✔ real cached wheel solves a continuous Lyapunov equation after controller restart (6147.666087ms)
+ℹ {"wasm":{"pyodide":"0.27.5","numpy":"2.0.2","scipy":"1.14.1","python":"3.12.7"},"assets":32,"fetchesAfterRestart":["https://offline.invalid/ControlLab_Web/wheels/control_lab-1.0.0-py3-none-any.whl"],"algorithm":"scipy.linalg.solve_continuous_lyapunov","X":{"shape":[1,1],"dtype":"float64","order":"C","data":[1]}}
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6269.622034
+
+
+FILE /tmp/f9-offline-browser-final.log
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0
+rootdir: /workspace/scratch/ba21e63c86f4/ControlLab_Web
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 1 item
+
+tests/security/offline_browser.py {"K": [2.000000000000001, 3.0000000000000004], "P": [6, 2.000000000000001, 2.000000000000001, 3.0000000000000004], "cache_assets_verified": 32, "chromium": "153.0.8010.0", "corrupt_asset_http_status": 503, "external_requests": [], "lib_versions": {"numpy": "2.0.2", "pyodide": "0.27.5", "python": "3.12.7", "scipy": "1.14.1"}, "offline_navigation_from_service_worker": true, "offline_ready_after_corruption": false, "offline_ready_before_corruption": true}
+.
+
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 1 passed, 1 warning in 8.37s =========================
+
+
+FILE /tmp/f9-offline-fullweb.log
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> controllab-web@1.0.0 test
+> node ../scripts/run_web_tests.mjs
+
+[run_web_tests] Executando typecheck (all, 24 arquivo(s) TS)...
+[typecheck] PASS (all, 24 arquivo(s) TS)
+[run_web_tests] Executando 5 arquivo(s) de teste com node --test...
+✔ F7 offline: prefix, reload, HEAD, no misses reach the network, scope isolation (116.902682ms)
+✔ F7 offline: rollback preserves active and same-version updates switch only on activation (81.472625ms)
+✔ F7 offline: missing, corrupt and altered manifest cannot attest readiness or serve damaged code (17.80551ms)
+✔ F7 offline: reject manifest escapes, duplicates, missing hashes and incomplete transitive closure (9.74361ms)
+✔ F7-CONTRACT-01: sha256Hex puro coincide com node:crypto e checksums.sha256 das fixtures ouro (9.418661ms)
+✔ F7-CONTRACT-02: valida exemplos normativos rpc_request_lqr.json e rpc_response_lqr.json e rejeita NaN/Infinity/versão/campos extras (2.600959ms)
+✔ F7-CONTRACT-03: todas as 12 categorias normativas de erro funcionam e são validadas pelo contrato (6.948386ms)
+✔ T-RPC-01 (MockWorkerAdapter): 25 requisições rápidas fora de ordem — apenas revisão mais recente comita no IndexedDB (69.225608ms)
+✔ T-RPC-01 unidade (MessageChannel + fixture double; sem Wasm): 24 requisições fora de ordem e sem vazamento PyProxy (75.137228ms)
+✔ F7-COALESCE-01: DebouncedRequestCoalescer consolida disparos rápidos e cancela intermediários (25.569219ms)
+✔ T-RPC-02 (MockWorkerAdapter): cancel(), terminate()/resetWorker(), ciclo recovering->ready e reidratação fiel (23.565512ms)
+✔ T-RPC-02 unidade (MessageChannel + IDB em memória + fixture double): terminate() fecha o transporte, recria WorkerModelStore vazio e reidrata snapshot do IndexedDB (22.323218ms)
+✔ F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLED e preserva Worker/PyProxy limpos (17.267866ms)
+✔ T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMPORT_UNTRUSTED_CODE (0.946317ms)
+✔ F7-BUFFER-01 (fixture double): transferência de ArrayBuffer via postMessage destaca original (byteLength===0), bloqueia reúso e suporta preserveSenderCopy (4.129906ms)
+✔ F7-PYPROXY-01: PyProxyRegistry e withPyProxy garantem destroy() em retorno normal, exceção e cancelamento e proíbem saída por postMessage (1.086714ms)
+✔ F7-MODELSTORE-01: WorkerModelStore implementa LRU, pinning de projeto ativo e falha RESOURCE_LIMIT antes de alocar (1.011463ms)
+✔ F7-PARITY-01 local: mock certificado versus dispatcher CPython real via bridge; não prova Pyodide/Wasm (1818.568544ms)
+✔ F7-PYPROXY-02: erro em runtime Pyodide dentro do Worker destrói PyProxy e mantém activeProxies===0 (1.464152ms)
+✔ F7-BUFFER-02 (fixture double): transporte bidirecional Worker -> Main com return_binary_buffers=true reidrata tensores K e P fielmente (1.825033ms)
+✔ F7-SUPERSEDE-TIMEOUT-01: cancel_on_supersede=true cancela revisão anterior em voo e hard_timeout_ms retorna RESOURCE_LIMIT (37.537503ms)
+✔ test_no_python_runtime_no_scientific_success: no silent MessageChannel and no commit/provenance invented (10.339692ms)
+✔ test_no_python_runtime_no_scientific_success: explicit MessageChannel without loader fails initialization (7.360444ms)
+✔ F7-PROVISION-UNIT: local wheel is loaded before core.rpc handshake; capabilities require observed dispatcher (2.168571ms)
+✔ test_unstabilizable_plant_through_real_rpc: actual CPython dispatcher through bridge returns HYPOTHESIS_VIOLATED (1682.925076ms)
+✔ F7-CPYTHON-UNIT: real dispatcher respects Q/R, x0 and revision; no fixed two-state result (2404.855836ms)
+✔ F7-PYTHON-NONE: proxy output preserves null fields and lists without relaxing ordinary JS JSON validation (1.447577ms)
+✔ F7-SEC-ALLOWLIST: http: externo é recusado, localhost http permitido (0.863986ms)
+✔ F7-SEC-ALLOWLIST: config.allowedOrigins na mensagem init não amplia a allowlist (1.598048ms)
+✔ F7-ENTRYPOINT: sem toPy retorna erro estruturado e nunca chama runPythonAsync (2.408194ms)
+✔ F7-ENTRYPOINT: sem pyimport retorna erro estruturado sem executar código (0.75235ms)
+✔ F7-SCHEMA: protocol.ts aceita exemplos e rejeita violações dos schemas rpc_* (0.964744ms)
+✔ T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava em IndexedDB nem libera exportação; pointerup exige pending_commit e comita fixture, sem prova Wasm (117.834077ms)
+✔ UI Node: Pyodide sem worker explícito falha e não permite commit/exportação (1.7207ms)
+✔ Concorrência, cancelamento (Escape), blur, troca de aba, undo, model_revision e 12 categorias de erro (158.865331ms)
+✔ ToolDescriptor: descoberta dinâmica sem alterar roteamento global e selos stable/beta/experimental/unavailable_wasm (7.690741ms)
+✔ test_tool_descriptor_unlisted_operation_and_typecheck (1.340799ms)
+✔ UI Node/adapter explícito: resposta inconclusive não vira snapshot nem libera exportação (3.988903ms)
+✔ Bootstrap Node: contrato de URLs de build e registro SW module, sem prova offline (0.576171ms)
+✔ Overlays semânticos (exact/sufficient/heuristic/estimated) e gráficos com valores repetidos + tabela acessível (3.326891ms)
+✔ WCAG 2.2 AA: contraste (>=4.5:1 / >=3.0:1), toque >=44px, teclado, FocusRestorer, AriaLive, decimais sem mutação e relatório R-27 (3.628425ms)
+✔ UI Node: adapter F7 bruto 12x3 com ref não resolvível falha fechado antes de persistir (3.668274ms)
+✔ Guard arquitetural distingue imports Python de URLs wheel (0.293764ms)
+✔ Auditoria F8: web/{app,charts,features} não importam Python, Node globals nem duplicam síntese CARE/Riccati (2.829596ms)
+✔ F8-EXT-01: suporte explícito a m!=p (3 entradas, 4 saídas), C!=I, feedback_sign positivo, ciclo de vida e buffers transferíveis (100.1526ms)
+✔ F8-EXT-02: contraste completo WCAG 2.2 AA, ToolDescriptor HTML (<select>/number), teclado preservando Q, analyzeOpenLoop concorrente e .pvm discreto (96.87378ms)
+✔ F8-EXT-03: mountControlLabApp mantém identidade do slider durante pointermove, atualiza aria-disabled e restaura foco ao fechar modal (51.13947ms)
+✔ F8-EXT-04: aderência aos schemas (.ctrlab, StateFeedbackController, StateSpace, .pvm), contraste WCAG total, CSV alta precisão, teclado durante preview e DOM completo (40.547246ms)
+✔ F8-EXT-05: mountControlLabApp renderiza tabela temporal, painel R-27, comparador de experimentos e executa ferramenta auxiliar sem sobrescrever snapshot LQR (142.077939ms)
+✔ F8-EXT-06: B3.1 cancelDrag durante registerObject, B3.2 updateWeights invalida exportação, B3.4 x0 DIMENSION_MISMATCH, axis-ticks/chart-legend/borda 0+0j, textarea/shape_hint/simulate_lti e apply-plant/apply-weights/save-experiment em main.ts (57.616919ms)
+ℹ tests 50
+ℹ suites 0
+ℹ pass 50
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4310.327574
+[unit-tests] PASS (all, 5 arquivo(s) de teste)
+
+
+FILE /tmp/root-offline-oracles.log
+....................................................................     [100%]
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+68 passed, 1 warning in 2.05s
+
+GOLDEN BASELINE BYTES IDENTICAL
+contracts/fixtures/B-DARE-12x3.json 2488dd78691a3a36ff96b7d00542fd506855191c0dbedc0e530c6131e6e47040
+contracts/fixtures/checksums.sha256 4b7a39a4ad5d8eb6b48d2d28d8e8a3673e38105bce057909dbdb29884ef0cc7a
+contracts/fixtures/B-MIMO-2x2.json 23d42ef684bcb5c4fe484ef24a624ae50020c883de986a617d21981bf5ff29ed
+contracts/fixtures/B-PVM-LQR.json eabcf5aff8a56c99c87a624857525977d3ea5c31477431d5a9ce2fbf34453fe8
+contracts/fixtures/B-CARE-02.json f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f
+contracts/fixtures/B-ARX-PRBS.json 6fc72bebb5237aca36994b0fc71e06f6444fa9a1b163be79180764f07a18acc1
+contracts/fixtures/B-CARE-12x3.json 0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4
+contracts/fixtures/B-SDP-A-D.json 4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076
+
+PATCH REVIEW
+ tests/unit/f7/rpc_bridge_worker.test.ts | 111 +----
+ tests/unit/f7/rpc_remediation.test.ts   |  17 +-
+ web/bridge/protocol.ts                  |   9 +-
+ web/bridge/pyodide_client.ts            |  36 +-
+ web/worker/pyodide_worker.ts            |  36 +-
+ web/worker/service_worker.ts            | 690 ++++++++++----------------------
+ 6 files changed, 264 insertions(+), 635 deletions(-)
+web/bridge/protocol.ts 57a3e124756b9d46f5c7e9f7bd3ab0164cecfcf5adccca6fe6e7e874376361c2
+web/bridge/pyodide_client.ts 7a79066eae133d338210199afb40b05953dae98f02d1bccef195f3fd4c0f20b9
+web/worker/pyodide_worker.ts 1ceebe5616c86e72d34ee5aa79ca486d7730adebac1bc2cf02c78b10e799e05a
+web/worker/service_worker.ts 7f7811c58391f05488b6b187a08f75e68b82ec2b3d297c908d5eff3628388c21
+tests/unit/f7/offline_release.test.ts 13650fe75e62ad9ae7ab062220a251720e6e3d6f14a839f1a4bc6a40e18c715e
+tests/unit/f7/rpc_bridge_worker.test.ts f0e82bd9b573e8adc23b89924914d21e3ef2942707425dca2a7a3717cbc1242c
+tests/unit/f7/rpc_remediation.test.ts 3aa4ea5ee62691fbc9f7f0773a4e545efa7232cd92fea89bb2a9699bb6e40167
+tests/security/offline_browser.py e80cb4c28c5c95dd3be5c7c959db899f3499c345fd32dedc4aeba12fadbbc22b
+tests/oracles/offline_cache_wasm.mjs 6c2f042a5bff2181cdb2cb5e4d911a8829caf0299a1d67789e7a8c91c85a8058

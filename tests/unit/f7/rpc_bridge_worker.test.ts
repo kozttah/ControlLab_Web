@@ -46,14 +46,6 @@ import {
   type PyodideInterfaceLike,
   type PyodideLoaderFn,
 } from "../../../web/worker/pyodide_worker.ts";
-import {
-  CACHE_NAME_PREFIX,
-  DEFAULT_STATIC_CACHE_NAME,
-  DEFAULT_STATIC_MANIFEST,
-  InMemoryCacheStorage,
-  ServiceWorkerController,
-} from "../../../web/worker/service_worker.ts";
-
 import { fixturePyodideLoader, makeFixturePyodideLoader } from "./fixture_runtime.ts";
 import { cpythonLoader } from "./cpython_runtime.mjs";
 
@@ -714,108 +706,7 @@ test("F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLE
 });
 
 // ---------------------------------------------------------------------------
-// 4. T-SEC-01: Service Worker versionado, política unitária de cache em memória e bloqueio CDN (T-SEC-01 real permanece pendente)
-// ---------------------------------------------------------------------------
-
-test("F7-SEC-UNIT: cache em memória e fetch stub exercitam política; não comprovam T-SEC-01 em browser", async () => {
-  const cacheStorage = new InMemoryCacheStorage();
-  // Simula cache legado de versão anterior e cache de usuário não relacionado
-  await cacheStorage.open(`${CACHE_NAME_PREFIX}v0.9.0`);
-  await cacheStorage.open("unrelated-app-cache");
-
-  const sw = new ServiceWorkerController({
-    origin: "https://controllab.local",
-    version: "1.0.0",
-  });
-  assert.equal(sw.activeCacheName, DEFAULT_STATIC_CACHE_NAME);
-
-  let provisionFetchCalls = 0;
-  const provisionFetch = async (req: Request | string): Promise<Response> => {
-    provisionFetchCalls += 1;
-    const url = typeof req === "string" ? req : req.url;
-    return new Response(`/* cached ${url} */`, {
-      status: 200,
-      headers: { "Content-Type": "application/javascript" },
-    });
-  };
-
-  const installRes = await sw.install(cacheStorage, provisionFetch);
-  assert.equal(installRes.atomic, true);
-  assert.equal(installRes.cacheName, "controllab-static-v1.0.0");
-  assert.equal(provisionFetchCalls, DEFAULT_STATIC_MANIFEST.length);
-
-  const activateRes = await sw.activate(cacheStorage);
-  assert.deepEqual(activateRes.deletedCaches, ["controllab-static-v0.9.0"]);
-  assert.ok(activateRes.preservedCaches.includes("unrelated-app-cache"));
-  assert.equal(await cacheStorage.has("controllab-static-v0.9.0"), false);
-
-  const readiness = await sw.checkOfflineReadiness(cacheStorage);
-  assert.equal(readiness.ready, true);
-  assert.equal(readiness.missingUrls.length, 0);
-
-  // Simulação unitária da ausência de rede; não é provisionamento offline real.
-  let offlineNetworkCalls = 0;
-  const offlineBlockedFetch = async (): Promise<Response> => {
-    offlineNetworkCalls += 1;
-    throw new Error("Rede desconectada: nenhuma requisição externa permitida!");
-  };
-
-  for (const asset of DEFAULT_STATIC_MANIFEST) {
-    const resp = await sw.handleFetch(
-      `https://controllab.local${asset.url}`,
-      cacheStorage,
-      offlineBlockedFetch,
-    );
-    assert.equal(resp.status, 200);
-    assert.equal(resp.headers.get("X-ControlLab-Cache"), "HIT");
-    assert.equal(resp.headers.get("X-ControlLab-Cache-Version"), "1.0.0");
-    const text = await resp.text();
-    assert.ok(text.includes(asset.url));
-  }
-  assert.equal(offlineNetworkCalls, 0);
-
-  // Bloqueio explícito de CDN externa e telemetria mesmo com URL válida
-  const cdnResp = await sw.handleFetch(
-    "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js",
-    cacheStorage,
-    offlineBlockedFetch,
-  );
-  assert.equal(cdnResp.status, 403);
-  assert.equal(offlineNetworkCalls, 0);
-
-  const telemetryResp = await sw.handleFetch(
-    "https://controllab.local/telemetry/collect",
-    cacheStorage,
-    offlineBlockedFetch,
-  );
-  assert.equal(telemetryResp.status, 403);
-  assert.equal(offlineNetworkCalls, 0);
-
-  // Atualização atômica com falha mantém versão v1.0.0 intacta
-  await assert.rejects(
-    () =>
-      sw.upgradeVersion(
-        "1.0.1",
-        [
-          { url: "/index.html", kind: "html", version: "1.0.1" },
-          { url: "/missing-asset.wasm", kind: "wasm", version: "1.0.1" },
-        ],
-        cacheStorage,
-        async (req) => {
-          const u = typeof req === "string" ? req : req.url;
-          if (u.includes("missing-asset")) {
-            return new Response("Not found", { status: 404 });
-          }
-          return new Response("ok", { status: 200 });
-        },
-      ),
-    (err: unknown) =>
-      err instanceof ControlLabBridgeError && err.code === "SOLVER_UNAVAILABLE",
-  );
-  assert.equal(sw.activeCacheName, "controllab-static-v1.0.0");
-  assert.equal(await cacheStorage.has("controllab-static-v1.0.0"), true);
-  assert.equal(await cacheStorage.has("controllab-static-v1.0.1"), false);
-});
+// Política de origem do Worker. A suíte offline_release cobre o Service Worker.
 
 test("T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMPORT_UNTRUSTED_CODE", async () => {
   const client = new PyodideEngineClient({

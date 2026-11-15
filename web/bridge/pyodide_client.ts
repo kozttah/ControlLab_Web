@@ -228,6 +228,37 @@ export class PyodideEngineClient extends BaseEngineClient {
     }
   }
 
+  private async verifyOfflineReadiness(options: EngineInitOptions): Promise<boolean> {
+    // DedicatedWorkerNavigator does not expose serviceWorker in all browsers.
+    // The window verifies the controller and configured runtime after the Python handshake.
+    const controller = globalThis.navigator?.serviceWorker?.controller;
+    if (this.workerFactory || !this.workerUrl || !controller) return false;
+    const base = new URL("./", controller.scriptURL);
+    const wheel = new URL("wheels/control_lab-1.0.0-py3-none-any.whl", base).href;
+    if (new URL(this.workerUrl, base).href !== new URL("worker/pyodide_worker.js", base).href ||
+        controller.scriptURL !== new URL("service_worker.js", base).href ||
+        new URL(options.indexURL ?? "/pyodide/", base).href !== new URL("pyodide/", base).href ||
+        !(options.packages ?? ["numpy", "scipy", "/wheels/control_lab-1.0.0-py3-none-any.whl"])
+          .every((pkg) => pkg === "numpy" || pkg === "scipy" || new URL(pkg, base).href === wheel)) {
+      return false;
+    }
+    const channel = new MessageChannel();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await new Promise<boolean>((resolve) => {
+        timeout = setTimeout(() => resolve(false), 8000);
+        channel.port1.onmessage = ({ data }) => {
+          resolve(data?.ready === true && globalThis.navigator?.serviceWorker?.controller === controller);
+        };
+        controller.postMessage({ type: "controllab.checkOfflineReadiness" }, [channel.port2]);
+      });
+    } catch { return false; } finally {
+      clearTimeout(timeout);
+      channel.port1.close();
+      channel.port2.close();
+    }
+  }
+
   private async performInit(
     options: EngineInitOptions,
     isRecovery: boolean,
@@ -279,7 +310,10 @@ export class PyodideEngineClient extends BaseEngineClient {
 
       this.workerId = String(initResult.worker_id ?? "");
       this.storeInstanceId = String(initResult.store_instance_id ?? "");
-      this.capabilities = initResult.capabilities as CapabilityDescriptor;
+      this.capabilities = {
+        ...initResult.capabilities as CapabilityDescriptor,
+        offline_ready: await this.verifyOfflineReadiness(options),
+      };
 
       await this.rehydrateWorkerFromIndexedDB();
       await this.syncCoordinatorFromStore();

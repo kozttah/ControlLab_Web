@@ -7,7 +7,7 @@ import { PyodideEngineClient } from "../../../web/bridge/pyodide_client.ts";
 import type { ControlLabEngineClient, ExecutionMetrics } from "../../../web/bridge/client.ts";
 import { IndexedDBProjectStore, InMemoryIDBFactory } from "../../../web/storage/indexeddb_store.ts";
 import { createMessageChannelWorkerTransport, PyodideWorkerRuntime, type PyodideInterfaceLike } from "../../../web/worker/pyodide_worker.ts";
-import { type RpcRequest, type RpcResponse, validateRpcResponse } from "../../../web/bridge/protocol.ts";
+import { type RpcRequest, type RpcResponse, ensureFiniteJson, validateRpcResponse } from "../../../web/bridge/protocol.ts";
 import { cpythonLoader } from "./cpython_runtime.mjs";
 
 function store(): IndexedDBProjectStore {
@@ -73,10 +73,6 @@ test("F7-PROVISION-UNIT: local wheel is loaded before core.rpc handshake; capabi
       toPy: (value) => ({ __isPyProxy: true, toJs: () => value, destroy() {} }),
       pyimport: (module) => {
         calls.push(module);
-        if (module === "micropip") return {
-          install: { callKwargs: (urls, kwargs) => { calls.push(JSON.stringify({ urls, ...kwargs })); } },
-          destroy() {},
-        };
         return { dispatch: (proxy) => {
           const input = proxy.toJs?.() as { request: RpcRequest };
           return {
@@ -95,7 +91,7 @@ test("F7-PROVISION-UNIT: local wheel is loaded before core.rpc handshake; capabi
     await runtime.handleMessage({ kind: "init", msg_id: "provision", config: {
       indexURL: "/pyodide/", packages: ["/wheels/control_lab-1.0.0-py3-none-any.whl"],
     } });
-    assert.deepEqual(calls, ["https://controllab.local/pyodide/", "micropip", "micropip", JSON.stringify({ urls: ["https://controllab.local/wheels/control_lab-1.0.0-py3-none-any.whl"], deps: false }), "control_lab.core.rpc"]);
+    assert.deepEqual(calls, ["https://controllab.local/pyodide/", "https://controllab.local/wheels/control_lab-1.0.0-py3-none-any.whl", "control_lab.core.rpc"]);
     assert.equal((messages[0] as { kind: string }).kind, "init_ok");
     const capabilities = runtime.getCapabilities();
     assert.equal(capabilities.maturity["statespace.design_lqr"], "beta");
@@ -147,4 +143,13 @@ test("F7-CPYTHON-UNIT: real dispatcher respects Q/R, x0 and revision; no fixed t
     assert.equal(client.getCapabilities().maturity["statespace.design_lqr"], "beta");
     assert.equal((await client.getWorkerStats()).pyproxy.activeProxies, 0);
   } finally { client.dispose(); }
+});
+
+test("F7-PYTHON-NONE: proxy output preserves null fields and lists without relaxing ordinary JS JSON validation", () => {
+  const python = { error: undefined, result: { nested: [undefined, { value: undefined }] } };
+  const converted = ensureFiniteJson(python, "$", new WeakSet(), true);
+  assert.deepEqual(converted, { error: null, result: { nested: [null, { value: null }] } });
+  assert.throws(() => ensureFiniteJson([undefined]), /undefined/);
+  assert.throws(() => ensureFiniteJson({ result: NaN }, "$", new WeakSet(), true), /finito/);
+  assert.deepEqual(ensureFiniteJson({ optional: undefined, required: 1 }), { required: 1 });
 });

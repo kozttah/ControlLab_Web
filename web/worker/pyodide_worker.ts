@@ -49,7 +49,6 @@ export const PY_RPC_ENTRYPOINT_FUNCTION = "dispatch";
 
 export interface PyRpcEntrypointModuleLike {
   dispatch?: (input: PyProxyLike) => unknown;
-  install?: { callKwargs: (wheels: string[], kwargs: { deps: boolean }) => unknown };
   destroy?: () => void;
   [key: string]: unknown;
 }
@@ -361,7 +360,7 @@ export class PyodideWorkerRuntime {
       },
       supports_transferables: true,
       supports_cooperative_cancel: this.interruptBuffer !== null,
-      // A prova de cache transitivo pertence a WP-AUDIT-FIX-F7-OFFLINE-SW.
+      // CacheStorage readiness is attested by the window bridge after this handshake.
       offline_ready: false,
       max_memory_bytes: this.modelStore.getStats().max_bytes,
       maturity: Object.fromEntries(this.pythonOperations.map((operation) => [
@@ -470,26 +469,9 @@ export class PyodideWorkerRuntime {
     const distributionPackages = packages.filter((name) => !pureWheels.includes(name));
     if (distributionPackages.length > 0) await py.loadPackage(distributionPackages);
     if (pureWheels.length === 0) return;
-    await py.loadPackage("micropip");
-    if (typeof py.pyimport !== "function") {
-      throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "Runtime sem pyimport(): instalação de wheel indisponível.");
-    }
-    const micropip = py.pyimport("micropip");
-    const install = micropip.install;
-    let installation: unknown;
-    try {
-      if (!install || typeof install.callKwargs !== "function") {
-        throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "micropip.install.callKwargs indisponível.");
-      }
-      const urls = pureWheels.map((wheel) => new URL(wheel, this.origin).href);
-      // Dependências NumPy/SciPy vêm da distribuição local; nenhum resolver PyPI implícito.
-      installation = install.callKwargs(urls, { deps: false });
-      await installation;
-    } finally {
-      if (installation && typeof (installation as PyProxyLike).destroy === "function") (installation as PyProxyLike).destroy();
-      if (typeof (install as unknown as PyProxyLike)?.destroy === "function") (install as unknown as PyProxyLike).destroy();
-      micropip.destroy?.();
-    }
+    // A API nativa instala wheels locais sem resolução PyPI. No micropip 0.8.0,
+    // deps=false devolve o controle antes de completar o download do wheel.
+    for (const wheel of pureWheels) await py.loadPackage(new URL(wheel, this.origin).href);
   }
 
   private async handleInit(
@@ -1051,13 +1033,13 @@ export class PyodideWorkerRuntime {
           }
           let jsVal: unknown;
           if (outRaw && typeof (outRaw as PyProxyLike).destroy === "function") {
-            jsVal = await withPyProxy(
+            return await withPyProxy(
               this.pyproxyRegistry,
               outRaw as PyProxyLike,
-              (outP) =>
-                typeof outP.toJs === "function"
-                  ? outP.toJs({ dict_converter: Object.fromEntries })
-                  : outP,
+              (outP) => ensureFiniteJson(
+                outP.toJs?.({ dict_converter: Object.fromEntries, create_pyproxies: false }),
+                "$.pyodide_result", new WeakSet(), true,
+              ) as RpcResponse,
               { label: "rpc_output_proxy", signal: abortSig },
             );
           } else {

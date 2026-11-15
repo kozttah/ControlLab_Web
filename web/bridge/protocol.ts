@@ -359,6 +359,7 @@ export function ensureFiniteJson<T>(
   value: T,
   path = "$",
   seen: WeakSet<object> = new WeakSet<object>(),
+  fromPythonProxy = false,
 ): T {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
     return value;
@@ -377,6 +378,8 @@ export function ensureFiniteJson<T>(
     return value;
   }
   if (typeof value === "undefined") {
+    // PyProxy.toJs() representa Python None como undefined, inclusive em listas.
+    if (fromPythonProxy) return null as T;
     throw new ControlLabBridgeError(
       "VALIDATION_ERROR",
       `Valor undefined não serializável em ${path}.`,
@@ -422,7 +425,7 @@ export function ensureFiniteJson<T>(
       if (Array.isArray(value)) {
         const outArr: unknown[] = [];
         for (let i = 0; i < value.length; i += 1) {
-          outArr.push(ensureFiniteJson(value[i], `${path}[${i}]`, seen));
+          outArr.push(ensureFiniteJson(value[i], `${path}[${i}]`, seen, fromPythonProxy));
         }
         return outArr as unknown as T;
       }
@@ -435,10 +438,10 @@ export function ensureFiniteJson<T>(
       }
       const outObj: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(value)) {
-        if (v === undefined) {
+        if (v === undefined && !fromPythonProxy) {
           continue;
         }
-        outObj[k] = ensureFiniteJson(v, `${path}.${k}`, seen);
+        outObj[k] = ensureFiniteJson(v, `${path}.${k}`, seen, fromPythonProxy);
       }
       return outObj as unknown as T;
     } finally {

@@ -10,7 +10,8 @@
     "escalation_model": "orchestrator-argon",
     "history": {
       "2026-11-13": 6,
-      "2026-11-14": 12
+      "2026-11-14": 12,
+      "2026-11-15": 1
     }
   },
   "audit_reference": {
@@ -471,8 +472,13 @@
       "normative_tests": [
         "T-SEC-01"
       ],
-      "status": "PENDING",
-      "f9_review": "pending"
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F7-OFFLINE-SW.md",
+      "acceptance_scope": "chromium153_real_offline_reload_care_and_node_wasm_cache_only",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     },
     {
       "wp_id": "WP-AUDIT-FIX-F9-WASM-GATES",

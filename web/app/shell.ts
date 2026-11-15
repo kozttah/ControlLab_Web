@@ -16,6 +16,11 @@ import type {
 import {
   ControlLabBridgeError,
   sha256Hex,
+  computeCanonicalSha256,
+  RPC_API_VERSION,
+  generateUuid,
+  isPlainObject,
+  type RpcResponse,
   type EngineLifecycleState,
   type ErrorCategory,
   type Provenance,
@@ -23,7 +28,6 @@ import {
   type TypedError,
   type WarningItem,
 } from "../bridge/protocol.ts";
-import type { PortableProjectSnapshot } from "../storage/indexeddb_store.ts";
 import {
   AriaLiveAnnouncer,
   FocusRestorer,
@@ -192,16 +196,23 @@ export interface ExportedGainsPayload {
   exported_at: string;
 }
 
-export interface ExportedCtrlLabPackage {
-  format: "controllab_ctrlab_export";
-  schema_version: "1.0.0";
-  portable_snapshot: PortableProjectSnapshot;
-  archive_layout: {
-    manifest: Record<string, unknown>;
-    models: CanonicalStateSpaceModel[];
-    controllers: Array<Record<string, unknown>>;
-    experiments: Array<Record<string, unknown>>;
-  };
+export interface NativeFileExport {
+  bytes: Uint8Array;
+  filename: string;
+  media_type: string;
+  sha256: string;
+  project_revision: number;
+  request_id: string;
+  project_id: string;
+  response: RpcResponse;
+}
+
+export function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+  }
+  return btoa(binary);
 }
 
 export interface ShellOptions {
@@ -615,117 +626,153 @@ export class ControlLabShell {
     };
   }
 
-  public async exportCtrlLab(): Promise<ExportedCtrlLabPackage> {
-    this.lqr.assertExportAllowed();
+  private canonicalController(): Record<string, unknown> {
     const committed = this.lqr.getCommittedSnapshot()!;
     const plant = this.lqr.getPlant();
-    const portable = await this.client.exportProject(committed.project_id);
-    const now = new Date().toISOString();
-    const n = plant.matrices.A.shape[0];
-    const m = plant.matrices.B.shape[1];
-
-    if (
-      !committed.K ||
-      committed.K.shape.length !== 2 ||
-      committed.K.shape[0] !== m ||
-      committed.K.shape[1] !== n ||
-      committed.K.data.length !== m * n
-    ) {
-      throw new ControlLabBridgeError(
-        "VALIDATION_ERROR",
-        "Exportação requer matriz de ganho K válida e compatível com dimensões [m, n].",
-        {
-          parameters: {
-            expected_shape: [m, n],
-            actual_shape: committed.K?.shape ?? null,
-          },
-        },
-      );
-    }
-
-    const controllerK: RealTensor = {
-      shape: [m, n],
-      dtype: "float64",
-      order: committed.K.order,
-      data: [...committed.K.data],
-    };
-
-    const models: CanonicalStateSpaceModel[] = [plant];
-    const controllers: Array<Record<string, unknown>> = [
-      {
-        schema_version: "1.0.0",
-        id: committed.controller_ref?.id ?? `ctrl-lqr-r${committed.project_revision}`,
-        revision: committed.controller_ref?.revision ?? committed.project_revision,
-        kind: "StateFeedbackController",
-        feedback_sign: committed.feedback_sign,
-        K: controllerK,
-        state_coordinates: [...plant.state_names],
-        reference_map: null,
-        dt: plant.dt,
-        input_names: [...plant.input_names],
-        units: structuredClone(plant.units),
-        provenance: { ...committed.provenance },
-        created_at: committed.committed_at,
-      },
-    ];
-    const experiments: Array<Record<string, unknown>> = this.experiments.map((e) => ({
-      experiment_id: e.experiment_id,
-      label: e.label,
-      project_revision: e.snapshot.project_revision,
-      model_revision: e.snapshot.model_revision,
-      status: e.snapshot.status,
-    }));
-
-    const hashes = {
-      "models.json": sha256Hex(JSON.stringify(models)),
-      "controllers.json": sha256Hex(JSON.stringify(controllers)),
-      "experiments.json": sha256Hex(JSON.stringify(experiments)),
-    };
-
     return {
-      format: "controllab_ctrlab_export",
-      schema_version: "1.0.0",
-      portable_snapshot: portable,
-      archive_layout: {
-        manifest: {
-          format: "ctrlab",
-          schema_version: "1.0.0",
-          app_version: "1.0.0",
-          created_at: now,
-          modified_at: now,
-          project_id: committed.project_id,
-          project_revision: committed.project_revision,
-          hashes,
-          capabilities: {
-            required_features: ["core.serialization", "statespace.lqr"],
-            optional_features: ["io.pvm"],
-            max_uncompressed_bytes: 64 * 1024 * 1024,
-            max_members: 1024,
-          },
-          contents: {
-            models: models.length,
-            controllers: controllers.length,
-            experiments: experiments.length,
-            model_revision: committed.model_revision,
-            portable_content_hash: portable.content_hash,
-          },
-          provenance: { ...committed.provenance },
-        },
-        models,
-        controllers,
-        experiments,
-      },
+      schema_version: "1.0.0", kind: "StateFeedbackController",
+      id: committed.controller_ref?.id ?? `ctrl-lqr-r${committed.project_revision}`,
+      revision: committed.controller_ref?.revision ?? committed.project_revision,
+      feedback_sign: committed.feedback_sign, K: committed.K,
+      state_coordinates: [...plant.state_names], reference_map: null,
+      dt: plant.dt, input_names: [...plant.input_names], units: structuredClone(plant.units),
+      provenance: structuredClone(committed.provenance), created_at: committed.committed_at,
     };
   }
 
-  /** Contenção AUD-020/021 até o download consumir o serializador canônico F1. */
-  public exportPvm(): never {
+  private async fileRequest(operation: string, payload: Record<string, unknown>): Promise<RpcResponse> {
+    const committed = this.lqr.getCommittedSnapshot();
+    const response = await this.client.execute({
+      api_version: RPC_API_VERSION, request_id: `io-${generateUuid()}`,
+      project_id: committed?.project_id ?? "io-import",
+      project_revision: committed?.project_revision ?? 0,
+      operation, payload, options: {}, timeout_policy: { hard_timeout_ms: 30000 },
+    }, { commitOnSuccess: false });
+    if (response.status !== "success" && response.status !== "warning") {
+      throw new ControlLabBridgeError(response.error?.code ?? "VALIDATION_ERROR",
+        response.error?.message ?? "Operação de arquivo sem resultado válido.");
+    }
+    return response;
+  }
+
+  private async exportFile(operation: string, payload: Record<string, unknown>, extension: string): Promise<NativeFileExport> {
     this.lqr.assertExportAllowed();
-    throw new ControlLabBridgeError(
-      "UNSUPPORTED_MODEL",
-      "Exportação .pvm temporariamente indisponível. A integração com o exportador canônico está pendente.",
-      { parameters: { pending_work_package: "WP-AUDIT2-FIX-F8-NATIVE-IO" } },
-    );
+    const committed = this.lqr.getCommittedSnapshot()!;
+    const response = await this.fileRequest(operation, payload);
+    this.lqr.assertExportAllowed();
+    if (this.lqr.getCommittedSnapshot()?.request_id !== committed.request_id) {
+      throw new ControlLabBridgeError("CANCELLED", "O projeto mudou durante a exportação. Exporte novamente.");
+    }
+    const file = response.result;
+    if (!isPlainObject(file) || typeof file.bytes_base64 !== "string" ||
+        typeof file.sha256 !== "string" || typeof file.size_bytes !== "number" ||
+        typeof file.media_type !== "string") {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Resposta de arquivo incompleta.");
+    }
+    const binary = atob(file.bytes_base64);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    if (bytes.length !== file.size_bytes || sha256Hex(bytes) !== file.sha256) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Integridade dos bytes exportados inválida.");
+    }
+    return { bytes, filename: `ControlLab_r${committed.project_revision}.${extension}`,
+      media_type: file.media_type, sha256: file.sha256,
+      project_revision: committed.project_revision, request_id: committed.request_id,
+      project_id: committed.project_id, response };
+  }
+
+  public async exportCtrlLab(): Promise<NativeFileExport> {
+    this.lqr.assertExportAllowed();
+    const committed = this.lqr.getCommittedSnapshot()!;
+    const controller = this.canonicalController();
+    const experiment = {
+      schema_version: "1.0.0", kind: "Experiment", id: `ui-lqr-${committed.project_revision}`,
+      revision: committed.project_revision, method: "statespace.design_lqr",
+      model_ref: { id: this.lqr.getPlant().id, revision: committed.model_revision },
+      controller_ref: committed.controller_ref,
+      parameters: { workspace: this.lqr.getWeights(), snapshot: committed,
+        comparisons: structuredClone(this.experiments) },
+      tolerances: {}, results: null, data_source: null,
+      provenance: structuredClone(committed.provenance), created_at: committed.committed_at,
+    };
+    const project = {
+      project_id: committed.project_id, project_revision: committed.project_revision,
+      models: [this.lqr.getPlant()], controllers: [controller], experiments: [experiment],
+      created_at: committed.committed_at, provenance: structuredClone(committed.provenance),
+    };
+    return this.exportFile("io.export_ctrlab", { project }, "ctrlab");
+  }
+
+  public exportPvm(): Promise<NativeFileExport> {
+    this.lqr.assertExportAllowed();
+    return this.exportFile("io.export_pvm", {
+      plant: this.lqr.getPlant(), controller: this.canonicalController(),
+      scenario: { initial_state: this.lqr.getWeights().x0.data },
+      name: "ControlLab LQR", target_spec_version: "1.0.0",
+    }, "pvm");
+  }
+
+  public async importCtrlLab(source: Uint8Array | Promise<Uint8Array>): Promise<void> {
+    this.lqr.beginFileImport();
+    try {
+      const bytes = await source;
+      if (bytes.length > 64 * 1024 * 1024) {
+        throw new ControlLabBridgeError(
+          "RESOURCE_LIMIT", "Arquivo .ctrlab excede o limite de 64 MiB.",
+        );
+      }
+      const response = await this.fileRequest("io.import_ctrlab", {
+        bytes_base64: bytesToBase64(bytes),
+      });
+      const project = response.result;
+      if (!isPlainObject(project) || project.code_executed !== false ||
+          !Array.isArray(project.models) || !Array.isArray(project.experiments) ||
+          !Array.isArray(project.controllers)) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR", "Projeto importado sem estrutura passiva válida.",
+        );
+      }
+      const experiment = project.experiments.find(
+        (item) => isPlainObject(item) && item.method === "statespace.design_lqr",
+      );
+      const parameters = isPlainObject(experiment) && isPlainObject(experiment.parameters)
+        ? experiment.parameters : null;
+      const snapshot = parameters && isPlainObject(parameters.snapshot)
+        ? parameters.snapshot as unknown as CommittedLqrSnapshot : null;
+      const modelRef = isPlainObject(experiment) && isPlainObject(experiment.model_ref)
+        ? experiment.model_ref : null;
+      const plant = snapshot && modelRef ? project.models.find((item) =>
+        isPlainObject(item) && item.kind === "StateSpace" && item.id === modelRef.id &&
+        item.revision === modelRef.revision && item.revision === snapshot.model_revision,
+      ) : null;
+      const controller = snapshot ? project.controllers.find((item) =>
+        isPlainObject(item) && item.id === snapshot.controller_ref?.id &&
+        item.revision === snapshot.controller_ref?.revision,
+      ) : null;
+      if (!parameters || !snapshot || !isPlainObject(plant) || !isPlainObject(controller) ||
+          !isPlainObject(project.manifest) ||
+          project.manifest.project_id !== snapshot.project_id ||
+          project.manifest.project_revision !== snapshot.project_revision ||
+          computeCanonicalSha256(controller.K) !== computeCanonicalSha256(snapshot.K) ||
+          controller.feedback_sign !== snapshot.feedback_sign ||
+          !isPlainObject(parameters.workspace)) {
+        throw new ControlLabBridgeError(
+          "UNSUPPORTED_MODEL",
+          "O projeto não contém um espaço LQR confirmado compatível com esta tela.",
+        );
+      }
+      const workspace = parameters.workspace;
+      await this.lqr.restoreProject({
+        plant: plant as unknown as CanonicalStateSpaceModel, snapshot,
+        Q: workspace.Q as RealTensor, R: workspace.R as RealTensor, x0: workspace.x0 as RealTensor,
+      });
+      this.experiments.length = 0;
+      if (Array.isArray(parameters.comparisons)) {
+        this.experiments.push(...structuredClone(parameters.comparisons) as CommittedExperimentEntry[]);
+      }
+      this.notify();
+    } finally {
+      this.lqr.endFileImport();
+    }
   }
 
   public exportChartCsv(

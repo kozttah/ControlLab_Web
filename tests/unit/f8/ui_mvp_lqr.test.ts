@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   ControlLabBridgeError,
+  sha256Hex,
   ERROR_CATEGORIES,
   type RealTensor,
   type CapabilityDescriptor,
@@ -175,6 +176,28 @@ function createMockSetup(options?: { latencyMs?: number }) {
   // K/P da fixture assinada para exercitar uma resposta completa, sem síntese UI.
   class CompleteFixtureAdapter extends MockWorkerAdapter {
     protected override async dispatchRpc(...args: Parameters<MockWorkerAdapter["execute"]>) {
+      const request = args[0];
+      // Double exclusivo do transporte Node. A validade dos bytes ZIP/PVM é auditada
+      // pela F9 com o motor Python e navegador reais, fora deste teste de UI.
+      if (request.operation.startsWith("io.")) {
+        let result: Record<string, unknown>;
+        if (request.operation.startsWith("io.export_")) {
+          const bytes = new TextEncoder().encode(JSON.stringify(request.payload));
+          result = { bytes_base64: btoa(String.fromCharCode(...bytes)),
+            sha256: sha256Hex(bytes), size_bytes: bytes.length,
+            media_type: request.operation === "io.export_ctrlab" ? "application/zip" : "application/json" };
+        } else {
+          const payload = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(String(request.payload.bytes_base64)), (c) => c.charCodeAt(0))));
+          const project = payload.project;
+          const K = project.controllers[0].K;
+          project.controllers[0].K = { data: K.data, dtype: K.dtype, shape: K.shape, order: K.order };
+          result = { ...project, manifest: { project_id: project.project_id, project_revision: project.project_revision }, code_executed: false };
+        }
+        return { response: { api_version: request.api_version, request_id: request.request_id,
+          project_id: request.project_id, project_revision: request.project_revision,
+          status: "success" as const, result, assumptions: {}, diagnostics: { transport_double_only: true },
+          provenance: { algorithm: "test.io_transport", lib_versions: {} }, warnings: [], error: null } };
+      }
       const output = await super.dispatchRpc(...args);
       if (output.response.result && output.response.provenance.fixture_id === "B-CARE-12x3") {
         const expected = JSON.parse(loaded.bCare12Raw).data.expected;
@@ -309,9 +332,9 @@ test("T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no point
     const gainsExport = shell.exportGains();
     assert.equal(gainsExport.project_revision, 2);
     assert.equal(gainsExport.feedback_sign, "negative");
-    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
+    assert.ok((await shell.exportPvm()).bytes.length > 0);
     const ctrlabPkg = await shell.exportCtrlLab();
-    assert.equal(ctrlabPkg.portable_snapshot.project_revision, 2);
+    assert.equal(ctrlabPkg.project_revision, 2);
 
     // Repete com B-CARE-12x3 (n=12, m=3, p=4 -> m != p e C != I)
     const f12 = buildPlantFromFixtureJson(loaded.bCare12Raw, "plant-care-12x3");
@@ -327,8 +350,8 @@ test("T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no point
     assert.equal(committed12.provenance.fixture_id, "B-CARE-12x3");
     assert.deepEqual(committed12.K, f12.expected.K);
     assert.equal(lqr.canExport().allowed, true);
-    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
-    assert.equal((await shell.exportCtrlLab()).portable_snapshot.project_revision, committed12.project_revision);
+    assert.ok((await shell.exportPvm()).bytes.length > 0);
+    assert.equal((await shell.exportCtrlLab()).project_revision, committed12.project_revision);
 
     shell.dispose();
   } finally {
@@ -1085,9 +1108,9 @@ test("F8-EXT-01: suporte explícito a m!=p (3 entradas, 4 saídas), C!=I, feedba
     };
     const committedWithK = await lqr.commitCurrentDesign();
     assert.ok(committedWithK?.K !== null);
-    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
+    assert.ok((await shell.exportPvm()).bytes.length > 0);
     const ctrlabExt = await shell.exportCtrlLab();
-    assert.equal(ctrlabExt.archive_layout.controllers.length, 1);
+    assert.equal(JSON.parse(new TextDecoder().decode(ctrlabExt.bytes)).project.controllers.length, 1);
 
     shell.dispose();
   } finally {
@@ -1169,7 +1192,7 @@ test("F8-EXT-02: contraste completo WCAG 2.2 AA, ToolDescriptor HTML (<select>/n
     });
     lqr.updatePlant(discretePlant);
     await lqr.commitCurrentDesign();
-    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
+    assert.ok((await shell.exportPvm()).bytes.length > 0);
 
     const report = shell.buildScientificReport();
     assert.equal(report.method, "dare");
@@ -1351,8 +1374,8 @@ test("F8-EXT-03: mountControlLabApp mantém identidade do slider durante pointer
     await new Promise((r) => setTimeout(r, 40));
 
     assert.equal(app.shell.getLqrWorkspace().isPendingCommit(), false);
-    assert.equal(exportPvmBtn.disabled, true);
-    assert.equal(exportPvmBtn.getAttribute("aria-disabled"), "true");
+    assert.equal(exportPvmBtn.disabled, false);
+    assert.equal(exportPvmBtn.getAttribute("aria-disabled"), null);
 
     // Abrir e fechar modal deve restaurar foco no botão disparador
     const exportGainsBtn = root.querySelector("#btn-export-gains");
@@ -1421,60 +1444,15 @@ test("F8-EXT-04: aderência aos schemas (.ctrlab, StateFeedbackController, State
     const lqr = shell.getLqrWorkspace();
     await lqr.commitCurrentDesign();
 
-    // 2. Validação estrutural de archive_layout contra schemas oficiais em contracts/schemas/
+    // 2. Transporte do projeto canônico para o motor, sem gerador ZIP na UI.
     const ctrlabPkg = await shell.exportCtrlLab();
-    const manifestSchema = JSON.parse(
-      fs.readFileSync(
-        path.join(REPO_ROOT, "contracts", "schemas", "ctrlab_manifest.schema.json"),
-        "utf8",
-      ),
-    ) as { required: string[]; properties: Record<string, unknown> };
-    const ctrlSchema = JSON.parse(
-      fs.readFileSync(
-        path.join(REPO_ROOT, "contracts", "schemas", "controller.schema.json"),
-        "utf8",
-      ),
-    ) as {
-      $defs: {
-        StateFeedbackController: {
-          required: string[];
-          properties: Record<string, unknown>;
-        };
-      };
-    };
-
-    const manifest = ctrlabPkg.archive_layout.manifest;
-    for (const reqKey of manifestSchema.required) {
-      assert.ok(reqKey in manifest, `Manifesto .ctrlab deve conter '${reqKey}'`);
-    }
-    assert.equal(manifest.format, "ctrlab");
-    assert.equal(manifest.additionalProperties, undefined);
-    for (const k of Object.keys(manifest)) {
-      assert.ok(
-        k in manifestSchema.properties,
-        `Chave não permitida no manifesto .ctrlab: '${k}'`,
-      );
-    }
-    const hashes = manifest.hashes as Record<string, string>;
-    assert.match(hashes["models.json"], /^[a-f0-9]{64}$/);
-    assert.match(hashes["controllers.json"], /^[a-f0-9]{64}$/);
-    assert.match(hashes["experiments.json"], /^[a-f0-9]{64}$/);
-
-    const ctrlObj = ctrlabPkg.archive_layout.controllers[0];
-    const sfSchema = ctrlSchema.$defs.StateFeedbackController;
-    for (const reqKey of sfSchema.required) {
-      assert.ok(reqKey in ctrlObj, `StateFeedbackController deve conter '${reqKey}'`);
-    }
-    for (const k of Object.keys(ctrlObj)) {
-      assert.ok(
-        k in sfSchema.properties,
-        `Chave extra proibida em StateFeedbackController (additionalProperties: false): '${k}'`,
-      );
-    }
-    assert.equal(ctrlObj.kind, "StateFeedbackController");
-
-    // 3. O download PVM incompatível permanece contido após commit.
-    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
+    assert.equal(ctrlabPkg.media_type, "application/zip");
+    const projectPayload = JSON.parse(new TextDecoder().decode(ctrlabPkg.bytes)).project;
+    assert.deepEqual(projectPayload.models[0], lqr.getPlant());
+    assert.equal(projectPayload.controllers[0].kind, "StateFeedbackController");
+    assert.deepEqual(projectPayload.controllers[0].K, lqr.getCommittedSnapshot()?.K);
+    assert.equal(projectPayload.experiments[0].kind, "Experiment");
+    assert.ok((await shell.exportPvm()).bytes.length > 0);
 
     // 4. exportChartCsv preserva precisão total mesmo com displayDecimals=2
     shell.setDisplayDecimals(2);
@@ -2016,6 +1994,7 @@ test("F8-EXT-06: B3.1 cancelDrag durante registerObject, B3.2 updateWeights inva
 
     // Tentar exportar antes de commit apresenta erro no #controllab-error-slot
     exportPvmBtn.dispatchEvent("click");
+    await new Promise((resolve) => setTimeout(resolve, 0));
     assert.ok(errorSlot._innerHTML.includes("VALIDATION_ERROR"));
 
     // apply-plant incrementa model_revision
@@ -2047,27 +2026,40 @@ test("F8-EXT-06: B3.1 cancelDrag durante registerObject, B3.2 updateWeights inva
 
 
 
-test("AUD-020/021: a contenção impede documento PVM para metadados CR/LF, aspas e Unicode", async () => {
+test("AUD-019/020/021 Node transport: bytes canônicos, metadados inertes e reabertura sem recálculo", async () => {
   const { store, client } = createMockSetup();
   await client.init();
   const projectId = 'projeto\r\n"citação" Ω';
   const shell = new ControlLabShell({ client, project_id: projectId });
   try {
     await shell.getLqrWorkspace().commitCurrentDesign();
+    const original = shell.getLqrWorkspace().getCommittedSnapshot();
+    const originalPlant = shell.getLqrWorkspace().getPlant();
+    const file = await shell.exportCtrlLab();
+    const pvm = await shell.exportPvm();
+    assert.equal(pvm.media_type, "application/json");
+    assert.equal(pvm.filename.includes(projectId), false);
+    const request = JSON.parse(new TextDecoder().decode(pvm.bytes));
+    assert.equal(request.name, "ControlLab LQR");
+    assert.equal("codeContext" in request, false);
+    await shell.importCtrlLab(file.bytes);
+    assert.deepEqual(shell.getLqrWorkspace().getPlant(), originalPlant);
+    assert.deepEqual(shell.getLqrWorkspace().getCommittedSnapshot(), original);
+    let releaseRead!: (bytes: Uint8Array) => void;
+    const read = new Promise<Uint8Array>((resolve) => { releaseRead = resolve; });
+    const importing = shell.importCtrlLab(read);
+    assert.equal(shell.getLqrWorkspace().canExport().allowed, false);
+    assert.throws(() => shell.getLqrWorkspace().updatePlant(originalPlant), ControlLabBridgeError);
+    assert.throws(() => shell.getLqrWorkspace().updateWeights({ Q: shell.getLqrWorkspace().getWeights().Q }), ControlLabBridgeError);
+    await assert.rejects(shell.importCtrlLab(file.bytes), ControlLabBridgeError);
+    releaseRead(file.bytes);
+    await importing;
     assert.equal(shell.getLqrWorkspace().canExport().allowed, true);
-    assert.throws(() => shell.exportPvm(), (error: unknown) => {
-      assert.ok(error instanceof ControlLabBridgeError);
-      assert.equal(error.code, "UNSUPPORTED_MODEL");
-      assert.ok(error.message.includes("exportador canônico"));
-      return true;
-    });
     const source = fs.readFileSync(path.join(__dirname, "../../../web/app/shell.ts"), "utf8");
     assert.equal(source.includes("codeContext:"), false);
     assert.equal(source.includes('type: "MatrixGain"'), false);
     assert.equal(source.includes("reshapeRowMajor"), false);
   } finally {
-    shell.dispose();
-    client.dispose();
-    store.close();
+    shell.dispose(); client.dispose(); store.close();
   }
 });

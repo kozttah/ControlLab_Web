@@ -1,0 +1,134 @@
+98855bfd0cc308264fba41a1c0063bf7084bb9dd
+web/app/main.ts ad22ec9589d9b66f082ffcbf2214eedb84f45900
+web/app/shell.ts 80e5c8dd0da7736e3dd098ff2c416f535c344e3e
+web/features/lqr_workspace.ts 752012871c3619077c8768e6dd54ff04a52e41ec
+tests/unit/f8/ui_mvp_lqr.test.ts c4bd9a2a462b454195d36129e0653258577b3ad3
+Linux 6.18.57 x86_64
+v24.22.1
+11.9.0
+Version 5.8.3
+npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8
+
+> controllab-web@1.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+[run_web_tests] Executando typecheck (f8, 10 arquivo(s) TS)...
+[typecheck] PASS (f8, 10 arquivo(s) TS)
+[run_web_tests] Executando 1 arquivo(s) de teste com node --test...
+✔ T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava em IndexedDB nem libera exportação; pointerup exige pending_commit e comita fixture, sem prova Wasm (86.915497ms)
+✔ UI Node: Pyodide sem worker explícito falha e não permite commit/exportação (1.307393ms)
+✔ Concorrência, cancelamento (Escape), blur, troca de aba, undo, model_revision e 12 categorias de erro (148.469091ms)
+✔ ToolDescriptor: descoberta dinâmica sem alterar roteamento global e selos stable/beta/experimental/unavailable_wasm (3.25657ms)
+✔ test_tool_descriptor_unlisted_operation_and_typecheck (1.855296ms)
+✔ UI Node/adapter explícito: resposta inconclusive não vira snapshot nem libera exportação (1.990238ms)
+✔ Bootstrap Node: contrato de URLs de build e registro SW module, sem prova offline (0.397227ms)
+✔ Overlays semânticos (exact/sufficient/heuristic/estimated) e gráficos com valores repetidos + tabela acessível (2.824511ms)
+✔ WCAG 2.2 AA: contraste (>=4.5:1 / >=3.0:1), toque >=44px, teclado, FocusRestorer, AriaLive, decimais sem mutação e relatório R-27 (4.832867ms)
+✔ UI Node: adapter F7 bruto 12x3 com ref não resolvível falha fechado antes de persistir (1.892211ms)
+✔ Guard arquitetural distingue imports Python de URLs wheel (0.294563ms)
+✔ Auditoria F8: web/{app,charts,features} não importam Python, Node globals nem duplicam síntese CARE/Riccati (2.253414ms)
+✔ F8-EXT-01: suporte explícito a m!=p (3 entradas, 4 saídas), C!=I, feedback_sign positivo, ciclo de vida e buffers transferíveis (73.376482ms)
+✔ F8-EXT-02: contraste completo WCAG 2.2 AA, ToolDescriptor HTML (<select>/number), teclado preservando Q, analyzeOpenLoop concorrente e .pvm discreto (87.160764ms)
+✔ F8-EXT-03: mountControlLabApp mantém identidade do slider durante pointermove, atualiza aria-disabled e restaura foco ao fechar modal (47.743799ms)
+✔ F8-EXT-04: aderência aos schemas (.ctrlab, StateFeedbackController, StateSpace, .pvm), contraste WCAG total, CSV alta precisão, teclado durante preview e DOM completo (30.908841ms)
+✔ F8-EXT-05: mountControlLabApp renderiza tabela temporal, painel R-27, comparador de experimentos e executa ferramenta auxiliar sem sobrescrever snapshot LQR (128.734589ms)
+✔ F8-EXT-06: B3.1 cancelDrag durante registerObject, B3.2 updateWeights invalida exportação, B3.4 x0 DIMENSION_MISMATCH, axis-ticks/chart-legend/borda 0+0j, textarea/shape_hint/simulate_lti e apply-plant/apply-weights/save-experiment em main.ts (53.90147ms)
+✔ AUD-019/020/021 Node transport: bytes canônicos, metadados inertes e reabertura sem recálculo (7.600663ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 859.046343
+[unit-tests] PASS (f8, 1 arquivo(s) de teste)
+node --test tests/oracles/ui_remediation_independent.test.mjs
+✔ F9: unlisted operations stay unavailable despite catalog/runtime maturity (1.567306ms)
+✔ F9: required backend must be explicitly available (0.277952ms)
+✔ F9: browser catalog does not claim stable before Wasm gates (0.23798ms)
+✔ F9: preview/pending/failure never authorize export or persistence (12.187196ms)
+✔ F9: preview/pending/inconclusive never authorize export or persistence (2.341229ms)
+✔ F9: root HTML entry uses distributable JS and matching stylesheet location (0.524465ms)
+✔ F9: root and GitHub-prefix runtime URLs preserve module scope (1.080369ms)
+✔ F9: real F7 storage/export observes preview, pending and failure (10.767809ms)
+✔ F9: real F7 storage/export observes preview, pending and inconclusive (2.71479ms)
+✔ F9: real F7 storage/export observes preview, pending and success (6.023083ms)
+✔ F9: real F7 storage/export observes preview, pending and invalid_success (5.555887ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 250.290355
+pytest -q tests/unit/f1/test_io_ctrlab_and_pvm.py
+...........................................                              [100%]
+43 passed in 1.66s
+pytest -q tests/e2e/test_revision_recovery.py::test_preview_is_never_persisted_then_real_commit
+.                                                                        [100%]
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1 passed, 1 warning in 7.50s
+Prova adicional da F9 após build de release a partir desta alteração:
+Browser/Pyodide: 153.0.8010.0 {'algorithm': 'scipy.linalg.solve_continuous_are', 'lib_versions': {'numpy': '2.0.2', 'scipy': '1.14.1', 'python': '3.12.7'}, 'seed': None, 'tolerances': {'residual_warn_tol': 1e-09, 'residual_fail_tol': 0.0001, 'symmetry_tol': 1e-10}, 'model_revision': 1, 'timestamp': '2026-11-15T22:11:08Z', 'feedback_sign': 'negative'}
+UI download: ctrlab 7290
+UI download: pvm 12055
+UI diagnostics:
+Native ZIP, manifests, matrix equality and archived A−BK verified on actual browser bytes.
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import numpy as np
+from scripts.browser_harness import browser_harness
+from control_lab.core import tensor_to_array
+from control_lab.io import load_ctrlab, extract_lti_from_pvm
+with TemporaryDirectory() as tmp:
+ gen=browser_harness.__wrapped__()
+ h=next(gen)
+ try:
+  p=h.page
+  p.locator('[data-action="commit-lqr"]').click()
+  p.wait_for_function('()=>Boolean(app.shell.getLqrWorkspace().getCommittedSnapshot())',timeout=30000)
+  pre=p.evaluate('''()=>({plant:app.shell.getLqrWorkspace().getPlant(),snapshot:app.shell.getLqrWorkspace().getCommittedSnapshot()})''')
+  print('Browser/Pyodide:',h.version,pre['snapshot']['provenance'])
+  files={}
+  for fmt in ['ctrlab','pvm']:
+   p.locator('#btn-export-'+fmt).click()
+   with p.expect_download(timeout=15000) as dl:
+    p.locator('#export-modal-download').click(timeout=10000)
+   download=dl.value
+   assert download.suggested_filename.endswith('.'+fmt),download.suggested_filename
+   path=Path(tmp,'result.'+fmt)
+   download.save_as(path)
+   files[fmt]=path
+   print('UI download:',fmt,path.stat().st_size)
+   if p.locator('#export-modal-close').is_visible():p.locator('#export-modal-close').click()
+  z=load_ctrlab(files['ctrlab'].read_bytes()); assert z.status in ('success','warning'),z.error
+  wire=pre['plant']; m=z.data['models'][0]; ctrl=z.data['controllers'][0]
+  for key in ('matrices','units','dt','revision'):assert m[key]==wire[key],key
+  assert ctrl['K']==pre['snapshot']['K'] and ctrl['feedback_sign']==pre['snapshot']['feedback_sign']
+  assert z.data['manifest']['provenance']==pre['snapshot']['provenance']
+  expected=tensor_to_array(m['matrices']['A'])-tensor_to_array(m['matrices']['B'])@tensor_to_array(ctrl['K'])
+  np.testing.assert_allclose(extract_lti_from_pvm(files['pvm'].read_bytes()).A,expected)
+  p.evaluate("""async()=>{app.destroy();document.body.replaceChildren();const node=document.createElement('div');document.body.append(node);const {mountControlLabApp}=await import('/app/main.js');globalThis.app=mountControlLabApp(node,{project_id:'f9-browser-project'}); await app.client.init()}""")
+  assert not p.evaluate('()=>Boolean(app.shell.getLqrWorkspace().getCommittedSnapshot())')
+  input=p.locator('input[type=file]').first
+  assert input.count()
+  input.set_input_files(str(files['ctrlab']))
+  p.wait_for_timeout(3000); print('UI diagnostics:',p.locator('#controllab-error-slot').inner_text(),flush=True); p.wait_for_function('()=>app.shell.getLqrWorkspace().getCommittedSnapshot()?.K != null',timeout=3000)
+  p.wait_for_timeout(500)
+  after=p.evaluate('''()=>({plant:app.shell.getLqrWorkspace().getPlant(),snapshot:app.shell.getLqrWorkspace().getCommittedSnapshot()})''')
+  for key in ('K','model_revision','project_revision','feedback_sign','provenance'):assert after['snapshot'][key]==pre['snapshot'][key],key
+  print('Native ZIP, manifests, matrix equality and archived A−BK verified on actual browser bytes.')
+ finally:
+  try:next(gen)
+  except StopIteration:pass

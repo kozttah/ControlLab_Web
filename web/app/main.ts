@@ -76,13 +76,17 @@ interface ExportModalPayload {
   filename: string;
   mimeType: string;
   content: string;
+  bytes?: Uint8Array;
+  projectRevision?: number;
+  projectId?: string;
+  requestId?: string;
 }
 
 function triggerBrowserDownload(payload: ExportModalPayload, doc: Document): void {
   if (typeof Blob === "undefined" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
     return;
   }
-  const blob = new Blob([payload.content], { type: payload.mimeType });
+  const blob = new Blob([payload.bytes ? new Uint8Array(payload.bytes).buffer : payload.content], { type: payload.mimeType });
   const objectUrl = URL.createObjectURL(blob);
   const anchor = doc.createElement("a");
   anchor.href = objectUrl;
@@ -177,8 +181,8 @@ export function mountControlLabApp(
     `<button type="button" class="touch-control" data-action="undo-lqr">Desfazer</button>`,
     `<button type="button" id="btn-reset-worker" class="touch-control" data-action="reset-worker">Reiniciar Worker</button>`,
     `<button type="button" id="btn-save-experiment" class="touch-control" data-action="save-experiment">Salvar no Comparador</button>`,
-    `<button type="button" id="btn-export-pvm" class="touch-control" data-action="export-pvm" disabled aria-disabled="true" aria-describedby="pvm-export-notice">Exportar .pvm</button>
-    <span id="pvm-export-notice">Exportação .pvm indisponível até integração com o exportador canônico.</span>`,
+    `<button type="button" id="btn-export-pvm" class="touch-control" data-action="export-pvm">Exportar .pvm</button>`,
+    `<label for="ctrlab-file-input">Abrir .ctrlab</label><input id="ctrlab-file-input" type="file" accept=".ctrlab,application/zip" class="touch-control" aria-label="Abrir projeto .ctrlab" />`,
     `<button type="button" id="btn-export-ctrlab" class="touch-control" data-action="export-ctrlab">Exportar .ctrlab</button>`,
     `<button type="button" id="btn-export-gains" class="touch-control" data-action="export-gains">Exportar Ganhos JSON</button>`,
     `<button type="button" id="btn-export-csv" class="touch-control" data-action="export-csv">Exportar CSV</button>`,
@@ -240,13 +244,8 @@ export function mountControlLabApp(
   const liveAssertiveEl = container.querySelector<HTMLElement>("#controllab-live-assertive");
   const tabButtons = Array.from(container.querySelectorAll<HTMLElement>('[role="tab"]'));
 
-  const pvmExportButton = container.querySelector<HTMLButtonElement>("#btn-export-pvm");
-  if (pvmExportButton) {
-    pvmExportButton.disabled = true;
-    pvmExportButton.setAttribute("aria-disabled", "true");
-  }
-
   const exportButtons = [
+    container.querySelector<HTMLButtonElement>("#btn-export-pvm"),
     container.querySelector<HTMLButtonElement>("#btn-save-experiment"),
     container.querySelector<HTMLButtonElement>("#btn-export-ctrlab"),
     container.querySelector<HTMLButtonElement>("#btn-export-gains"),
@@ -633,29 +632,25 @@ export function mountControlLabApp(
     }
   });
 
-  container.querySelector<HTMLElement>('[data-action="export-pvm"]')?.addEventListener("click", (ev) => {
-    try {
-      shell.exportPvm();
-    } catch (err: unknown) {
-      shell.presentError(err);
-    }
-  });
-
-  container.querySelector<HTMLElement>('[data-action="export-ctrlab"]')?.addEventListener("click", (ev) => {
-    const trigger = ev.currentTarget as HTMLElement | null;
-    void shell.exportCtrlLab().then((pkg) => {
-      openExportModal(
-        {
-          title: "Pacote Portátil .ctrlab (JSON/Layout)",
-          filename: `${pkg.portable_snapshot.project_id}_r${pkg.portable_snapshot.project_revision}.ctrlab.json`,
-          mimeType: "application/json",
-          content: JSON.stringify(pkg, null, 2),
-        },
-        trigger,
-      );
-    }).catch((err: unknown) => {
-      shell.presentError(err);
+  const openNativeFile = async (kind: "pvm" | "ctrlab", trigger: HTMLElement | null): Promise<void> => {
+    const file = kind === "pvm" ? await shell.exportPvm() : await shell.exportCtrlLab();
+    openExportModal({ title: `Exportação .${kind}`, filename: file.filename,
+      mimeType: file.media_type, bytes: file.bytes, projectRevision: file.project_revision,
+      projectId: file.project_id, requestId: file.request_id,
+      content: `${file.filename} · ${file.bytes.length} bytes · SHA-256 ${file.sha256}` }, trigger);
+  };
+  for (const kind of ["pvm", "ctrlab"] as const) {
+    container.querySelector<HTMLElement>(`[data-action="export-${kind}"]`)?.addEventListener("click", (ev) => {
+      void openNativeFile(kind, ev.currentTarget as HTMLElement | null).catch((error: unknown) => shell.presentError(error));
     });
+  }
+  const importFileInput = container.querySelector<HTMLInputElement>("#ctrlab-file-input");
+  importFileInput?.addEventListener("change", () => {
+    const file = importFileInput.files?.[0];
+    if (!file) return;
+    void shell.importCtrlLab(file.arrayBuffer().then((buffer) => new Uint8Array(buffer)))
+      .catch((error: unknown) => shell.presentError(error))
+      .finally(() => { importFileInput.value = ""; });
   });
 
   container.querySelector<HTMLElement>('[data-action="export-gains"]')?.addEventListener("click", (ev) => {
@@ -713,7 +708,16 @@ export function mountControlLabApp(
   modalCloseBtnEl?.addEventListener("click", closeExportModal);
   modalDownloadBtnEl?.addEventListener("click", () => {
     if (lastExportPayload && doc) {
-      triggerBrowserDownload(lastExportPayload, doc);
+      try {
+        lqr.assertExportAllowed();
+        if (lastExportPayload.projectRevision !== undefined &&
+            (lastExportPayload.projectRevision !== lqr.getCommittedSnapshot()?.project_revision ||
+             lastExportPayload.projectId !== lqr.getCommittedSnapshot()?.project_id ||
+             lastExportPayload.requestId !== lqr.getCommittedSnapshot()?.request_id)) {
+          throw new Error("O projeto mudou. Gere novamente o arquivo antes de baixar.");
+        }
+        triggerBrowserDownload(lastExportPayload, doc);
+      } catch (error: unknown) { shell.presentError(error); }
     }
   });
   modalEl?.addEventListener("keydown", (ev: KeyboardEvent) => {

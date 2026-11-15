@@ -457,7 +457,7 @@ export interface LqrWorkspaceOptions {
 
 export class LqrWorkspaceController {
   private readonly client: ControlLabEngineClient;
-  private readonly projectId: string;
+  private projectId: string;
   private projectRevision: number;
   private latestCommitRevision = 0;
   private inFlightRequestId: string | null = null;
@@ -473,6 +473,7 @@ export class LqrWorkspaceController {
   private currentRScale = 1.0;
 
   private pendingCommit = false;
+  private fileImportPending = false;
   private controllerInvalidated = false;
   private invalidationReason: string | null = null;
   private committedSnapshot: CommittedLqrSnapshot | null = null;
@@ -662,7 +663,28 @@ export class LqrWorkspaceController {
    * Verifica rigorosamente se exportação (.pvm, .ctrlab, ganhos, CSV) é permitida.
    * Estritamente proibido durante Fast-Preview ou com pending_commit=true.
    */
+  public beginFileImport(): void {
+    this.assertEditable();
+    if (this.pendingCommit || this.previewState.active) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Finalize a edição antes de abrir outro projeto.");
+    }
+    this.fileImportPending = true;
+    this.notify();
+  }
+
+  public endFileImport(): void {
+    this.fileImportPending = false;
+    this.notify();
+  }
+
+  private assertEditable(): void {
+    if (this.fileImportPending) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Aguarde a abertura do projeto antes de editar ou importar novamente.");
+    }
+  }
+
   public canExport(): LqrExportGuardStatus {
+    if (this.fileImportPending) return { allowed: false, reason: "Abertura de projeto em andamento." };
     if (this.previewState.active) {
       return {
         allowed: false,
@@ -747,7 +769,67 @@ export class LqrWorkspaceController {
     if (requestId) void this.client.cancel(requestId, { reason: "Parâmetros editados na UI" }).catch(() => undefined);
   }
 
+  /** Restaura dados já validados pelo importador nativo, sem executar síntese. */
+  public async restoreProject(input: {
+    plant: CanonicalStateSpaceModel;
+    snapshot: CommittedLqrSnapshot;
+    Q: RealTensor;
+    R: RealTensor;
+    x0: RealTensor;
+  }): Promise<void> {
+    if (!this.fileImportPending || this.pendingCommit || this.previewState.active) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR", "Conclua ou cancele a edição antes de abrir um projeto.",
+      );
+    }
+    const plant = validateCanonicalStateSpace(input.plant);
+    const snapshot = structuredClone(input.snapshot);
+    const n = plant.matrices.A.shape[0];
+    const m = plant.matrices.B.shape[1];
+    const Q = validateWeightTensor(input.Q, n, "Q");
+    const R = validateWeightTensor(input.R, m, "R");
+    const x0 = validateInitialStateTensor(input.x0, n);
+    if (snapshot.model_revision !== plant.revision || !snapshot.K ||
+        snapshot.K.shape[0] !== m || snapshot.K.shape[1] !== n ||
+        !["negative", "positive"].includes(snapshot.feedback_sign) ||
+        this.client.getCommittedRevision(snapshot.project_id) > snapshot.project_revision) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR", "Projeto incompatível com a planta ou anterior à revisão já aberta.",
+      );
+    }
+    const outcome = await this.client.commitProject(snapshot.project_id, snapshot.project_revision, {
+      committed_result: snapshot.response,
+      objects: [{ object_id: plant.id, revision: plant.revision, kind: plant.kind,
+        value: plant as unknown as Record<string, unknown> }],
+      require_strictly_greater: false,
+    });
+    if (outcome.project.committed_revision !== snapshot.project_revision) {
+      throw new ControlLabBridgeError("CANCELLED", "Uma revisão mais recente impediu a reabertura.");
+    }
+    this.invalidatePendingExecution();
+    this.projectId = snapshot.project_id;
+    this.projectRevision = snapshot.project_revision;
+    this.latestCommitRevision = snapshot.project_revision;
+    this.plant = plant;
+    this.plantHistory.clear();
+    this.plantHistory.set(plant.revision, structuredClone(plant));
+    this.Q = Q;
+    this.R = R;
+    this.x0 = x0;
+    this.feedbackSign = snapshot.feedback_sign;
+    this.currentQScale = 1;
+    this.currentRScale = 1;
+    this.committedSnapshot = snapshot;
+    this.openLoopPoles = snapshot.open_loop_poles;
+    this.controllerInvalidated = false;
+    this.invalidationReason = null;
+    this.lastError = null;
+    this.undoStack.length = 0;
+    this.notify();
+  }
+
   public updatePlant(nextModel: CanonicalStateSpaceModel): CanonicalStateSpaceModel {
+    this.assertEditable();
     if (this.previewState.active) {
       this.cancelPreviewOnly();
     }
@@ -801,6 +883,7 @@ export class LqrWorkspaceController {
     x0?: RealTensor;
     feedbackSign?: FeedbackSign;
   }): void {
+    this.assertEditable();
     if (this.previewState.active) {
       this.cancelPreviewOnly();
     }
@@ -837,6 +920,7 @@ export class LqrWorkspaceController {
    * Inicia sessão de arraste efêmero (pointerdown). Não comita nem grava em IndexedDB.
    */
   public pointerDown(handleId: string): void {
+    this.assertEditable();
     if (typeof handleId !== "string" || handleId.trim().length === 0) {
       throw new ControlLabBridgeError(
         "VALIDATION_ERROR",
@@ -992,6 +1076,7 @@ export class LqrWorkspaceController {
     hardTimeoutMs?: number;
     extraRpcOptions?: Record<string, unknown>;
   }): Promise<CommittedLqrSnapshot | null> {
+    this.assertEditable();
     if (options?.qScale !== undefined || options?.rScale !== undefined) {
       const baseQ = this.previewState.baseQ ?? this.Q;
       const baseR = this.previewState.baseR ?? this.R;
@@ -1047,6 +1132,7 @@ export class LqrWorkspaceController {
     hardTimeoutMs?: number;
     extraRpcOptions?: Record<string, unknown>;
   }): Promise<CommittedLqrSnapshot | null> {
+    this.assertEditable();
     this.projectRevision = Math.max(this.projectRevision, this.client.getCommittedRevision(this.projectId)) + 1;
     const targetRevision = this.projectRevision;
     this.latestCommitRevision = targetRevision;
@@ -1306,6 +1392,7 @@ export class LqrWorkspaceController {
    * Analisa estabilidade e controlabilidade (PBH) em malha aberta via Worker.
    */
   public async analyzeOpenLoop(): Promise<RpcResponse> {
+    this.assertEditable();
     const rev = this.projectRevision;
 
     await this.client.registerObject(
@@ -1419,6 +1506,7 @@ export class LqrWorkspaceController {
    * Desfaz última edição de planta/pesos e recompila autoritativamente em revisão monotônica.
    */
   public async undo(): Promise<boolean> {
+    this.assertEditable();
     if (this.previewState.active) {
       this.cancelPreviewOnly();
     }
@@ -1452,6 +1540,7 @@ export class LqrWorkspaceController {
     axis: "q_scale" | "r_scale",
     sliderConfig: AccessibleSliderConfig,
   ): Promise<{ handled: boolean; nextValue: number }> {
+    this.assertEditable();
     const res = handleSliderKeyDown(key, sliderConfig);
     if (!res.handled) {
       return { handled: false, nextValue: sliderConfig.value };

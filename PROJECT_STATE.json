@@ -11,7 +11,7 @@
     "history": {
       "2026-11-13": 6,
       "2026-11-14": 12,
-      "2026-11-15": 7
+      "2026-11-15": 8
     }
   },
   "audit_reference": {
@@ -413,15 +413,17 @@
         "T-PVM-02",
         "T-UI-01"
       ],
-      "status": "PENDING",
-      "f9_review": "pending",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
       "priority": "MAXIMUM_AUDIT2",
       "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
       "acceptance_requirements": [
         "Download real ZIP .ctrlab e reabertura com matrizes/revisões/unidades/sinais/proveniência",
         "PVM real deriva de F1; previews e pending_commit não exportam",
         "Metadados serializados como dados"
-      ]
+      ],
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT2-FIX-F8-NATIVE-IO.md",
+      "acceptance_scope": "cpython_and_chromium_native_io"
     },
     {
       "wp_id": "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E",

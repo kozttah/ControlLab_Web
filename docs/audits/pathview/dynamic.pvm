@@ -1,0 +1,337 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "created": "2026-11-13T00:00:00Z",
+    "modified": "2026-11-13T00:00:00Z",
+    "name": "ControlLab_Dynamic_two_dof_ss-055fbcc6fcc6",
+    "generator": "ControlLab Web",
+    "spec_version": "1.0.0",
+    "external_pathview_verified": false,
+    "gate_pending": "G-0D",
+    "interconnection_kind": "dynamic_controller",
+    "feedback_sign": "negative",
+    "plant_ref": {
+      "id": "ss-055fbcc6fcc6",
+      "revision": 0
+    },
+    "controller_ref": {
+      "id": "ctrl-dyn-3be6087d3812",
+      "revision": 0
+    }
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "src_ref",
+        "type": "Source",
+        "name": "ReferenceSource",
+        "position": {
+          "x": 100.0,
+          "y": 200.0
+        },
+        "inputs": [],
+        "outputs": [
+          {
+            "nodeId": "src_ref",
+            "direction": "output",
+            "index": 0,
+            "name": "r"
+          }
+        ],
+        "params": {
+          "dim": 1,
+          "signal_type": "step",
+          "value": [
+            1.0
+          ],
+          "channel_names": [
+            "r1"
+          ]
+        }
+      },
+      {
+        "id": "ctrl_dynamic",
+        "type": "DynamicController",
+        "name": "ctrl-dyn-3be6087d3812",
+        "position": {
+          "x": 340.0,
+          "y": 200.0
+        },
+        "inputs": [
+          {
+            "nodeId": "ctrl_dynamic",
+            "direction": "input",
+            "index": 0,
+            "name": "y"
+          },
+          {
+            "nodeId": "ctrl_dynamic",
+            "direction": "input",
+            "index": 1,
+            "name": "r"
+          }
+        ],
+        "outputs": [
+          {
+            "nodeId": "ctrl_dynamic",
+            "direction": "output",
+            "index": 0,
+            "name": "u"
+          }
+        ],
+        "params": {
+          "Ac": [
+            [
+              -2.0
+            ]
+          ],
+          "Bc": [
+            [
+              1.0,
+              0.5
+            ]
+          ],
+          "Cc": [
+            [
+              1.2
+            ]
+          ],
+          "Dc": [
+            [
+              0.3,
+              0.8
+            ]
+          ],
+          "initial_state": [
+            0.25
+          ],
+          "dt": null,
+          "feedback_sign": "negative",
+          "ports": {
+            "inputs": [
+              {
+                "name": "y",
+                "role": "y",
+                "size": 1
+              },
+              {
+                "name": "r",
+                "role": "r",
+                "size": 1
+              }
+            ],
+            "outputs": [
+              {
+                "name": "u",
+                "role": "u",
+                "size": 1
+              }
+            ]
+          },
+          "interconnection_scheme": "two_dof",
+          "resolved_scheme": "two_dof",
+          "state_names": [
+            "xc1"
+          ]
+        }
+      },
+      {
+        "id": "plant_ss",
+        "type": "StateSpace",
+        "name": "ss-055fbcc6fcc6",
+        "position": {
+          "x": 580.0,
+          "y": 200.0
+        },
+        "inputs": [
+          {
+            "nodeId": "plant_ss",
+            "direction": "input",
+            "index": 0,
+            "name": "u"
+          }
+        ],
+        "outputs": [
+          {
+            "nodeId": "plant_ss",
+            "direction": "output",
+            "index": 0,
+            "name": "y"
+          }
+        ],
+        "params": {
+          "A": [
+            [
+              0.0,
+              1.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ],
+          "B": [
+            [
+              0.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "C": [
+            [
+              1.0,
+              0.0
+            ]
+          ],
+          "D": [
+            [
+              0.0
+            ]
+          ],
+          "initial_state": [
+            1.0,
+            0.0
+          ],
+          "dt": null,
+          "state_names": [
+            "x1",
+            "x2"
+          ],
+          "input_names": [
+            "u1"
+          ],
+          "output_names": [
+            "y1"
+          ],
+          "expose_state": false
+        }
+      },
+      {
+        "id": "scope_y",
+        "type": "Scope",
+        "name": "OutputScope",
+        "position": {
+          "x": 820.0,
+          "y": 200.0
+        },
+        "inputs": [
+          {
+            "nodeId": "scope_y",
+            "direction": "input",
+            "index": 0,
+            "name": "y"
+          }
+        ],
+        "outputs": [],
+        "params": {
+          "dim": 1,
+          "channel_names": [
+            "y1"
+          ],
+          "units": [
+            ""
+          ]
+        }
+      },
+      {
+        "id": "gain_feedback_sign_y",
+        "type": "MatrixGain",
+        "name": "FeedbackSign_y_negative",
+        "position": {
+          "x": 560.0,
+          "y": 420.0
+        },
+        "inputs": [
+          {
+            "nodeId": "gain_feedback_sign_y",
+            "direction": "input",
+            "index": 0,
+            "name": "y"
+          }
+        ],
+        "outputs": [
+          {
+            "nodeId": "gain_feedback_sign_y",
+            "direction": "output",
+            "index": 0,
+            "name": "y_signed"
+          }
+        ],
+        "params": {
+          "gain": [
+            [
+              -1.0
+            ]
+          ],
+          "shape": [
+            1,
+            1
+          ],
+          "role": "feedback_sign",
+          "label": "negative_I"
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn_001",
+        "sourceNodeId": "src_ref",
+        "sourcePortIndex": 0,
+        "targetNodeId": "ctrl_dynamic",
+        "targetPortIndex": 1
+      },
+      {
+        "id": "conn_002",
+        "sourceNodeId": "ctrl_dynamic",
+        "sourcePortIndex": 0,
+        "targetNodeId": "plant_ss",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn_003",
+        "sourceNodeId": "plant_ss",
+        "sourcePortIndex": 0,
+        "targetNodeId": "scope_y",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn_004",
+        "sourceNodeId": "plant_ss",
+        "sourcePortIndex": 0,
+        "targetNodeId": "gain_feedback_sign_y",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn_005",
+        "sourceNodeId": "gain_feedback_sign_y",
+        "sourcePortIndex": 0,
+        "targetNodeId": "ctrl_dynamic",
+        "targetPortIndex": 0
+      }
+    ],
+    "annotations": [
+      {
+        "id": "ann_controllab_spec",
+        "text": "ControlLab dynamic_controller | sign=negative | external_pathview_verified=False (Gate G-0D pendente)"
+      }
+    ]
+  },
+  "events": [],
+  "codeContext": {
+    "code": "import numpy as np\nA_plant = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=np.float64)\nB_plant = np.array([[0.0], [1.0]], dtype=np.float64)\nC_plant = np.array([[1.0, 0.0]], dtype=np.float64)\nD_plant = np.array([[0.0]], dtype=np.float64)\ndt_plant = None\nx0_plant = np.array([1.0, 0.0], dtype=np.float64)\nfeedback_sign = 'negative'\ncontroller_scheme = 'two_dof'\nAc = np.array([[-2.0]], dtype=np.float64)\nBc = np.array([[1.0, 0.5]], dtype=np.float64)\nCc = np.array([[1.2]], dtype=np.float64)\nDc = np.array([[0.3, 0.8]], dtype=np.float64)\nx0_controller = np.array([0.25], dtype=np.float64)\n"
+  },
+  "simulationSettings": {
+    "duration": "10",
+    "dt": "0.01",
+    "solver": "RKCK54",
+    "adaptive": true,
+    "atol": "1e-6",
+    "rtol": "1e-4",
+    "ftol": "1e-9",
+    "dt_min": "",
+    "dt_max": "",
+    "ghostTraces": 0,
+    "plotResults": true
+  }
+}

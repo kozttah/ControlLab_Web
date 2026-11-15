@@ -45,7 +45,7 @@
     "G-0B": {
       "status": "PENDING",
       "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)",
-      "audit_verdict": "NOT_DEMONSTRATED",
+      "audit_verdict": "UNAVAILABLE_IN_PROVISIONED_WASM",
       "blocking_findings": [
         "AUD-006",
         "AUD-007",
@@ -57,7 +57,8 @@
         "WP-AUDIT-FIX-F9-BUILD-CI",
         "WP-AUDIT-FIX-F9-WASM-GATES"
       ],
-      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
+      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+      "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
     },
     "G-0C": {
       "status": "PENDING",
@@ -82,7 +83,7 @@
     "G-0D": {
       "status": "PENDING",
       "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)",
-      "audit_verdict": "BLOCKED_EXTERNAL_ACCEPTANCE",
+      "audit_verdict": "FAILED_OFFICIAL_CONVERTER",
       "blocking_findings": [
         "AUD-011"
       ],
@@ -91,7 +92,8 @@
         "WP-AUDIT-FIX-F9-BUILD-CI",
         "WP-AUDIT-FIX-F9-WASM-GATES"
       ],
-      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
+      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+      "evidence_ref": "docs/audits/pathview/official-converter-probe.json"
     }
   },
   "work_packages": [
@@ -544,8 +546,35 @@
         "T-SDP-D1",
         "T-SDP-D2"
       ],
-      "status": "PENDING",
-      "f9_review": "pending"
+      "status": "BLOCKED_BY_GATE",
+      "f9_review": "blocked_by_gate",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md",
+      "independent_review_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES-INDEPENDENT.md",
+      "acceptance_scope": "local_chromium153_real_wasm_diagnostics_and_regression_only_no_product_gate_approval",
+      "blocking_gates": [
+        "G-0B",
+        "G-0D"
+      ],
+      "blocking_findings": [
+        "F9-WASM-SDP-001",
+        "F9-WASM-PVM-001"
+      ],
+      "pending_followup": {
+        "F9-WASM-PVM-001": {
+          "owner": "f1-core-io",
+          "allowed_paths": [
+            "control_lab/io/",
+            "tests/unit/f1/"
+          ],
+          "required_work": "Create a dedicated producer WorkPackage to align PVM blocks, ports and parameters with a pinned official PathView registry; preserve feedback and initial states; independently reopen and simulate C=I, C!=I, saturation and dynamic-controller cases before rerunning G-0D.",
+          "evidence_ref": "docs/audits/pathview/official-converter-probe.json"
+        },
+        "F9-WASM-SDP-001": {
+          "owner": "f6-optimization-lmi / f9-integration-qa",
+          "required_work": "Provision a pinned production SDP backend and execute the full G-0B candidate assay in at least two browsers, including PSD non-diagonal, control BRL, infeasible and limit cases. Until then keep production SDP unavailable.",
+          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
+        }
+      }
     },
     {
       "wp_id": "WP-00-F9-BOOTSTRAP",

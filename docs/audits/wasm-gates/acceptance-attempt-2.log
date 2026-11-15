@@ -1,0 +1,161 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/ba21e63c86f4/f9-ci-sdp/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/ba21e63c86f4/ControlLab_Web
+configfile: pyproject.toml
+collecting ... collected 80 items
+
+tests/oracles/test_build_independent_assets.py::test_independent_runtime_lock_has_complete_transitive_closure PASSED [  1%]
+tests/oracles/test_build_independent_assets.py::test_independent_f8_prefix_paths_have_planned_build_targets PASSED [  2%]
+tests/oracles/test_build_independent_assets.py::test_independent_corrupt_cached_runtime_fails_before_network PASSED [  3%]
+tests/oracles/test_build_pipeline.py::test_build_runtime_lock_closes_transitive_dependencies PASSED [  5%]
+tests/oracles/test_build_pipeline.py::test_build_missing_browser_suites_fail_closed PASSED [  6%]
+tests/oracles/test_build_pipeline.py::test_build_rejects_tampered_asset_and_extra_inventory PASSED [  7%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[andMethod="PROD"-andMethod="UNSUPPORTED"] PASSED [  8%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[orMethod="MAX"-orMethod="UNSUPPORTED"] PASSED [ 10%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[connector="and"-connector="xor"] PASSED [ 11%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="nonnumeric"] PASSED [ 12%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="NaN"] PASSED [ 13%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="Infinity"] PASSED [ 15%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-triangularShape param1="1" param2="-1" param3="0"] PASSED [ 16%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-trapezoidShape param1="-1" param2="1" param3="0" param4="1"] PASSED [ 17%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-gaussianShape param1="0" param2="0"] PASSED [ 18%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-gaussianShape param1="0" param2="-1"] PASSED [ 20%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-bellShape param1="-1" param2="2" param3="0"] PASSED [ 21%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-bellShape param1="1" param2="0" param3="0"] PASSED [ 22%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-linearShape param1="1" param2="0"] PASSED [ 23%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[tskTerm name="Negative" order="0"-tskTerm name="Negative" order="1"] PASSED [ 25%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_roundtrip_matches_analytic_partition PASSED [ 26%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_dtd_and_resource_limits_fail_closed PASSED [ 27%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_unrepresentable_duplicate_clauses_are_not_collapsed PASSED [ 28%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_explicit_first_order_consequents_preserve_y_equals_2x[True-coefficients0] PASSED [ 30%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_explicit_first_order_consequents_preserve_y_equals_2x[False-coefficients1] PASSED [ 31%]
+tests/oracles/test_golden_fixtures.py::test_pyproject_toml_structure PASSED [ 32%]
+tests/oracles/test_golden_fixtures.py::test_all_expected_schemas_exist_and_are_valid PASSED [ 33%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_request_lqr.json-rpc_request.schema.json] PASSED [ 35%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_response_lqr.json-rpc_response.schema.json] PASSED [ 36%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[statespace_example.json-state_space.schema.json] PASSED [ 37%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[pvm_skeleton.json-pvm.schema.json] PASSED [ 38%]
+tests/oracles/test_golden_fixtures.py::test_rpc_response_rejects_illustrative_strings_and_invalid_errors PASSED [ 40%]
+tests/oracles/test_golden_fixtures.py::test_controller_ts_and_manifest_schemas_positive_and_negative PASSED [ 41%]
+tests/oracles/test_golden_fixtures.py::test_golden_fixtures_checksums_and_schema PASSED [ 42%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_02_analytical PASSED [ 43%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_12x3_numerical PASSED [ 45%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_sdp_levels_a_to_d PASSED [ 46%]
+tests/oracles/test_release_fixtures.py::test_t_care_02_production_against_preserved_gold PASSED [ 47%]
+tests/oracles/test_release_fixtures.py::test_dare_zoh_production_and_independent_residual PASSED [ 48%]
+tests/oracles/test_release_fixtures.py::test_t_id_03_full_data_holdout_production PASSED [ 50%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_01_full_grid_production PASSED [ 51%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_02_singular_cases_are_undefined PASSED [ 52%]
+tests/oracles/test_release_fixtures.py::test_t_freq_02_all_polynomial_crossings_against_production PASSED [ 53%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[0] PASSED [ 55%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[1] PASSED [ 56%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[2] PASSED [ 57%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[3] PASSED [ 58%]
+tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic PASSED [ 60%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[missing] PASSED [ 61%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[duplicate] PASSED [ 62%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[unlisted] PASSED [ 63%]
+tests/oracles/test_release_gate_state.py::test_every_mandatory_product_gate_requires_explicit_f9_acceptance PASSED [ 65%]
+tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-CARE-02.json-f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f] PASSED [ 66%]
+tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-CARE-12x3.json-0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4] PASSED [ 67%]
+tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-SDP-A-D.json-4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076] PASSED [ 68%]
+tests/oracles/test_release_independent_baseline.py::test_independent_seven_fixture_inventory_and_full_finite_tensors PASSED [ 70%]
+tests/oracles/test_release_independent_math.py::test_independent_dare_exact_discretization_and_solution PASSED [ 71%]
+tests/oracles/test_release_independent_math.py::test_independent_arx_chronological_holdout_all_arrays PASSED [ 72%]
+tests/oracles/test_release_independent_math.py::test_independent_mimo_full_grid_svd_rga_and_crossings PASSED [ 73%]
+tests/oracles/test_release_independent_math.py::test_independent_pvm_full_state_negative_feedback_linear_and_saturated PASSED [ 75%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_sdp_snapshot_survives_input_getter_and_structure_mutation PASSED [ 76%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-1e-15] PASSED [ 77%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-1e-30] PASSED [ 78%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-5e-324] PASSED [ 80%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-1e-15] PASSED [ 81%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-1e-30] PASSED [ 82%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-5e-324] PASSED [ 83%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_spectral_residual_matches_diagonal_analytic_values PASSED [ 85%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_educational_descriptor_is_explicit_and_experimental PASSED [ 86%]
+tests/metamorphic/test_wasm_similarity.py::test_similarity_preserves_gain_cost_and_poles_in_wasm PASSED [ 87%]
+tests/performance/test_browser_benchmark.py::test_care_12x3_cold_warm_and_ui_heartbeat PASSED [ 88%]
+tests/wasm/test_real_runtime.py::test_care_12x3_cpython_pyodide_parity PASSED [ 90%]
+tests/wasm/test_real_runtime.py::test_unstabilizable_plant_through_real_rpc PASSED [ 91%]
+tests/wasm/test_real_runtime.py::test_g0b_runtime_reports_unavailable_honestly PASSED [ 92%]
+tests/e2e/test_revision_recovery.py::test_twenty_revisions_only_current_commits PASSED [ 93%]
+tests/e2e/test_revision_recovery.py::test_worker_cancel_restart_recovers_confirmed_snapshot PASSED [ 95%]
+tests/e2e/test_revision_recovery.py::test_preview_is_never_persisted_then_real_commit PASSED [ 96%]
+tests/security/test_real_browser_security.py::test_offline_real_calculation_after_reload PASSED [ 97%]
+tests/security/test_real_browser_security.py::test_passive_zip_fml_pvm_in_pyodide PASSED [ 98%]
+tests/security/test_real_browser_security.py::test_shipped_csp_blocks_inline_and_external_without_breaking_runtime PASSED [100%]
+
+======================== 80 passed in 83.19s (0:01:23) =========================
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> controllab-web@1.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> controllab-web@1.0.0 test
+> node ../scripts/run_web_tests.mjs
+
+[run_web_tests] Executando typecheck (all, 24 arquivo(s) TS)...
+[typecheck] PASS (all, 24 arquivo(s) TS)
+[run_web_tests] Executando 5 arquivo(s) de teste com node --test...
+✔ F7 offline: prefix, reload, HEAD, no misses reach the network, scope isolation (86.154713ms)
+✔ F7 offline: rollback preserves active and same-version updates switch only on activation (39.558864ms)
+✔ F7 offline: missing, corrupt and altered manifest cannot attest readiness or serve damaged code (10.14517ms)
+✔ F7 offline: reject manifest escapes, duplicates, missing hashes and incomplete transitive closure (7.408413ms)
+✔ F7-CONTRACT-01: sha256Hex puro coincide com node:crypto e checksums.sha256 das fixtures ouro (13.817069ms)
+✔ F7-CONTRACT-02: valida exemplos normativos rpc_request_lqr.json e rpc_response_lqr.json e rejeita NaN/Infinity/versão/campos extras (2.678032ms)
+✔ F7-CONTRACT-03: todas as 12 categorias normativas de erro funcionam e são validadas pelo contrato (8.351043ms)
+✔ T-RPC-01 (MockWorkerAdapter): 25 requisições rápidas fora de ordem — apenas revisão mais recente comita no IndexedDB (64.446879ms)
+✔ T-RPC-01 unidade (MessageChannel + fixture double; sem Wasm): 24 requisições fora de ordem e sem vazamento PyProxy (69.202518ms)
+✔ F7-COALESCE-01: DebouncedRequestCoalescer consolida disparos rápidos e cancela intermediários (28.6962ms)
+✔ T-RPC-02 (MockWorkerAdapter): cancel(), terminate()/resetWorker(), ciclo recovering->ready e reidratação fiel (20.476376ms)
+✔ T-RPC-02 unidade (MessageChannel + IDB em memória + fixture double): terminate() fecha o transporte, recria WorkerModelStore vazio e reidrata snapshot do IndexedDB (19.338748ms)
+✔ F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLED e preserva Worker/PyProxy limpos (18.286544ms)
+✔ T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMPORT_UNTRUSTED_CODE (0.895371ms)
+✔ F7-BUFFER-01 (fixture double): transferência de ArrayBuffer via postMessage destaca original (byteLength===0), bloqueia reúso e suporta preserveSenderCopy (4.01188ms)
+✔ F7-PYPROXY-01: PyProxyRegistry e withPyProxy garantem destroy() em retorno normal, exceção e cancelamento e proíbem saída por postMessage (0.899407ms)
+✔ F7-MODELSTORE-01: WorkerModelStore implementa LRU, pinning de projeto ativo e falha RESOURCE_LIMIT antes de alocar (0.715807ms)
+✔ F7-PARITY-01 local: mock certificado versus dispatcher CPython real via bridge; não prova Pyodide/Wasm (1945.480688ms)
+✔ F7-PYPROXY-02: erro em runtime Pyodide dentro do Worker destrói PyProxy e mantém activeProxies===0 (1.823631ms)
+✔ F7-BUFFER-02 (fixture double): transporte bidirecional Worker -> Main com return_binary_buffers=true reidrata tensores K e P fielmente (1.837883ms)
+✔ F7-SUPERSEDE-TIMEOUT-01: cancel_on_supersede=true cancela revisão anterior em voo e hard_timeout_ms retorna RESOURCE_LIMIT (36.780314ms)
+✔ test_no_python_runtime_no_scientific_success: no silent MessageChannel and no commit/provenance invented (12.901178ms)
+✔ test_no_python_runtime_no_scientific_success: explicit MessageChannel without loader fails initialization (8.295191ms)
+✔ F7-PROVISION-UNIT: local wheel is loaded before core.rpc handshake; capabilities require observed dispatcher (2.261857ms)
+✔ test_unstabilizable_plant_through_real_rpc: actual CPython dispatcher through bridge returns HYPOTHESIS_VIOLATED (2128.399205ms)
+✔ F7-CPYTHON-UNIT: real dispatcher respects Q/R, x0 and revision; no fixed two-state result (2940.966752ms)
+✔ F7-PYTHON-NONE: proxy output preserves null fields and lists without relaxing ordinary JS JSON validation (1.140261ms)
+✔ F7-SEC-ALLOWLIST: http: externo é recusado, localhost http permitido (1.242543ms)
+✔ F7-SEC-ALLOWLIST: config.allowedOrigins na mensagem init não amplia a allowlist (6.550226ms)
+✔ F7-ENTRYPOINT: sem toPy retorna erro estruturado e nunca chama runPythonAsync (4.346964ms)
+✔ F7-ENTRYPOINT: sem pyimport retorna erro estruturado sem executar código (1.320789ms)
+✔ F7-SCHEMA: protocol.ts aceita exemplos e rejeita violações dos schemas rpc_* (2.322217ms)
+✔ T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava em IndexedDB nem libera exportação; pointerup exige pending_commit e comita fixture, sem prova Wasm (101.195588ms)
+✔ UI Node: Pyodide sem worker explícito falha e não permite commit/exportação (1.681531ms)
+✔ Concorrência, cancelamento (Escape), blur, troca de aba, undo, model_revision e 12 categorias de erro (160.633457ms)
+✔ ToolDescriptor: descoberta dinâmica sem alterar roteamento global e selos stable/beta/experimental/unavailable_wasm (12.464793ms)
+✔ test_tool_descriptor_unlisted_operation_and_typecheck (10.637236ms)
+✔ UI Node/adapter explícito: resposta inconclusive não vira snapshot nem libera exportação (2.427472ms)
+✔ Bootstrap Node: contrato de URLs de build e registro SW module, sem prova offline (0.849693ms)
+✔ Overlays semânticos (exact/sufficient/heuristic/estimated) e gráficos com valores repetidos + tabela acessível (7.792409ms)
+✔ WCAG 2.2 AA: contraste (>=4.5:1 / >=3.0:1), toque >=44px, teclado, FocusRestorer, AriaLive, decimais sem mutação e relatório R-27 (16.78615ms)
+✔ UI Node: adapter F7 bruto 12x3 com ref não resolvível falha fechado antes de persistir (2.624673ms)
+✔ Guard arquitetural distingue imports Python de URLs wheel (0.36595ms)
+✔ Auditoria F8: web/{app,charts,features} não importam Python, Node globals nem duplicam síntese CARE/Riccati (2.816516ms)
+✔ F8-EXT-01: suporte explícito a m!=p (3 entradas, 4 saídas), C!=I, feedback_sign positivo, ciclo de vida e buffers transferíveis (126.500197ms)
+✔ F8-EXT-02: contraste completo WCAG 2.2 AA, ToolDescriptor HTML (<select>/number), teclado preservando Q, analyzeOpenLoop concorrente e .pvm discreto (132.752724ms)
+✔ F8-EXT-03: mountControlLabApp mantém identidade do slider durante pointermove, atualiza aria-disabled e restaura foco ao fechar modal (50.310921ms)
+✔ F8-EXT-04: aderência aos schemas (.ctrlab, StateFeedbackController, StateSpace, .pvm), contraste WCAG total, CSV alta precisão, teclado durante preview e DOM completo (31.906502ms)
+✔ F8-EXT-05: mountControlLabApp renderiza tabela temporal, painel R-27, comparador de experimentos e executa ferramenta auxiliar sem sobrescrever snapshot LQR (142.777788ms)
+✔ F8-EXT-06: B3.1 cancelDrag durante registerObject, B3.2 updateWeights invalida exportação, B3.4 x0 DIMENSION_MISMATCH, axis-ticks/chart-legend/borda 0+0j, textarea/shape_hint/simulate_lti e apply-plant/apply-weights/save-experiment em main.ts (54.155955ms)
+ℹ tests 50
+ℹ suites 0
+ℹ pass 50
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5320.888019
+[unit-tests] PASS (all, 5 arquivo(s) de teste)

@@ -33,16 +33,18 @@ def test_build_runtime_lock_closes_transitive_dependencies():
         assert asset["url"].startswith("https://cdn.jsdelivr.net/pyodide/v0.27.5/full/")
 
 
-def test_build_missing_browser_suites_fail_closed(tmp_path):
+def test_build_missing_browser_suites_fail_closed(tmp_path, monkeypatch, capsys):
+    spec = importlib.util.spec_from_file_location("f9_ci_gate_missing", ROOT / "scripts/ci_gate.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    monkeypatch.setenv("CONTROLLAB_CI_REPORTS", str(tmp_path / "reports"))
     for job in "DEFG":
-        result = subprocess.run(
-            [sys.executable, str(ROOT / "scripts/ci_gate.py"), job],
-            capture_output=True,
-            text=True,
-            env={**os.environ, "CONTROLLAB_CI_REPORTS": str(tmp_path)},
-        )
-        assert result.returncode != 0
-        assert "BLOCKED" in result.stderr
+        monkeypatch.setattr(sys, "argv", ["ci_gate.py", job])
+        assert module.main() == 2
+        assert "BLOCKED" in capsys.readouterr().err
+        report = json.loads((tmp_path / "reports" / f"job-{job}.json").read_text())
+        assert report["status"] == "blocked" and report["missing_suites"]
 
 
 def test_build_rejects_tampered_asset_and_extra_inventory(tmp_path, monkeypatch):

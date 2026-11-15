@@ -1,0 +1,144 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/ba21e63c86f4/f9-ci-sdp/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/ba21e63c86f4/ControlLab_Web
+configfile: pyproject.toml
+collecting ... collected 80 items
+
+tests/oracles/test_build_independent_assets.py::test_independent_runtime_lock_has_complete_transitive_closure PASSED [  1%]
+tests/oracles/test_build_independent_assets.py::test_independent_f8_prefix_paths_have_planned_build_targets PASSED [  2%]
+tests/oracles/test_build_independent_assets.py::test_independent_corrupt_cached_runtime_fails_before_network PASSED [  3%]
+tests/oracles/test_build_pipeline.py::test_build_runtime_lock_closes_transitive_dependencies PASSED [  5%]
+tests/oracles/test_build_pipeline.py::test_build_missing_browser_suites_fail_closed PASSED [  6%]
+tests/oracles/test_build_pipeline.py::test_build_rejects_tampered_asset_and_extra_inventory PASSED [  7%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[andMethod="PROD"-andMethod="UNSUPPORTED"] PASSED [  8%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[orMethod="MAX"-orMethod="UNSUPPORTED"] PASSED [ 10%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[connector="and"-connector="xor"] PASSED [ 11%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="nonnumeric"] PASSED [ 12%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="NaN"] PASSED [ 13%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="Infinity"] PASSED [ 15%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-triangularShape param1="1" param2="-1" param3="0"] PASSED [ 16%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-trapezoidShape param1="-1" param2="1" param3="0" param4="1"] PASSED [ 17%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-gaussianShape param1="0" param2="0"] PASSED [ 18%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-gaussianShape param1="0" param2="-1"] PASSED [ 20%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-bellShape param1="-1" param2="2" param3="0"] PASSED [ 21%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-bellShape param1="1" param2="0" param3="0"] PASSED [ 22%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-linearShape param1="1" param2="0"] PASSED [ 23%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[tskTerm name="Negative" order="0"-tskTerm name="Negative" order="1"] PASSED [ 25%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_roundtrip_matches_analytic_partition PASSED [ 26%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_dtd_and_resource_limits_fail_closed PASSED [ 27%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_unrepresentable_duplicate_clauses_are_not_collapsed PASSED [ 28%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_explicit_first_order_consequents_preserve_y_equals_2x[True-coefficients0] PASSED [ 30%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_explicit_first_order_consequents_preserve_y_equals_2x[False-coefficients1] PASSED [ 31%]
+tests/oracles/test_golden_fixtures.py::test_pyproject_toml_structure PASSED [ 32%]
+tests/oracles/test_golden_fixtures.py::test_all_expected_schemas_exist_and_are_valid PASSED [ 33%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_request_lqr.json-rpc_request.schema.json] PASSED [ 35%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_response_lqr.json-rpc_response.schema.json] PASSED [ 36%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[statespace_example.json-state_space.schema.json] PASSED [ 37%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[pvm_skeleton.json-pvm.schema.json] PASSED [ 38%]
+tests/oracles/test_golden_fixtures.py::test_rpc_response_rejects_illustrative_strings_and_invalid_errors PASSED [ 40%]
+tests/oracles/test_golden_fixtures.py::test_controller_ts_and_manifest_schemas_positive_and_negative PASSED [ 41%]
+tests/oracles/test_golden_fixtures.py::test_golden_fixtures_checksums_and_schema PASSED [ 42%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_02_analytical PASSED [ 43%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_12x3_numerical PASSED [ 45%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_sdp_levels_a_to_d PASSED [ 46%]
+tests/oracles/test_release_fixtures.py::test_t_care_02_production_against_preserved_gold PASSED [ 47%]
+tests/oracles/test_release_fixtures.py::test_dare_zoh_production_and_independent_residual PASSED [ 48%]
+tests/oracles/test_release_fixtures.py::test_t_id_03_full_data_holdout_production PASSED [ 50%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_01_full_grid_production PASSED [ 51%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_02_singular_cases_are_undefined PASSED [ 52%]
+tests/oracles/test_release_fixtures.py::test_t_freq_02_all_polynomial_crossings_against_production PASSED [ 53%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[0] PASSED [ 55%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[1] PASSED [ 56%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[2] PASSED [ 57%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[3] PASSED [ 58%]
+tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic PASSED [ 60%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[missing] PASSED [ 61%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[duplicate] PASSED [ 62%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[unlisted] PASSED [ 63%]
+tests/oracles/test_release_gate_state.py::test_every_mandatory_product_gate_requires_explicit_f9_acceptance PASSED [ 65%]
+tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-CARE-02.json-f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f] PASSED [ 66%]
+tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-CARE-12x3.json-0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4] PASSED [ 67%]
+tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-SDP-A-D.json-4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076] PASSED [ 68%]
+tests/oracles/test_release_independent_baseline.py::test_independent_seven_fixture_inventory_and_full_finite_tensors PASSED [ 70%]
+tests/oracles/test_release_independent_math.py::test_independent_dare_exact_discretization_and_solution PASSED [ 71%]
+tests/oracles/test_release_independent_math.py::test_independent_arx_chronological_holdout_all_arrays PASSED [ 72%]
+tests/oracles/test_release_independent_math.py::test_independent_mimo_full_grid_svd_rga_and_crossings PASSED [ 73%]
+tests/oracles/test_release_independent_math.py::test_independent_pvm_full_state_negative_feedback_linear_and_saturated PASSED [ 75%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_sdp_snapshot_survives_input_getter_and_structure_mutation PASSED [ 76%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-1e-15] PASSED [ 77%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-1e-30] PASSED [ 78%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-5e-324] PASSED [ 80%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-1e-15] PASSED [ 81%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-1e-30] PASSED [ 82%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-5e-324] PASSED [ 83%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_spectral_residual_matches_diagonal_analytic_values PASSED [ 85%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_educational_descriptor_is_explicit_and_experimental PASSED [ 86%]
+tests/metamorphic/test_wasm_similarity.py::test_similarity_preserves_gain_cost_and_poles_in_wasm PASSED [ 87%]
+tests/performance/test_browser_benchmark.py::test_care_12x3_cold_warm_and_ui_heartbeat PASSED [ 88%]
+tests/wasm/test_real_runtime.py::test_care_12x3_cpython_pyodide_parity PASSED [ 90%]
+tests/wasm/test_real_runtime.py::test_unstabilizable_plant_through_real_rpc PASSED [ 91%]
+tests/wasm/test_real_runtime.py::test_g0b_runtime_reports_unavailable_honestly PASSED [ 92%]
+tests/e2e/test_revision_recovery.py::test_twenty_revisions_only_current_commits PASSED [ 93%]
+tests/e2e/test_revision_recovery.py::test_worker_cancel_restart_recovers_confirmed_snapshot PASSED [ 95%]
+tests/e2e/test_revision_recovery.py::test_preview_is_never_persisted_then_real_commit PASSED [ 96%]
+tests/security/test_real_browser_security.py::test_offline_real_calculation_after_reload PASSED [ 97%]
+tests/security/test_real_browser_security.py::test_passive_zip_fml_pvm_in_pyodide PASSED [ 98%]
+tests/security/test_real_browser_security.py::test_shipped_csp_blocks_inline_and_external_without_breaking_runtime FAILED [100%]
+
+=================================== FAILURES ===================================
+_____ test_shipped_csp_blocks_inline_and_external_without_breaking_runtime _____
+
+browser_harness = <scripts.browser_harness.BrowserHarness object at 0x7f6f99827f50>
+
+    def test_shipped_csp_blocks_inline_and_external_without_breaking_runtime(browser_harness):
+        page = browser_harness.page.context.new_page()
+        try:
+            page.goto(browser_harness.origin + "/")
+            page.wait_for_function(
+                "() => document.querySelector('#engine-status-badge')?.textContent.includes('Motor: ready')"
+            )
+            page.locator('[data-action="commit-lqr"]').click()
+>           page.wait_for_function(
+                "() => document.querySelector('#lqr-k-display pre[aria-label=\"Matriz de ganho K\"]') !== null && document.querySelector('#lqr-status-text')?.textContent === 'Confirmado'"
+            )
+
+tests/security/test_real_browser_security.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../f9-ci-sdp/lib/python3.12/site-packages/playwright/sync_api/_generated.py:11599: in wait_for_function
+    self._sync(
+../f9-ci-sdp/lib/python3.12/site-packages/playwright/_impl/_page.py:1110: in wait_for_function
+    return await self._main_frame.wait_for_function(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../f9-ci-sdp/lib/python3.12/site-packages/playwright/_impl/_frame.py:878: in wait_for_function
+    await self._channel.send("waitForFunction", self._timeout, params)
+../f9-ci-sdp/lib/python3.12/site-packages/playwright/_impl/_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <playwright._impl._connection.Connection object at 0x7f6f8fe26060>
+cb = <function Channel.send.<locals>.<lambda> at 0x7f6f8ff33240>
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -> Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        st: List[inspect.FrameInfo] = getattr(
+            task, "__pw_stack__", None
+        ) or inspect.stack(0)
+    
+        parsed_st = _extract_stack_trace_information_from_stack(st, is_internal, title)
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+>           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.TimeoutError: Page.wait_for_function: Timeout 30000ms exceeded.
+
+../f9-ci-sdp/lib/python3.12/site-packages/playwright/_impl/_connection.py:559: TimeoutError
+=========================== short test summary info ============================
+FAILED tests/security/test_real_browser_security.py::test_shipped_csp_blocks_inline_and_external_without_breaking_runtime
+=================== 1 failed, 79 passed in 110.34s (0:01:50) ===================

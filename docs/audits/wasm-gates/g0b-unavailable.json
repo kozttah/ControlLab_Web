@@ -1,0 +1,105 @@
+{
+  "browser": "153.0.8010.0",
+  "browser_kind": "chromium",
+  "release_manifest_sha256": "af49b9196748c4a9438840dc46b3227a2143c8f4d63fc12bd5ef20c9bf7a0bde",
+  "evidence": {
+    "decision": "fail",
+    "production_sdp_status": "SDP backend unavailable on WASM",
+    "platform": "emscripten",
+    "cvxpy_present": false,
+    "clarabel_present": false,
+    "assay": {
+      "status": "inconclusive",
+      "data": {
+        "gate": "G-0B",
+        "environment": "pyodide_wasm",
+        "browser_matrix_pending": false,
+        "overall_passed": false,
+        "backends": {
+          "clarabel_direct": {
+            "capabilities": {
+              "name": "clarabel_direct",
+              "maturity": "unavailable_wasm",
+              "available": false,
+              "experimental": false,
+              "psd": false,
+              "lp": false,
+              "dual": false,
+              "infeasibility_certificate": false,
+              "unboundedness_certificate": false,
+              "warm_start": false,
+              "cancellation": false,
+              "tolerances": {
+                "configurable": true,
+                "tol_feas": 1e-08,
+                "tol_gap_abs": 1e-08,
+                "tol_gap_rel": 1e-08,
+                "max_iter": 200
+              },
+              "reason": "missing_dependency",
+              "lib_versions": {}
+            },
+            "passed": false,
+            "reason": "missing_dependency",
+            "cases": {}
+          },
+          "clarabel_cvxpy": {
+            "capabilities": {
+              "name": "clarabel_cvxpy",
+              "maturity": "unavailable_wasm",
+              "available": false,
+              "experimental": false,
+              "psd": false,
+              "lp": false,
+              "dual": false,
+              "infeasibility_certificate": false,
+              "unboundedness_certificate": false,
+              "warm_start": false,
+              "cancellation": false,
+              "tolerances": {
+                "configurable": true,
+                "tol_feas": 1e-08,
+                "tol_gap_abs": 1e-08,
+                "tol_gap_rel": 1e-08,
+                "max_iter": 200
+              },
+              "reason": "missing_dependency",
+              "lib_versions": {}
+            },
+            "passed": false,
+            "reason": "missing_dependency",
+            "cases": {}
+          }
+        },
+        "summary": {
+          "n_backends_tested": 2,
+          "n_backends_passed": 0,
+          "n_cases_per_backend": 7
+        }
+      },
+      "assumptions": {
+        "local_cpython_assay": false,
+        "requires_two_browsers_in_pyodide_for_final_gate": true
+      },
+      "diagnostics": {
+        "overall_passed": false,
+        "n_backends_passed": 0,
+        "n_backends_tested": 2
+      },
+      "provenance": {
+        "algorithm": "optimization.verification.run_gate_0b_assay",
+        "lib_versions": {
+          "numpy": "2.0.2",
+          "scipy": "1.14.1",
+          "python": "3.12.7"
+        },
+        "seed": null,
+        "tolerances": {},
+        "model_revision": null,
+        "timestamp": "2026-11-15T00:57:21Z"
+      },
+      "warnings": [],
+      "error": null
+    }
+  }
+}

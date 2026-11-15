@@ -1,0 +1,217 @@
+{
+  "upstream_repository": "https://github.com/pathsim/pathview",
+  "upstream_commit": "4afdcc461ed63aa4231930170d20774428d51e8d",
+  "official_source_hashes": {
+    "pathview/__init__.py": {
+      "git_blob_sha1": "f9cd1b4fd2a031f956a15cad66719a71e00a30e3",
+      "sha256": "51ae28c059520de4a8802412db3a9f6acc2d3f9edd54536acdf2554501e926d3"
+    },
+    "pathview/converter.py": {
+      "git_blob_sha1": "9993b6247434f712cd7fede6117f127c5988541e",
+      "sha256": "abb5449894a2407a2aa43407f90f0b0b7baaa53545ff495a249b944a874f7aa1"
+    },
+    "pathview/buses.py": {
+      "git_blob_sha1": "29a1953ab486205cbbaa4014800c7e57c120f0ee",
+      "sha256": "706d0486db79f83051980f9546a1f1e5ce01e8d8a88a405f1be7d2b8f1b77929"
+    },
+    "pathview/data/registry.json": {
+      "git_blob_sha1": "b5a054b250843fe99dcd90d616768020594aac13",
+      "sha256": "4abcbb5a482cd3de5810fe44c0faa27dc1f444e69e21b2723298ef910c97af7f"
+    }
+  },
+  "converter_executed": true,
+  "generated_simulation_executed": false,
+  "official_ui_import_verified": false,
+  "gate": "G-0D",
+  "verdict": "fail",
+  "external_pathview_verified": false,
+  "reason": "Official converter omits unregistered blocks and connected feedback wires; trajectory parity cannot be claimed.",
+  "cases": [
+    {
+      "case": "lqr_c_eq_i",
+      "input_nodes": 5,
+      "input_connections": 5,
+      "generated_connection_calls": 3,
+      "unknown_blocks": [
+        "MatrixGain"
+      ],
+      "ignored_parameters": {
+        "src_ref": {
+          "type": "Source",
+          "ignored_params": [
+            "channel_names",
+            "dim",
+            "signal_type",
+            "value"
+          ]
+        },
+        "sum_feedback": {
+          "type": "Adder",
+          "ignored_params": [
+            "dim",
+            "feedback_sign",
+            "signs"
+          ]
+        },
+        "plant_ss": {
+          "type": "StateSpace",
+          "ignored_params": [
+            "dt",
+            "expose_state",
+            "initial_state",
+            "input_names",
+            "output_names",
+            "state_names"
+          ]
+        },
+        "scope_y": {
+          "type": "Scope",
+          "ignored_params": [
+            "channel_names",
+            "dim",
+            "units"
+          ]
+        }
+      },
+      "trajectory_equivalence_verified": false
+    },
+    {
+      "case": "lqr_c_neq_i",
+      "input_nodes": 5,
+      "input_connections": 5,
+      "generated_connection_calls": 3,
+      "unknown_blocks": [
+        "MatrixGain"
+      ],
+      "ignored_parameters": {
+        "src_ref": {
+          "type": "Source",
+          "ignored_params": [
+            "channel_names",
+            "dim",
+            "signal_type",
+            "value"
+          ]
+        },
+        "sum_feedback": {
+          "type": "Adder",
+          "ignored_params": [
+            "dim",
+            "feedback_sign",
+            "signs"
+          ]
+        },
+        "plant_ss": {
+          "type": "StateSpace",
+          "ignored_params": [
+            "dt",
+            "expose_state",
+            "initial_state",
+            "input_names",
+            "output_names",
+            "state_names"
+          ]
+        },
+        "scope_y": {
+          "type": "Scope",
+          "ignored_params": [
+            "channel_names",
+            "dim",
+            "units"
+          ]
+        }
+      },
+      "trajectory_equivalence_verified": false
+    },
+    {
+      "case": "lqr_saturation",
+      "input_nodes": 6,
+      "input_connections": 6,
+      "generated_connection_calls": 2,
+      "unknown_blocks": [
+        "MatrixGain",
+        "Saturation"
+      ],
+      "ignored_parameters": {
+        "src_ref": {
+          "type": "Source",
+          "ignored_params": [
+            "channel_names",
+            "dim",
+            "signal_type",
+            "value"
+          ]
+        },
+        "sum_feedback": {
+          "type": "Adder",
+          "ignored_params": [
+            "dim",
+            "feedback_sign",
+            "signs"
+          ]
+        },
+        "plant_ss": {
+          "type": "StateSpace",
+          "ignored_params": [
+            "dt",
+            "expose_state",
+            "initial_state",
+            "input_names",
+            "output_names",
+            "state_names"
+          ]
+        },
+        "scope_y": {
+          "type": "Scope",
+          "ignored_params": [
+            "channel_names",
+            "dim",
+            "units"
+          ]
+        }
+      },
+      "trajectory_equivalence_verified": false
+    },
+    {
+      "case": "dynamic",
+      "input_nodes": 5,
+      "input_connections": 5,
+      "generated_connection_calls": 1,
+      "unknown_blocks": [
+        "DynamicController",
+        "MatrixGain"
+      ],
+      "ignored_parameters": {
+        "src_ref": {
+          "type": "Source",
+          "ignored_params": [
+            "channel_names",
+            "dim",
+            "signal_type",
+            "value"
+          ]
+        },
+        "plant_ss": {
+          "type": "StateSpace",
+          "ignored_params": [
+            "dt",
+            "expose_state",
+            "initial_state",
+            "input_names",
+            "output_names",
+            "state_names"
+          ]
+        },
+        "scope_y": {
+          "type": "Scope",
+          "ignored_params": [
+            "channel_names",
+            "dim",
+            "units"
+          ]
+        }
+      },
+      "trajectory_equivalence_verified": false
+    }
+  ]
+}

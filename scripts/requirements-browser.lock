@@ -1,0 +1,5 @@
+# F9 browser automation only; not shipped to end users or included in Pyodide.
+# Apache-2.0 (Playwright); MIT (pyee/greenlet); versioned browser install is CI prerequisite.
+playwright==1.58.0
+pyee==13.0.1
+greenlet==3.5.6

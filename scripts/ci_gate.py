@@ -13,8 +13,17 @@ SUITES = {
     "D": ("tests/wasm", "tests/performance"),
     "E": ("tests/e2e",),
     "F": ("tests/security",),
-    "G": ("tests/wasm", "tests/e2e", "tests/security", "tests/performance"),
+    "G": ("tests/wasm", "tests/e2e", "tests/security", "tests/performance", "tests/metamorphic"),
 }
+
+
+def unresolved_release_gates(state):
+    """A passing fallback test does not approve the missing production capability."""
+    return [
+        name
+        for name in ("G-0A", "G-0B", "G-0C", "G-0D")
+        if state.get("gates", {}).get(name, {}).get("status") != "ACCEPTED_BY_F9"
+    ]
 
 
 def main():
@@ -60,12 +69,25 @@ def main():
                 file=sys.stderr,
             )
             status = 2
+    blockers = []
+    if status == 0 and args.job in {"E", "G"}:
+        state = json.loads((ROOT / "PROJECT_STATE.json").read_text())
+        blockers = unresolved_release_gates(state)
+        if args.job == "E":
+            blockers = [name for name in blockers if name == "G-0D"]
+        if blockers:
+            print(
+                "BLOCKED: mandatory product gates lack F9 acceptance: " + ", ".join(blockers),
+                file=sys.stderr,
+            )
+            status = 2
     report.write_text(
         json.dumps(
             {
                 "job": args.job,
                 "status": "passed" if status == 0 else "blocked",
                 "returncode": status,
+                "blocking_gates": blockers,
             },
             indent=2,
         )

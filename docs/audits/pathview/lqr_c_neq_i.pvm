@@ -1,0 +1,297 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "created": "2026-11-13T00:00:00Z",
+    "modified": "2026-11-13T00:00:00Z",
+    "name": "ControlLab_LQR_ss-055fbcc6fcc6",
+    "generator": "ControlLab Web",
+    "spec_version": "1.0.0",
+    "external_pathview_verified": false,
+    "gate_pending": "G-0D",
+    "interconnection_kind": "state_feedback",
+    "feedback_sign": "negative",
+    "plant_ref": {
+      "id": "ss-055fbcc6fcc6",
+      "revision": 0
+    },
+    "controller_ref": {
+      "id": "ctrl-sf-ec1f13d18205",
+      "revision": 0
+    }
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "src_ref",
+        "type": "Source",
+        "name": "ReferenceSource",
+        "position": {
+          "x": 80.0,
+          "y": 200.0
+        },
+        "inputs": [],
+        "outputs": [
+          {
+            "nodeId": "src_ref",
+            "direction": "output",
+            "index": 0,
+            "name": "r"
+          }
+        ],
+        "params": {
+          "dim": 1,
+          "signal_type": "step",
+          "value": [
+            1.0
+          ],
+          "channel_names": [
+            "u1"
+          ]
+        }
+      },
+      {
+        "id": "sum_feedback",
+        "type": "Adder",
+        "name": "ControlSum_negative",
+        "position": {
+          "x": 480.0,
+          "y": 200.0
+        },
+        "inputs": [
+          {
+            "nodeId": "sum_feedback",
+            "direction": "input",
+            "index": 0,
+            "name": "u_ff"
+          },
+          {
+            "nodeId": "sum_feedback",
+            "direction": "input",
+            "index": 1,
+            "name": "Kx"
+          }
+        ],
+        "outputs": [
+          {
+            "nodeId": "sum_feedback",
+            "direction": "output",
+            "index": 0,
+            "name": "u_cmd"
+          }
+        ],
+        "params": {
+          "signs": [
+            "+",
+            "-"
+          ],
+          "feedback_sign": "negative",
+          "dim": 1
+        }
+      },
+      {
+        "id": "plant_ss",
+        "type": "StateSpace",
+        "name": "ss-055fbcc6fcc6",
+        "position": {
+          "x": 700.0,
+          "y": 200.0
+        },
+        "inputs": [
+          {
+            "nodeId": "plant_ss",
+            "direction": "input",
+            "index": 0,
+            "name": "u"
+          }
+        ],
+        "outputs": [
+          {
+            "nodeId": "plant_ss",
+            "direction": "output",
+            "index": 0,
+            "name": "y"
+          },
+          {
+            "nodeId": "plant_ss",
+            "direction": "output",
+            "index": 1,
+            "name": "x"
+          }
+        ],
+        "params": {
+          "A": [
+            [
+              0.0,
+              1.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ],
+          "B": [
+            [
+              0.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "C": [
+            [
+              1.0,
+              0.0
+            ]
+          ],
+          "D": [
+            [
+              0.0
+            ]
+          ],
+          "initial_state": [
+            1.0,
+            0.0
+          ],
+          "dt": null,
+          "state_names": [
+            "x1",
+            "x2"
+          ],
+          "input_names": [
+            "u1"
+          ],
+          "output_names": [
+            "y1"
+          ],
+          "expose_state": true
+        }
+      },
+      {
+        "id": "scope_y",
+        "type": "Scope",
+        "name": "OutputScope",
+        "position": {
+          "x": 940.0,
+          "y": 200.0
+        },
+        "inputs": [
+          {
+            "nodeId": "scope_y",
+            "direction": "input",
+            "index": 0,
+            "name": "y"
+          }
+        ],
+        "outputs": [],
+        "params": {
+          "dim": 1,
+          "channel_names": [
+            "y1"
+          ],
+          "units": [
+            ""
+          ]
+        }
+      },
+      {
+        "id": "gain_K",
+        "type": "MatrixGain",
+        "name": "FeedbackGain_K",
+        "position": {
+          "x": 680.0,
+          "y": 420.0
+        },
+        "inputs": [
+          {
+            "nodeId": "gain_K",
+            "direction": "input",
+            "index": 0,
+            "name": "x"
+          }
+        ],
+        "outputs": [
+          {
+            "nodeId": "gain_K",
+            "direction": "output",
+            "index": 0,
+            "name": "Kx"
+          }
+        ],
+        "params": {
+          "gain": [
+            [
+              2.0,
+              3.0
+            ]
+          ],
+          "shape": [
+            1,
+            2
+          ],
+          "role": "feedback_gain",
+          "label": "K"
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn_001",
+        "sourceNodeId": "src_ref",
+        "sourcePortIndex": 0,
+        "targetNodeId": "sum_feedback",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn_002",
+        "sourceNodeId": "sum_feedback",
+        "sourcePortIndex": 0,
+        "targetNodeId": "plant_ss",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn_003",
+        "sourceNodeId": "plant_ss",
+        "sourcePortIndex": 0,
+        "targetNodeId": "scope_y",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn_004",
+        "sourceNodeId": "plant_ss",
+        "sourcePortIndex": 1,
+        "targetNodeId": "gain_K",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "conn_005",
+        "sourceNodeId": "gain_K",
+        "sourcePortIndex": 0,
+        "targetNodeId": "sum_feedback",
+        "targetPortIndex": 1
+      }
+    ],
+    "annotations": [
+      {
+        "id": "ann_controllab_spec",
+        "text": "ControlLab state_feedback | sign=negative | external_pathview_verified=False (Gate G-0D pendente)"
+      }
+    ]
+  },
+  "events": [],
+  "codeContext": {
+    "code": "import numpy as np\nA_plant = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=np.float64)\nB_plant = np.array([[0.0], [1.0]], dtype=np.float64)\nC_plant = np.array([[1.0, 0.0]], dtype=np.float64)\nD_plant = np.array([[0.0]], dtype=np.float64)\ndt_plant = None\nx0_plant = np.array([1.0, 0.0], dtype=np.float64)\nfeedback_sign = 'negative'\nK_feedback = np.array([[2.0, 3.0]], dtype=np.float64)\n"
+  },
+  "simulationSettings": {
+    "duration": "10",
+    "dt": "0.01",
+    "solver": "RKCK54",
+    "adaptive": true,
+    "atol": "1e-6",
+    "rtol": "1e-4",
+    "ftol": "1e-9",
+    "dt_min": "",
+    "dt_max": "",
+    "ghostTraces": 0,
+    "plotResults": true
+  }
+}

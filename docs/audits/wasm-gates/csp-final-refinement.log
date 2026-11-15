@@ -1,0 +1,10 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/ba21e63c86f4/f9-ci-sdp/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/ba21e63c86f4/ControlLab_Web
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+tests/security/test_real_browser_security.py::test_shipped_csp_blocks_inline_and_external_without_breaking_runtime PASSED [100%]
+
+============================== 1 passed in 14.14s ==============================

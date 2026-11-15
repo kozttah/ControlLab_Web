@@ -37,6 +37,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--models", type=Path, default=ROOT / "docs/audits/pvm-official")
     parser.add_argument(
+        "--case",
+        action="append",
+        dest="cases",
+        help="F9-generated case basename; repeat to select multiple cases",
+    )
+    parser.add_argument(
         "--output", type=Path, default=ROOT / "docs/audits/pvm-official/ui-import.json"
     )
     args = parser.parse_args()
@@ -53,7 +59,9 @@ def main():
                 executable_path=os.environ.get("CONTROLLAB_CHROMIUM")
             )
             try:
-                for name in CASES:
+                for name in args.cases or CASES:
+                    if Path(name).name != name or name in {".", ".."}:
+                        raise ValueError("Case names must be basenames")
                     model = args.models / f"{name}.pvm"
                     graph = json.loads(model.read_text())["graph"]
                     context = browser.new_context(viewport={"width": 1500, "height": 1050})

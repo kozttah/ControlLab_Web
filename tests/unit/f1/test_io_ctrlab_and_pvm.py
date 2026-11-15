@@ -1092,10 +1092,10 @@ def test_t_pvm_02_discrete_and_ill_posed_algebraic_loop_rejected() -> None:
         dt=0.1,
         initial_state=[0.3],
     )
-    with pytest.raises(UnsupportedModelError, match="scheduling"):
-        make_pvm(plant_d, ctrl_d, scenario={"initial_state": [1.0]})
-    pvm_d = make_pvm(plant_d, ctrl_d, scenario={"initial_state": [1.0]}, runtime_profile="legacy_numeric")
-    assert pvm_d["metadata"]["external_compatible"] is False
+    pvm_d = make_pvm(plant_d, ctrl_d, scenario={"initial_state": [1.0]})
+    assert pvm_d["metadata"]["adapter_profile"] == "controllab.pathview.clocked.v2"
+    legacy_d = make_pvm(plant_d, ctrl_d, scenario={"initial_state": [1.0]}, runtime_profile="legacy_numeric")
+    assert legacy_d["metadata"]["external_compatible"] is False
     cl_d_ref = interconnect(plant_d, ctrl_d)
     cl_d_pvm = extract_lti_from_pvm(pvm_d)
     np.testing.assert_allclose(cl_d_pvm.A, cl_d_ref.A, atol=1e-13)

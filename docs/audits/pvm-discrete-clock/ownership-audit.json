@@ -1,0 +1,21 @@
+{
+  "gold_fixtures": {
+    "files": 8,
+    "changed": []
+  },
+  "independent_oracles": {
+    "files": 12,
+    "changed": []
+  },
+  "production_other_than_io": {
+    "files": 83,
+    "changed": []
+  },
+  "previous_pathview_evidence": {
+    "files": 44,
+    "changed": []
+  },
+  "historical_reference_equations": {
+    "ast_identical": true
+  }
+}

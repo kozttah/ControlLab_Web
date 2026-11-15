@@ -1,0 +1,107 @@
+08:24:14 - INFO - LOGGING (log: True)
+08:24:14 - INFO - BLOCKS (total: 7, dynamic: 1, static: 6, eventful: 0)
+08:24:14 - INFO - GRAPH (nodes: 7, edges: 9, alg. depth: 3, loop depth: 0, runtime: 0.089ms)
+08:24:14 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+08:24:14 - INFO - --------------------   1% | 0.0s<0.1s | 4153.4 it/s
+08:24:14 - INFO - ####----------------  20% | 0.0s<0.1s | 4941.3 it/s
+08:24:15 - INFO - ########------------  40% | 0.0s<0.1s | 5940.0 it/s
+08:24:15 - INFO - ############--------  60% | 0.1s<0.0s | 5516.3 it/s
+08:24:15 - INFO - ################----  80% | 0.1s<0.0s | 5897.2 it/s
+08:24:15 - INFO - #################### 100% | 0.1s<--:-- | 5760.3 it/s
+08:24:15 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 89.17 ms)
+{"case": "static_negative_ci", "samples": 501, "max_output_abs_error": 1.1102230246251565e-16, "max_plant_final_state_abs_error": 1.1102230246251565e-16, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 7, "connections": 9, "passed": true}
+08:24:15 - INFO - LOGGING (log: True)
+08:24:15 - INFO - BLOCKS (total: 6, dynamic: 1, static: 5, eventful: 0)
+08:24:15 - INFO - GRAPH (nodes: 6, edges: 7, alg. depth: 2, loop depth: 3, runtime: 0.092ms)
+08:24:15 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+08:24:15 - INFO - --------------------   1% | 0.0s<0.2s | 2655.8 it/s
+08:24:15 - INFO - ####----------------  20% | 0.0s<0.1s | 3125.8 it/s
+08:24:15 - INFO - ########------------  40% | 0.1s<0.1s | 3166.0 it/s
+08:24:15 - INFO - ############--------  60% | 0.1s<0.1s | 3155.4 it/s
+08:24:15 - INFO - ################----  80% | 0.1s<0.0s | 3021.2 it/s
+08:24:15 - INFO - #################### 100% | 0.2s<--:-- | 2858.2 it/s
+08:24:15 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 164.53 ms)
+{"case": "static_negative_cneq", "samples": 501, "max_output_abs_error": 1.1102230246251565e-16, "max_plant_final_state_abs_error": 0.0, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 6, "connections": 7, "passed": true}
+08:24:15 - INFO - LOGGING (log: True)
+08:24:15 - INFO - BLOCKS (total: 7, dynamic: 1, static: 6, eventful: 0)
+08:24:15 - INFO - GRAPH (nodes: 7, edges: 9, alg. depth: 3, loop depth: 0, runtime: 0.086ms)
+08:24:15 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+08:24:15 - INFO - --------------------   1% | 0.0s<0.2s | 2943.4 it/s
+08:24:15 - INFO - ####----------------  20% | 0.0s<0.1s | 3999.9 it/s
+08:24:15 - INFO - ########------------  40% | 0.1s<0.1s | 2729.7 it/s
+08:24:15 - INFO - ############--------  60% | 0.1s<0.1s | 3398.9 it/s
+08:24:15 - INFO - ################----  80% | 0.1s<0.0s | 5832.4 it/s
+08:24:15 - INFO - #################### 100% | 0.1s<--:-- | 5949.5 it/s
+08:24:15 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 137.76 ms)
+{"case": "static_positive_ci", "samples": 501, "max_output_abs_error": 3.552713678800501e-15, "max_plant_final_state_abs_error": 3.1086244689504383e-15, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 7, "connections": 9, "passed": true}
+08:24:15 - INFO - LOGGING (log: True)
+08:24:15 - INFO - BLOCKS (total: 6, dynamic: 1, static: 5, eventful: 0)
+08:24:15 - INFO - GRAPH (nodes: 6, edges: 7, alg. depth: 2, loop depth: 3, runtime: 0.105ms)
+08:24:15 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+08:24:15 - INFO - --------------------   1% | 0.0s<0.2s | 2509.0 it/s
+08:24:15 - INFO - ####----------------  20% | 0.0s<0.1s | 3204.5 it/s
+08:24:15 - INFO - ########------------  40% | 0.1s<0.1s | 3124.7 it/s
+08:24:15 - INFO - ############--------  60% | 0.1s<0.1s | 3156.8 it/s
+08:24:15 - INFO - ################----  80% | 0.1s<0.0s | 3062.0 it/s
+08:24:15 - INFO - #################### 100% | 0.2s<--:-- | 3060.5 it/s
+08:24:15 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 162.78 ms)
+{"case": "static_positive_cneq", "samples": 501, "max_output_abs_error": 3.1086244689504383e-15, "max_plant_final_state_abs_error": 2.4424906541753444e-15, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 6, "connections": 7, "passed": true}
+08:24:15 - INFO - LOGGING (log: True)
+08:24:15 - INFO - BLOCKS (total: 6, dynamic: 1, static: 5, eventful: 0)
+08:24:15 - INFO - GRAPH (nodes: 6, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.080ms)
+08:24:15 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+08:24:15 - INFO - --------------------   1% | 0.0s<0.2s | 2010.2 it/s
+08:24:15 - INFO - ####----------------  20% | 0.1s<0.2s | 2183.4 it/s
+08:24:15 - INFO - ########------------  40% | 0.1s<0.1s | 2451.5 it/s
+08:24:15 - INFO - ############--------  60% | 0.1s<0.1s | 2271.7 it/s
+08:24:15 - INFO - ################----  80% | 0.2s<0.0s | 2394.7 it/s
+08:24:16 - INFO - #################### 100% | 0.2s<--:-- | 2457.9 it/s
+08:24:16 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 226.13 ms)
+{"case": "mimo_rectangular_reference", "samples": 501, "max_output_abs_error": 2.220446049250313e-16, "max_plant_final_state_abs_error": 1.1102230246251565e-16, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 6, "connections": 10, "passed": true}
+08:24:16 - INFO - LOGGING (log: True)
+08:24:16 - INFO - BLOCKS (total: 7, dynamic: 1, static: 6, eventful: 0)
+08:24:16 - INFO - GRAPH (nodes: 7, edges: 8, alg. depth: 2, loop depth: 4, runtime: 0.074ms)
+08:24:16 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+08:24:16 - INFO - --------------------   1% | 0.0s<0.2s | 2253.6 it/s
+08:24:16 - INFO - ####----------------  20% | 0.0s<0.1s | 2801.0 it/s
+08:24:16 - INFO - ########------------  40% | 0.1s<0.1s | 2798.3 it/s
+08:24:16 - INFO - ############--------  60% | 0.1s<0.1s | 2769.9 it/s
+08:24:16 - INFO - ################----  80% | 0.1s<0.0s | 2653.0 it/s
+08:24:16 - INFO - #################### 100% | 0.2s<--:-- | 2497.8 it/s
+08:24:16 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 499, runtime: 184.22 ms)
+{"case": "saturated_negative", "samples": 501, "max_output_abs_error": 2.469290105722166e-09, "max_plant_final_state_abs_error": 3.753094279801417e-09, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 7, "connections": 8, "passed": true}
+08:24:16 - INFO - LOGGING (log: True)
+08:24:16 - INFO - BLOCKS (total: 5, dynamic: 2, static: 3, eventful: 0)
+08:24:16 - INFO - GRAPH (nodes: 5, edges: 5, alg. depth: 1, loop depth: 3, runtime: 0.069ms)
+08:24:16 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+08:24:16 - INFO - --------------------   1% | 0.0s<0.3s | 1975.6 it/s
+08:24:16 - INFO - ####----------------  20% | 0.0s<0.2s | 2254.9 it/s
+08:24:16 - INFO - ########------------  40% | 0.1s<0.1s | 2274.9 it/s
+08:24:16 - INFO - ############--------  60% | 0.1s<0.1s | 2291.8 it/s
+08:24:16 - INFO - ################----  80% | 0.2s<0.0s | 2299.0 it/s
+08:24:16 - INFO - #################### 100% | 0.2s<--:-- | 2311.4 it/s
+08:24:16 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 227.78 ms)
+{"case": "dynamic_nonzero_feedthrough", "samples": 501, "max_output_abs_error": 5.551115123125783e-16, "max_plant_final_state_abs_error": 2.220446049250313e-16, "max_controller_final_state_abs_error": 9.367506770274758e-17, "error_limit": 2e-06, "nodes": 5, "connections": 5, "passed": true}
+08:24:16 - INFO - LOGGING (log: True)
+08:24:16 - INFO - BLOCKS (total: 5, dynamic: 1, static: 4, eventful: 0)
+08:24:16 - INFO - GRAPH (nodes: 5, edges: 5, alg. depth: 1, loop depth: 3, runtime: 0.066ms)
+08:24:16 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+08:24:16 - INFO - --------------------   1% | 0.0s<0.2s | 2089.1 it/s
+08:24:16 - INFO - ####----------------  20% | 0.0s<0.2s | 2509.3 it/s
+08:24:16 - INFO - ########------------  40% | 0.1s<0.1s | 2310.8 it/s
+08:24:16 - INFO - ############--------  60% | 0.1s<0.1s | 2479.1 it/s
+08:24:16 - INFO - ################----  80% | 0.2s<0.0s | 2448.1 it/s
+08:24:16 - INFO - #################### 100% | 0.2s<--:-- | 2485.2 it/s
+08:24:16 - INFO - FINISHED -> TRANSIENT (total steps: 500, successful: 500, runtime: 207.45 ms)
+{"case": "dynamic_zero_state", "samples": 501, "max_output_abs_error": 2.220446049250313e-16, "max_plant_final_state_abs_error": 9.71445146547012e-17, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 5, "connections": 5, "passed": true}
+08:24:16 - INFO - LOGGING (log: True)
+08:24:16 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:24:16 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.076ms)
+08:24:16 - INFO - STARTING -> TRANSIENT (Duration: 0.50s)
+08:24:16 - INFO - ####----------------  20% | 0.0s<0.0s | 1149.7 it/s
+08:24:16 - INFO - ########------------  40% | 0.0s<0.0s | 1501.2 it/s
+08:24:16 - INFO - ############--------  60% | 0.0s<0.0s | 1760.4 it/s
+08:24:16 - INFO - ################----  80% | 0.0s<0.0s | 1992.7 it/s
+08:24:16 - INFO - #################### 100% | 0.0s<--:-- | 2175.3 it/s
+08:24:16 - INFO - FINISHED -> TRANSIENT (total steps: 5, successful: 5, runtime: 2.60 ms)
+{"case": "discrete_static", "samples": 6, "max_output_abs_error": 0.0, "max_plant_final_state_abs_error": null, "max_controller_final_state_abs_error": null, "error_limit": 2e-06, "nodes": 8, "connections": 10, "passed": true}

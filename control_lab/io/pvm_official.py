@@ -40,6 +40,7 @@ OFFICIAL_PARAMS = {
     "Adder": ["operations"],
     "Clip": ["min_val", "max_val"],
     "Scope": ["sampling_period", "t_wait", "labels"],
+    "SampleHold": ["T", "tau"],
 }
 
 
@@ -208,6 +209,11 @@ def _render_node(node: dict) -> tuple[list[dict], dict, dict]:
 
 
 def lower_to_official(legacy: dict) -> dict:
+    if any(node["type"] == "StateSpace" and node["params"].get("dt") is not None
+           for node in legacy["graph"]["nodes"]):
+        from control_lab.io.pvm_discrete import lower_clocked
+
+        return lower_clocked(legacy)
     doc = copy.deepcopy(legacy)
     nodes, imap, omap = [], {}, {}
     originals = {n["id"]: n for n in legacy["graph"]["nodes"]}
@@ -252,6 +258,10 @@ def lower_to_official(legacy: dict) -> dict:
 
 
 def _restore_numeric_projection(official: dict) -> dict:
+    if official.get("metadata", {}).get("adapter_profile") == "controllab.pathview.clocked.v2":
+        from control_lab.io.pvm_discrete import restore_clocked
+
+        return restore_clocked(official)
     if official.get("metadata", {}).get("adapter_profile") != PROFILE:
         return official
     originals = {}

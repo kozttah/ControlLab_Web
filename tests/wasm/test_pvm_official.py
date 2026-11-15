@@ -19,8 +19,8 @@ original_code=model["codeContext"]["code"]
 model["codeContext"]["code"]="__import__('builtins').F9_PVM_EXECUTED=True"
 imported=import_pvm(json.dumps(model))
 discrete=StateSpace([[.8]],[[.2]],[[1.]],[[0.]],dt=.1,id="f9-wasm-discrete",revision=1)
-refusal=export_pvm(discrete)
-report={{"graph":model["graph"],"generated_code":original_code,"settings":model["simulationSettings"],"passive_status":imported.status,"code_executed":hasattr(builtins,"F9_PVM_EXECUTED"),"discrete_status":refusal.status,"discrete_error":refusal.error.code if refusal.error else None}}
+discrete_export=export_pvm(discrete)
+report={{"graph":model["graph"],"generated_code":original_code,"settings":model["simulationSettings"],"passive_status":imported.status,"code_executed":hasattr(builtins,"F9_PVM_EXECUTED"),"discrete_status":discrete_export.status,"discrete_error":discrete_export.error.code if discrete_export.error else None,"discrete_profile":discrete_export.data["pvm"]["metadata"]["adapter_profile"] if discrete_export.data else None}}
 json.dumps(report)"""
 
 
@@ -34,8 +34,9 @@ def test_official_pvm_adapter_matches_cpython_and_never_executes_import(browser_
     assert native == wasm
     assert not wasm["code_executed"]
     assert wasm["passive_status"] in {"success", "warning"}
-    assert wasm["discrete_status"] == "failure"
-    assert wasm["discrete_error"] == "UNSUPPORTED_MODEL"
+    assert wasm["discrete_status"] in {"success", "warning"}
+    assert wasm["discrete_error"] is None
+    assert wasm["discrete_profile"] == "controllab.pathview.clocked.v2"
     assert all(
         node["type"] not in {"MatrixGain", "DynamicController", "Saturation"}
         for node in wasm["graph"]["nodes"]

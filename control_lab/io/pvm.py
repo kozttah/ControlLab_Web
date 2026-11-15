@@ -100,8 +100,9 @@ PATHVIEW_BLOCK_REGISTRY: dict[str, Any] = {
     "pathview_version": "0.21.0",
     "pathview_commit": PATHVIEW_COMMIT,
     "adapter_version": "controllab.pathview.scalar.v1",
-    "supported_external_domains": ["continuous"],
-    "discrete_external_status": "unavailable_pending_clock_alignment",
+    "adapter_profiles": ["controllab.pathview.scalar.v1", "controllab.pathview.clocked.v2"],
+    "supported_external_domains": ["continuous", "discrete_single_rate"],
+    "discrete_external_status": "single_rate_synchronous_vector_register",
     "external_pathview_verified": False,
     "gate_status": "PENDING_G0D",
     "blocks": {
@@ -606,12 +607,13 @@ def make_pvm(
     raise_on_error: bool = False,
     runtime_profile: str = "official",
 ) -> dict[str, Any] | Result:
-    """Build an official continuous PathView graph, or an explicit internal legacy graph.
+    """Build an official PathView graph, or an explicit internal legacy graph.
 
     ``runtime_profile="legacy_numeric"`` is a migration/testing facility for the
     passive numerical evaluator, not an external PathView export. The public
-    ``export_pvm`` always uses the official default and rejects discrete plants
-    until the upstream discrete scheduling mismatch has an independent fix.
+    ``export_pvm`` always uses the official default. Single-rate discrete
+    systems use one shared SampleHold register and explicit component state
+    transitions, preserving synchronous updates without an upstream fork.
     """
     prov: Provenance = build_provenance(
         "control_lab.io.make_pvm",
@@ -710,14 +712,6 @@ def make_pvm(
 
         if not isinstance(runtime_profile, str) or runtime_profile not in {"official", "legacy_numeric"}:
             raise ValidationError("runtime_profile must be 'official' or 'legacy_numeric'.")
-        if runtime_profile == "official" and plant.dt is not None:
-            raise UnsupportedModelError(
-                message=("Official PathView discrete export is unavailable: DiscreteStateSpace event "
-                         "scheduling does not preserve ControlLab's simultaneous x[k+1] feedback update."),
-                parameters={"domain": "discrete", "external_compatible": False,
-                            "reason": "discrete_schedule_mismatch", "finding": "F9-WASM-PVM-001"},
-                next_step="Use the internal discrete simulator; official export needs a separately verified clock-alignment adapter.",
-            )
         if runtime_profile == "legacy_numeric":
             warnings_out = [WarningItem(
                 code="LEGACY_NUMERIC_PVM_ONLY",

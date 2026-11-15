@@ -206,6 +206,8 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT / "docs/audits/pvm-official")
     parser.add_argument("--upstream", type=Path, help="Optional pinned PathView source checkout")
     parser.add_argument("--wheels", type=Path, help="Optional downloaded external audit wheels")
+    parser.add_argument("--work-package", default="WP-AUDIT-FIX-F1-PVM-OFFICIAL")
+    parser.add_argument("--source-base-commit", default="0d788634fceddca4aa34ee04b00877df5aa43a7d")
     args = parser.parse_args()
     assert version("pathview") == "0.21.0" and version("pathsim") == "0.31.0"
     args.output.mkdir(parents=True, exist_ok=True)
@@ -283,8 +285,11 @@ def main():
             error = float(np.max(np.abs(actual - expected)))
             plant_node = next(n for n in pvm["graph"]["nodes"] if n["id"] == "plant_ss")
             block = ns[sanitize_name(plant_node["name"])]
-            actual_final = block._x if case.get("dt") else block.engine.state
-            # DiscreteStateSpace stores the NEXT state after emitting y[k].
+            # Clocked discrete state is held by its shared SampleHold, not a
+            # DiscreteStateSpace private _x. This assay already compares its
+            # complete scalar state through y[k]; the dedicated discrete assay
+            # additionally observes all shared state registers directly.
+            actual_final = None if case.get("dt") else block.engine.state
             state_error = (
                 None
                 if case.get("dt")
@@ -337,11 +342,15 @@ def main():
     )
     report = {
         "document_id": "CL-DIR-001",
-        "work_package": "WP-AUDIT-FIX-F1-PVM-OFFICIAL",
-        "source_base_commit": "0d788634fceddca4aa34ee04b00877df5aa43a7d",
+        "work_package": args.work_package,
+        "source_base_commit": args.source_base_commit,
         "control_lab_source_sha256": {
             str(p): hashlib.sha256((ROOT / p).read_bytes()).hexdigest()
-            for p in [Path("control_lab/io/pvm.py"), Path("control_lab/io/pvm_official.py")]
+            for p in [
+                Path("control_lab/io/pvm.py"),
+                Path("control_lab/io/pvm_official.py"),
+                Path("control_lab/io/pvm_discrete.py"),
+            ]
         },
         "assay_script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "upstream_commit": "4afdcc461ed63aa4231930170d20774428d51e8d",

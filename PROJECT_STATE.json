@@ -11,7 +11,7 @@
     "history": {
       "2026-11-13": 6,
       "2026-11-14": 12,
-      "2026-11-15": 2
+      "2026-11-15": 3
     }
   },
   "audit_reference": {
@@ -83,7 +83,7 @@
     "G-0D": {
       "status": "PENDING",
       "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)",
-      "audit_verdict": "CONTINUOUS_EXTERNAL_INTEROP_VERIFIED_GATE_PENDING",
+      "audit_verdict": "CONTINUOUS_AND_SINGLE_RATE_DISCRETE_EXTERNAL_INTEROP_VERIFIED_GATE_PENDING",
       "blocking_findings": [
         "AUD-011"
       ],
@@ -93,7 +93,7 @@
         "WP-AUDIT-FIX-F9-WASM-GATES"
       ],
       "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
-      "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-OFFICIAL.md"
+      "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md"
     }
   },
   "work_packages": [
@@ -521,7 +521,7 @@
         "WP-AUDIT-FIX-F9-WASM-GATES"
       ],
       "capability_restrictions": {
-        "discrete_official_export": "unavailable_pending_clock_alignment",
+        "discrete_official_export": "single_rate_supported_by_WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK; multirate_and_external_events_unsupported",
         "legacy_numeric": "explicit_internal_simulation_only_external_compatible_false"
       },
       "validation": {
@@ -537,8 +537,64 @@
         "F9-PVM-DISCRETE-001": {
           "owner": "f1-core-io / f9-integration-qa",
           "required_work": "A separate producer WorkPackage must demonstrate clock-aligned official discrete feedback and controller updates before enabling discrete export. Preserve exact recurrence comparisons and official PathSim independent validation.",
-          "evidence_ref": "docs/audits/pvm-official/discrete-pre-fix/"
+          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md",
+          "status": "RESOLVED_FOR_SINGLE_RATE",
+          "resolved_by": "WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK"
         }
+      }
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK",
+      "requirement_ids": [
+        "R-19",
+        "R-20",
+        "R-21"
+      ],
+      "findings": [
+        "F9-PVM-DISCRETE-001"
+      ],
+      "front": "f1-core-io",
+      "phase": "Audit-Remediation",
+      "title": "Preservar a semântica síncrona discreta na exportação PathView oficial e validar relógio, realimentação e estados iniciais por recorrências independentes",
+      "allowed_paths": [
+        "control_lab/io/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F1-PVM-OFFICIAL"
+      ],
+      "acceptance_cmd": "pytest tests/unit/f1/ -v",
+      "normative_tests": [
+        "T-IO-01",
+        "T-IO-02",
+        "T-PVM-01",
+        "T-PVM-02"
+      ],
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "origin_ref": "docs/audits/pvm-official/discrete-pre-fix/",
+      "target_pathview_commit": "4afdcc461ed63aa4231930170d20774428d51e8d",
+      "scope": "Clock-aligned discrete producer adapter using supported official blocks; independent official PathSim recurrence validation, initial values and dynamic controllers. Preserve continuous/legacy behavior and typed rejection for any unverified subset; no global gate approval.",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md",
+      "acceptance_scope": "single_rate_synchronous_discrete_official_pathview_pathsim_recurrence_ui_import_and_cpython_pyodide_parity",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ],
+      "capability_restrictions": {
+        "multirate": "unsupported",
+        "external_events": "unsupported",
+        "legacy_numeric": "explicit_internal_simulation_only_external_compatible_false"
+      },
+      "validation": {
+        "f1_tests": 86,
+        "regression_tests_including_wasm": 73,
+        "node_tests": 50,
+        "official_discrete_cases": 13,
+        "official_discrete_runs": 39,
+        "official_ui_import_cases": 4,
+        "wasm_clock_cases": 2,
+        "continuous_and_original_scalar_regression_cases": 9,
+        "evidence_ref": "docs/audits/pvm-discrete-clock/README.md"
       }
     },
     {
@@ -626,10 +682,12 @@
             "tests/unit/f1/"
           ],
           "required_work": "Create a dedicated producer WorkPackage to align PVM blocks, ports and parameters with a pinned official PathView registry; preserve feedback and initial states; independently reopen and simulate C=I, C!=I, saturation and dynamic-controller cases before rerunning G-0D.",
-          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-OFFICIAL.md",
+          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md",
           "producer_wp": "WP-AUDIT-FIX-F1-PVM-OFFICIAL",
           "producer_status": "ACCEPTED_BY_F9",
-          "remaining_gate_work": "Continuous converter, official UI import and external trajectories now verified. Reassess the full G-0D only with accepted prerequisite G-0C and complete persistence/release evidence; discrete export remains explicitly unavailable."
+          "remaining_gate_work": "Continuous and single-rate discrete conversion, official UI import and independent trajectories verified by accepted producer corrections. Reassess the full G-0D with accepted prerequisite G-0C and complete persistence/release evidence. Multirate and external events remain unsupported.",
+          "discrete_producer_wp": "WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK",
+          "discrete_producer_status": "ACCEPTED_BY_F9"
         },
         "F9-WASM-SDP-001": {
           "owner": "f6-optimization-lmi / f9-integration-qa",

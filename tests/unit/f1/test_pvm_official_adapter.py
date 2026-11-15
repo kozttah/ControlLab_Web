@@ -126,16 +126,17 @@ def test_dynamic_controller_remains_dynamic_in_official_graph():
     assert extract_lti_from_pvm(pvm).n_states == 3
 
 
-def test_discrete_default_rejects_unverified_clock_semantics_but_legacy_is_explicit():
+def test_discrete_default_uses_verified_clock_and_legacy_remains_explicit():
     from control_lab.io import export_pvm
 
     plant = StateSpace([[0.8]], [[0.2]], [[1]], [[0]], dt=0.1)
     controller = StateFeedbackController([[0.5]], feedback_sign="negative", dt=0.1)
-    with pytest.raises(UnsupportedModelError, match="scheduling"):
-        make_pvm(plant, controller)
-    failed = export_pvm(plant, controller)
-    assert failed.status == "failure" and failed.error.code == "UNSUPPORTED_MODEL"
-    assert failed.error.parameters["reason"] == "discrete_schedule_mismatch"
+    exported = export_pvm(plant, controller)
+    assert exported.status == "warning"
+    current = exported.data["pvm"]
+    assert current["metadata"]["adapter_profile"] == "controllab.pathview.clocked.v2"
+    assert len([n for n in current["graph"]["nodes"] if n["type"] == "SampleHold"]) == 1
+    np.testing.assert_allclose(extract_lti_from_pvm(current).A, [[0.7]], rtol=0, atol=1e-14)
     legacy = make_pvm(plant, controller, runtime_profile="legacy_numeric", return_result=True)
     assert legacy.status == "warning"
     assert legacy.diagnostics["external_compatible"] is False

@@ -1,0 +1,528 @@
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.095ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 2.40s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.094ms)
+08:22:01 - INFO - --------------------   4% | 0.0s<0.0s | 829.7 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 2161.7 it/s
+08:22:01 - INFO - ########------------  41% | 0.0s<0.0s | 2643.6 it/s
+08:22:01 - INFO - ############--------  62% | 0.0s<0.0s | 2737.0 it/s
+08:22:01 - INFO - ################----  83% | 0.0s<0.0s | 2786.8 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 2674.2 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 10.01 ms)
+{"case": "scalar_negative", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 5.551115123125783e-17, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.100ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 2.40s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.063ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1510.2 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 11591.9 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 15103.3 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 14116.9 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 11421.0 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 15.09 ms)
+{"case": "scalar_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 5.551115123125783e-17, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.066ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 2.40s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.116ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1478.6 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 10112.5 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 12418.6 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 10808.3 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 9755.4 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 15.47 ms)
+{"case": "scalar_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 5.551115123125783e-17, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.066ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 0.89s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.108ms)
+08:22:01 - INFO - --------------------   4% | 0.0s<0.0s | 874.1 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 2232.4 it/s
+08:22:01 - INFO - ########------------  41% | 0.0s<0.0s | 2640.3 it/s
+08:22:01 - INFO - ############--------  62% | 0.0s<0.0s | 2710.3 it/s
+08:22:01 - INFO - ################----  83% | 0.0s<0.0s | 2731.8 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 2804.7 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 9.89 ms)
+{"case": "scalar_positive", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 0.0, "u": 0.0, "all_states": 0.0}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.063ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 0.89s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.251ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1140.7 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 11629.3 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 15696.2 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 12497.1 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 11923.9 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 14.79 ms)
+{"case": "scalar_positive", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 0.0, "u": 0.0, "all_states": 0.0}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.092ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 0.89s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.065ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1320.3 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 11549.7 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 14973.9 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 13855.6 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 13067.7 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 15.09 ms)
+{"case": "scalar_positive", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 0.0, "u": 0.0, "all_states": 0.0}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.067ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 2.40s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.062ms)
+08:22:01 - INFO - --------------------   4% | 0.0s<0.0s | 908.7 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 2015.2 it/s
+08:22:01 - INFO - ########------------  41% | 0.0s<0.0s | 2687.2 it/s
+08:22:01 - INFO - ############--------  62% | 0.0s<0.0s | 2545.3 it/s
+08:22:01 - INFO - ################----  83% | 0.0s<0.0s | 2543.4 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 2694.4 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 10.28 ms)
+{"case": "scalar_rk4", "step_divisor": 1, "solver": "RK4", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 5.551115123125783e-17, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.068ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 2.40s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.063ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1355.6 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 11403.2 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 15169.2 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 11380.4 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 12459.7 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 14.64 ms)
+{"case": "scalar_rk4", "step_divisor": 4, "solver": "RK4", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 5.551115123125783e-17, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.065ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 2.40s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.062ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1583.9 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 11176.4 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 15081.8 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 14801.0 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 10833.8 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 14.99 ms)
+{"case": "scalar_rk4", "step_divisor": 4, "solver": "RK4", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 5.551115123125783e-17, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.064ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 2.40s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.064ms)
+08:22:01 - INFO - --------------------   4% | 0.0s<0.0s | 968.3 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 2363.4 it/s
+08:22:01 - INFO - ########------------  41% | 0.0s<0.0s | 2737.4 it/s
+08:22:01 - INFO - ############--------  62% | 0.0s<0.0s | 2785.5 it/s
+08:22:01 - INFO - ################----  83% | 0.0s<0.0s | 2836.3 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 2867.8 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 9.48 ms)
+{"case": "scalar_adaptive", "step_divisor": 1, "solver": "RKCK54", "adaptive": true, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 5.551115123125783e-17, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.064ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 2.40s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.061ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1774.8 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 12961.4 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 18374.5 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 16877.9 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 15792.4 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 15637.8 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 97, successful: 97, runtime: 12.84 ms)
+{"case": "scalar_adaptive", "step_divisor": 4, "solver": "RKCK54", "adaptive": true, "graph_order_reversed": false, "samples": 98, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 5.551115123125783e-17, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 10, alg. depth: 2, loop depth: 3, runtime: 0.066ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 2.40s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 13, alg. depth: 2, loop depth: 3, runtime: 0.062ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1370.4 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 13668.9 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 18803.3 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 16538.4 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 13898.1 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 15965.6 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 97, successful: 97, runtime: 14.04 ms)
+{"case": "scalar_adaptive", "step_divisor": 4, "solver": "RKCK54", "adaptive": true, "graph_order_reversed": true, "samples": 98, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 5.551115123125783e-17, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 18, alg. depth: 2, loop depth: 3, runtime: 0.078ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 1.20s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 23, alg. depth: 2, loop depth: 3, runtime: 0.081ms)
+08:22:01 - INFO - --------------------   4% | 0.0s<0.0s | 676.9 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 1470.6 it/s
+08:22:01 - INFO - ########------------  41% | 0.0s<0.0s | 1818.4 it/s
+08:22:01 - INFO - ############--------  62% | 0.0s<0.0s | 1909.6 it/s
+08:22:01 - INFO - ################----  83% | 0.0s<0.0s | 1809.2 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 1773.7 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 14.50 ms)
+{"case": "mimo_rectangular", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 1.6653345369377348e-16, "u": 5.551115123125783e-17, "all_states": 1.5265566588595902e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 18, alg. depth: 2, loop depth: 3, runtime: 0.077ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 1.20s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 23, alg. depth: 2, loop depth: 3, runtime: 0.078ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1215.1 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 9246.0 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 9628.8 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 10600.3 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 8196.7 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 25.98 ms)
+{"case": "mimo_rectangular", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 1.6653345369377348e-16, "u": 5.551115123125783e-17, "all_states": 1.5265566588595902e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 18, alg. depth: 2, loop depth: 3, runtime: 0.148ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 1.20s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 23, alg. depth: 2, loop depth: 3, runtime: 0.080ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 1142.0 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 9341.2 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 11665.0 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 10866.5 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 10505.1 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 19.58 ms)
+{"case": "mimo_rectangular", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 1.6653345369377348e-16, "u": 5.551115123125783e-17, "all_states": 1.5265566588595902e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 20, alg. depth: 2, loop depth: 3, runtime: 0.086ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 1.20s)
+08:22:01 - INFO - BLOCKS (total: 10, dynamic: 0, static: 10, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 10, edges: 25, alg. depth: 2, loop depth: 3, runtime: 0.086ms)
+08:22:01 - INFO - --------------------   4% | 0.0s<0.0s | 727.3 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 1511.3 it/s
+08:22:01 - INFO - ########------------  41% | 0.0s<0.0s | 4501.5 it/s
+08:22:01 - INFO - ############--------  62% | 0.0s<0.0s | 4394.3 it/s
+08:22:01 - INFO - ################----  83% | 0.0s<0.0s | 4731.0 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 5133.9 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 7.93 ms)
+{"case": "mimo_saturated", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 1.942890293094024e-16, "u": 1.3877787807814457e-17, "all_states": 1.8041124150158794e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 20, alg. depth: 2, loop depth: 3, runtime: 0.088ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 1.20s)
+08:22:01 - INFO - BLOCKS (total: 10, dynamic: 0, static: 10, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 10, edges: 25, alg. depth: 2, loop depth: 3, runtime: 0.088ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 977.5 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 8709.4 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 12574.3 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 12510.0 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 11623.6 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 13.57 ms)
+{"case": "mimo_saturated", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 1.942890293094024e-16, "u": 1.3877787807814457e-17, "all_states": 1.8041124150158794e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 20, alg. depth: 2, loop depth: 3, runtime: 0.123ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 1.20s)
+08:22:01 - INFO - BLOCKS (total: 10, dynamic: 0, static: 10, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 10, edges: 25, alg. depth: 2, loop depth: 3, runtime: 0.090ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.1s | 992.0 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 7819.8 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 12429.6 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 11877.0 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 11397.0 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 13.48 ms)
+{"case": "mimo_saturated", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 1.942890293094024e-16, "u": 1.3877787807814457e-17, "all_states": 1.8041124150158794e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 5, dynamic: 0, static: 5, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 5, edges: 10, alg. depth: 3, loop depth: 0, runtime: 0.035ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 1.68s)
+08:22:01 - INFO - BLOCKS (total: 6, dynamic: 0, static: 6, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 6, edges: 15, alg. depth: 3, loop depth: 0, runtime: 0.038ms)
+08:22:01 - INFO - --------------------   4% | 0.0s<0.0s | 3710.1 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 11510.8 it/s
+08:22:01 - INFO - ########------------  41% | 0.0s<0.0s | 14799.1 it/s
+08:22:01 - INFO - ############--------  62% | 0.0s<0.0s | 14449.9 it/s
+08:22:01 - INFO - ################----  83% | 0.0s<0.0s | 16052.2 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 16207.4 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 1.97 ms)
+{"case": "open_loop", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 0.0, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 5, dynamic: 0, static: 5, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 5, edges: 10, alg. depth: 3, loop depth: 0, runtime: 0.035ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 1.68s)
+08:22:01 - INFO - BLOCKS (total: 6, dynamic: 0, static: 6, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 6, edges: 15, alg. depth: 3, loop depth: 0, runtime: 0.040ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.0s | 2876.1 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 22320.6 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 25214.8 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 25447.0 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 24407.8 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 23217.4 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 5.14 ms)
+{"case": "open_loop", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 0.0, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 5, dynamic: 0, static: 5, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 5, edges: 10, alg. depth: 3, loop depth: 0, runtime: 0.033ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 1.68s)
+08:22:01 - INFO - BLOCKS (total: 6, dynamic: 0, static: 6, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 6, edges: 15, alg. depth: 3, loop depth: 0, runtime: 0.038ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.0s | 2577.0 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 20688.3 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 24587.5 it/s
+08:22:01 - INFO - ############--------  60% | 0.0s<0.0s | 19444.8 it/s
+08:22:01 - INFO - ################----  80% | 0.0s<0.0s | 20831.5 it/s
+08:22:01 - INFO - #################### 100% | 0.0s<--:-- | 21100.1 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 5.34 ms)
+{"case": "open_loop", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 8.326672684688674e-17, "u": 0.0, "all_states": 8.326672684688674e-17}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 19, alg. depth: 1, loop depth: 3, runtime: 0.085ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 25, alg. depth: 1, loop depth: 3, runtime: 0.111ms)
+08:22:01 - INFO - --------------------   4% | 0.0s<0.2s | 146.5 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.1s | 215.5 it/s
+08:22:01 - INFO - ########------------  41% | 0.0s<0.1s | 247.7 it/s
+08:22:01 - INFO - ############--------  62% | 0.1s<0.0s | 282.7 it/s
+08:22:01 - INFO - ################----  83% | 0.1s<0.0s | 302.6 it/s
+08:22:01 - INFO - #################### 100% | 0.1s<--:-- | 318.0 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 91.00 ms)
+{"case": "dynamic_output_feedback_y_negative", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 2.1573021147247573e-13, "u": 8.983092047998298e-13, "all_states": 1.9509394100225563e-13}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 19, alg. depth: 1, loop depth: 3, runtime: 0.090ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 25, alg. depth: 1, loop depth: 3, runtime: 0.971ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.3s | 312.9 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 7620.7 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 10824.4 it/s
+08:22:01 - INFO - ############--------  60% | 0.1s<0.0s | 8951.7 it/s
+08:22:01 - INFO - ################----  80% | 0.1s<0.0s | 8716.3 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 97.62 ms)
+{"case": "dynamic_output_feedback_y_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 1.078998002057574e-13, "u": 8.990586053414518e-13, "all_states": 2.6367796834847468e-15}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 19, alg. depth: 1, loop depth: 3, runtime: 0.091ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 25, alg. depth: 1, loop depth: 3, runtime: 0.084ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.2s | 482.2 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 6820.0 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 10435.5 it/s
+08:22:01 - INFO - ############--------  60% | 0.1s<0.0s | 8361.9 it/s
+08:22:01 - INFO - ################----  80% | 0.1s<0.0s | 8470.6 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 98.74 ms)
+{"case": "dynamic_output_feedback_y_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 1.078998002057574e-13, "u": 8.990586053414518e-13, "all_states": 2.6367796834847468e-15}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 19, alg. depth: 1, loop depth: 3, runtime: 0.085ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 25, alg. depth: 1, loop depth: 3, runtime: 0.086ms)
+08:22:01 - INFO - --------------------   4% | 0.0s<0.2s | 142.2 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.1s | 213.2 it/s
+08:22:01 - INFO - ########------------  41% | 0.0s<0.1s | 237.2 it/s
+08:22:01 - INFO - ############--------  62% | 0.1s<0.0s | 273.9 it/s
+08:22:01 - INFO - ################----  83% | 0.1s<0.0s | 344.0 it/s
+08:22:01 - INFO - #################### 100% | 0.1s<--:-- | 374.2 it/s
+08:22:01 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 89.02 ms)
+{"case": "dynamic_output_feedback_y_positive", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 3.976263762694998e-13, "u": 1.2730094756108201e-12, "all_states": 3.360645095540349e-13}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:01 - INFO - LOGGING (log: True)
+08:22:01 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 8, edges: 19, alg. depth: 1, loop depth: 3, runtime: 0.088ms)
+08:22:01 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:01 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:01 - INFO - GRAPH (nodes: 9, edges: 25, alg. depth: 1, loop depth: 3, runtime: 0.088ms)
+08:22:01 - INFO - --------------------   1% | 0.0s<0.2s | 381.8 it/s
+08:22:01 - INFO - ####----------------  20% | 0.0s<0.0s | 7652.9 it/s
+08:22:01 - INFO - ########------------  40% | 0.0s<0.0s | 9982.4 it/s
+08:22:01 - INFO - ############--------  60% | 0.1s<0.0s | 9321.7 it/s
+08:22:02 - INFO - ################----  80% | 0.1s<0.0s | 8415.6 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 99.59 ms)
+{"case": "dynamic_output_feedback_y_positive", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 1.5323853297388723e-13, "u": 1.2765899448652362e-12, "all_states": 4.440892098500626e-15}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 19, alg. depth: 1, loop depth: 3, runtime: 0.089ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 25, alg. depth: 1, loop depth: 3, runtime: 0.084ms)
+08:22:02 - INFO - --------------------   1% | 0.0s<0.2s | 400.4 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 7261.1 it/s
+08:22:02 - INFO - ########------------  40% | 0.0s<0.0s | 11353.5 it/s
+08:22:02 - INFO - ############--------  60% | 0.1s<0.0s | 10464.3 it/s
+08:22:02 - INFO - ################----  80% | 0.1s<0.0s | 7869.7 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 92.31 ms)
+{"case": "dynamic_output_feedback_y_positive", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 1.5323853297388723e-13, "u": 1.2765899448652362e-12, "all_states": 4.440892098500626e-15}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 19, alg. depth: 1, loop depth: 3, runtime: 0.087ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 25, alg. depth: 1, loop depth: 3, runtime: 0.083ms)
+08:22:02 - INFO - --------------------   4% | 0.0s<0.2s | 95.3 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.1s | 192.3 it/s
+08:22:02 - INFO - ########------------  41% | 0.0s<0.1s | 246.1 it/s
+08:22:02 - INFO - ############--------  62% | 0.1s<0.0s | 287.3 it/s
+08:22:02 - INFO - ################----  83% | 0.1s<0.0s | 294.1 it/s
+08:22:02 - INFO - #################### 100% | 0.1s<--:-- | 307.9 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 96.56 ms)
+{"case": "dynamic_error_feedback_e_negative", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 7.9432987964978e-14, "u": 8.193515310672694e-13, "all_states": 1.9229062786507711e-13}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 19, alg. depth: 1, loop depth: 3, runtime: 0.386ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 25, alg. depth: 1, loop depth: 3, runtime: 0.088ms)
+08:22:02 - INFO - --------------------   1% | 0.0s<0.5s | 183.3 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 7619.7 it/s
+08:22:02 - INFO - ########------------  40% | 0.0s<0.0s | 11294.7 it/s
+08:22:02 - INFO - ############--------  60% | 0.1s<0.0s | 10134.7 it/s
+08:22:02 - INFO - ################----  80% | 0.1s<0.0s | 8554.1 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 102.61 ms)
+{"case": "dynamic_error_feedback_e_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 1.0067988109874193e-13, "u": 8.338607582203394e-13, "all_states": 2.55351295663786e-15}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 19, alg. depth: 1, loop depth: 3, runtime: 0.089ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 25, alg. depth: 1, loop depth: 3, runtime: 0.090ms)
+08:22:02 - INFO - --------------------   1% | 0.0s<0.5s | 183.6 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 7287.3 it/s
+08:22:02 - INFO - ########------------  40% | 0.0s<0.0s | 11322.2 it/s
+08:22:02 - INFO - ############--------  60% | 0.1s<0.0s | 9124.8 it/s
+08:22:02 - INFO - ################----  80% | 0.1s<0.0s | 7848.5 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 102.01 ms)
+{"case": "dynamic_error_feedback_e_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 1.0067988109874193e-13, "u": 8.338607582203394e-13, "all_states": 2.55351295663786e-15}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 20, alg. depth: 1, loop depth: 4, runtime: 0.092ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 3.00s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 26, alg. depth: 1, loop depth: 4, runtime: 0.089ms)
+08:22:02 - INFO - --------------------   4% | 0.0s<0.1s | 168.1 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 764.1 it/s
+08:22:02 - INFO - ########------------  41% | 0.0s<0.0s | 1123.6 it/s
+08:22:02 - INFO - ############--------  62% | 0.0s<0.0s | 955.7 it/s
+08:22:02 - INFO - ################----  83% | 0.0s<0.0s | 1210.8 it/s
+08:22:02 - INFO - #################### 100% | 0.0s<--:-- | 1192.9 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 28.54 ms)
+{"case": "dynamic_two_dof_yr_negative", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 1.2484457911909885e-13, "u": 1.0415140971886672e-12, "all_states": 2.2613855232833657e-14}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 20, alg. depth: 1, loop depth: 4, runtime: 0.094ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 3.00s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 26, alg. depth: 1, loop depth: 4, runtime: 0.094ms)
+08:22:02 - INFO - --------------------   1% | 0.0s<0.3s | 310.4 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 8730.0 it/s
+08:22:02 - INFO - ########------------  40% | 0.0s<0.0s | 12289.4 it/s
+08:22:02 - INFO - ############--------  60% | 0.0s<0.0s | 10527.0 it/s
+08:22:02 - INFO - ################----  80% | 0.0s<0.0s | 9873.3 it/s
+08:22:02 - INFO - #################### 100% | 0.0s<--:-- | 8905.2 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 34.44 ms)
+{"case": "dynamic_two_dof_yr_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 1.2501111257279263e-13, "u": 1.041895736353382e-12, "all_states": 1.5265566588595902e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 20, alg. depth: 1, loop depth: 4, runtime: 0.091ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 3.00s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 26, alg. depth: 1, loop depth: 4, runtime: 0.087ms)
+08:22:02 - INFO - --------------------   1% | 0.0s<0.3s | 318.4 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 8588.6 it/s
+08:22:02 - INFO - ########------------  40% | 0.0s<0.0s | 11091.7 it/s
+08:22:02 - INFO - ############--------  60% | 0.0s<0.0s | 8782.0 it/s
+08:22:02 - INFO - ################----  80% | 0.0s<0.0s | 9947.8 it/s
+08:22:02 - INFO - #################### 100% | 0.0s<--:-- | 8444.3 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 34.52 ms)
+{"case": "dynamic_two_dof_yr_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 1.2501111257279263e-13, "u": 1.041895736353382e-12, "all_states": 1.5265566588595902e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 20, alg. depth: 1, loop depth: 4, runtime: 0.090ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 3.00s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 26, alg. depth: 1, loop depth: 4, runtime: 0.089ms)
+08:22:02 - INFO - --------------------   4% | 0.0s<0.1s | 170.3 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 763.4 it/s
+08:22:02 - INFO - ########------------  41% | 0.0s<0.0s | 1130.1 it/s
+08:22:02 - INFO - ############--------  62% | 0.0s<0.0s | 944.9 it/s
+08:22:02 - INFO - ################----  83% | 0.0s<0.0s | 1213.1 it/s
+08:22:02 - INFO - #################### 100% | 0.0s<--:-- | 1225.1 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 28.74 ms)
+{"case": "dynamic_two_dof_ry_negative", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 1.2484457911909885e-13, "u": 1.041521036082571e-12, "all_states": 2.2613855232833657e-14}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 20, alg. depth: 1, loop depth: 4, runtime: 0.360ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 3.00s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 26, alg. depth: 1, loop depth: 4, runtime: 0.118ms)
+08:22:02 - INFO - --------------------   1% | 0.0s<0.3s | 309.5 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 8680.7 it/s
+08:22:02 - INFO - ########------------  40% | 0.0s<0.0s | 12272.6 it/s
+08:22:02 - INFO - ############--------  60% | 0.0s<0.0s | 10543.5 it/s
+08:22:02 - INFO - ################----  80% | 0.0s<0.0s | 10112.6 it/s
+08:22:02 - INFO - #################### 100% | 0.0s<--:-- | 9085.1 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 34.73 ms)
+{"case": "dynamic_two_dof_ry_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 1.2501111257279263e-13, "u": 1.0418818585655742e-12, "all_states": 1.5265566588595902e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 20, alg. depth: 1, loop depth: 4, runtime: 0.091ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 3.00s)
+08:22:02 - INFO - BLOCKS (total: 9, dynamic: 0, static: 9, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 9, edges: 26, alg. depth: 1, loop depth: 4, runtime: 0.088ms)
+08:22:02 - INFO - --------------------   1% | 0.0s<0.3s | 311.0 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 8778.4 it/s
+08:22:02 - INFO - ########------------  40% | 0.0s<0.0s | 12445.2 it/s
+08:22:02 - INFO - ############--------  60% | 0.0s<0.0s | 11348.9 it/s
+08:22:02 - INFO - ################----  80% | 0.0s<0.0s | 9222.4 it/s
+08:22:02 - INFO - #################### 100% | 0.0s<--:-- | 8871.4 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 33.75 ms)
+{"case": "dynamic_two_dof_ry_negative", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 1.2501111257279263e-13, "u": 1.0418818585655742e-12, "all_states": 1.5265566588595902e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 7, dynamic: 0, static: 7, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 7, edges: 12, alg. depth: 1, loop depth: 3, runtime: 0.070ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 16, alg. depth: 1, loop depth: 3, runtime: 0.066ms)
+08:22:02 - INFO - --------------------   4% | 0.0s<0.1s | 326.2 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 491.8 it/s
+08:22:02 - INFO - ########------------  41% | 0.0s<0.0s | 589.4 it/s
+08:22:02 - INFO - ############--------  62% | 0.0s<0.0s | 707.3 it/s
+08:22:02 - INFO - ################----  83% | 0.0s<0.0s | 754.6 it/s
+08:22:02 - INFO - #################### 100% | 0.0s<--:-- | 931.2 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 24, successful: 24, runtime: 38.97 ms)
+{"case": "dynamic_zero_state", "step_divisor": 1, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 25, "max_abs_errors": {"y": 3.931160952319601e-13, "u": 9.011125179370083e-13, "all_states": 3.2893132662081825e-13}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": false, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 7, dynamic: 0, static: 7, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 7, edges: 12, alg. depth: 1, loop depth: 3, runtime: 0.075ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 16, alg. depth: 1, loop depth: 3, runtime: 0.095ms)
+08:22:02 - INFO - --------------------   1% | 0.0s<0.1s | 649.7 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 10879.2 it/s
+08:22:02 - INFO - ########------------  40% | 0.0s<0.0s | 14185.7 it/s
+08:22:02 - INFO - ############--------  60% | 0.0s<0.0s | 14107.5 it/s
+08:22:02 - INFO - ################----  80% | 0.0s<0.0s | 12458.7 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 39.40 ms)
+{"case": "dynamic_zero_state", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": false, "samples": 97, "max_abs_errors": {"y": 1.1324274851176597e-13, "u": 9.431622149946861e-13, "all_states": 1.249000902703301e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}
+08:22:02 - INFO - LOGGING (log: True)
+08:22:02 - INFO - BLOCKS (total: 7, dynamic: 0, static: 7, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 7, edges: 12, alg. depth: 1, loop depth: 3, runtime: 0.074ms)
+08:22:02 - INFO - STARTING -> TRANSIENT (Duration: 0.72s)
+08:22:02 - INFO - BLOCKS (total: 8, dynamic: 0, static: 8, eventful: 1)
+08:22:02 - INFO - GRAPH (nodes: 8, edges: 16, alg. depth: 1, loop depth: 3, runtime: 0.066ms)
+08:22:02 - INFO - --------------------   1% | 0.0s<0.1s | 800.5 it/s
+08:22:02 - INFO - ####----------------  20% | 0.0s<0.0s | 9935.9 it/s
+08:22:02 - INFO - ########------------  40% | 0.0s<0.0s | 15456.9 it/s
+08:22:02 - INFO - ############--------  60% | 0.0s<0.0s | 14191.9 it/s
+08:22:02 - INFO - ################----  80% | 0.0s<0.0s | 12280.1 it/s
+08:22:02 - INFO - FINISHED -> TRANSIENT (total steps: 96, successful: 96, runtime: 39.62 ms)
+{"case": "dynamic_zero_state", "step_divisor": 4, "solver": "RKCK54", "adaptive": false, "graph_order_reversed": true, "samples": 97, "max_abs_errors": {"y": 1.1324274851176597e-13, "u": 9.431622149946861e-13, "all_states": 1.249000902703301e-16}, "error_limit": 1e-10, "clock_boundary_time_tolerance": 1e-10, "initial_state_preserved": true, "zero_order_hold_checked": true, "passed": true}

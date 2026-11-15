@@ -13,6 +13,7 @@ Cobre:
 from __future__ import annotations
 
 import json
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,7 @@ from control_lab.core import (
     array_to_tensor,
     dispatch,
     interconnect,
+    tensor_to_array,
 )
 from control_lab.diagnostics import Result, ValidationError, strict_json_loads
 
@@ -839,13 +841,59 @@ def test_rpc_multidomain_operations_dispatch_real_engines(
     assert r_lp_solve["status"] in ("success", "warning")
     assert np.isclose(r_lp_solve["result"]["objective"], 1.0, atol=1e-7)
 
-    # optimization.solve com LMI não diagonal sem Clarabel -> falha honesta SOLVER_UNAVAILABLE
-    r_sdp_unavail = dispatch(
-        _make_req(
-            "optimization.solve",
-            {"plant": ss.to_dict(), "template": "quadratic_stabilization"},
-        )
-    )
-    _validate_schema(r_sdp_unavail, "rpc_response.schema.json", schema_registry)
-    assert r_sdp_unavail["status"] == "failure"
-    assert r_sdp_unavail["error"]["code"] == "SOLVER_UNAVAILABLE"
+
+
+@pytest.mark.parametrize("case_id", ["T-SDP-B1", "T-SDP-D1"])
+def test_rpc_auto_sdp_against_real_backend_profile(
+    case_id: str, schema_registry: tuple[Registry, dict[str, dict[str, Any]]],
+) -> None:
+    fixture = json.loads((FIXTURES_DIR / "B-SDP-A-D.json").read_text(encoding="utf-8"))
+    case = fixture["data"]["cases"][case_id]
+    tolerances = fixture["tolerances"]
+    if case_id == "T-SDP-B1":
+        problem = {"canonical_sdp": case["canonical_sdp"]}
+    else:
+        problem = {
+            "template": "quadratic_stabilization",
+            **{key: case[key] for key in ("A", "B", "alpha", "feedback_sign")},
+        }
+
+    response = dispatch(_make_req("optimization.solve", problem))
+    _validate_schema(response, "rpc_response.schema.json", schema_registry)
+    # Both production SDP backends require Clarabel. Determine the profile
+    # independently of the dispatcher, so broken backend discovery fails the test.
+    if find_spec("clarabel") is None:
+        assert response["status"] == "failure"
+        assert response["error"]["code"] == "SOLVER_UNAVAILABLE"
+        assert response["result"] is None
+        return
+
+    assert response["status"] == "success", response["error"]
+    result = response["result"]
+    assert result["solver_status"] == "optimal"
+    solution = {key: result[key] for key in ("solver_status", "x", "dual_Z")}
+    audited = dispatch(_make_req("optimization.verify", {**problem, "solution": solution}))
+    _validate_schema(audited, "rpc_response.schema.json", schema_registry)
+    assert audited["status"] == "success", audited["error"]
+    assert audited["assumptions"]["independent_audit"] is True
+    audit = audited["result"]
+    assert audit["certificate_status"] == result["certificate_status"] == "validated_dual"
+    residuals = audit["residuals"]
+    assert max(residuals["primal_block_violations_rel"]) <= tolerances["primal_tol"]
+    assert min(residuals["dual_block_min_eigs"]) >= -tolerances["psd_tol"]
+    assert residuals["dual_stationarity_rel"] <= tolerances["dual_tol"]
+    assert residuals["duality_gap_rel"] <= tolerances["gap_tol"]
+
+    if case_id == "T-SDP-B1":
+        expected = case["expected"]
+        assert audit["audit_feasibility"] == expected["audit_feasibility"]
+        np.testing.assert_allclose(tensor_to_array(result["x"]), expected["x_opt"],
+                                   atol=tolerances["primal_tol"], rtol=0)
+        assert abs(result["objective"] - expected["obj_opt"]) <= tolerances["primal_tol"]
+    else:
+        q = tensor_to_array(audit["variables"]["Q"])
+        y = tensor_to_array(audit["variables"]["Y"])
+        assert np.linalg.eigvalsh(q).min() > 0
+        gain = np.linalg.solve(q.T, y.T).T
+        closed_loop = tensor_to_array(case["A"]) + tensor_to_array(case["B"]) @ gain
+        assert np.max(np.linalg.eigvals(closed_loop).real) < -case["alpha"]

@@ -71,6 +71,10 @@ SUPPORTED_OPERATIONS: frozenset[str] = frozenset(
         "worker.get_stats",
         "core.capabilities",
         "rpc.capabilities",
+        "io.export_ctrlab",
+        "io.import_ctrlab",
+        "io.export_pvm",
+        "io.import_pvm",
         "core.interconnect",
         "core.validate_interconnection",
         "statespace.design_lqr",
@@ -1834,7 +1838,21 @@ def _handle_optimization(req: dict[str, Any], store: Any) -> dict[str, Any]:
     )
 
 
+def _handle_file(req: dict[str, Any], store: Any) -> dict[str, Any]:
+    from control_lab.io.rpc import dispatch_file
+
+    result = dispatch_file(req["operation"], req["payload"], req["project_id"], req["project_revision"])
+    return _result_to_rpc_response(
+        result, request_id=req["request_id"], project_id=req["project_id"],
+        project_revision=req["project_revision"], fallback_algorithm=req["operation"],
+    )
+
+
 _DISPATCH_TABLE = {
+    "io.export_ctrlab": _handle_file,
+    "io.import_ctrlab": _handle_file,
+    "io.export_pvm": _handle_file,
+    "io.import_pvm": _handle_file,
     "worker.ping": _handle_worker_ping,
     "rpc.ping": _handle_worker_ping,
     "worker.get_stats": _handle_capabilities,

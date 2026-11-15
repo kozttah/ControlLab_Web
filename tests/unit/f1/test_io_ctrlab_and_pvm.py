@@ -15,8 +15,10 @@ Cobre obrigatoriamente:
 
 from __future__ import annotations
 
+import base64
 import builtins
 import copy
+import hashlib
 import io
 import json
 import math
@@ -41,6 +43,7 @@ from control_lab.core import (
     StateSpace,
     TSStateSpace,
     TransferFunction,
+    dispatch,
     interconnect,
     restore_model,
     serialize_model,
@@ -1549,3 +1552,111 @@ def test_regression_obs_f1_io_01_wiring_ndarray_and_zero_state_statespace(
     )
 
 
+
+
+def _file_request(operation, payload):
+    return {
+        "api_version": "1.0", "request_id": "io-test", "project_id": "proj-a", "project_revision": 3,
+        "operation": operation, "payload": payload, "options": {}, "timeout_policy": {"hard_timeout_ms": 10000},
+    }
+
+
+def _file_call(operation, payload, result_schema, schema_registry):
+    req = _file_request(operation, payload)
+    _assert_schema_valid(req, "io_rpc.schema.json", schema_registry)
+    response = dispatch(req)
+    _assert_schema_valid(response, "rpc_response.schema.json", schema_registry)
+    assert response["status"] in ("success", "warning"), response["error"]
+    registry, schemas = schema_registry
+    ref = schemas["io_rpc.schema.json"]["$id"] + "#/$defs/" + result_schema
+    Draft202012Validator({"$ref": ref}, registry=registry).validate(response["result"])
+    return response
+
+
+@pytest.mark.parametrize("controller_index", [0, 1], ids=["T-PVM-01", "T-PVM-02"])
+def test_file_rpc_pvm_official_bytes_and_passive_import(controller_index, schema_registry):
+    items = _make_full_project_items()
+    plant, controller = items["models"][0], items["controllers"][controller_index]
+    scenario = {"initial_state": [0.25, 0.0]}
+    expected = export_pvm(plant, controller, scenario)
+    response = _file_call("io.export_pvm", {
+        "plant": serialize_model(plant), "controller": serialize_model(controller), "scenario": scenario,
+    }, "FileBytes", schema_registry)
+    assert response["status"] == expected.status
+    assert response["diagnostics"] == expected.diagnostics
+    assert [w["code"] for w in response["warnings"]] == [w.code for w in expected.warnings]
+    file = response["result"]
+    raw = base64.b64decode(file["bytes_base64"], validate=True)
+    assert raw == expected.data["pvm_json"].encode("utf-8")
+    assert (file["sha256"], file["size_bytes"], file["media_type"]) == (
+        hashlib.sha256(raw).hexdigest(), len(raw), "application/json"
+    )
+    # T-IO-02: an inert comment in an external document remains passive data.
+    document = json.loads(raw)
+    document["codeContext"]["code"] = "# marcador inerte"
+    imported = _file_call("io.import_pvm", {
+        "bytes_base64": base64.b64encode(json.dumps(document).encode()).decode(),
+    }, "ImportedPvm", schema_registry)
+    assert imported["result"]["pvm"] == document
+    assert imported["diagnostics"]["code_executed"] is False
+    assert "UNTRUSTED_CODE_CONTEXT_IGNORED" in [w["code"] for w in imported["warnings"]]
+
+
+def test_file_rpc_ctrlab_official_zip_and_verified_import(schema_registry):
+    items = _make_full_project_items()
+    collections = ("models", "controllers", "experiments")
+    project = {key: [serialize_model(obj) for obj in items[key]] for key in collections}
+    project["provenance"] = {"algorithm": "LQR", "model_revision": 2}
+    project["plots"] = {"response.png": {"bytes_base64": "AAECAw=="}}
+    expected = export_ctrlab_bytes(project_id="proj-a", project_revision=3,
+                                   provenance=project["provenance"], plots={"response.png": bytes(range(4))},
+                                   **{key: items[key] for key in collections})
+    exported = _file_call("io.export_ctrlab", {"project": project}, "FileBytes", schema_registry)
+    file = exported["result"]
+    raw = base64.b64decode(file["bytes_base64"], validate=True)
+    assert raw == expected
+    assert (file["sha256"], file["size_bytes"], file["media_type"]) == (
+        hashlib.sha256(raw).hexdigest(), len(raw), "application/zip"
+    )
+    imported = _file_call("io.import_ctrlab", {"bytes_base64": file["bytes_base64"]},
+                          "ImportedCtrlab", schema_registry)
+    for key in collections:
+        assert imported["result"][key] == project[key]
+    assert imported["result"]["manifest"]["provenance"] == project["provenance"]
+    assert imported["result"]["artifacts"]["artifacts/plots/response.png"]["base64"] == "AAECAw=="
+    assert imported["diagnostics"]["hashes_verified"] is True
+    assert imported["assumptions"]["disk_extraction"] is False
+    # T-IO-01: a modified ZIP member fails integrity checks on the RPC route.
+    changed = _rewrite_zip_with_modified_entry(raw, "models.json", b"{}")
+    failure = dispatch(_file_request("io.import_ctrlab", {
+        "bytes_base64": base64.b64encode(changed).decode(),
+    }))
+    assert failure["status"] == "failure"
+    assert failure["result"] is None
+    assert failure["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.parametrize(("operation", "payload"), [
+    ("io.import_pvm", {"path": "project.pvm"}),
+    ("io.import_ctrlab", {"bytes_base64": "not base64!"}),
+    ("io.export_ctrlab", {"project": {"project_revision": 4}}),
+    ("io.export_ctrlab", {"project": {}, "output_path": "project.ctrlab"}),
+])
+def test_file_rpc_invalid_payload_has_typed_error(operation, payload):
+    response = dispatch(_file_request(operation, payload))
+    assert response["status"] == "failure"
+    assert response["result"] is None
+    assert response["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.parametrize("raw", [b"12345", b"1234567"])
+def test_file_rpc_bounds_base64_before_parser(raw, monkeypatch):
+    # With a four-byte cap, five bytes have the same encoded length as four.
+    from control_lab.io import rpc as io_rpc
+
+    monkeypatch.setattr(io_rpc, "DEFAULT_MAX_PVM_BYTES", 4)
+    response = dispatch(_file_request("io.import_pvm", {
+        "bytes_base64": base64.b64encode(raw).decode(),
+    }))
+    assert response["error"]["code"] == "RESOURCE_LIMIT"
+    assert response["result"] is None

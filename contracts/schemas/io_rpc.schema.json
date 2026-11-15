@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://controllab-web.local/schemas/v1.0.0/io_rpc.schema.json",
+  "title": "ControlLab file I/O requests, RPC 1.0",
+  "description": "Use the common rpc_response.schema.json envelope. On success or warning its result follows FileBytes, ImportedPvm or ImportedCtrlab below according to the operation. On failure result is null and error is typed. Keep native diagnostics, warnings and provenance.",
+  "allOf": [
+    {"$ref": "rpc_request.schema.json"},
+    {"oneOf": [
+      {"properties": {"operation": {"const": "io.export_pvm"}, "payload": {"$ref": "#/$defs/PvmExport"}}},
+      {"properties": {"operation": {"const": "io.export_ctrlab"}, "payload": {"$ref": "#/$defs/CtrlabExport"}}},
+      {"properties": {"operation": {"enum": ["io.import_pvm", "io.import_ctrlab"]}, "payload": {"$ref": "#/$defs/ImportBytes"}}}
+    ]}
+  ],
+  "$defs": {
+    "PvmExport": {
+      "type": "object", "required": ["plant"], "additionalProperties": false,
+      "properties": {
+        "plant": {"$ref": "state_space.schema.json"},
+        "controller": {"oneOf": [{"$ref": "controller.schema.json"}, {"type": "null"}]},
+        "scenario": {"type": "object"}, "name": {"type": "string", "minLength": 1},
+        "target_spec_version": {"const": "1.0.0"}
+      }
+    },
+    "CtrlabExport": {
+      "type": "object", "required": ["project"], "additionalProperties": false,
+      "properties": {"project": {
+        "type": "object", "additionalProperties": false,
+        "description": "Identity defaults to the RPC envelope and must match it if supplied. Models, controllers and experiments are canonical serialized objects. Dataset entries are CSV text, plots are text or objects carrying bytes_base64, exports are serialized text or PVM documents.",
+        "properties": {
+          "project_id": {"type": "string", "minLength": 1}, "project_revision": {"type": "integer", "minimum": 0},
+          "models": {"$ref": "#/$defs/Objects"}, "controllers": {"$ref": "#/$defs/Objects"}, "experiments": {"$ref": "#/$defs/Objects"},
+          "provenance": {"type": "object"},
+          "created_at": {"type": "string"}, "modified_at": {"type": ["string", "null"]},
+          "datasets": {"type": "object", "additionalProperties": {"type": "string"}},
+          "plots": {"type": "object", "additionalProperties": {"oneOf": [{"type": "string"}, {"$ref": "#/$defs/ImportBytes"}]}},
+          "exports": {"type": "object", "additionalProperties": {"type": ["object", "string"]}}
+        }
+      }}
+    },
+    "Objects": {"type": "array", "items": {"type": "object"}},
+    "ImportBytes": {
+      "type": "object", "required": ["bytes_base64"], "additionalProperties": false,
+      "properties": {"bytes_base64": {"type": "string", "minLength": 1, "contentEncoding": "base64"}}
+    },
+    "FileBytes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["bytes_base64", "sha256", "size_bytes", "media_type"],
+      "properties": {
+        "bytes_base64": {"type": "string", "contentEncoding": "base64", "minLength": 1},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "media_type": {"enum": ["application/json", "application/zip"]}
+      }
+    },
+    "ImportedPvm": {
+      "type": "object", "required": ["pvm", "summary", "code_executed"],
+      "properties": {"pvm": {"$ref": "pvm.schema.json"}, "summary": {"type": "object"}, "code_executed": {"const": false}}
+    },
+    "ImportedCtrlab": {
+      "type": "object", "required": ["manifest", "models", "controllers", "experiments", "datasets", "artifacts", "exports", "code_executed"],
+      "properties": {
+        "manifest": {"$ref": "ctrlab_manifest.schema.json"},
+        "models": {"$ref": "#/$defs/Objects"}, "controllers": {"$ref": "#/$defs/Objects"}, "experiments": {"$ref": "#/$defs/Objects"},
+        "datasets": {"type": "object"}, "artifacts": {"type": "object"}, "exports": {"type": "object"}, "code_executed": {"const": false}
+      }
+    }
+  }
+}

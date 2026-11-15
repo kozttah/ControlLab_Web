@@ -11,7 +11,7 @@
     "history": {
       "2026-11-13": 6,
       "2026-11-14": 12,
-      "2026-11-15": 5
+      "2026-11-15": 6
     }
   },
   "audit_reference": {
@@ -329,8 +329,8 @@
         "T-PVM-01",
         "T-PVM-02"
       ],
-      "status": "PENDING",
-      "f9_review": "pending",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
       "priority": "MAXIMUM_AUDIT2",
       "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
       "supports_findings": [
@@ -338,7 +338,9 @@
         "AUD-020",
         "AUD-021"
       ],
-      "contract_review": "F1 propõe; F9 aprova antes do consumo F8"
+      "contract_review": "F1 propõe; F9 aprova antes do consumo F8",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT2-FIX-F1-IO-RPC.md",
+      "acceptance_scope": "cpython_local_only"
     },
     {
       "wp_id": "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",

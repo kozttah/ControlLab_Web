@@ -11,7 +11,7 @@
     "history": {
       "2026-11-13": 6,
       "2026-11-14": 12,
-      "2026-11-15": 6
+      "2026-11-15": 7
     }
   },
   "audit_reference": {
@@ -370,15 +370,16 @@
         "T-PVM-01",
         "T-IO-02"
       ],
-      "status": "PENDING",
-      "f9_review": "pending",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
       "priority": "MAXIMUM_AUDIT2",
       "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
-      "acceptance_scope": "Contenção honesta: bloquear artefato inseguro; não equivale ao fechamento integrado AUD-020/021",
+      "acceptance_scope": "containment_only",
       "acceptance_requirements": [
         "ID CR/LF/aspas/Unicode não introduz instrução Python",
         "Sem copiar lowering científico para TypeScript"
-      ]
+      ],
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT2-FIX-F8-CONTAIN-EXPORT.md"
     },
     {
       "wp_id": "WP-AUDIT2-FIX-F8-NATIVE-IO",

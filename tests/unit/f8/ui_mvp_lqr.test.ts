@@ -309,19 +309,7 @@ test("T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no point
     const gainsExport = shell.exportGains();
     assert.equal(gainsExport.project_revision, 2);
     assert.equal(gainsExport.feedback_sign, "negative");
-    const pvmDoc = shell.exportPvm();
-    assert.equal(pvmDoc.version, "1.0.0");
-    assert.deepEqual(
-      Object.keys(pvmDoc).sort(),
-      ["codeContext", "events", "graph", "metadata", "simulationSettings", "version"],
-      "Raiz do .pvm deve seguir pvm.schema.json (additionalProperties: false)",
-    );
-    assert.equal(pvmDoc.metadata.external_pathview_verified, false);
-    assert.equal(pvmDoc.metadata.gate_pending, "G-0D");
-    assert.equal(pvmDoc.simulationSettings.solver, "RKCK54");
-    assert.equal(pvmDoc.simulationSettings.adaptive, true);
-    const scopeNode = pvmDoc.graph.nodes.find((n) => n.type === "Scope");
-    assert.ok(scopeNode, "Grafo .pvm deve incluir bloco Scope conectado à saída y");
+    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
     const ctrlabPkg = await shell.exportCtrlLab();
     assert.equal(ctrlabPkg.portable_snapshot.project_revision, 2);
 
@@ -339,7 +327,7 @@ test("T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no point
     assert.equal(committed12.provenance.fixture_id, "B-CARE-12x3");
     assert.deepEqual(committed12.K, f12.expected.K);
     assert.equal(lqr.canExport().allowed, true);
-    assert.ok(shell.exportPvm().graph.nodes.length > 0);
+    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
     assert.equal((await shell.exportCtrlLab()).portable_snapshot.project_revision, committed12.project_revision);
 
     shell.dispose();
@@ -1075,7 +1063,7 @@ test("F8-EXT-01: suporte explícito a m!=p (3 entradas, 4 saídas), C!=I, feedba
       shell.getEngineEventsLog().some((ev) => ev.type === "worker_recovered"),
     );
 
-    // Quando K explícito [3, 12] está presente no resultado para B-CARE-12x3, exportPvm e exportCtrlLab geram documentos completos válidos
+    // Um ganho confirmado mantém o bloqueio PVM e permite a exportação de projeto existente.
     const origExecExt = client.execute.bind(client);
     client.execute = async (req, opts) => {
       const resp = await origExecExt(req, opts);
@@ -1097,12 +1085,7 @@ test("F8-EXT-01: suporte explícito a m!=p (3 entradas, 4 saídas), C!=I, feedba
     };
     const committedWithK = await lqr.commitCurrentDesign();
     assert.ok(committedWithK?.K !== null);
-    const pvmExt = shell.exportPvm();
-    assert.equal(pvmExt.version, "1.0.0");
-    const stateFeedbackConn = pvmExt.graph.connections.find(
-      (c) => c.sourceNodeId === "node-plant" && c.sourcePortIndex === 1,
-    );
-    assert.ok(stateFeedbackConn, "Exportação .pvm deve conectar porta x explícita quando C != I");
+    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
     const ctrlabExt = await shell.exportCtrlLab();
     assert.equal(ctrlabExt.archive_layout.controllers.length, 1);
 
@@ -1177,7 +1160,7 @@ test("F8-EXT-02: contraste completo WCAG 2.2 AA, ToolDescriptor HTML (<select>/n
     assert.equal(analyzeRes.project_id, "proj-ext2");
     assert.equal(lqr.isPendingCommit(), false);
 
-    // .pvm para planta discreta usa solver Discrete e adaptive=false
+    // A contenção também se aplica ao modelo discreto.
     const discretePlant = validateCanonicalStateSpace({
       ...createDoubleIntegratorPlant(),
       id: "plant-discrete",
@@ -1186,10 +1169,7 @@ test("F8-EXT-02: contraste completo WCAG 2.2 AA, ToolDescriptor HTML (<select>/n
     });
     lqr.updatePlant(discretePlant);
     await lqr.commitCurrentDesign();
-    const pvmDisc = shell.exportPvm();
-    assert.equal(pvmDisc.simulationSettings.solver, "Discrete");
-    assert.equal(pvmDisc.simulationSettings.adaptive, false);
-    assert.equal(pvmDisc.simulationSettings.dt, "0.05");
+    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
 
     const report = shell.buildScientificReport();
     assert.equal(report.method, "dare");
@@ -1371,19 +1351,21 @@ test("F8-EXT-03: mountControlLabApp mantém identidade do slider durante pointer
     await new Promise((r) => setTimeout(r, 40));
 
     assert.equal(app.shell.getLqrWorkspace().isPendingCommit(), false);
-    assert.equal(exportPvmBtn.disabled, false);
-    assert.equal(exportPvmBtn.getAttribute("aria-disabled"), null);
+    assert.equal(exportPvmBtn.disabled, true);
+    assert.equal(exportPvmBtn.getAttribute("aria-disabled"), "true");
 
     // Abrir e fechar modal deve restaurar foco no botão disparador
-    exportPvmBtn.focus();
-    exportPvmBtn.dispatchEvent("click");
+    const exportGainsBtn = root.querySelector("#btn-export-gains");
+    assert.ok(exportGainsBtn);
+    exportGainsBtn.focus();
+    exportGainsBtn.dispatchEvent("click");
     assert.equal(modalEl.getAttribute("hidden"), null);
     assert.equal(app.shell.getOpenModalId(), "modal-export");
 
     modalCloseBtn.dispatchEvent("click");
     assert.equal(modalEl.getAttribute("hidden"), "true");
     assert.equal(app.shell.getOpenModalId(), null);
-    assert.strictEqual(doc.activeElement, exportPvmBtn);
+    assert.strictEqual(doc.activeElement, exportGainsBtn);
   } finally {
     app.destroy();
     store.close();
@@ -1491,27 +1473,8 @@ test("F8-EXT-04: aderência aos schemas (.ctrlab, StateFeedbackController, State
     }
     assert.equal(ctrlObj.kind, "StateFeedbackController");
 
-    // 3. Validação estrutural de .pvm (initial_state, expose_state, zero fan-in, posições distintas)
-    const pvmDoc = shell.exportPvm();
-    const seenPositions = new Set<string>();
-    const seenTargets = new Set<string>();
-    for (const node of pvmDoc.graph.nodes) {
-      const pos = node.position as { x: number; y: number };
-      const posKey = `${pos.x}:${pos.y}`;
-      assert.equal(seenPositions.has(posKey), false, `Sobreposição visual em ${posKey}`);
-      seenPositions.add(posKey);
-      if (node.type === "StateSpace") {
-        const params = node.params as Record<string, unknown>;
-        assert.ok(Array.isArray(params.initial_state));
-        assert.equal((params.initial_state as unknown[]).length, 12);
-        assert.equal(params.expose_state, true);
-      }
-    }
-    for (const conn of pvmDoc.graph.connections) {
-      const tgtKey = `${String(conn.targetNodeId)}:${String(conn.targetPortIndex)}`;
-      assert.equal(seenTargets.has(tgtKey), false, `Fan-in proibido em ${tgtKey}`);
-      seenTargets.add(tgtKey);
-    }
+    // 3. O download PVM incompatível permanece contido após commit.
+    assert.throws(() => shell.exportPvm(), { code: "UNSUPPORTED_MODEL" });
 
     // 4. exportChartCsv preserva precisão total mesmo com displayDecimals=2
     shell.setDisplayDecimals(2);
@@ -2082,3 +2045,29 @@ test("F8-EXT-06: B3.1 cancelDrag durante registerObject, B3.2 updateWeights inva
 
 
 
+
+
+test("AUD-020/021: a contenção impede documento PVM para metadados CR/LF, aspas e Unicode", async () => {
+  const { store, client } = createMockSetup();
+  await client.init();
+  const projectId = 'projeto\r\n"citação" Ω';
+  const shell = new ControlLabShell({ client, project_id: projectId });
+  try {
+    await shell.getLqrWorkspace().commitCurrentDesign();
+    assert.equal(shell.getLqrWorkspace().canExport().allowed, true);
+    assert.throws(() => shell.exportPvm(), (error: unknown) => {
+      assert.ok(error instanceof ControlLabBridgeError);
+      assert.equal(error.code, "UNSUPPORTED_MODEL");
+      assert.ok(error.message.includes("exportador canônico"));
+      return true;
+    });
+    const source = fs.readFileSync(path.join(__dirname, "../../../web/app/shell.ts"), "utf8");
+    assert.equal(source.includes("codeContext:"), false);
+    assert.equal(source.includes('type: "MatrixGain"'), false);
+    assert.equal(source.includes("reshapeRowMajor"), false);
+  } finally {
+    shell.dispose();
+    client.dispose();
+    store.close();
+  }
+});

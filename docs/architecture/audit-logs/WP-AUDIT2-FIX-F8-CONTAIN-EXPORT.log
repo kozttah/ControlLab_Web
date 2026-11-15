@@ -1,0 +1,69 @@
+d98eba61aafbd13a4fbc0e95093c5a6d6db88fdb
+ M tests/unit/f8/ui_mvp_lqr.test.ts
+ M web/app/main.ts
+ M web/app/shell.ts
+?? docs/architecture/audit-logs/WP-AUDIT2-FIX-F8-CONTAIN-EXPORT.log
+web/app/main.ts 43842c83f2aaba2f77255729951ee9cd554a2507
+web/app/shell.ts 2d5037c275efb969a7511c17385b6a95fbf8e3b1
+tests/unit/f8/ui_mvp_lqr.test.ts c181c5fcb4f1c29f39228e099c0acd6961a74309
+Linux 6.18.57 x86_64
+v24.22.1
+11.9.0
+Version 5.8.3
+npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8
+
+> controllab-web@1.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+[run_web_tests] Executando typecheck (f8, 10 arquivo(s) TS)...
+[typecheck] PASS (f8, 10 arquivo(s) TS)
+[run_web_tests] Executando 1 arquivo(s) de teste com node --test...
+✔ T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava em IndexedDB nem libera exportação; pointerup exige pending_commit e comita fixture, sem prova Wasm (80.63848ms)
+✔ UI Node: Pyodide sem worker explícito falha e não permite commit/exportação (1.201452ms)
+✔ Concorrência, cancelamento (Escape), blur, troca de aba, undo, model_revision e 12 categorias de erro (147.978546ms)
+✔ ToolDescriptor: descoberta dinâmica sem alterar roteamento global e selos stable/beta/experimental/unavailable_wasm (3.301787ms)
+✔ test_tool_descriptor_unlisted_operation_and_typecheck (1.810676ms)
+✔ UI Node/adapter explícito: resposta inconclusive não vira snapshot nem libera exportação (2.003752ms)
+✔ Bootstrap Node: contrato de URLs de build e registro SW module, sem prova offline (0.385172ms)
+✔ Overlays semânticos (exact/sufficient/heuristic/estimated) e gráficos com valores repetidos + tabela acessível (2.689359ms)
+✔ WCAG 2.2 AA: contraste (>=4.5:1 / >=3.0:1), toque >=44px, teclado, FocusRestorer, AriaLive, decimais sem mutação e relatório R-27 (3.426463ms)
+✔ UI Node: adapter F7 bruto 12x3 com ref não resolvível falha fechado antes de persistir (2.593067ms)
+✔ Guard arquitetural distingue imports Python de URLs wheel (0.264723ms)
+✔ Auditoria F8: web/{app,charts,features} não importam Python, Node globals nem duplicam síntese CARE/Riccati (2.228896ms)
+✔ F8-EXT-01: suporte explícito a m!=p (3 entradas, 4 saídas), C!=I, feedback_sign positivo, ciclo de vida e buffers transferíveis (69.64191ms)
+✔ F8-EXT-02: contraste completo WCAG 2.2 AA, ToolDescriptor HTML (<select>/number), teclado preservando Q, analyzeOpenLoop concorrente e .pvm discreto (86.613013ms)
+✔ F8-EXT-03: mountControlLabApp mantém identidade do slider durante pointermove, atualiza aria-disabled e restaura foco ao fechar modal (48.430928ms)
+✔ F8-EXT-04: aderência aos schemas (.ctrlab, StateFeedbackController, StateSpace, .pvm), contraste WCAG total, CSV alta precisão, teclado durante preview e DOM completo (26.534649ms)
+✔ F8-EXT-05: mountControlLabApp renderiza tabela temporal, painel R-27, comparador de experimentos e executa ferramenta auxiliar sem sobrescrever snapshot LQR (136.071354ms)
+✔ F8-EXT-06: B3.1 cancelDrag durante registerObject, B3.2 updateWeights invalida exportação, B3.4 x0 DIMENSION_MISMATCH, axis-ticks/chart-legend/borda 0+0j, textarea/shape_hint/simulate_lti e apply-plant/apply-weights/save-experiment em main.ts (54.760836ms)
+✔ AUD-020/021: a contenção impede documento PVM para metadados CR/LF, aspas e Unicode (2.043291ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 823.936383
+[unit-tests] PASS (f8, 1 arquivo(s) de teste)
+node --test tests/oracles/ui_remediation_independent.test.mjs
+✔ F9: unlisted operations stay unavailable despite catalog/runtime maturity (0.965662ms)
+✔ F9: required backend must be explicitly available (0.163092ms)
+✔ F9: browser catalog does not claim stable before Wasm gates (0.285123ms)
+✔ F9: preview/pending/failure never authorize export or persistence (8.401432ms)
+✔ F9: preview/pending/inconclusive never authorize export or persistence (1.663597ms)
+✔ F9: root HTML entry uses distributable JS and matching stylesheet location (0.394165ms)
+✔ F9: root and GitHub-prefix runtime URLs preserve module scope (0.914636ms)
+✔ F9: real F7 storage/export observes preview, pending and failure (8.587798ms)
+✔ F9: real F7 storage/export observes preview, pending and inconclusive (2.706424ms)
+✔ F9: real F7 storage/export observes preview, pending and success (5.394802ms)
+✔ F9: real F7 storage/export observes preview, pending and invalid_success (3.412031ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 182.15166
+Prova adicional facultativa Chromium via Playwright: inicialização encerrou antes de renderizar (process_singleton_posix socket(): Operation not permitted). Nenhum resultado de navegador computado no aceite.

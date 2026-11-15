@@ -177,7 +177,8 @@ export function mountControlLabApp(
     `<button type="button" class="touch-control" data-action="undo-lqr">Desfazer</button>`,
     `<button type="button" id="btn-reset-worker" class="touch-control" data-action="reset-worker">Reiniciar Worker</button>`,
     `<button type="button" id="btn-save-experiment" class="touch-control" data-action="save-experiment">Salvar no Comparador</button>`,
-    `<button type="button" id="btn-export-pvm" class="touch-control" data-action="export-pvm">Exportar .pvm</button>`,
+    `<button type="button" id="btn-export-pvm" class="touch-control" data-action="export-pvm" disabled aria-disabled="true" aria-describedby="pvm-export-notice">Exportar .pvm</button>
+    <span id="pvm-export-notice">Exportação .pvm indisponível até integração com o exportador canônico.</span>`,
     `<button type="button" id="btn-export-ctrlab" class="touch-control" data-action="export-ctrlab">Exportar .ctrlab</button>`,
     `<button type="button" id="btn-export-gains" class="touch-control" data-action="export-gains">Exportar Ganhos JSON</button>`,
     `<button type="button" id="btn-export-csv" class="touch-control" data-action="export-csv">Exportar CSV</button>`,
@@ -239,9 +240,14 @@ export function mountControlLabApp(
   const liveAssertiveEl = container.querySelector<HTMLElement>("#controllab-live-assertive");
   const tabButtons = Array.from(container.querySelectorAll<HTMLElement>('[role="tab"]'));
 
+  const pvmExportButton = container.querySelector<HTMLButtonElement>("#btn-export-pvm");
+  if (pvmExportButton) {
+    pvmExportButton.disabled = true;
+    pvmExportButton.setAttribute("aria-disabled", "true");
+  }
+
   const exportButtons = [
     container.querySelector<HTMLButtonElement>("#btn-save-experiment"),
-    container.querySelector<HTMLButtonElement>("#btn-export-pvm"),
     container.querySelector<HTMLButtonElement>("#btn-export-ctrlab"),
     container.querySelector<HTMLButtonElement>("#btn-export-gains"),
     container.querySelector<HTMLButtonElement>("#btn-export-csv"),
@@ -629,16 +635,7 @@ export function mountControlLabApp(
 
   container.querySelector<HTMLElement>('[data-action="export-pvm"]')?.addEventListener("click", (ev) => {
     try {
-      const pvm = shell.exportPvm();
-      openExportModal(
-        {
-          title: "Exportação PathView (.pvm v1.0.0)",
-          filename: `${pvm.metadata.name}.pvm`,
-          mimeType: "application/json",
-          content: JSON.stringify(pvm, null, 2),
-        },
-        ev.currentTarget as HTMLElement | null,
-      );
+      shell.exportPvm();
     } catch (err: unknown) {
       shell.presentError(err);
     }

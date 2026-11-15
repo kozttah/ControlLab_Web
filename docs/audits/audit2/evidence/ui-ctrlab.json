@@ -1,0 +1,242 @@
+{
+  "format": "controllab_ctrlab_export",
+  "schema_version": "1.0.0",
+  "portable_snapshot": {
+    "project_id": "audit2\nprint(\"AUDIT_METADATA_INJECTION\")\n#",
+    "project_revision": 0,
+    "content_hash": "accessor-probe",
+    "committed_result": {
+      "K": {
+        "shape": [
+          1,
+          2
+        ],
+        "dtype": "float64",
+        "order": "C",
+        "data": [
+          2.000000000000001,
+          3.0000000000000004
+        ]
+      },
+      "feedback_sign": "negative",
+      "project_id": "audit2\nprint(\"AUDIT_METADATA_INJECTION\")\n#",
+      "project_revision": 0,
+      "model_revision": 0,
+      "controller_ref": {
+        "id": "ctrl-audit2",
+        "revision": 0
+      },
+      "provenance": {
+        "algorithm": "scipy.linalg.solve_continuous_are",
+        "lib_versions": {
+          "numpy": "2.3.5",
+          "scipy": "1.17.0",
+          "python": "3.12.14"
+        },
+        "seed": null,
+        "tolerances": {
+          "residual_warn_tol": 1e-9,
+          "residual_fail_tol": 0.0001,
+          "symmetry_tol": 1e-10
+        },
+        "model_revision": null,
+        "timestamp": "2026-11-15T18:08:21Z",
+        "feedback_sign": "negative"
+      },
+      "committed_at": "2026-11-15T00:00:00Z",
+      "status": "success"
+    }
+  },
+  "archive_layout": {
+    "manifest": {
+      "format": "ctrlab",
+      "schema_version": "1.0.0",
+      "app_version": "1.0.0",
+      "created_at": "2026-11-15T18:08:21.347Z",
+      "modified_at": "2026-11-15T18:08:21.347Z",
+      "project_id": "audit2\nprint(\"AUDIT_METADATA_INJECTION\")\n#",
+      "project_revision": 0,
+      "hashes": {
+        "models.json": "8f21f04c769f50cbba6cd39c1ff9eb1bc25843de266c3390598449b9379c66df",
+        "controllers.json": "19cf4efb90147b292d14943a47be9a876fc3a555ffbaf2378a9a2c66f284700f",
+        "experiments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "capabilities": {
+        "required_features": [
+          "core.serialization",
+          "statespace.lqr"
+        ],
+        "optional_features": [
+          "io.pvm"
+        ],
+        "max_uncompressed_bytes": 67108864,
+        "max_members": 1024
+      },
+      "contents": {
+        "models": 1,
+        "controllers": 1,
+        "experiments": 0,
+        "model_revision": 0,
+        "portable_content_hash": "accessor-probe"
+      },
+      "provenance": {
+        "algorithm": "scipy.linalg.solve_continuous_are",
+        "lib_versions": {
+          "numpy": "2.3.5",
+          "scipy": "1.17.0",
+          "python": "3.12.14"
+        },
+        "seed": null,
+        "tolerances": {
+          "residual_warn_tol": 1e-9,
+          "residual_fail_tol": 0.0001,
+          "symmetry_tol": 1e-10
+        },
+        "model_revision": null,
+        "timestamp": "2026-11-15T18:08:21Z",
+        "feedback_sign": "negative"
+      }
+    },
+    "models": [
+      {
+        "id": "audit2-plant",
+        "revision": 0,
+        "dt": null,
+        "matrices": {
+          "A": {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              0,
+              1,
+              0,
+              0
+            ]
+          },
+          "B": {
+            "shape": [
+              2,
+              1
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              0,
+              1
+            ]
+          },
+          "C": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              1,
+              0
+            ]
+          },
+          "D": {
+            "shape": [
+              1,
+              1
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              0
+            ]
+          }
+        },
+        "state_names": [
+          "x1",
+          "x2"
+        ],
+        "input_names": [
+          "u"
+        ],
+        "output_names": [
+          "y"
+        ],
+        "units": {
+          "states": [
+            "",
+            ""
+          ],
+          "inputs": [
+            ""
+          ],
+          "outputs": [
+            ""
+          ]
+        }
+      }
+    ],
+    "controllers": [
+      {
+        "schema_version": "1.0.0",
+        "id": "ctrl-audit2",
+        "revision": 0,
+        "kind": "StateFeedbackController",
+        "feedback_sign": "negative",
+        "K": {
+          "shape": [
+            1,
+            2
+          ],
+          "dtype": "float64",
+          "order": "C",
+          "data": [
+            2.000000000000001,
+            3.0000000000000004
+          ]
+        },
+        "state_coordinates": [
+          "x1",
+          "x2"
+        ],
+        "reference_map": null,
+        "dt": null,
+        "input_names": [
+          "u"
+        ],
+        "units": {
+          "states": [
+            "",
+            ""
+          ],
+          "inputs": [
+            ""
+          ],
+          "outputs": [
+            ""
+          ]
+        },
+        "provenance": {
+          "algorithm": "scipy.linalg.solve_continuous_are",
+          "lib_versions": {
+            "numpy": "2.3.5",
+            "scipy": "1.17.0",
+            "python": "3.12.14"
+          },
+          "seed": null,
+          "tolerances": {
+            "residual_warn_tol": 1e-9,
+            "residual_fail_tol": 0.0001,
+            "symmetry_tol": 1e-10
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-15T18:08:21Z",
+          "feedback_sign": "negative"
+        },
+        "created_at": "2026-11-15T00:00:00Z"
+      }
+    ],
+    "experiments": []
+  }
+}

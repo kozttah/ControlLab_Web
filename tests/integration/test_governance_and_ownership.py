@@ -7,7 +7,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import Iterable
@@ -230,90 +229,11 @@ def test_codeowners_covers_all_tracked_paths_and_fixtures_exclusive_to_f9() -> N
 
 
 def test_project_state_governance_and_handoff_invariants() -> None:
+    # AUD-016: validate evolving records, never a historical queue/verdict snapshot.
+    from scripts.project_governance import validate_state
+
     state = json.loads(PROJECT_STATE_PATH.read_text(encoding="utf-8"))
-    assert state["audit_reference"]["verdict"] == "NOT_APPROVED_FOR_STABLE_WEB_RELEASE"
-
-    gates = state["gates"]
-    assert set(gates.keys()) == {"G-0A", "G-0B", "G-0C", "G-0D"}
-    expected_gate_verdicts = {
-        "G-0A": "BLOCKED",
-        "G-0B": "NOT_DEMONSTRATED",
-        "G-0C": "BLOCKED",
-        "G-0D": "BLOCKED_EXTERNAL_ACCEPTANCE",
-    }
-    for gate_id, expected_verdict in expected_gate_verdicts.items():
-        assert gates[gate_id]["status"] == "PENDING", f"Gate {gate_id} deve permanecer PENDING."
-        assert gates[gate_id]["audit_verdict"] == expected_verdict
-
-    wps = state["work_packages"]
-    wp_by_id = {wp["wp_id"]: wp for wp in wps}
-    wp_index = {wp["wp_id"]: idx for idx, wp in enumerate(wps)}
-
-    audit_fix_wps = [wp for wp in wps if wp["wp_id"].startswith("WP-AUDIT-FIX-")]
-    historical_wps = [wp for wp in wps if not wp["wp_id"].startswith("WP-AUDIT-FIX-")]
-    assert len(audit_fix_wps) == 9
-    assert len(historical_wps) == 11
-
-    # Todos os WP-AUDIT-FIX-* devem preceder WP-00..WP-10 no topo da fila
-    max_fix_idx = max(wp_index[wp["wp_id"]] for wp in audit_fix_wps)
-    min_hist_idx = min(wp_index[wp["wp_id"]] for wp in historical_wps)
-    assert max_fix_idx < min_hist_idx
-
-    # Ordem topológica acíclica e cobertura integral AUD-001..AUD-015
-    covered_findings: set[str] = set()
-    for wp in audit_fix_wps:
-        cur_idx = wp_index[wp["wp_id"]]
-        for dep in wp["dependencies"]:
-            assert dep in wp_by_id, f"Dependência inexistente {dep} em {wp['wp_id']}"
-            assert wp_index[dep] < cur_idx, (
-                f"Ordem topológica violada: {wp['wp_id']} depende de {dep}"
-            )
-        covered_findings.update(wp.get("findings", []))
-
-        # Invariante do Apêndice E (AUD-013): nenhum WP-AUDIT-FIX-* pode ser ACCEPTED_BY_F9 sem handoff_ref auditado em disco
-        if wp["status"] == "ACCEPTED_BY_F9":
-            assert wp.get("f9_review") == "accepted"
-            handoff_ref = wp.get("handoff_ref")
-            assert isinstance(handoff_ref, str) and handoff_ref.strip(), (
-                f"{wp['wp_id']} está ACCEPTED_BY_F9 sem campo handoff_ref!"
-            )
-            dossier_path = REPO_ROOT / handoff_ref
-            assert dossier_path.is_file(), (
-                f"handoff_ref de {wp['wp_id']} aponta para arquivo inexistente: {handoff_ref}"
-            )
-            dossier_text = dossier_path.read_text(encoding="utf-8")
-            _validate_accepted_dossier(dossier_text, wp["wp_id"])
-
-    expected_findings = {f"AUD-{i:03d}" for i in range(1, 16)}
-    assert covered_findings == expected_findings, (
-        f"Lacuna de achados nos WP-AUDIT-FIX-*: faltando {expected_findings - covered_findings}"
-    )
-
-    gov_wp = wp_by_id["WP-AUDIT-FIX-F9-GOV"]
-    assert gov_wp["dependencies"] == []
-    assert "test_acceptance_runner_requires_tsc_and_tests" in gov_wp["regression_tests"]
-
-    # Preservação histórica e decisões pós-auditoria de WP-00..WP-10
-    for wp_id in (
-        "WP-00-F9-BOOTSTRAP",
-        "WP-01-F1-CORE-MODELS",
-        "WP-03-F6-SDP-MODELING-AND-GATE0B",
-        "WP-04-F7-RPC-BRIDGE-WORKER",
-        "WP-06-F8-UI-MVP-LQR",
-        "WP-09-F5-FUZZY-FML-ANFIS",
-        "WP-10-F6-SDP-EDUCATIONAL-SOLVER",
-    ):
-        assert wp_by_id[wp_id]["status"] == "CHANGES_REQUESTED"
-        assert wp_by_id[wp_id]["historical_acceptance"]["status"] == "ACCEPTED_BY_F9"
-
-    assert wp_by_id["WP-05-F1-IO-CTRLAB-PVM"]["status"] == "BLOCKED_BY_GATE"
-    assert wp_by_id["WP-05-F1-IO-CTRLAB-PVM"]["blocking_gate"] == "G-0D"
-
-    for wp_id in ("WP-02-F2-CARE-LQR", "WP-07-F3-FREQ-SISO-MIMO", "WP-08-F4-IDENTIFICATION"):
-        assert wp_by_id[wp_id]["status"] == "ACCEPTED_BY_F9"
-        assert wp_by_id[wp_id]["acceptance_scope"] == "cpython_local_only"
-        assert "WP-AUDIT-FIX-F9-BUILD-CI" in wp_by_id[wp_id]["release_blocker_wps"]
-        assert "WP-AUDIT-FIX-F9-WASM-GATES" in wp_by_id[wp_id]["release_blocker_wps"]
+    validate_state(state, REPO_ROOT)
 
 
 def test_appendix_e_handoff_template_and_evidence_matrix() -> None:
@@ -457,41 +377,9 @@ def _extract_markdown_section(text: str, section_number: int) -> str:
 
 
 def _validate_accepted_dossier(dossier_text: str, wp_id: str) -> None:
-    sec3 = _extract_markdown_section(dossier_text, 3)
-    for item_num in range(1, 11):
-        row_re = re.compile(rf"^\|\s*\*\*{item_num}\*\*\s*\|.*$", re.MULTILINE)
-        row_match = row_re.search(sec3)
-        assert row_match is not None, f"Item {item_num} ausente na Seção 3 do dossiê de {wp_id}."
-        cells = [cell.strip() for cell in row_match.group(0).strip("|").split("|")]
-        assert len(cells) >= 5, f"Linha malformada do item {item_num} em {wp_id}: {row_match.group(0)}"
-        audit_cell = cells[-1]
-        assert "PENDENTE" not in audit_cell.upper(), (
-            f"Item {item_num} da Seção 3 de {wp_id} ainda está PENDENTE: {audit_cell!r}"
-        )
-        assert "FALHA" not in audit_cell.upper(), (
-            f"Item {item_num} da Seção 3 de {wp_id} está marcado como FALHA: {audit_cell!r}"
-        )
-        assert audit_cell in {"`CONFORME`", "CONFORME", "`N/A`", "N/A"}, (
-            f"Célula Auditoria F9 inválida no item {item_num} de {wp_id}: {audit_cell!r}"
-        )
+    from scripts.project_governance import validate_handoff_text
 
-    assert "`PENDENTE`" not in sec3 and not re.search(r"\bPENDENTE\b", sec3), (
-        f"Seção 3 de {wp_id} ainda contém marcador PENDENTE."
-    )
-
-    sec5 = _extract_markdown_section(dossier_text, 5)
-    assert re.search(
-        r"^-\s*\*\*Veredito F9[^:]*:\*\*\s*`accepted`(?:\s|$)",
-        sec5,
-        flags=re.MULTILINE,
-    ), f"Seção 5 de {wp_id} não declara Veredito F9 = `accepted`."
-    assert "`PENDENTE`" not in sec5 and not re.search(r"\bPENDENTE\b", sec5), (
-        f"Seção 5 de {wp_id} ainda contém campos reservados como PENDENTE."
-    )
-    for required_meta in ("Revisor independente", "Commit SHA auditado", "Data (UTC)"):
-        assert required_meta in sec5, (
-            f"Campo obrigatório '{required_meta}' ausente na Seção 5 de {wp_id}."
-        )
+    validate_handoff_text(dossier_text, wp_id)
 
 
 def test_accepted_dossier_validator_rejects_pending_and_template_false_positives() -> None:

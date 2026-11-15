@@ -230,8 +230,8 @@
       ],
       "acceptance_cmd": "pytest tests/security/test_repository_protection.py -v",
       "normative_tests": [],
-      "status": "PENDING",
-      "f9_review": "pending",
+      "status": "BLOCKED_BY_GATE",
+      "f9_review": "blocked_by_gate",
       "priority": "MAXIMUM_AUDIT2",
       "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
       "external_blockers": [
@@ -240,6 +240,17 @@
       "acceptance_requirements": [
         "API comprova proteção e checks/reviews obrigatórios",
         "Mudança de fixture/merge com check falho bloqueados em ensaio autorizado"
+      ],
+      "blocking_findings": [
+        "AUD-018"
+      ],
+      "blocking_reason": "Bloqueio externo de governança do servidor; PENDING era incompatível com a regra de seleção de AGENTS.md.",
+      "blockage_ref": "docs/audits/PARECER_F9_AUDIT2_PROTECTION_BLOCKED.md",
+      "acceptance_test_status": "NOT_IMPLEMENTED",
+      "resume_conditions": [
+        "Implementar tests/security/test_repository_protection.py antes de executar o acceptance_cmd; o caminho cadastrado é uma entrega futura, não um teste existente.",
+        "Obter evidência atual e autorizada de proteção efetiva, checks obrigatórios, revisão F9 e ensaios de enforcement no servidor.",
+        "F9 deve registrar a remoção dos bloqueadores antes de reclassificar o pacote como PENDING."
       ]
     },
     {

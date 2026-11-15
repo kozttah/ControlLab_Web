@@ -252,3 +252,22 @@ def test_stable_claim_cannot_bypass_pending_gates(state, tmp_path, claim):
         state["audit_reference"]["verdict"] = "APPROVED_FOR_STABLE_WEB_RELEASE"
     with pytest.raises(GovernanceError, match="every mandatory gate"):
         validate_state(state, tmp_path)
+
+
+def test_external_blockage_cannot_be_pending_in_standard_agent_queue(state, tmp_path):
+    blocked = state["work_packages"][0]
+    blocked["external_blockers"] = ["server administration unavailable"]
+    with pytest.raises(GovernanceError, match="external blockers require blocked status"):
+        validate_state(state, tmp_path)
+    blocked.update(status="BLOCKED_BY_GATE", f9_review="blocked_by_gate")
+    ready = {"wp_id": "WP-AUDIT2-FIX-F1-READY", "status": "PENDING", "dependencies": []}
+    state["work_packages"].append(ready)
+    validate_state(state, tmp_path)
+    accepted = {w["wp_id"] for w in state["work_packages"] if w["status"] == "ACCEPTED_BY_F9"}
+    standard_selection = next(
+        w
+        for w in state["work_packages"]
+        if w["status"] == "PENDING" and all(dep in accepted for dep in w.get("dependencies", []))
+    )
+    assert standard_selection is ready
+    assert select_next_work_package(state) is standard_selection

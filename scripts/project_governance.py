@@ -140,6 +140,10 @@ def validate_state(state, root=ROOT):
 
     for wp in wps:
         require(wp.get("status") in STATUSES, f"Unknown WP status: {wp['wp_id']}")
+        require(
+            not (wp["status"] == "PENDING" and wp.get("external_blockers")),
+            f"{wp['wp_id']}: external blockers require blocked status, not PENDING",
+        )
         visit(wp["wp_id"])
         for field in ("release_blocker_wps", "remediation_wps"):
             for reference in wp.get(field, []):

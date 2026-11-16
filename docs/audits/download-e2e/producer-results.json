@@ -1,0 +1,71 @@
+{
+  "work_package": "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E",
+  "source_base": "d8a582f1652ac0e2a6fced9ef23d8dc639abbb6b",
+  "environment": {
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "python": "3.12.14",
+    "pathview": "0.21.0",
+    "pathsim": "0.31.0",
+    "playwright": "1.62.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "pytest": "9.2.0"
+  },
+  "domain": "LQR state-feedback designs exposed by the UI. The screen does not produce dynamic-controller downloads.",
+  "capture": "Actual Playwright downloads for both UI export buttons; ZIP reopened in CPython and through the file input after a fresh mount.",
+  "cases": {
+    "clocked-negative": {
+      "browser": "153.0.8010.0",
+      "browser_kind": "chromium",
+      "release_manifest_sha256": "94c136ae68b292fab61d8b8f638f690fe2fafcc4559472b7121379ba6dd0b693",
+      "evidence": {
+        "pathsim": {
+          "case": "clocked-negative",
+          "step_divisor": 4,
+          "solver": "RKCK54",
+          "adaptive": false,
+          "graph_order_reversed": false,
+          "samples": 97,
+          "max_abs_errors": {
+            "y": 2.220446049250313e-16,
+            "u": 0.0,
+            "all_states": 0.0
+          },
+          "error_limit": 1e-10,
+          "clock_boundary_time_tolerance": 1e-10,
+          "initial_state_preserved": true,
+          "zero_order_hold_checked": true,
+          "passed": true
+        },
+        "ctrlab_sha256": "728643e749ef9ad6ef32f218c1e0b490eb5618cb23ab083d28b82737ee1bbbcb",
+        "pvm_sha256": "2e9d7d0a537da85191602ddbf6bb25a0737139709feeb60fe96043e2fbbf31f5"
+      }
+    },
+    "identity-negative": {
+      "browser": "153.0.8010.0",
+      "browser_kind": "chromium",
+      "release_manifest_sha256": "94c136ae68b292fab61d8b8f638f690fe2fafcc4559472b7121379ba6dd0b693",
+      "evidence": {
+        "pathsim": {
+          "samples": 501,
+          "max_abs_error": 3.3306690738754696e-16
+        },
+        "ctrlab_sha256": "80d011ce5ec033ad260ecdbc754c6c4a09430e789f6cb454a5377139d2577472",
+        "pvm_sha256": "aa5d59a860df4960997d976a0b867c6b5d82aa5dea0cf5c70bc5c30d7674bbe3"
+      }
+    },
+    "partial-positive": {
+      "browser": "153.0.8010.0",
+      "browser_kind": "chromium",
+      "release_manifest_sha256": "94c136ae68b292fab61d8b8f638f690fe2fafcc4559472b7121379ba6dd0b693",
+      "evidence": {
+        "pathsim": {
+          "samples": 501,
+          "max_abs_error": 3.3306690738754696e-16
+        },
+        "ctrlab_sha256": "19c631aecd1731ca75a59342a63c280780b5a951b65744d95236d51adf4ebd8b",
+        "pvm_sha256": "ebad70fb315ef29b513f2cb97877e4b556ab78053f872de775b40a6ae53b642b"
+      }
+    }
+  }
+}

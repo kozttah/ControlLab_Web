@@ -11,7 +11,8 @@
     "history": {
       "2026-11-13": 6,
       "2026-11-14": 12,
-      "2026-11-15": 8
+      "2026-11-15": 8,
+      "2026-11-16": 1
     }
   },
   "audit_reference": {
@@ -454,8 +455,8 @@
         "T-PVM-02",
         "T-UI-01"
       ],
-      "status": "PENDING",
-      "f9_review": "pending",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
       "priority": "MAXIMUM_AUDIT2",
       "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
       "supports_findings": [
@@ -467,7 +468,9 @@
         "Não substituir download por nova chamada Python",
         "Casos C=I/C!=I/m!=p/±/discreto e dinâmico exposto",
         "AST pós-conversão sem instruções de metadado injetadas"
-      ]
+      ],
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT2-FIX-F9-DOWNLOAD-E2E.md",
+      "acceptance_scope": "chromium_pyodide_ui_downloads"
     },
     {
       "wp_id": "WP-AUDIT-FIX-F9-GOV",

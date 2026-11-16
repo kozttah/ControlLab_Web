@@ -1,0 +1,29 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/ba21e63c86f4/f9-ci-core/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/c294078be076/ControlLab_Web
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 10 items
+
+tests/e2e/test_native_downloads.py::test_download_and_reopen[identity-negative] PASSED [ 10%]
+tests/e2e/test_native_downloads.py::test_download_and_reopen[partial-positive] PASSED [ 20%]
+tests/e2e/test_native_downloads.py::test_download_and_reopen[clocked-negative] PASSED [ 30%]
+tests/e2e/test_native_downloads.py::test_project_metadata_preserves_converted_ast PASSED [ 40%]
+tests/e2e/test_revision_recovery.py::test_twenty_revisions_only_current_commits PASSED [ 50%]
+tests/e2e/test_revision_recovery.py::test_worker_cancel_restart_recovers_confirmed_snapshot PASSED [ 60%]
+tests/e2e/test_revision_recovery.py::test_preview_is_never_persisted_then_real_commit PASSED [ 70%]
+tests/security/test_real_browser_security.py::test_offline_real_calculation_after_reload PASSED [ 80%]
+tests/security/test_real_browser_security.py::test_passive_zip_fml_pvm_in_pyodide PASSED [ 90%]
+tests/security/test_real_browser_security.py::test_shipped_csp_blocks_inline_and_external_without_breaking_runtime PASSED [100%]
+
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================== 10 passed, 1 warning in 98.97s (0:01:38) ===================

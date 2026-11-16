@@ -34,69 +34,96 @@
   },
   "gates": {
     "G-0A": {
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "decision": "pass",
       "description": "Núcleo Python/Pyodide e benchmark B-CARE-12x3 (Seção 14.1)",
-      "audit_verdict": "BLOCKED",
-      "blocking_findings": [
-        "AUD-001",
-        "AUD-002",
-        "AUD-003",
-        "AUD-010",
-        "AUD-013"
-      ],
+      "audit_verdict": "PASS_CPYTHON_PYODIDE_CARE_12X3_WITH_HOST_BENCHMARK_SCOPE",
+      "acceptance_scope": "chromium156_pyodide0275_b_care_12x3_worker_recovery_and_zero_pyproxy_leak",
+      "assessed_commit": "3ce128a6d8a18ad1eeb18ee83b666df6708d30d0",
+      "blocking_findings": [],
       "blocking_wps": [
         "WP-AUDIT-FIX-F1-CORE-RPC",
         "WP-AUDIT-FIX-F7-RPC-BRIDGE",
         "WP-AUDIT-FIX-F9-BUILD-CI",
-        "WP-AUDIT-FIX-F7-OFFLINE-SW",
-        "WP-AUDIT-FIX-F9-WASM-GATES"
+        "WP-AUDIT-FIX-F7-OFFLINE-SW"
       ],
-      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
+      "audit_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+      "evidence_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+      "hardware_scope_note": "container host; no reference-notebook performance approval (DEC-OPEN-03)",
+      "previous_assessments": [
+        {
+          "status": "PENDING",
+          "description": "Núcleo Python/Pyodide e benchmark B-CARE-12x3 (Seção 14.1)",
+          "audit_verdict": "BLOCKED",
+          "blocking_findings": [
+            "AUD-001",
+            "AUD-002",
+            "AUD-003",
+            "AUD-010",
+            "AUD-013"
+          ],
+          "blocking_wps": [
+            "WP-AUDIT-FIX-F1-CORE-RPC",
+            "WP-AUDIT-FIX-F7-RPC-BRIDGE",
+            "WP-AUDIT-FIX-F9-BUILD-CI",
+            "WP-AUDIT-FIX-F7-OFFLINE-SW",
+            "WP-AUDIT-FIX-F9-WASM-GATES"
+          ],
+          "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
+        }
+      ]
     },
     "G-0B": {
       "status": "PENDING",
       "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)",
       "audit_verdict": "UNAVAILABLE_IN_PROVISIONED_WASM",
+      "assessed_commit": "3ce128a6d8a18ad1eeb18ee83b666df6708d30d0",
       "blocking_findings": [
-        "AUD-006",
-        "AUD-007",
-        "AUD-008",
-        "AUD-013"
+        "F9-WASM-SDP-001"
       ],
       "blocking_wps": [
-        "WP-AUDIT-FIX-F6-SDP",
-        "WP-AUDIT-FIX-F9-BUILD-CI",
         "WP-AUDIT-FIX-F9-WASM-GATES"
       ],
-      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
-      "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
+      "audit_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+      "evidence_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+      "previous_assessments": [
+        {
+          "status": "PENDING",
+          "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)",
+          "audit_verdict": "UNAVAILABLE_IN_PROVISIONED_WASM",
+          "blocking_findings": [
+            "AUD-006",
+            "AUD-007",
+            "AUD-008",
+            "AUD-013"
+          ],
+          "blocking_wps": [
+            "WP-AUDIT-FIX-F6-SDP",
+            "WP-AUDIT-FIX-F9-BUILD-CI",
+            "WP-AUDIT-FIX-F9-WASM-GATES"
+          ],
+          "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
+        }
+      ]
     },
     "G-0C": {
       "status": "PENDING",
       "description": "UI mínima e contrato RPC v1.0 com Mock e Engine real (Seção 14.1)",
-      "audit_verdict": "BLOCKED_UI_FILE_IO_AND_UNSAFE_METADATA_EXPORT",
-      "blocking_findings": [
-        "AUD-001",
-        "AUD-002",
-        "AUD-003",
-        "AUD-010",
-        "AUD-014",
-        "AUD-019",
-        "AUD-020",
-        "AUD-021"
-      ],
+      "audit_verdict": "CONDITIONAL_RPC_OFFLINE_AND_NATIVE_IO_VERIFIED_DOM_DRAG_MOBILE_KEYBOARD_E2E_PENDING",
+      "assessed_commit": "3ce128a6d8a18ad1eeb18ee83b666df6708d30d0",
+      "blocking_findings": [],
       "blocking_wps": [
-        "WP-AUDIT-FIX-F7-RPC-BRIDGE",
-        "WP-AUDIT-FIX-F8-TS-UI",
-        "WP-AUDIT-FIX-F9-BUILD-CI",
-        "WP-AUDIT-FIX-F7-OFFLINE-SW",
-        "WP-AUDIT-FIX-F9-WASM-GATES",
-        "WP-AUDIT2-FIX-F1-IO-RPC",
-        "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",
-        "WP-AUDIT2-FIX-F8-NATIVE-IO",
-        "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
+        "WP-AUDIT-FIX-F9-WASM-GATES"
       ],
-      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+      "open_criteria": [
+        "Real Playwright DOM slider drag (#lqr-q-slider) vs programmatic pointerDown/Move/Up",
+        "Keyboard navigation, mobile viewport (<= 900px), dimensional error UI flow, and x/u time-response plots in real browser E2E"
+      ],
+      "audit_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+      "evidence_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+      "audit2_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
       "previous_assessments": [
         {
           "status": "PENDING",
@@ -117,31 +144,56 @@
             "WP-AUDIT-FIX-F9-WASM-GATES"
           ],
           "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md"
+        },
+        {
+          "status": "PENDING",
+          "description": "UI mínima e contrato RPC v1.0 com Mock e Engine real (Seção 14.1)",
+          "audit_verdict": "BLOCKED_UI_FILE_IO_AND_UNSAFE_METADATA_EXPORT",
+          "blocking_findings": [
+            "AUD-001",
+            "AUD-002",
+            "AUD-003",
+            "AUD-010",
+            "AUD-014",
+            "AUD-019",
+            "AUD-020",
+            "AUD-021"
+          ],
+          "blocking_wps": [
+            "WP-AUDIT-FIX-F7-RPC-BRIDGE",
+            "WP-AUDIT-FIX-F8-TS-UI",
+            "WP-AUDIT-FIX-F9-BUILD-CI",
+            "WP-AUDIT-FIX-F7-OFFLINE-SW",
+            "WP-AUDIT-FIX-F9-WASM-GATES",
+            "WP-AUDIT2-FIX-F1-IO-RPC",
+            "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",
+            "WP-AUDIT2-FIX-F8-NATIVE-IO",
+            "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
+          ],
+          "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+          "audit2_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md"
         }
-      ],
-      "audit2_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md"
+      ]
     },
     "G-0D": {
       "status": "PENDING",
       "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)",
-      "audit_verdict": "BLOCKED_UI_FILE_IO_AND_UNSAFE_METADATA_EXPORT",
+      "audit_verdict": "CONDITIONAL_CTRLAB_AND_PVM_LQR_DOWNLOADS_VERIFIED_G0C_SATURATION_AND_T_PVM_02_UI_PENDING",
+      "assessed_commit": "3ce128a6d8a18ad1eeb18ee83b666df6708d30d0",
       "blocking_findings": [
-        "AUD-011",
-        "AUD-019",
-        "AUD-020",
-        "AUD-021"
+        "F9-WASM-PVM-001"
       ],
       "blocking_wps": [
-        "WP-AUDIT-FIX-F1-CORE-RPC",
-        "WP-AUDIT-FIX-F9-BUILD-CI",
-        "WP-AUDIT-FIX-F9-WASM-GATES",
-        "WP-AUDIT2-FIX-F1-IO-RPC",
-        "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",
-        "WP-AUDIT2-FIX-F8-NATIVE-IO",
-        "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
+        "WP-AUDIT-FIX-F9-WASM-GATES"
       ],
-      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
-      "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md",
+      "open_criteria": [
+        "Prerequisite gate G-0C still PENDING",
+        "UI E2E download and PathView/PathSim verification with actuator saturation enabled post-LQR",
+        "DynamicController (T-PVM-02) export path from UI download E2E"
+      ],
+      "audit_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+      "evidence_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+      "audit2_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
       "previous_assessments": [
         {
           "status": "PENDING",
@@ -157,9 +209,31 @@
           ],
           "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
           "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md"
+        },
+        {
+          "status": "PENDING",
+          "description": "Persistência .ctrlab e equivalência dinâmica PathView .pvm (Seção 14.1)",
+          "audit_verdict": "BLOCKED_UI_FILE_IO_AND_UNSAFE_METADATA_EXPORT",
+          "blocking_findings": [
+            "AUD-011",
+            "AUD-019",
+            "AUD-020",
+            "AUD-021"
+          ],
+          "blocking_wps": [
+            "WP-AUDIT-FIX-F1-CORE-RPC",
+            "WP-AUDIT-FIX-F9-BUILD-CI",
+            "WP-AUDIT-FIX-F9-WASM-GATES",
+            "WP-AUDIT2-FIX-F1-IO-RPC",
+            "WP-AUDIT2-FIX-F8-CONTAIN-EXPORT",
+            "WP-AUDIT2-FIX-F8-NATIVE-IO",
+            "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
+          ],
+          "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK.md",
+          "audit2_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md"
         }
-      ],
-      "audit2_ref": "docs/audits/PARECER_F9_AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md"
+      ]
     }
   },
   "work_packages": [

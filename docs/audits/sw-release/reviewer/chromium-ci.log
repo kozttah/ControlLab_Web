@@ -1,0 +1,14 @@
+2026-11-17T23:13:47.4969218Z Reproducibility PASS: two builds, identical manifests and every asset hash.
+2026-11-17T23:22:24.6159932Z tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects PASSED [ 69%]
+2026-11-17T23:23:00.8740548Z ___ test_provisioned_client_updates_python_atomically_and_preserves_projects ___
+2026-11-17T23:23:00.9216459Z SW lifecycle: product Python A ready
+2026-11-17T23:23:00.9216683Z SW lifecycle: A controlled
+2026-11-17T23:23:00.9216928Z SW lifecycle: rejecting candidate B (download)
+2026-11-17T23:23:00.9217198Z SW lifecycle: rejecting candidate B (integrity)
+2026-11-17T23:23:00.9217466Z SW lifecycle: rejecting candidate B (offline)
+2026-11-17T23:23:00.9217818Z SW lifecycle: valid B installation
+2026-11-17T23:23:00.9218061Z SW lifecycle: B activated
+2026-11-17T23:23:00.9221387Z {"A": "e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b", "A_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A35051%2FControlLab_Web%2F:e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b:06a97239-36c1-449d-98ce-628656e10f8a", "B": "b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161", "B_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A35051%2FControlLab_Web%2F:b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161:6c1b063e-b8c3-43b1-bee7-67b28e99a574", "activated_python": "B", "browser": "151.0.7922.34", "changed_assets": ["release-manifest.json", "sbom.json", "service_worker.js", "wheels/control_lab-1.0.0-py3-none-any.whl"], "deterministic_assets": 43, "failures": [{"active_python": "A", "candidate": "redundant", "failure": "download", "offline_reload": true}, {"active_python": "A", "candidate": "redundant", "failure": "integrity", "offline_reload": true}, {"active_python": "A", "candidate": "network-error", "failure": "offline", "offline_reload": true}], "kind": "chromium", "offline_python": "B", "projects_preserved": true, "waiting_python": "A", "wheel": "wheels/control_lab-1.0.0-py3-none-any.whl"}
+2026-11-17T23:23:00.9225701Z - generated xml file: /home/runner/work/ControlLab_Web/ControlLab_Web/reports/G.xml -
+2026-11-17T23:23:00.9232111Z PASSED tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects
+2026-11-17T23:23:00.9236113Z ================== 33 passed, 1 warning in 226.27s (0:03:46) ===================

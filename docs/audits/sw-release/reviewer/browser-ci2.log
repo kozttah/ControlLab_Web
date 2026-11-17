@@ -1,0 +1,23 @@
+2026-11-17T23:20:26.4323620Z Downloading Firefox 153.0 (playwright firefox v1538) from https://cdn.playwright.dev/dbazure/download/playwright/builds/firefox/1538/firefox-ubuntu-24.04.zip
+2026-11-17T23:23:06.5873100Z tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects PASSED [100%]
+2026-11-17T23:23:06.6023214Z ___ test_provisioned_client_updates_python_atomically_and_preserves_projects ___
+2026-11-17T23:23:06.6537534Z SW lifecycle: product Python A ready
+2026-11-17T23:23:06.6538028Z SW lifecycle: A controlled
+2026-11-17T23:23:06.6538572Z SW lifecycle: rejecting candidate B (download)
+2026-11-17T23:23:06.6539402Z SW lifecycle: rejecting candidate B (integrity)
+2026-11-17T23:23:06.6540048Z SW lifecycle: rejecting candidate B (offline)
+2026-11-17T23:23:06.6540620Z SW lifecycle: valid B installation
+2026-11-17T23:23:06.6541088Z SW lifecycle: B activated
+2026-11-17T23:23:06.6550720Z {"A": "e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b", "A_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A36211%2FControlLab_Web%2F:e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b:8bac9e6d-2023-46ae-be14-72fb326c9e4b", "B": "b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161", "B_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A36211%2FControlLab_Web%2F:b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161:12eddda1-4a67-4662-8a0f-5b58031197cd", "activated_python": "B", "browser": "151.0.7922.34", "changed_assets": ["release-manifest.json", "sbom.json", "service_worker.js", "wheels/control_lab-1.0.0-py3-none-any.whl"], "deterministic_assets": 43, "failures": [{"active_python": "A", "candidate": "redundant", "failure": "download", "offline_reload": true}, {"active_python": "A", "candidate": "redundant", "failure": "integrity", "offline_reload": true}, {"active_python": "A", "candidate": "network-error", "failure": "offline", "offline_reload": true}], "kind": "chromium", "offline_python": "B", "projects_preserved": true, "waiting_python": "A", "wheel": "wheels/control_lab-1.0.0-py3-none-any.whl"}
+2026-11-17T23:23:06.6562897Z PASSED tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects
+2026-11-17T23:23:06.6563165Z ================== 13 passed, 1 warning in 153.16s (0:02:33) ===================
+2026-11-17T23:23:07.1757291Z tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects * Getting build dependencies for wheel...
+2026-11-17T23:23:35.3077539Z SW lifecycle: product Python A ready
+2026-11-17T23:23:35.3132679Z SW lifecycle: A controlled
+2026-11-17T23:23:35.7061494Z SW lifecycle: rejecting candidate B (download)
+2026-11-17T23:24:00.8729370Z SW lifecycle: rejecting candidate B (integrity)
+2026-11-17T23:24:26.3587276Z SW lifecycle: rejecting candidate B (offline)
+2026-11-17T23:24:51.2108426Z SW lifecycle: valid B installation
+2026-11-17T23:25:17.1311568Z SW lifecycle: B activated
+2026-11-17T23:26:05.3747264Z {"A": "e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b", "A_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A38733%2FControlLab_Web%2F:e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b:06b347f9-c1d0-4407-bac8-4841d331255f", "B": "b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161", "B_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A38733%2FControlLab_Web%2F:b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161:82d58f72-8b22-456b-9dcd-8d3d7e8b8cad", "activated_python": "B", "browser": "153.0", "changed_assets": ["release-manifest.json", "sbom.json", "service_worker.js", "wheels/control_lab-1.0.0-py3-none-any.whl"], "deterministic_assets": 43, "failures": [{"active_python": "A", "candidate": "redundant", "failure": "download", "offline_reload": true}, {"active_python": "A", "candidate": "redundant", "failure": "integrity", "offline_reload": true}, {"active_python": "A", "candidate": "network-error", "failure": "offline", "offline_reload": true}], "kind": "firefox", "offline_python": "B", "projects_preserved": true, "waiting_python": "A", "wheel": "wheels/control_lab-1.0.0-py3-none-any.whl"}
+2026-11-17T23:26:05.4112781Z ======================== 1 passed in 178.46s (0:02:58) =========================

@@ -1,0 +1,123 @@
+{
+  "tested_candidate": "12d7580f1575e958003495ecd0d94ec08671f2ce",
+  "browser_kind": "firefox",
+  "browser_version": "153.0",
+  "driver_version": "1.58.0",
+  "followup": "Driver pin corrected to 1.62.0 after CI exposed Firefox 146 module-SW incompatibility; dedicated 1.62 / Firefox 153 run recorded separately.",
+  "command": [
+    "/workspace/scratch/c294078be076/reconcile-sdp-venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/e2e/",
+    "-v",
+    "--junitxml=/workspace/scratch/c294078be076/firefox-suite.xml"
+  ],
+  "environment": {
+    "CONTROLLAB_BROWSER": "firefox",
+    "CONTROLLAB_FIREFOX": "/workspace/scratch/c294078be076/browser-runtimes/firefox-1538/firefox/firefox",
+    "CONTROLLAB_ASSET_CACHE": "/workspace/scratch/ba21e63c86f4/offline-assets-cache",
+    "PYTHONPATH": "/workspace/scratch/c294078be076/reconcile-sdp-venv/lib/python3.12/site-packages:/workspace/scratch/c294078be076/gatecd-review-deps:/workspace/scratch/c59c34fcbff2/pathview-audit-venv/lib/python3.12/site-packages:/workspace/scratch/ba21e63c86f4/testdeps:/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages"
+  },
+  "dependencies": {
+    "pathview": "0.21.0",
+    "pathsim": "0.31.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8"
+  },
+  "result": {
+    "passed": 13,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "warnings": 2,
+    "duration_seconds": 731.36
+  },
+  "warnings": [
+    "pytest CallSpec2 deprecation from installed plugin",
+    "pytest assertion rewrite warning for already imported scripts.browser_harness"
+  ],
+  "cases": [
+    {
+      "name": "test_real_slider_drag_keeps_preview_transient_then_commits",
+      "classname": "tests.e2e.test_gatecd_interactions",
+      "seconds": 50.942,
+      "status": "passed"
+    },
+    {
+      "name": "test_keyboard_mobile_dimensions_and_temporal_x_u_dom",
+      "classname": "tests.e2e.test_gatecd_interactions",
+      "seconds": 24.108,
+      "status": "passed"
+    },
+    {
+      "name": "test_download_saturated_lqr_matches_official_pathsim",
+      "classname": "tests.e2e.test_gatecd_pvm",
+      "seconds": 75.351,
+      "status": "passed"
+    },
+    {
+      "name": "test_download_dynamic_without_lqr_matches_official_pathsim",
+      "classname": "tests.e2e.test_gatecd_pvm",
+      "seconds": 50.586,
+      "status": "passed"
+    },
+    {
+      "name": "test_download_and_reopen[identity-negative]",
+      "classname": "tests.e2e.test_native_downloads",
+      "seconds": 74.443,
+      "status": "passed"
+    },
+    {
+      "name": "test_download_and_reopen[partial-positive]",
+      "classname": "tests.e2e.test_native_downloads",
+      "seconds": 49.555,
+      "status": "passed"
+    },
+    {
+      "name": "test_download_and_reopen[clocked-negative]",
+      "classname": "tests.e2e.test_native_downloads",
+      "seconds": 50.237,
+      "status": "passed"
+    },
+    {
+      "name": "test_project_metadata_preserves_converted_ast",
+      "classname": "tests.e2e.test_native_downloads",
+      "seconds": 49.876,
+      "status": "passed"
+    },
+    {
+      "name": "test_pages_entry_lqr_and_service_worker_stay_under_repository_prefix",
+      "classname": "tests.e2e.test_pages_prefix",
+      "seconds": 49.689,
+      "status": "passed"
+    },
+    {
+      "name": "test_twenty_revisions_only_current_commits",
+      "classname": "tests.e2e.test_revision_recovery",
+      "seconds": 26.217,
+      "status": "passed"
+    },
+    {
+      "name": "test_worker_cancel_restart_recovers_confirmed_snapshot",
+      "classname": "tests.e2e.test_revision_recovery",
+      "seconds": 46.482,
+      "status": "passed"
+    },
+    {
+      "name": "test_preview_is_never_persisted_then_real_commit",
+      "classname": "tests.e2e.test_revision_recovery",
+      "seconds": 0.548,
+      "status": "passed"
+    },
+    {
+      "name": "test_provisioned_client_updates_python_atomically_and_preserves_projects",
+      "classname": "tests.e2e.test_sw_release_update",
+      "seconds": 181.994,
+      "status": "passed"
+    }
+  ],
+  "production_manifest_sha256": "7240e80c57573aa246bf78b04985ace6152f742aa94b5d50c063a88ba68705d3",
+  "implementation_changed": false,
+  "dist_changed": false
+}

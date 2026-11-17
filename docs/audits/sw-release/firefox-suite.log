@@ -1,0 +1,37 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/c294078be076/reconcile-sdp-venv/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/c294078be076/ControlLab_Web
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 13 items
+
+tests/e2e/test_gatecd_interactions.py::test_real_slider_drag_keeps_preview_transient_then_commits PASSED [  7%]
+tests/e2e/test_gatecd_interactions.py::test_keyboard_mobile_dimensions_and_temporal_x_u_dom PASSED [ 15%]
+tests/e2e/test_gatecd_pvm.py::test_download_saturated_lqr_matches_official_pathsim PASSED [ 23%]
+tests/e2e/test_gatecd_pvm.py::test_download_dynamic_without_lqr_matches_official_pathsim PASSED [ 30%]
+tests/e2e/test_native_downloads.py::test_download_and_reopen[identity-negative] PASSED [ 38%]
+tests/e2e/test_native_downloads.py::test_download_and_reopen[partial-positive] PASSED [ 46%]
+tests/e2e/test_native_downloads.py::test_download_and_reopen[clocked-negative] PASSED [ 53%]
+tests/e2e/test_native_downloads.py::test_project_metadata_preserves_converted_ast PASSED [ 61%]
+tests/e2e/test_pages_prefix.py::test_pages_entry_lqr_and_service_worker_stay_under_repository_prefix PASSED [ 69%]
+tests/e2e/test_revision_recovery.py::test_twenty_revisions_only_current_commits PASSED [ 76%]
+tests/e2e/test_revision_recovery.py::test_worker_cancel_restart_recovers_confirmed_snapshot PASSED [ 84%]
+tests/e2e/test_revision_recovery.py::test_preview_is_never_persisted_then_real_commit PASSED [ 92%]
+tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects PASSED [100%]
+
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+../reconcile-sdp-venv/lib/python3.12/site-packages/_pytest/config/__init__.py:915
+  /workspace/scratch/c294078be076/reconcile-sdp-venv/lib/python3.12/site-packages/_pytest/config/__init__.py:915: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; scripts.browser_harness
+    self.import_plugin(import_spec, consider_entry_points=True)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+---- generated xml file: /workspace/scratch/c294078be076/firefox-suite.xml -----
+================== 13 passed, 2 warnings in 731.36s (0:12:11) ==================

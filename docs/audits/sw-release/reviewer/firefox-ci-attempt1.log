@@ -1,0 +1,25 @@
+2026-11-17T22:57:54.2364246Z [36;1mpython -m playwright install --with-deps chromium firefox 2>&1 | tee reports/E-browser-binaries.log[0m
+2026-11-17T23:03:41.9178036Z Downloading Firefox 146.0.1 (playwright firefox v1509) from https://cdn.playwright.dev/dbazure/download/playwright/builds/firefox/1509/firefox-ubuntu-24.04.zip
+2026-11-17T23:03:44.3379666Z Firefox 146.0.1 (playwright firefox v1509) downloaded to /home/runner/.cache/ms-playwright/firefox-1509
+2026-11-17T23:06:46.5871238Z tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects PASSED [100%]
+2026-11-17T23:06:46.6512757Z SW lifecycle: product Python A ready
+2026-11-17T23:06:46.6512973Z SW lifecycle: A controlled
+2026-11-17T23:06:46.6513217Z SW lifecycle: rejecting candidate B (download)
+2026-11-17T23:06:46.6513494Z SW lifecycle: rejecting candidate B (integrity)
+2026-11-17T23:06:46.6513763Z SW lifecycle: rejecting candidate B (offline)
+2026-11-17T23:06:46.6514012Z SW lifecycle: valid B installation
+2026-11-17T23:06:46.6514268Z SW lifecycle: B activated
+2026-11-17T23:06:46.6524390Z PASSED tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects
+2026-11-17T23:06:46.6524582Z ================== 13 passed, 1 warning in 179.58s (0:02:59) ===================
+2026-11-17T23:06:46.7848710Z [36;1mpython -m pytest tests/e2e/test_sw_release_update.py -v -s --junitxml=reports/E-firefox-sw-release.xml 2>&1 | tee reports/E-firefox-sw-release.log[0m
+2026-11-17T23:06:46.7875710Z   CONTROLLAB_BROWSER: firefox
+2026-11-17T23:06:46.7875838Z   CONTROLLAB_SW_RELEASE_REPORT: reports/E-firefox-sw-release.json
+2026-11-17T23:06:47.1528807Z tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects * Getting build dependencies for wheel...
+2026-11-17T23:07:14.9719630Z SW lifecycle: product Python A ready
+2026-11-17T23:09:15.6479017Z FAILED
+2026-11-17T23:09:15.6487474Z                     print("SW lifecycle: product Python A ready", flush=True)
+2026-11-17T23:09:15.6488639Z                         new Promise((_, reject) => setTimeout(() => reject(Error('initial SW readiness timeout')), 120000))]);
+2026-11-17T23:09:15.6490129Z tests/e2e/test_sw_release_update.py:214: 
+2026-11-17T23:09:15.6499924Z E           playwright._impl._errors.Error: Page.evaluate: initial SW readiness timeout
+2026-11-17T23:09:15.6502710Z - generated xml file: /home/runner/work/ControlLab_Web/ControlLab_Web/reports/E-firefox-sw-release.xml -
+2026-11-17T23:09:15.6504042Z FAILED tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects - playwright._impl._errors.Error: Page.evaluate: initial SW readiness timeout

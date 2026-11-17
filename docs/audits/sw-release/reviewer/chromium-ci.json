@@ -1,0 +1,44 @@
+{
+  "candidate_sha": "89fb4e048cb787027adb239d35448b42e09d3368",
+  "run_id": 44197401222,
+  "job_id": 134442312194,
+  "source": "Independent fetch_workflow_job_logs by reviewer; G passed 33 tests without skips",
+  "A": "e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b",
+  "A_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A35051%2FControlLab_Web%2F:e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b:06a97239-36c1-449d-98ce-628656e10f8a",
+  "B": "b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161",
+  "B_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A35051%2FControlLab_Web%2F:b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161:6c1b063e-b8c3-43b1-bee7-67b28e99a574",
+  "activated_python": "B",
+  "browser": "151.0.7922.34",
+  "changed_assets": [
+    "release-manifest.json",
+    "sbom.json",
+    "service_worker.js",
+    "wheels/control_lab-1.0.0-py3-none-any.whl"
+  ],
+  "deterministic_assets": 43,
+  "failures": [
+    {
+      "active_python": "A",
+      "candidate": "redundant",
+      "failure": "download",
+      "offline_reload": true
+    },
+    {
+      "active_python": "A",
+      "candidate": "redundant",
+      "failure": "integrity",
+      "offline_reload": true
+    },
+    {
+      "active_python": "A",
+      "candidate": "network-error",
+      "failure": "offline",
+      "offline_reload": true
+    }
+  ],
+  "kind": "chromium",
+  "offline_python": "B",
+  "projects_preserved": true,
+  "waiting_python": "A",
+  "wheel": "wheels/control_lab-1.0.0-py3-none-any.whl"
+}

@@ -1,0 +1,40 @@
+{
+  "deterministic_assets": 43,
+  "changed_assets": [
+    "release-manifest.json",
+    "sbom.json",
+    "service_worker.js",
+    "wheels/control_lab-1.0.0-py3-none-any.whl"
+  ],
+  "wheel": "wheels/control_lab-1.0.0-py3-none-any.whl",
+  "A": "e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b",
+  "B": "b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161",
+  "browser": "153.0",
+  "kind": "firefox",
+  "failures": [
+    {
+      "failure": "download",
+      "candidate": "redundant",
+      "active_python": "A",
+      "offline_reload": true
+    },
+    {
+      "failure": "integrity",
+      "candidate": "redundant",
+      "active_python": "A",
+      "offline_reload": true
+    },
+    {
+      "failure": "offline",
+      "candidate": "network-error",
+      "active_python": "A",
+      "offline_reload": true
+    }
+  ],
+  "waiting_python": "A",
+  "activated_python": "B",
+  "offline_python": "B",
+  "projects_preserved": true,
+  "A_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A44155%2FControlLab_Web%2F:e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b:62aa5f21-ede3-4e8a-ba67-20551e960d27",
+  "B_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A44155%2FControlLab_Web%2F:b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161:20150cf5-5509-4f37-98ba-764543ec8222"
+}

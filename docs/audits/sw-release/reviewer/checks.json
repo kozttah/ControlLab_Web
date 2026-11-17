@@ -1,14 +1,41 @@
 {
-  "review_status": "provisional_pending_browser_matrix",
+  "review_status": "accepted",
   "source_sha256": {
     "scripts/build_web.mjs": "4a230a5d5f099c8b06704c691dc1607062602a6af44c8da1b7c411385b2f1677",
     "scripts/stamp_service_worker.mjs": "941c1aecc8076dcc538c6cb02cf3c3762a93f4b6d7e43303711f73bb7a9544eb",
     "tests/oracles/test_sw_release_fingerprint.py": "d3f099e6f34405c736aa9b74238f97da31b5e0feb5102d1850fa7d72ebbc94cc",
     "tests/oracles/test_sw_release_independent.py": "796d64d243b0d4e51e2a2d5a4de2eb597757c9451dd5e6efd2a9b12fd2dccfde",
-    "tests/e2e/test_sw_release_update.py": "a57078f073e26946c0cdebc8562661c0324e6ce27a032a6f33b226b5ae130787"
+    "tests/e2e/test_sw_release_update.py": "a0748f47714ce91f132959ac464047c0263e08110c5e7574755fb00109da9d09",
+    ".github/workflows/ci.yml": "c4f9e49e8d7d6fab465d38412cbd199f819e31c35e9fc405c4ee663ed90e5a0d",
+    "scripts/requirements-browser.lock": "9d7adc41473c99b983622f9483f4fbca454baf6a5ab9c88cd48a5fbc82978e11"
   },
   "build_manifest_sha256": "7240e80c57573aa246bf78b04985ace6152f742aa94b5d50c063a88ba68705d3",
   "build_asset_count": 42,
   "oracles": "8 passed",
-  "reproducibility": "two full builds identical"
+  "reproducibility": "two full builds identical",
+  "candidate_commit": "89fb4e048cb787027adb239d35448b42e09d3368",
+  "candidate_ci_run": "https://github.com/kozttah/ControlLab_Web/actions/runs/44197401222",
+  "firefox_independent": "1 passed in 185.22s; browser Firefox 153.0; A waiting/B activated/B offline; 3 failures preserve A and projects",
+  "chromium_ci": "Independent G job134442312194: 33 passed; Chromium151.0.7922.34",
+  "previous_candidate_commit": "12d7580f1575e958003495ecd0d94ec08671f2ce",
+  "previous_ci_run": "https://github.com/kozttah/ControlLab_Web/actions/runs/44194955745",
+  "initial_ci_failure": "Firefox146 does not support moduleSW; corrected official Playwright pin1.62 Firefox153. Await second CI.",
+  "firefox_full_suite": {
+    "candidate": "12d7580f1575e958003495ecd0d94ec08671f2ce",
+    "passed": 13,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 731.36,
+    "browser": "153.0",
+    "driver": "1.58.0"
+  },
+  "firefox_ci": "Independent E job134442312305: Chromium13 and Firefox153 dedicated1 passed",
+  "ci_final": {
+    "run_id": 44197401222,
+    "attempt": 2,
+    "sha": "89fb4e048cb787027adb239d35448b42e09d3368",
+    "conclusion": "success",
+    "diagnostic_b_job": 134449383224,
+    "diagnostic_b_result": "166 passed; no source/fixture/tolerance change"
+  }
 }

@@ -1,0 +1,57 @@
+{
+  "deterministic_assets": 43,
+  "changed_assets": [
+    "release-manifest.json",
+    "sbom.json",
+    "service_worker.js",
+    "wheels/control_lab-1.0.0-py3-none-any.whl"
+  ],
+  "wheel": "wheels/control_lab-1.0.0-py3-none-any.whl",
+  "A": "e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b",
+  "B": "b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161",
+  "browser": "153.0",
+  "kind": "firefox",
+  "failures": [
+    {
+      "failure": "download",
+      "candidate": "redundant",
+      "active_python": "A",
+      "offline_reload": true
+    },
+    {
+      "failure": "integrity",
+      "candidate": "redundant",
+      "active_python": "A",
+      "offline_reload": true
+    },
+    {
+      "failure": "offline",
+      "candidate": "network-error",
+      "active_python": "A",
+      "offline_reload": true
+    }
+  ],
+  "waiting_python": "A",
+  "activated_python": "B",
+  "offline_python": "B",
+  "projects_preserved": true,
+  "A_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A35885%2FControlLab_Web%2F:e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b:b15e3ab4-7021-4780-897c-d0187ccab3bd",
+  "B_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A35885%2FControlLab_Web%2F:b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161:6350a590-dc38-4247-b26e-2330ed84249e",
+  "local_automation_dependencies": {
+    "playwright": "1.62.0",
+    "pyee": "13.0.1",
+    "greenlet": "3.5.5"
+  },
+  "ci_greenlet_pin": "3.5.6",
+  "result": {
+    "passed": 1,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "warnings": 1,
+    "duration_seconds": 186.04
+  },
+  "test_source_sha256": "a0748f47714ce91f132959ac464047c0263e08110c5e7574755fb00109da9d09",
+  "command": "CONTROLLAB_BROWSER=firefox python -m pytest tests/e2e/test_sw_release_update.py -v -s",
+  "runtime_note": "Official Playwright 1.62.0 package and its Firefox 153.0 revision1538; local greenlet 3.5.5 satisfies the official range, CI verifies the exact 3.5.6 pin."
+}

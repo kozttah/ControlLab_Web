@@ -1,0 +1,11 @@
+{
+  "candidate_sha": "89fb4e048cb787027adb239d35448b42e09d3368",
+  "run_id": 44197401222,
+  "job_id": 134442312299,
+  "test": "test_generator_independent_and_new_gold_deterministic",
+  "fixture": "B-ARX-PRBS",
+  "cause": "Exact equality on independently regenerated LAPACK-derived float fields conflicts with frozen provenance permitting BLAS last-bit variations. Frozen bytes and scientific production thresholds untouched.",
+  "changed_numeric_pairs": 1477,
+  "max_abs_difference": 2.1316282072803006e-14,
+  "recommendation": "One same-SHA diagnostic rerun, retain negative evidence, separate F9 follow-up requiring named fields, unchanged frozen thresholds, independent certificates, exact inputs/schema/metadata, negative tests; do not broadly allclose or rewrite gold."
+}

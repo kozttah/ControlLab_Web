@@ -12,7 +12,7 @@
       "2026-11-13": 6,
       "2026-11-14": 12,
       "2026-11-15": 8,
-      "2026-11-17": 9,
+      "2026-11-17": 10,
       "2026-11-16": 1
     }
   },
@@ -2886,8 +2886,8 @@
         "T-RPC-01"
       ],
       "acceptance_cmd": "npm --prefix web run build && python3 -m pytest tests/oracles/test_build_pipeline.py tests/e2e/ -v && CONTROLLAB_BROWSER=firefox python3 -m pytest tests/e2e/ -v",
-      "status": "PENDING",
-      "f9_review": "not_started",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
       "origin_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md",
       "acceptance_requirements_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md#wp-audit-fix-f9-sw-release-version",
       "acceptance_requirements": [
@@ -2895,7 +2895,68 @@
         "Novos testes de duas releases e clientes já provisionados em Chromium e Firefox são obrigatórios; suíte antiga isolada não prova correção",
         "Fingerprint sem ciclo de hash, sem modificar assets fixados ou diretórios F7; propor pacote F7 se runtime precisar de alteração",
         "Handoff independente com checklist completo e evidências de duas releases, incluindo falha de atualização e preservação da anterior"
+      ],
+      "previous_assessments": [
+        {
+          "status": "PENDING",
+          "f9_review": "not_started",
+          "note": "Candidate published PENDING for independent real-browser CI; Firefox146 incompatibility corrected in tooling; separate ARX portability finding retained."
+        }
+      ],
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-SW-RELEASE-VERSION.md",
+      "assessed_commit": "89fb4e048cb787027adb239d35448b42e09d3368",
+      "acceptance_scope": "deterministic_release_identity_and_atomic_provisioned_client_updates_chromium151_firefox153",
+      "acceptance_evidence": [
+        "docs/audits/sw-release/reviewer/checks.json",
+        "docs/audits/sw-release/reviewer/chromium-ci.json",
+        "docs/audits/sw-release/reviewer/firefox-ci2.json",
+        "docs/audits/sw-release/firefox-suite.json",
+        "docs/audits/sw-release/firefox-pinned-release.json",
+        "docs/audits/sw-release/MAESTRO_VALIDATION.md"
+      ],
+      "ci_evidence": "https://github.com/kozttah/ControlLab_Web/actions/runs/44197401222",
+      "limitations": [
+        "Native waiting/activate retains A until its controlled clients close.",
+        "Independent ARX generator exact-comparison portability remains open in a separate WorkPackage; no fixture or tolerance changed."
       ]
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F9-ARX-REGENERATION",
+      "front": "f9-integration-qa",
+      "phase": "CI-Remediation",
+      "title": "Portabilidade independente da regeneração ARX entre hosts BLAS preservando ouro e tolerâncias",
+      "requirement_ids": [
+        "R-23",
+        "R-24"
+      ],
+      "findings": [
+        "F9-CI-ARX-PORTABILITY"
+      ],
+      "allowed_paths": [
+        "tests/oracles/",
+        "scripts/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-CI-F9-FIXTURE-PORTABILITY"
+      ],
+      "acceptance_cmd": "python3 scripts/ci_math.py core_no_sdp && python3 scripts/ci_math.py sdp_available && python3 scripts/verify_fixtures.py",
+      "acceptance_environment": "Run both profiles in separate environments from their frozen locks, and demonstrate more than one BLAS host/configuration as required by the acceptance reference.",
+      "normative_tests": [
+        "T-ID-01",
+        "T-ID-03"
+      ],
+      "status": "PENDING",
+      "f9_review": "not_started",
+      "origin_ref": "docs/audits/sw-release/ARX_REGENERATION_FOLLOWUP.md",
+      "acceptance_requirements_ref": "docs/audits/sw-release/ARX_REGENERATION_FOLLOWUP.md",
+      "acceptance_requirements": [
+        "Implement all independent certificates, field-specific comparisons and negative tests in the acceptance reference.",
+        "Preserve frozen fixture bytes/checksums, existing oracle tolerances, exact deterministic inputs and metadata.",
+        "Do not replace generator independence with production results, arbitrary allclose, skips or repeated CI reruns."
+      ],
+      "observed_commit": "89fb4e048cb787027adb239d35448b42e09d3368",
+      "evidence_ref": "docs/audits/sw-release/reviewer/arx-ci2-diagnostic.json"
     },
     {
       "wp_id": "WP-V1-F7-MODEL-REF-REHYDRATION",

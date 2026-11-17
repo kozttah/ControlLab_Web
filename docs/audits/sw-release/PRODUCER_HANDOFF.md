@@ -46,3 +46,15 @@ Environment overrides `CONTROLLAB_ASSET_CACHE`, `PYTHON` and browser executable 
 - Firefox 153.0 real two-release regression: **1 passed in 182.01 s**. `firefox-producer.json` records deterministic A/A, wheel-only B, failed download/integrity/offline candidate states, active A preservation, waiting A, activated B, offline B and persisted projects.
 - Ruff lint/format on new producer Python tests, Node syntax check and `git diff --check`: passed.
 - Chromium: awaiting official CI run and independent F9 conclusion; no local claim of approval.
+
+## CI browser-version correction
+
+The first CI E Firefox attempt installed Firefox146.0.1 (Playwright1.58 revision1509) and failed before initial SW readiness; Chromium E/G passed. This is a browser capability mismatch, not an update timeout. Mozilla documents module Service Workers as new in Firefox147: https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/147 and https://www.firefox.com/en-US/firefox/147.0/releasenotes/ . The product already registers `type: "module"`; this release does not change that F8/F7 behavior or claim support for Firefox146.
+
+The official test dependency is now Playwright1.62.0, whose browser inventory pins Firefox153.0 revision1538 and Chromium151.0.7922.34 revision1234. Existing pyee13.0.1 and greenlet3.5.6 pins satisfy its metadata requirements (pyee>=13,<14; greenlet>=3.1.1,<4). Source: https://github.com/microsoft/playwright-python/releases/tag/v1.62.0 . The A/B regression now rejects Firefox<147 explicitly and reports registration/engine diagnostics on readiness failure. The timeout and all integrity, lifecycle, Python-provenance and persistence assertions are unchanged. Both engines must pass again on the corrected candidate before acceptance.
+
+## Additional complete acceptance and corrected-driver runs
+
+The literal complete Firefox E2E suite passed: **13 passed, zero failures/errors/skips, 731.36 seconds**. `firefox-suite.json` records every case, command/environment, exact scientific interoperability versions and two pytest plugin warnings; `firefox-suite.log` preserves the terminal result. `firefox-suite-browser.json` consolidates numerical browser evidence and downloaded-file hashes. Generic generated `reports/` was removed after archiving these records. This suite tested candidate `12d7580f1575e958003495ecd0d94ec08671f2ce` with Firefox153 and the earlier automation driver.
+
+After the browser-pin correction, the strengthened A/B test passed again with the official **Playwright1.62.0 / Firefox153.0 revision1538**: **1 passed in 186.04 seconds**. `firefox-pinned-release.json` / `.log` record all lifecycle, provenance, outage and persistence assertions. The local automation environment has pyee13.0.1 and compatible greenlet3.5.5; CI remains responsible for the exact pinned greenlet3.5.6 and both official browser binaries. No timeout increased and no application runtime changed.

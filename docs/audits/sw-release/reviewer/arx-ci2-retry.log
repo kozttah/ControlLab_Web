@@ -1,0 +1,3 @@
+2026-11-17T23:27:37.5879898Z tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic PASSED [ 75%]
+2026-11-17T23:27:38.5361105Z PASSED tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic
+2026-11-17T23:27:38.5405670Z ============================= 166 passed in 6.17s ==============================

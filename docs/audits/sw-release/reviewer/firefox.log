@@ -1,0 +1,852 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/c294078be076/reconcile-sdp-venv/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/c294078be076/ControlLab_Web
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+tests/e2e/test_sw_release_update.py::test_provisioned_client_updates_python_atomically_and_preserves_projects * Getting build dependencies for wheel...
+running egg_info
+creating control_lab.egg-info
+writing control_lab.egg-info/PKG-INFO
+writing dependency_links to control_lab.egg-info/dependency_links.txt
+writing requirements to control_lab.egg-info/requires.txt
+writing top-level names to control_lab.egg-info/top_level.txt
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+reading manifest file 'control_lab.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+* Building wheel...
+running bdist_wheel
+running build
+running build_py
+creating build/lib/control_lab/io
+copying control_lab/io/__init__.py -> build/lib/control_lab/io
+copying control_lab/io/pvm.py -> build/lib/control_lab/io
+copying control_lab/io/pvm_official.py -> build/lib/control_lab/io
+copying control_lab/io/rpc.py -> build/lib/control_lab/io
+copying control_lab/io/pvm_discrete.py -> build/lib/control_lab/io
+copying control_lab/io/ctrlab.py -> build/lib/control_lab/io
+creating build/lib/control_lab/optimization
+copying control_lab/optimization/__init__.py -> build/lib/control_lab/optimization
+copying control_lab/optimization/exporters.py -> build/lib/control_lab/optimization
+creating build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/__init__.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/result.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/provenance.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/errors.py -> build/lib/control_lab/diagnostics
+creating build/lib/control_lab/core
+copying control_lab/core/__init__.py -> build/lib/control_lab/core
+copying control_lab/core/controllers.py -> build/lib/control_lab/core
+copying control_lab/core/tensors.py -> build/lib/control_lab/core
+copying control_lab/core/model_reuse.py -> build/lib/control_lab/core
+copying control_lab/core/interconnect.py -> build/lib/control_lab/core
+copying control_lab/core/rpc.py -> build/lib/control_lab/core
+copying control_lab/core/models.py -> build/lib/control_lab/core
+copying control_lab/core/serialization.py -> build/lib/control_lab/core
+creating build/lib/control_lab/frequency
+copying control_lab/frequency/__init__.py -> build/lib/control_lab/frequency
+creating build/lib/control_lab/statespace
+copying control_lab/statespace/__init__.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/design.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/_utils.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/analysis.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/equations.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/simulation.py -> build/lib/control_lab/statespace
+creating build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/__init__.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/anfis.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/fml.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/membership.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/inference.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/ts_bridge.py -> build/lib/control_lab/fuzzy
+creating build/lib/control_lab/identification
+copying control_lab/identification/arx.py -> build/lib/control_lab/identification
+copying control_lab/identification/__init__.py -> build/lib/control_lab/identification
+copying control_lab/identification/oe.py -> build/lib/control_lab/identification
+copying control_lab/identification/preprocessing.py -> build/lib/control_lab/identification
+copying control_lab/identification/validation.py -> build/lib/control_lab/identification
+copying control_lab/identification/subspace.py -> build/lib/control_lab/identification
+creating build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/__init__.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/recovery.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/gate0b.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/verifier.py -> build/lib/control_lab/optimization/verification
+creating build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/__init__.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/base.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/native.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/clarabel_direct.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/native_core.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/solve.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/capabilities.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/scipy_linprog.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/clarabel_cvxpy.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/unavailable.py -> build/lib/control_lab/optimization/backends
+creating build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/__init__.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/dsl.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/templates.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/svec.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/canonical.py -> build/lib/control_lab/optimization/modeling
+creating build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/__init__.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/design.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/_utils.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/response.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/root_locus.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/margins.py -> build/lib/control_lab/frequency/siso
+creating build/lib/control_lab/frequency/mimo
+copying control_lab/frequency/mimo/__init__.py -> build/lib/control_lab/frequency/mimo
+copying control_lab/frequency/mimo/analysis.py -> build/lib/control_lab/frequency/mimo
+creating build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/suite.py -> build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/__init__.py -> build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/solver.py -> build/lib/control_lab/experimental/sdp_educational
+running egg_info
+writing control_lab.egg-info/PKG-INFO
+writing dependency_links to control_lab.egg-info/dependency_links.txt
+writing requirements to control_lab.egg-info/requires.txt
+writing top-level names to control_lab.egg-info/top_level.txt
+reading manifest file 'control_lab.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+installing to build/bdist.linux-x86_64/wheel
+running install
+running install_lib
+creating build/bdist.linux-x86_64/wheel
+creating build/bdist.linux-x86_64/wheel/control_lab
+creating build/bdist.linux-x86_64/wheel/control_lab/experimental
+creating build/bdist.linux-x86_64/wheel/control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/solver.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/suite.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+creating build/bdist.linux-x86_64/wheel/control_lab/identification
+copying build/lib/control_lab/identification/subspace.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/validation.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/preprocessing.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/oe.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/arx.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+creating build/bdist.linux-x86_64/wheel/control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/ts_bridge.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/inference.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/membership.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/fml.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/anfis.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+creating build/bdist.linux-x86_64/wheel/control_lab/statespace
+copying build/lib/control_lab/statespace/simulation.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/equations.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/analysis.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/_utils.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/design.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency/mimo
+copying build/lib/control_lab/frequency/mimo/analysis.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/mimo
+copying build/lib/control_lab/frequency/mimo/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/mimo
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/margins.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/root_locus.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/response.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/_utils.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/design.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency
+creating build/bdist.linux-x86_64/wheel/control_lab/core
+copying build/lib/control_lab/core/serialization.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/models.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/rpc.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/interconnect.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/model_reuse.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/tensors.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/controllers.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+creating build/bdist.linux-x86_64/wheel/control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/errors.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/provenance.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/result.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/canonical.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/svec.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/templates.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/dsl.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/unavailable.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/clarabel_cvxpy.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/scipy_linprog.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/capabilities.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/solve.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/native_core.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/clarabel_direct.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/native.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/base.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/verifier.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/gate0b.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/recovery.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/exporters.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization
+copying build/lib/control_lab/optimization/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization
+creating build/bdist.linux-x86_64/wheel/control_lab/io
+copying build/lib/control_lab/io/ctrlab.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm_discrete.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/rpc.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm_official.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+running install_egg_info
+Copying control_lab.egg-info to build/bdist.linux-x86_64/wheel/./control_lab-1.0.0-py3.12.egg-info
+running install_scripts
+creating build/bdist.linux-x86_64/wheel/control_lab-1.0.0.dist-info/WHEEL
+creating '/tmp/tmpjiqcxwbh/.tmp-r52v3zod/control_lab-1.0.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+adding 'control_lab/core/__init__.py'
+adding 'control_lab/core/controllers.py'
+adding 'control_lab/core/interconnect.py'
+adding 'control_lab/core/model_reuse.py'
+adding 'control_lab/core/models.py'
+adding 'control_lab/core/rpc.py'
+adding 'control_lab/core/serialization.py'
+adding 'control_lab/core/tensors.py'
+adding 'control_lab/diagnostics/__init__.py'
+adding 'control_lab/diagnostics/errors.py'
+adding 'control_lab/diagnostics/provenance.py'
+adding 'control_lab/diagnostics/result.py'
+adding 'control_lab/experimental/sdp_educational/__init__.py'
+adding 'control_lab/experimental/sdp_educational/solver.py'
+adding 'control_lab/experimental/sdp_educational/suite.py'
+adding 'control_lab/frequency/__init__.py'
+adding 'control_lab/frequency/mimo/__init__.py'
+adding 'control_lab/frequency/mimo/analysis.py'
+adding 'control_lab/frequency/siso/__init__.py'
+adding 'control_lab/frequency/siso/_utils.py'
+adding 'control_lab/frequency/siso/design.py'
+adding 'control_lab/frequency/siso/margins.py'
+adding 'control_lab/frequency/siso/response.py'
+adding 'control_lab/frequency/siso/root_locus.py'
+adding 'control_lab/fuzzy/__init__.py'
+adding 'control_lab/fuzzy/anfis.py'
+adding 'control_lab/fuzzy/fml.py'
+adding 'control_lab/fuzzy/inference.py'
+adding 'control_lab/fuzzy/membership.py'
+adding 'control_lab/fuzzy/ts_bridge.py'
+adding 'control_lab/identification/__init__.py'
+adding 'control_lab/identification/arx.py'
+adding 'control_lab/identification/oe.py'
+adding 'control_lab/identification/preprocessing.py'
+adding 'control_lab/identification/subspace.py'
+adding 'control_lab/identification/validation.py'
+adding 'control_lab/io/__init__.py'
+adding 'control_lab/io/ctrlab.py'
+adding 'control_lab/io/pvm.py'
+adding 'control_lab/io/pvm_discrete.py'
+adding 'control_lab/io/pvm_official.py'
+adding 'control_lab/io/rpc.py'
+adding 'control_lab/optimization/__init__.py'
+adding 'control_lab/optimization/exporters.py'
+adding 'control_lab/optimization/backends/__init__.py'
+adding 'control_lab/optimization/backends/base.py'
+adding 'control_lab/optimization/backends/capabilities.py'
+adding 'control_lab/optimization/backends/clarabel_cvxpy.py'
+adding 'control_lab/optimization/backends/clarabel_direct.py'
+adding 'control_lab/optimization/backends/native.py'
+adding 'control_lab/optimization/backends/native_core.py'
+adding 'control_lab/optimization/backends/scipy_linprog.py'
+adding 'control_lab/optimization/backends/solve.py'
+adding 'control_lab/optimization/backends/unavailable.py'
+adding 'control_lab/optimization/modeling/__init__.py'
+adding 'control_lab/optimization/modeling/canonical.py'
+adding 'control_lab/optimization/modeling/dsl.py'
+adding 'control_lab/optimization/modeling/svec.py'
+adding 'control_lab/optimization/modeling/templates.py'
+adding 'control_lab/optimization/verification/__init__.py'
+adding 'control_lab/optimization/verification/gate0b.py'
+adding 'control_lab/optimization/verification/recovery.py'
+adding 'control_lab/optimization/verification/verifier.py'
+adding 'control_lab/statespace/__init__.py'
+adding 'control_lab/statespace/_utils.py'
+adding 'control_lab/statespace/analysis.py'
+adding 'control_lab/statespace/design.py'
+adding 'control_lab/statespace/equations.py'
+adding 'control_lab/statespace/simulation.py'
+adding 'control_lab-1.0.0.dist-info/licenses/LICENSE'
+adding 'control_lab-1.0.0.dist-info/METADATA'
+adding 'control_lab-1.0.0.dist-info/WHEEL'
+adding 'control_lab-1.0.0.dist-info/top_level.txt'
+adding 'control_lab-1.0.0.dist-info/RECORD'
+removing build/bdist.linux-x86_64/wheel
+Successfully built control_lab-1.0.0-py3-none-any.whl
+Verified integrity and inventory of 42 local assets.
+Verified integrity and inventory of 42 local assets.
+* Getting build dependencies for wheel...
+running egg_info
+creating control_lab.egg-info
+writing control_lab.egg-info/PKG-INFO
+writing dependency_links to control_lab.egg-info/dependency_links.txt
+writing requirements to control_lab.egg-info/requires.txt
+writing top-level names to control_lab.egg-info/top_level.txt
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+reading manifest file 'control_lab.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+* Building wheel...
+running bdist_wheel
+running build
+running build_py
+creating build/lib/control_lab/io
+copying control_lab/io/__init__.py -> build/lib/control_lab/io
+copying control_lab/io/pvm.py -> build/lib/control_lab/io
+copying control_lab/io/pvm_official.py -> build/lib/control_lab/io
+copying control_lab/io/rpc.py -> build/lib/control_lab/io
+copying control_lab/io/pvm_discrete.py -> build/lib/control_lab/io
+copying control_lab/io/ctrlab.py -> build/lib/control_lab/io
+creating build/lib/control_lab/optimization
+copying control_lab/optimization/__init__.py -> build/lib/control_lab/optimization
+copying control_lab/optimization/exporters.py -> build/lib/control_lab/optimization
+creating build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/__init__.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/result.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/provenance.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/errors.py -> build/lib/control_lab/diagnostics
+creating build/lib/control_lab/core
+copying control_lab/core/__init__.py -> build/lib/control_lab/core
+copying control_lab/core/controllers.py -> build/lib/control_lab/core
+copying control_lab/core/tensors.py -> build/lib/control_lab/core
+copying control_lab/core/model_reuse.py -> build/lib/control_lab/core
+copying control_lab/core/interconnect.py -> build/lib/control_lab/core
+copying control_lab/core/rpc.py -> build/lib/control_lab/core
+copying control_lab/core/models.py -> build/lib/control_lab/core
+copying control_lab/core/serialization.py -> build/lib/control_lab/core
+creating build/lib/control_lab/frequency
+copying control_lab/frequency/__init__.py -> build/lib/control_lab/frequency
+creating build/lib/control_lab/statespace
+copying control_lab/statespace/__init__.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/design.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/_utils.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/analysis.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/equations.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/simulation.py -> build/lib/control_lab/statespace
+creating build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/__init__.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/anfis.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/fml.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/membership.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/inference.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/ts_bridge.py -> build/lib/control_lab/fuzzy
+creating build/lib/control_lab/identification
+copying control_lab/identification/arx.py -> build/lib/control_lab/identification
+copying control_lab/identification/__init__.py -> build/lib/control_lab/identification
+copying control_lab/identification/oe.py -> build/lib/control_lab/identification
+copying control_lab/identification/preprocessing.py -> build/lib/control_lab/identification
+copying control_lab/identification/validation.py -> build/lib/control_lab/identification
+copying control_lab/identification/subspace.py -> build/lib/control_lab/identification
+creating build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/__init__.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/recovery.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/gate0b.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/verifier.py -> build/lib/control_lab/optimization/verification
+creating build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/__init__.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/base.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/native.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/clarabel_direct.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/native_core.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/solve.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/capabilities.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/scipy_linprog.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/clarabel_cvxpy.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/unavailable.py -> build/lib/control_lab/optimization/backends
+creating build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/__init__.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/dsl.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/templates.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/svec.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/canonical.py -> build/lib/control_lab/optimization/modeling
+creating build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/__init__.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/design.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/_utils.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/response.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/root_locus.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/margins.py -> build/lib/control_lab/frequency/siso
+creating build/lib/control_lab/frequency/mimo
+copying control_lab/frequency/mimo/__init__.py -> build/lib/control_lab/frequency/mimo
+copying control_lab/frequency/mimo/analysis.py -> build/lib/control_lab/frequency/mimo
+creating build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/suite.py -> build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/__init__.py -> build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/solver.py -> build/lib/control_lab/experimental/sdp_educational
+running egg_info
+writing control_lab.egg-info/PKG-INFO
+writing dependency_links to control_lab.egg-info/dependency_links.txt
+writing requirements to control_lab.egg-info/requires.txt
+writing top-level names to control_lab.egg-info/top_level.txt
+reading manifest file 'control_lab.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+installing to build/bdist.linux-x86_64/wheel
+running install
+running install_lib
+creating build/bdist.linux-x86_64/wheel
+creating build/bdist.linux-x86_64/wheel/control_lab
+creating build/bdist.linux-x86_64/wheel/control_lab/experimental
+creating build/bdist.linux-x86_64/wheel/control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/solver.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/suite.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+creating build/bdist.linux-x86_64/wheel/control_lab/identification
+copying build/lib/control_lab/identification/subspace.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/validation.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/preprocessing.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/oe.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/arx.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+creating build/bdist.linux-x86_64/wheel/control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/ts_bridge.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/inference.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/membership.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/fml.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/anfis.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+creating build/bdist.linux-x86_64/wheel/control_lab/statespace
+copying build/lib/control_lab/statespace/simulation.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/equations.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/analysis.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/_utils.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/design.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency/mimo
+copying build/lib/control_lab/frequency/mimo/analysis.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/mimo
+copying build/lib/control_lab/frequency/mimo/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/mimo
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/margins.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/root_locus.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/response.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/_utils.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/design.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency
+creating build/bdist.linux-x86_64/wheel/control_lab/core
+copying build/lib/control_lab/core/serialization.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/models.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/rpc.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/interconnect.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/model_reuse.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/tensors.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/controllers.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+creating build/bdist.linux-x86_64/wheel/control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/errors.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/provenance.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/result.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/canonical.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/svec.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/templates.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/dsl.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/unavailable.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/clarabel_cvxpy.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/scipy_linprog.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/capabilities.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/solve.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/native_core.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/clarabel_direct.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/native.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/base.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/verifier.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/gate0b.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/recovery.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/exporters.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization
+copying build/lib/control_lab/optimization/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization
+creating build/bdist.linux-x86_64/wheel/control_lab/io
+copying build/lib/control_lab/io/ctrlab.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm_discrete.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/rpc.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm_official.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+running install_egg_info
+Copying control_lab.egg-info to build/bdist.linux-x86_64/wheel/./control_lab-1.0.0-py3.12.egg-info
+running install_scripts
+creating build/bdist.linux-x86_64/wheel/control_lab-1.0.0.dist-info/WHEEL
+creating '/tmp/tmptyae_pzn/.tmp-mo5dkpcc/control_lab-1.0.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+adding 'control_lab/core/__init__.py'
+adding 'control_lab/core/controllers.py'
+adding 'control_lab/core/interconnect.py'
+adding 'control_lab/core/model_reuse.py'
+adding 'control_lab/core/models.py'
+adding 'control_lab/core/rpc.py'
+adding 'control_lab/core/serialization.py'
+adding 'control_lab/core/tensors.py'
+adding 'control_lab/diagnostics/__init__.py'
+adding 'control_lab/diagnostics/errors.py'
+adding 'control_lab/diagnostics/provenance.py'
+adding 'control_lab/diagnostics/result.py'
+adding 'control_lab/experimental/sdp_educational/__init__.py'
+adding 'control_lab/experimental/sdp_educational/solver.py'
+adding 'control_lab/experimental/sdp_educational/suite.py'
+adding 'control_lab/frequency/__init__.py'
+adding 'control_lab/frequency/mimo/__init__.py'
+adding 'control_lab/frequency/mimo/analysis.py'
+adding 'control_lab/frequency/siso/__init__.py'
+adding 'control_lab/frequency/siso/_utils.py'
+adding 'control_lab/frequency/siso/design.py'
+adding 'control_lab/frequency/siso/margins.py'
+adding 'control_lab/frequency/siso/response.py'
+adding 'control_lab/frequency/siso/root_locus.py'
+adding 'control_lab/fuzzy/__init__.py'
+adding 'control_lab/fuzzy/anfis.py'
+adding 'control_lab/fuzzy/fml.py'
+adding 'control_lab/fuzzy/inference.py'
+adding 'control_lab/fuzzy/membership.py'
+adding 'control_lab/fuzzy/ts_bridge.py'
+adding 'control_lab/identification/__init__.py'
+adding 'control_lab/identification/arx.py'
+adding 'control_lab/identification/oe.py'
+adding 'control_lab/identification/preprocessing.py'
+adding 'control_lab/identification/subspace.py'
+adding 'control_lab/identification/validation.py'
+adding 'control_lab/io/__init__.py'
+adding 'control_lab/io/ctrlab.py'
+adding 'control_lab/io/pvm.py'
+adding 'control_lab/io/pvm_discrete.py'
+adding 'control_lab/io/pvm_official.py'
+adding 'control_lab/io/rpc.py'
+adding 'control_lab/optimization/__init__.py'
+adding 'control_lab/optimization/exporters.py'
+adding 'control_lab/optimization/backends/__init__.py'
+adding 'control_lab/optimization/backends/base.py'
+adding 'control_lab/optimization/backends/capabilities.py'
+adding 'control_lab/optimization/backends/clarabel_cvxpy.py'
+adding 'control_lab/optimization/backends/clarabel_direct.py'
+adding 'control_lab/optimization/backends/native.py'
+adding 'control_lab/optimization/backends/native_core.py'
+adding 'control_lab/optimization/backends/scipy_linprog.py'
+adding 'control_lab/optimization/backends/solve.py'
+adding 'control_lab/optimization/backends/unavailable.py'
+adding 'control_lab/optimization/modeling/__init__.py'
+adding 'control_lab/optimization/modeling/canonical.py'
+adding 'control_lab/optimization/modeling/dsl.py'
+adding 'control_lab/optimization/modeling/svec.py'
+adding 'control_lab/optimization/modeling/templates.py'
+adding 'control_lab/optimization/verification/__init__.py'
+adding 'control_lab/optimization/verification/gate0b.py'
+adding 'control_lab/optimization/verification/recovery.py'
+adding 'control_lab/optimization/verification/verifier.py'
+adding 'control_lab/statespace/__init__.py'
+adding 'control_lab/statespace/_utils.py'
+adding 'control_lab/statespace/analysis.py'
+adding 'control_lab/statespace/design.py'
+adding 'control_lab/statespace/equations.py'
+adding 'control_lab/statespace/simulation.py'
+adding 'control_lab-1.0.0.dist-info/licenses/LICENSE'
+adding 'control_lab-1.0.0.dist-info/METADATA'
+adding 'control_lab-1.0.0.dist-info/WHEEL'
+adding 'control_lab-1.0.0.dist-info/top_level.txt'
+adding 'control_lab-1.0.0.dist-info/RECORD'
+removing build/bdist.linux-x86_64/wheel
+Successfully built control_lab-1.0.0-py3-none-any.whl
+Verified integrity and inventory of 42 local assets.
+Verified integrity and inventory of 42 local assets.
+* Getting build dependencies for wheel...
+running egg_info
+creating control_lab.egg-info
+writing control_lab.egg-info/PKG-INFO
+writing dependency_links to control_lab.egg-info/dependency_links.txt
+writing requirements to control_lab.egg-info/requires.txt
+writing top-level names to control_lab.egg-info/top_level.txt
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+reading manifest file 'control_lab.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+* Building wheel...
+running bdist_wheel
+running build
+running build_py
+creating build/lib/control_lab/io
+copying control_lab/io/__init__.py -> build/lib/control_lab/io
+copying control_lab/io/pvm.py -> build/lib/control_lab/io
+copying control_lab/io/pvm_official.py -> build/lib/control_lab/io
+copying control_lab/io/rpc.py -> build/lib/control_lab/io
+copying control_lab/io/pvm_discrete.py -> build/lib/control_lab/io
+copying control_lab/io/ctrlab.py -> build/lib/control_lab/io
+creating build/lib/control_lab/optimization
+copying control_lab/optimization/__init__.py -> build/lib/control_lab/optimization
+copying control_lab/optimization/exporters.py -> build/lib/control_lab/optimization
+creating build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/__init__.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/result.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/provenance.py -> build/lib/control_lab/diagnostics
+copying control_lab/diagnostics/errors.py -> build/lib/control_lab/diagnostics
+creating build/lib/control_lab/core
+copying control_lab/core/__init__.py -> build/lib/control_lab/core
+copying control_lab/core/controllers.py -> build/lib/control_lab/core
+copying control_lab/core/tensors.py -> build/lib/control_lab/core
+copying control_lab/core/model_reuse.py -> build/lib/control_lab/core
+copying control_lab/core/interconnect.py -> build/lib/control_lab/core
+copying control_lab/core/rpc.py -> build/lib/control_lab/core
+copying control_lab/core/models.py -> build/lib/control_lab/core
+copying control_lab/core/serialization.py -> build/lib/control_lab/core
+creating build/lib/control_lab/frequency
+copying control_lab/frequency/__init__.py -> build/lib/control_lab/frequency
+creating build/lib/control_lab/statespace
+copying control_lab/statespace/__init__.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/design.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/_utils.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/analysis.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/equations.py -> build/lib/control_lab/statespace
+copying control_lab/statespace/simulation.py -> build/lib/control_lab/statespace
+creating build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/__init__.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/anfis.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/fml.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/membership.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/inference.py -> build/lib/control_lab/fuzzy
+copying control_lab/fuzzy/ts_bridge.py -> build/lib/control_lab/fuzzy
+creating build/lib/control_lab/identification
+copying control_lab/identification/arx.py -> build/lib/control_lab/identification
+copying control_lab/identification/__init__.py -> build/lib/control_lab/identification
+copying control_lab/identification/oe.py -> build/lib/control_lab/identification
+copying control_lab/identification/preprocessing.py -> build/lib/control_lab/identification
+copying control_lab/identification/validation.py -> build/lib/control_lab/identification
+copying control_lab/identification/subspace.py -> build/lib/control_lab/identification
+creating build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/__init__.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/recovery.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/gate0b.py -> build/lib/control_lab/optimization/verification
+copying control_lab/optimization/verification/verifier.py -> build/lib/control_lab/optimization/verification
+creating build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/__init__.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/base.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/native.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/clarabel_direct.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/native_core.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/solve.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/capabilities.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/scipy_linprog.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/clarabel_cvxpy.py -> build/lib/control_lab/optimization/backends
+copying control_lab/optimization/backends/unavailable.py -> build/lib/control_lab/optimization/backends
+creating build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/__init__.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/dsl.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/templates.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/svec.py -> build/lib/control_lab/optimization/modeling
+copying control_lab/optimization/modeling/canonical.py -> build/lib/control_lab/optimization/modeling
+creating build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/__init__.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/design.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/_utils.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/response.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/root_locus.py -> build/lib/control_lab/frequency/siso
+copying control_lab/frequency/siso/margins.py -> build/lib/control_lab/frequency/siso
+creating build/lib/control_lab/frequency/mimo
+copying control_lab/frequency/mimo/__init__.py -> build/lib/control_lab/frequency/mimo
+copying control_lab/frequency/mimo/analysis.py -> build/lib/control_lab/frequency/mimo
+creating build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/suite.py -> build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/__init__.py -> build/lib/control_lab/experimental/sdp_educational
+copying control_lab/experimental/sdp_educational/solver.py -> build/lib/control_lab/experimental/sdp_educational
+running egg_info
+writing control_lab.egg-info/PKG-INFO
+writing dependency_links to control_lab.egg-info/dependency_links.txt
+writing requirements to control_lab.egg-info/requires.txt
+writing top-level names to control_lab.egg-info/top_level.txt
+reading manifest file 'control_lab.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'control_lab.egg-info/SOURCES.txt'
+installing to build/bdist.linux-x86_64/wheel
+running install
+running install_lib
+creating build/bdist.linux-x86_64/wheel
+creating build/bdist.linux-x86_64/wheel/control_lab
+creating build/bdist.linux-x86_64/wheel/control_lab/experimental
+creating build/bdist.linux-x86_64/wheel/control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/solver.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+copying build/lib/control_lab/experimental/sdp_educational/suite.py -> build/bdist.linux-x86_64/wheel/./control_lab/experimental/sdp_educational
+creating build/bdist.linux-x86_64/wheel/control_lab/identification
+copying build/lib/control_lab/identification/subspace.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/validation.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/preprocessing.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/oe.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+copying build/lib/control_lab/identification/arx.py -> build/bdist.linux-x86_64/wheel/./control_lab/identification
+creating build/bdist.linux-x86_64/wheel/control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/ts_bridge.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/inference.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/membership.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/fml.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/anfis.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+copying build/lib/control_lab/fuzzy/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/fuzzy
+creating build/bdist.linux-x86_64/wheel/control_lab/statespace
+copying build/lib/control_lab/statespace/simulation.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/equations.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/analysis.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/_utils.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/design.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+copying build/lib/control_lab/statespace/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/statespace
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency/mimo
+copying build/lib/control_lab/frequency/mimo/analysis.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/mimo
+copying build/lib/control_lab/frequency/mimo/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/mimo
+creating build/bdist.linux-x86_64/wheel/control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/margins.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/root_locus.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/response.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/_utils.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/design.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/siso/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency/siso
+copying build/lib/control_lab/frequency/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/frequency
+creating build/bdist.linux-x86_64/wheel/control_lab/core
+copying build/lib/control_lab/core/serialization.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/models.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/rpc.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/interconnect.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/model_reuse.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/tensors.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/controllers.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+copying build/lib/control_lab/core/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/core
+creating build/bdist.linux-x86_64/wheel/control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/errors.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/provenance.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/result.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+copying build/lib/control_lab/diagnostics/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/diagnostics
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/canonical.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/svec.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/templates.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/dsl.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+copying build/lib/control_lab/optimization/modeling/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/modeling
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/unavailable.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/clarabel_cvxpy.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/scipy_linprog.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/capabilities.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/solve.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/native_core.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/clarabel_direct.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/native.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/base.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+copying build/lib/control_lab/optimization/backends/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/backends
+creating build/bdist.linux-x86_64/wheel/control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/verifier.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/gate0b.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/recovery.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/verification/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization/verification
+copying build/lib/control_lab/optimization/exporters.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization
+copying build/lib/control_lab/optimization/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/optimization
+creating build/bdist.linux-x86_64/wheel/control_lab/io
+copying build/lib/control_lab/io/ctrlab.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm_discrete.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/rpc.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm_official.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/pvm.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+copying build/lib/control_lab/io/__init__.py -> build/bdist.linux-x86_64/wheel/./control_lab/io
+running install_egg_info
+Copying control_lab.egg-info to build/bdist.linux-x86_64/wheel/./control_lab-1.0.0-py3.12.egg-info
+running install_scripts
+creating build/bdist.linux-x86_64/wheel/control_lab-1.0.0.dist-info/WHEEL
+creating '/tmp/tmpuuznsnqn/.tmp-cbz0zngz/control_lab-1.0.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+adding 'control_lab/core/__init__.py'
+adding 'control_lab/core/controllers.py'
+adding 'control_lab/core/interconnect.py'
+adding 'control_lab/core/model_reuse.py'
+adding 'control_lab/core/models.py'
+adding 'control_lab/core/rpc.py'
+adding 'control_lab/core/serialization.py'
+adding 'control_lab/core/tensors.py'
+adding 'control_lab/diagnostics/__init__.py'
+adding 'control_lab/diagnostics/errors.py'
+adding 'control_lab/diagnostics/provenance.py'
+adding 'control_lab/diagnostics/result.py'
+adding 'control_lab/experimental/sdp_educational/__init__.py'
+adding 'control_lab/experimental/sdp_educational/solver.py'
+adding 'control_lab/experimental/sdp_educational/suite.py'
+adding 'control_lab/frequency/__init__.py'
+adding 'control_lab/frequency/mimo/__init__.py'
+adding 'control_lab/frequency/mimo/analysis.py'
+adding 'control_lab/frequency/siso/__init__.py'
+adding 'control_lab/frequency/siso/_utils.py'
+adding 'control_lab/frequency/siso/design.py'
+adding 'control_lab/frequency/siso/margins.py'
+adding 'control_lab/frequency/siso/response.py'
+adding 'control_lab/frequency/siso/root_locus.py'
+adding 'control_lab/fuzzy/__init__.py'
+adding 'control_lab/fuzzy/anfis.py'
+adding 'control_lab/fuzzy/fml.py'
+adding 'control_lab/fuzzy/inference.py'
+adding 'control_lab/fuzzy/membership.py'
+adding 'control_lab/fuzzy/ts_bridge.py'
+adding 'control_lab/identification/__init__.py'
+adding 'control_lab/identification/arx.py'
+adding 'control_lab/identification/oe.py'
+adding 'control_lab/identification/preprocessing.py'
+adding 'control_lab/identification/subspace.py'
+adding 'control_lab/identification/validation.py'
+adding 'control_lab/io/__init__.py'
+adding 'control_lab/io/ctrlab.py'
+adding 'control_lab/io/pvm.py'
+adding 'control_lab/io/pvm_discrete.py'
+adding 'control_lab/io/pvm_official.py'
+adding 'control_lab/io/rpc.py'
+adding 'control_lab/optimization/__init__.py'
+adding 'control_lab/optimization/exporters.py'
+adding 'control_lab/optimization/backends/__init__.py'
+adding 'control_lab/optimization/backends/base.py'
+adding 'control_lab/optimization/backends/capabilities.py'
+adding 'control_lab/optimization/backends/clarabel_cvxpy.py'
+adding 'control_lab/optimization/backends/clarabel_direct.py'
+adding 'control_lab/optimization/backends/native.py'
+adding 'control_lab/optimization/backends/native_core.py'
+adding 'control_lab/optimization/backends/scipy_linprog.py'
+adding 'control_lab/optimization/backends/solve.py'
+adding 'control_lab/optimization/backends/unavailable.py'
+adding 'control_lab/optimization/modeling/__init__.py'
+adding 'control_lab/optimization/modeling/canonical.py'
+adding 'control_lab/optimization/modeling/dsl.py'
+adding 'control_lab/optimization/modeling/svec.py'
+adding 'control_lab/optimization/modeling/templates.py'
+adding 'control_lab/optimization/verification/__init__.py'
+adding 'control_lab/optimization/verification/gate0b.py'
+adding 'control_lab/optimization/verification/recovery.py'
+adding 'control_lab/optimization/verification/verifier.py'
+adding 'control_lab/statespace/__init__.py'
+adding 'control_lab/statespace/_utils.py'
+adding 'control_lab/statespace/analysis.py'
+adding 'control_lab/statespace/design.py'
+adding 'control_lab/statespace/equations.py'
+adding 'control_lab/statespace/simulation.py'
+adding 'control_lab-1.0.0.dist-info/licenses/LICENSE'
+adding 'control_lab-1.0.0.dist-info/METADATA'
+adding 'control_lab-1.0.0.dist-info/WHEEL'
+adding 'control_lab-1.0.0.dist-info/top_level.txt'
+adding 'control_lab-1.0.0.dist-info/RECORD'
+removing build/bdist.linux-x86_64/wheel
+Successfully built control_lab-1.0.0-py3-none-any.whl
+Verified integrity and inventory of 42 local assets.
+Verified integrity and inventory of 42 local assets.
+SW lifecycle: product Python A ready
+SW lifecycle: A controlled
+SW lifecycle: rejecting candidate B (download)
+SW lifecycle: rejecting candidate B (integrity)
+SW lifecycle: rejecting candidate B (offline)
+SW lifecycle: valid B installation
+SW lifecycle: B activated
+{"A": "e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b", "A_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A39989%2FControlLab_Web%2F:e099c07f61a71ab92cb1991dc0033a7a4c10fe8cb73358df364186b55aad2f3b:0cf0d885-6601-4a5b-aefe-e82507f6e02b", "B": "b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161", "B_cache": "controllab-static:http%3A%2F%2F127.0.0.1%3A39989%2FControlLab_Web%2F:b231cf47401cfc357b374389f654ea74fa368cff91a257babb1b45bc5dc13161:3d08f96d-2b65-4eba-a38b-ad8420ee8496", "activated_python": "B", "browser": "153.0", "changed_assets": ["release-manifest.json", "sbom.json", "service_worker.js", "wheels/control_lab-1.0.0-py3-none-any.whl"], "deterministic_assets": 43, "failures": [{"active_python": "A", "candidate": "redundant", "failure": "download", "offline_reload": true}, {"active_python": "A", "candidate": "redundant", "failure": "integrity", "offline_reload": true}, {"active_python": "A", "candidate": "network-error", "failure": "offline", "offline_reload": true}], "kind": "firefox", "offline_python": "B", "projects_preserved": true, "waiting_python": "A", "wheel": "wheels/control_lab-1.0.0-py3-none-any.whl"}
+PASSED
+
+======================== 1 passed in 185.22s (0:03:05) =========================

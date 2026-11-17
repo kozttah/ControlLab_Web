@@ -754,6 +754,7 @@ def test_capabilities_unavailable_educational_and_gate_0b(
 ) -> None:
     all_caps = describe_solver_capabilities("all")
     assert set(all_caps.keys()) == {
+        "native_primal_dual",
         "clarabel_direct",
         "clarabel_cvxpy",
         "scipy_linprog",
@@ -800,8 +801,7 @@ def test_capabilities_unavailable_educational_and_gate_0b(
     assert gate_res.data is not None
     assert gate_res.data["gate"] == "G-0B"
     assert gate_res.data["overall_passed"] is True
-    assert gate_res.data["backends"]["clarabel_direct"]["passed"] is True
-    assert gate_res.data["backends"]["clarabel_cvxpy"]["passed"] is True
+    assert gate_res.data["backends"]["native_primal_dual"]["passed"] is True
 
 
 def test_architectural_invariants_no_linalg_inv_and_no_experimental_import() -> None:

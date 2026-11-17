@@ -112,7 +112,7 @@ def test_lp_requires_exact_structural_diagonal(monkeypatch, tiny, coupled_coeffi
     assert error.value.to_typed_error().parameters["reason"] == "unsupported_psd"
     monkeypatch.setattr(backend_registry.ClarabelDirectBackend, "capabilities", lambda _: {"available": False})
     monkeypatch.setattr(backend_registry.ClarabelCvxpyBackend, "capabilities", lambda _: {"available": False})
-    assert isinstance(get_backend("auto", problem=problem), UnavailableBackend)
+    assert get_backend("auto", problem=problem).name == "native_primal_dual"
     diagonal = CanonicalSDPProblem(c=[1.0], blocks=[SDPBlock("diagonal", -np.eye(2), [np.eye(2)])])
     assert isinstance(get_backend("auto", problem=diagonal), ScipyLinprogBackend)
     exact_lp = solve(diagonal, backend="scipy_linprog")

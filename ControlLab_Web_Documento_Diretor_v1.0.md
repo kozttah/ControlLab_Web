@@ -1000,3 +1000,7 @@ O gerador real precisa preencher `graph.nodes` com `id/type/name/position/inputs
 - [R10] IEEE P1855 — projeto de revisão em andamento, **não** substitui automaticamente IEEE 1855-2016: https://standards.ieee.org/ieee/1855/10546/
 
 **Nota de proveniência**: as formulações matemáticas, critérios de validação, matrizes de risco e divisão de frentes foram consolidados neste documento a partir da revisão crítica do material-base e de conhecimento técnico de controle/otimização. Fontes acima respaldam interfaces e capacidades declaradas, mas não constituem ensaio de benchmark nem validação ponta a ponta da aplicação que ainda será desenvolvida.
+
+# Adendo normativo — ADR-009 e ADR-010
+
+As decisões do coordenador registradas em `docs/architecture/ADR-009-personal-repository-governance.md` e `docs/architecture/ADR-010-native-sdp-and-offline-exports.md` têm precedência sobre os trechos anteriores relativos à proteção de servidor e ao empacotamento de solver SDP binário no Wasm. A governança de release é em arquivos/CI com auditoria F9. O backend SDP padrão no Pyodide passa a NumPy/SciPy primal-dual com verificador independente obrigatório, contingência offline CVXPY/YALMIP e envelope explícito. A evidência exigida para G-0B é execução nativa da escada A–D e geração dos scripts de contingência na matriz de navegadores, com os cinco estados numéricos separados.

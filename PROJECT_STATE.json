@@ -12,6 +12,7 @@
       "2026-11-13": 6,
       "2026-11-14": 12,
       "2026-11-15": 8,
+      "2026-11-17": 2,
       "2026-11-16": 1
     }
   },
@@ -30,7 +31,14 @@
       "AUD-020",
       "AUD-021"
     ],
-    "disputed_active_findings": []
+    "disputed_active_findings": [],
+    "accepted_external_constraints": {
+      "AUD-018": {
+        "decision": "ADR-009",
+        "status": "ACCEPTED_EXTERNAL_CONSTRAINT",
+        "evidence_ref": "docs/architecture/ADR-009-personal-repository-governance.md"
+      }
+    }
   },
   "gates": {
     "G-0A": {
@@ -75,36 +83,121 @@
       ]
     },
     "G-0B": {
-      "status": "PENDING",
-      "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)",
-      "audit_verdict": "UNAVAILABLE_IN_PROVISIONED_WASM",
-      "assessed_commit": "3ce128a6d8a18ad1eeb18ee83b666df6708d30d0",
-      "blocking_findings": [
-        "F9-WASM-SDP-001"
-      ],
+      "status": "ACCEPTED_BY_F9",
+      "description": "SDP primal-dual NumPy/SciPy no Pyodide, escada A–D e exportadores CVXPY/YALMIP (ADR-010)",
+      "audit_verdict": "PASS_NATIVE_SDP_CHROMIUM_FIREFOX",
+      "blocking_findings": [],
       "blocking_wps": [
-        "WP-AUDIT-FIX-F9-WASM-GATES"
+        "WP-AUDIT-FIX-F6-SDP",
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-ADR010-F6-F8-F9-NATIVE-SDP"
       ],
-      "audit_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
-      "evidence_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+      "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+      "evidence_ref": "docs/audits/handoffs/WP-ADR010-F6-F8-F9-NATIVE-SDP.md",
+      "decision_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "required_validation": {
+        "backend": "native_primal_dual",
+        "normative_tests": [
+          "T-SDP-A1",
+          "T-SDP-A2",
+          "T-SDP-A3",
+          "T-SDP-B1",
+          "T-SDP-C1",
+          "T-SDP-D1",
+          "T-SDP-D2"
+        ],
+        "independent_primal_dual": true,
+        "offline_exports": [
+          "cvxpy",
+          "yalmip"
+        ],
+        "browsers_required": 2
+      },
+      "historical_assessment": {
+        "status": "PENDING",
+        "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)",
+        "audit_verdict": "UNAVAILABLE_IN_PROVISIONED_WASM",
+        "blocking_findings": [
+          "AUD-006",
+          "AUD-007",
+          "AUD-008",
+          "AUD-013"
+        ],
+        "blocking_wps": [
+          "WP-AUDIT-FIX-F6-SDP",
+          "WP-AUDIT-FIX-F9-BUILD-CI",
+          "WP-AUDIT-FIX-F9-WASM-GATES"
+        ],
+        "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+        "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
+      },
+      "f9_review": "accepted",
+      "decision": "pass",
+      "acceptance_scope": "native_numpy_scipy_two_browser_ladder_and_offline_exports",
+      "assessed_commit": "3ce128a6d8a18ad1eeb18ee83b666df6708d30d0",
+      "assessed_source_hashes_ref": "docs/audits/adr009-010/source-sha256.json",
+      "validation": {
+        "production_sdp_wasm": true,
+        "backend": "native_primal_dual",
+        "independent_primal_dual": true,
+        "browsers": [
+          "Chromium",
+          "Firefox"
+        ],
+        "browser_evidence": [
+          "docs/audits/adr009-010/g0b-chromium.json",
+          "docs/audits/adr009-010/g0b-firefox.json"
+        ],
+        "normative_tests": [
+          "T-SDP-A1",
+          "T-SDP-A2",
+          "T-SDP-A3",
+          "T-SDP-B1",
+          "T-SDP-C1",
+          "T-SDP-D1",
+          "T-SDP-D2"
+        ],
+        "offline_exports": [
+          "cvxpy",
+          "yalmip"
+        ],
+        "matlab_execution": false,
+        "matlab_validation": "canonical_numeric_lowering_and_structural_syntax_checks"
+      },
       "previous_assessments": [
         {
           "status": "PENDING",
           "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)",
           "audit_verdict": "UNAVAILABLE_IN_PROVISIONED_WASM",
+          "assessed_commit": "3ce128a6d8a18ad1eeb18ee83b666df6708d30d0",
           "blocking_findings": [
-            "AUD-006",
-            "AUD-007",
-            "AUD-008",
-            "AUD-013"
+            "F9-WASM-SDP-001"
           ],
           "blocking_wps": [
-            "WP-AUDIT-FIX-F6-SDP",
-            "WP-AUDIT-FIX-F9-BUILD-CI",
             "WP-AUDIT-FIX-F9-WASM-GATES"
           ],
-          "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
-          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
+          "audit_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+          "evidence_ref": "docs/audits/RELATORIO_STATUS_GATES_FASE0.md",
+          "previous_assessments": [
+            {
+              "status": "PENDING",
+              "description": "Capacidade real de SDP no navegador via Pyodide (Seção 14.1)",
+              "audit_verdict": "UNAVAILABLE_IN_PROVISIONED_WASM",
+              "blocking_findings": [
+                "AUD-006",
+                "AUD-007",
+                "AUD-008",
+                "AUD-013"
+              ],
+              "blocking_wps": [
+                "WP-AUDIT-FIX-F6-SDP",
+                "WP-AUDIT-FIX-F9-BUILD-CI",
+                "WP-AUDIT-FIX-F9-WASM-GATES"
+              ],
+              "audit_ref": "docs/audits/PARECER_F9_SOBRE_AUDITORIA_EXTERNA.md",
+              "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
+            }
+          ]
         }
       ]
     },
@@ -293,7 +386,7 @@
       ],
       "front": "f9-integration-qa",
       "phase": "Audit-2-Remediation",
-      "title": "Obter proteção efetiva do servidor para main, required checks e revisão F9; não simular enforcement local",
+      "title": "Validar governança em arquivos/CI e aceite explícito da restrição externa de servidor (ADR-009)",
       "allowed_paths": [
         "scripts/",
         "tests/security/",
@@ -305,28 +398,34 @@
       ],
       "acceptance_cmd": "pytest tests/security/test_repository_protection.py -v",
       "normative_tests": [],
-      "status": "BLOCKED_BY_GATE",
-      "f9_review": "blocked_by_gate",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
       "priority": "MAXIMUM_AUDIT2",
       "origin_ref": "docs/audit/AUDITORIA_EXTERNA_CL_DIR_001_Auditoria_2_2026-11-15.md",
-      "external_blockers": [
-        "Leitura atual: protected=false; rulesets indisponíveis (403 por plano/private). Exige ação explícita do responsável e capacidade do servidor; nenhum plano, visibilidade ou permissão será alterado nesta rodada."
-      ],
       "acceptance_requirements": [
-        "API comprova proteção e checks/reviews obrigatórios",
-        "Mudança de fixture/merge com check falho bloqueados em ensaio autorizado"
+        "PROJECT_STATE validado",
+        "Aceite F9 exige evidência Apêndice E",
+        "Release exige gates científicos aprovados",
+        "Restrição de plano aceita pelo coordenador em ADR-009"
       ],
-      "blocking_findings": [
-        "AUD-018"
-      ],
-      "blocking_reason": "Bloqueio externo de governança do servidor; PENDING era incompatível com a regra de seleção de AGENTS.md.",
       "blockage_ref": "docs/audits/PARECER_F9_AUDIT2_PROTECTION_BLOCKED.md",
-      "acceptance_test_status": "NOT_IMPLEMENTED",
-      "resume_conditions": [
-        "Implementar tests/security/test_repository_protection.py antes de executar o acceptance_cmd; o caminho cadastrado é uma entrega futura, não um teste existente.",
-        "Obter evidência atual e autorizada de proteção efetiva, checks obrigatórios, revisão F9 e ensaios de enforcement no servidor.",
-        "F9 deve registrar a remoção dos bloqueadores antes de reclassificar o pacote como PENDING."
-      ]
+      "acceptance_test_status": "IMPLEMENTED",
+      "historical_blockage": {
+        "status": "BLOCKED_BY_GATE",
+        "external_blockers": [
+          "Leitura atual: protected=false; rulesets indisponíveis (403 por plano/private). Exige ação explícita do responsável e capacidade do servidor; nenhum plano, visibilidade ou permissão será alterado nesta rodada."
+        ],
+        "blocking_reason": "Bloqueio externo de governança do servidor; PENDING era incompatível com a regra de seleção de AGENTS.md.",
+        "blockage_ref": "docs/audits/PARECER_F9_AUDIT2_PROTECTION_BLOCKED.md",
+        "acceptance_test_status": "NOT_IMPLEMENTED",
+        "resume_conditions": [
+          "Implementar tests/security/test_repository_protection.py antes de executar o acceptance_cmd; o caminho cadastrado é uma entrega futura, não um teste existente.",
+          "Obter evidência atual e autorizada de proteção efetiva, checks obrigatórios, revisão F9 e ensaios de enforcement no servidor.",
+          "F9 deve registrar a remoção dos bloqueadores antes de reclassificar o pacote como PENDING."
+        ]
+      },
+      "acceptance_scope": "file_and_ci_governance",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT2-FIX-F9-PROTECTION.md"
     },
     {
       "wp_id": "WP-AUDIT2-FIX-F1-OPTIONAL-SDP-TEST",
@@ -1126,11 +1225,9 @@
       "independent_review_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES-INDEPENDENT.md",
       "acceptance_scope": "local_chromium153_real_wasm_diagnostics_and_regression_only_no_product_gate_approval",
       "blocking_gates": [
-        "G-0B",
         "G-0D"
       ],
       "blocking_findings": [
-        "F9-WASM-SDP-001",
         "F9-WASM-PVM-001"
       ],
       "pending_followup": {
@@ -1147,11 +1244,6 @@
           "remaining_gate_work": "Continuous and single-rate discrete conversion, official UI import and independent trajectories verified by accepted producer corrections. Reassess the full G-0D with accepted prerequisite G-0C and complete persistence/release evidence. Multirate and external events remain unsupported.",
           "discrete_producer_wp": "WP-AUDIT-FIX-F1-PVM-DISCRETE-CLOCK",
           "discrete_producer_status": "ACCEPTED_BY_F9"
-        },
-        "F9-WASM-SDP-001": {
-          "owner": "f6-optimization-lmi / f9-integration-qa",
-          "required_work": "Provision a pinned production SDP backend and execute the full G-0B candidate assay in at least two browsers, including PSD non-diagonal, control BRL, infeasible and limit cases. Until then keep production SDP unavailable.",
-          "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
         }
       },
       "audit2_findings": [
@@ -1163,7 +1255,19 @@
       "release_blocker_wps": [
         "WP-AUDIT2-FIX-F9-PROTECTION",
         "WP-AUDIT2-FIX-F9-DOWNLOAD-E2E"
-      ]
+      ],
+      "resolved_followup": {
+        "F9-WASM-SDP-001": {
+          "historical_requirement": {
+            "owner": "f6-optimization-lmi / f9-integration-qa",
+            "required_work": "ADR-010 replaces binary packaging with native NumPy/SciPy primal-dual SDP. Validate the native A–D ladder, primal/dual certificates and CVXPY/YALMIP fallback exports in two browsers; retain honest beta maturity and partial evidence until the matrix is complete.",
+            "evidence_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-WASM-GATES.md"
+          },
+          "decision": "ADR-010",
+          "resolved_by": "WP-ADR010-F6-F8-F9-NATIVE-SDP",
+          "evidence_ref": "docs/audits/handoffs/WP-ADR010-F6-F8-F9-NATIVE-SDP.md"
+        }
+      }
     },
     {
       "wp_id": "WP-00-F9-BOOTSTRAP",
@@ -1638,6 +1742,52 @@
         "WP-AUDIT-FIX-F9-WASM-GATES"
       ],
       "pending_followup": "OBS-F9-WP10-01 (EducationalBarrierBackend.capabilities em control_lab/optimization/backends/unavailable.py) incorporado em WP-AUDIT-FIX-F6-SDP; OBS-F9-WP10-03 (runtime Pyodide/Wasm em Job D / Gates G-0A e G-0B) incorporado em WP-AUDIT-FIX-F9-WASM-GATES."
+    },
+    {
+      "wp_id": "WP-ADR010-F6-F8-F9-NATIVE-SDP",
+      "front": "f6-optimization-lmi / f8-ui-charts / f9-integration-qa",
+      "title": "Promover SDP nativo e exportadores offline sob ADR-009/010",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "dependencies": [
+        "WP-AUDIT2-FIX-F9-PROTECTION"
+      ],
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "control_lab/experimental/sdp_educational/",
+        "control_lab/core/rpc.py",
+        "web/app/",
+        "web/features/",
+        "web/worker/pyodide_worker.ts",
+        "scripts/",
+        "tests/",
+        "docs/",
+        "PROJECT_STATE.json",
+        "pyproject.toml",
+        ".agents/",
+        "AGENTS.md",
+        "ControlLab_Web_Documento_Diretor_v1.0.md"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2",
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "pytest && npm --prefix web test && python3 scripts/project_governance.py",
+      "decisions": [
+        "ADR-009",
+        "ADR-010"
+      ],
+      "acceptance_scope": "native_sdp_cpython_and_two_browser_wasm_offline_exports",
+      "handoff_ref": "docs/audits/handoffs/WP-ADR010-F6-F8-F9-NATIVE-SDP.md",
+      "release_blocker_wps": [
+        "WP-AUDIT-FIX-F9-WASM-GATES"
+      ]
     }
   ],
   "audit_history": [
@@ -1650,14 +1800,33 @@
     }
   ],
   "release_governance": {
-    "status": "BLOCKED",
+    "status": "VERIFIED_BY_FILE_GOVERNANCE",
     "findings": [
       "AUD-018"
     ],
     "remediation_wps": [
       "WP-AUDIT2-FIX-F9-PROTECTION"
     ],
-    "evidence_ref": "docs/audits/audit2/evidence/AUD-018-server.json",
-    "manual_process_is_not_server_enforcement": true
+    "evidence_ref": "docs/audits/handoffs/WP-AUDIT2-FIX-F9-PROTECTION.md",
+    "manual_process_is_not_server_enforcement": true,
+    "mode": "personal_repository_file_ci",
+    "decision": "ADR-009",
+    "required_controls": [
+      "project_governance",
+      "ci_gate",
+      "f9_handoffs"
+    ]
+  },
+  "architecture_decisions": {
+    "ADR-009": {
+      "status": "ACCEPTED",
+      "authority": "project_coordinator",
+      "evidence_ref": "docs/architecture/ADR-009-personal-repository-governance.md"
+    },
+    "ADR-010": {
+      "status": "ACCEPTED",
+      "authority": "project_coordinator",
+      "evidence_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md"
+    }
   }
 }

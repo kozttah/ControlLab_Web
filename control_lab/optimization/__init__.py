@@ -1,6 +1,7 @@
 """Subsistema de otimização SDP/LMI, backends cônicos e verificação independente (Frente F6 / CL-DIR-001 Seção 6)."""
 
 from .backends import (
+    NativePrimalDualBackend,
     ClarabelCvxpyBackend,
     ClarabelDirectBackend,
     EducationalBarrierBackend,
@@ -26,6 +27,7 @@ from .modeling import (
     bmat,
     compile,
     continuous_stabilization_lmi,
+    lqr_lmi,
     hinf_brl_lmi,
     is_diagonal_matrix,
     linear_eq,
@@ -60,6 +62,7 @@ __all__ = [
     "CERTIFICATE_STATUSES",
     "CONTROLLER_VALIDITY_LEVELS",
     "CanonicalSDPProblem",
+    "NativePrimalDualBackend",
     "ClarabelCvxpyBackend",
     "ClarabelDirectBackend",
     "DEFAULT_SDP_TOLERANCES",
@@ -79,6 +82,7 @@ __all__ = [
     "bmat",
     "compile",
     "continuous_stabilization_lmi",
+    "lqr_lmi",
     "describe_solver_capabilities",
     "get_backend",
     "hinf_brl_lmi",
@@ -93,6 +97,8 @@ __all__ = [
     "sdpvar",
     "smat",
     "smat_dim",
+    "export_to_cvxpy_script",
+    "export_to_yalmip_script",
     "solve",
     "solve_and_verify",
     "svec",
@@ -103,3 +109,5 @@ __all__ = [
     "ts_pdc_stabilization_lmi",
     "verify",
 ]
+
+from .exporters import export_to_cvxpy_script, export_to_yalmip_script

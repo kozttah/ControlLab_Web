@@ -436,7 +436,7 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
     id: "optimization.solve",
     title: "Síntese LMI / SDP Convexa",
     description:
-      "Compila problema semidefinido canônico F(x) >= 0 e resolve no backend WASM quando aprovado pelo Gate G-0B.",
+      "Resolve LMIs no motor primal-dual NumPy/SciPy com auditoria primal, dual, gap e condicionamento.",
     tab: "optimization_lmi",
     input_types: ["CanonicalSDPProblem", "StateSpace"],
     parameter_schema: [
@@ -448,6 +448,7 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
         default_value: "quadratic_stabilization",
         options: [
           { value: "quadratic_stabilization", label: "Estabilização Quadrática (u=Kx)" },
+          { value: "lqr_lmi", label: "LQR-LMI com custo quadrático" },
           { value: "decay_rate", label: "Decaimento α ((AQ+BY)+(AQ+BY)^T+2αQ < 0)" },
           { value: "hinf_brl", label: "BRL H∞ (realimentação de estados)" },
         ],
@@ -461,21 +462,25 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
         min: 0,
         max: 100,
       },
+      {
+        name: "problem", label: "Problema SDP canônico (JSON opcional)",
+        type: "json", required: false,
+      },
     ],
     operation: "optimization.solve",
     output_types: ["SDPSolution", "StateFeedbackController"],
     visualizations: ["lmi_spectrum", "provenance_report"],
     requirements: [
-      "Requer backend SDP aprovado no Gate G-0B (Clarabel/CVXPY em WASM)",
+      "Backend primal-dual NumPy/SciPy com auditoria independente (ADR-010)",
       "Todas as soluções passam pelo verificador independente (5 dimensões de status)",
     ],
     interaction_mode: "batch_async",
-    maturity: "unavailable_wasm",
-    required_backend: "clarabel_cvxpy",
+    maturity: "beta",
+    required_backend: "native_primal_dual",
     limits: {
-      max_states: 30,
+      max_states: 12,
       hard_timeout_ms: 30000,
-      notes: "Quando indisponível em WASM, oferece inspeção do problema canônico e exportação para CPython.",
+      notes: "Envelope denso de até 128 variáveis e blocos de ordem 48. Exporte CVXPY/YALMIP para problemas maiores ou numericamente inconclusivos.",
     },
     examples: [
       {

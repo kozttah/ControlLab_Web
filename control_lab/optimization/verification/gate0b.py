@@ -81,6 +81,7 @@ def _build_gate_0b_suite() -> dict[str, dict[str, Any]]:
     return {
         "LP_A1": {"problem": p_a1, "kind": "optimal", "expected_obj": 1.0, "expected_x": [1.0]},
         "LP_A2_INFEASIBLE": {"problem": p_a2, "kind": "infeasible"},
+        "LP_A3_UNBOUNDED": {"problem": compile(x_a1, [-x_a1 >= -2.0]), "kind": "unbounded"},
         "PSD_2x2_B1": {"problem": p_b1, "kind": "optimal", "expected_obj": -1.0, "expected_x": [-1.0]},
         "SDP_3x3_C1": {"problem": p_c1, "kind": "optimal", "expected_obj": 3.0, "expected_x": [1.0, 2.0]},
         "CTRL_STAB_D1": {"problem": p_d1, "kind": "controller"},
@@ -90,7 +91,7 @@ def _build_gate_0b_suite() -> dict[str, dict[str, Any]]:
 
 
 def run_gate_0b_assay(
-    backends: Sequence[str] = ("clarabel_direct", "clarabel_cvxpy"),
+    backends: Sequence[str] = ("native_primal_dual",),
     *,
     tolerances: Mapping[str, Any] | None = None,
     track_memory: bool = True,
@@ -190,6 +191,8 @@ def run_gate_0b_assay(
                         and d["audit_feasibility"] == "violated"
                         and d["certificate_status"] == "validated_infeasibility"
                     )
+                elif kind == "unbounded":
+                    case_ok = d["certificate_status"] == "validated_unboundedness"
                 elif kind == "controller":
                     rec = recover_controller(prob, res, tolerances=tolerances)
                     if rec.status == "failure" or rec.data is None:

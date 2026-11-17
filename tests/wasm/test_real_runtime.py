@@ -84,18 +84,67 @@ def test_unstabilizable_plant_through_real_rpc(browser_harness):
     browser_harness.record("unstabilizable-real-rpc", result)
 
 
-def test_g0b_runtime_reports_unavailable_honestly(browser_harness):
-    # The provisioned production Pyodide does not ship the optional SDP packages.
-    # Record the actual assay outcome, never promote an educational solver.
-    report = browser_harness.python("""import json, sys, importlib.util
-from control_lab.optimization.verification.gate0b import run_gate_0b_assay
-r = run_gate_0b_assay(track_memory=False)
-json.dumps({"platform":sys.platform,"cvxpy_present":importlib.util.find_spec("cvxpy") is not None,"clarabel_present":importlib.util.find_spec("clarabel") is not None,"assay":r.to_dict()})""")
-    assert report["platform"] == "emscripten"
-    assert not report["assay"]["data"]["overall_passed"], report
-    for backend in report["assay"]["data"]["backends"].values():
-        assert not backend["passed"] and not backend["capabilities"]["available"], backend
-    browser_harness.record(
-        "g0b-unavailable",
-        {"decision": "fail", "production_sdp_status": "SDP backend unavailable on WASM", **report},
-    )
+def test_g0b_native_runtime_and_offline_scripts(browser_harness):
+    report = browser_harness.python("""import json, sys, ast
+import numpy as np
+from control_lab.optimization import solve, export_to_cvxpy_script, export_to_yalmip_script, CanonicalSDPProblem, SDPBlock
+from control_lab.optimization.verification.gate0b import run_gate_0b_assay, _build_gate_0b_suite
+assay = run_gate_0b_assay(track_memory=False)
+suite = _build_gate_0b_suite()
+auto_lp = solve(suite['LP_A1']['problem'])
+auto_psd = solve(suite['PSD_2x2_B1']['problem'])
+scaled = CanonicalSDPProblem(c=[1.], blocks=[SDPBlock('scaled',np.diag([-1.,1e-8]),[np.diag([1.,0.])])])
+large = CanonicalSDPProblem(c=np.ones(129))
+exports = []
+for problem in (scaled, large):
+    solution = solve(problem, backend='native_primal_dual')
+    py = export_to_cvxpy_script(problem)
+    compile(py, '<offline export>', 'exec')
+    matlab = export_to_yalmip_script(problem)
+    exports.append({'offline_recommended':solution.diagnostics['offline_recommended'],
+                    'python_syntax':True,'yalmip_syntax':all(t in matlab for t in ('sdpvar(', 'sdpsettings(', 'optimize(', 'check('))})
+json.dumps({'platform':sys.platform,'assay':assay.to_dict(),'exports':exports, 'auto_lp':auto_lp.to_dict(), 'auto_psd':auto_psd.to_dict()})""")
+    assert report['platform'] == 'emscripten'
+    assert report['auto_lp']['data']['backend'] == 'scipy_linprog'
+    assert report['auto_psd']['data']['backend'] == 'native_primal_dual'
+    assert report['auto_psd']['data']['certificate_status'] == 'validated_dual'
+    assert report['assay']['data']['overall_passed'], report
+    native = report['assay']['data']['backends']['native_primal_dual']
+    assert native['capabilities']['psd'] and not native['capabilities']['experimental']
+    assert all(c['passed'] for c in native['cases'].values())
+    assert all(e['offline_recommended'] and e['python_syntax'] and e['yalmip_syntax'] for e in report['exports'])
+    browser_harness.record('g0b-native-adr010',report)
+
+
+def test_offline_scripts_download_without_committed_solution(browser_harness, tmp_path):
+    page = browser_harness.page
+    page.locator('[data-tab-id="optimization_lmi"]').click()
+    page.locator('[data-action="execute-tool"][data-tool-id="optimization.solve"]').click()
+    page.wait_for_function("""() => app.shell.getTabsController().getTabViewModel('optimization_lmi')
+        .lastExecutionByTool['optimization.solve'] !== undefined""")
+    solved = page.evaluate("""() => app.shell.getTabsController().getTabViewModel('optimization_lmi')
+        .lastExecutionByTool['optimization.solve'].response""")
+    assert solved['status'] in ('success','warning'), solved
+    assert solved['result']['backend'] == 'native_primal_dual'
+    assert solved['result']['certificate_status'] == 'validated_dual'
+    page.locator('#export-modal-close').click()
+    for kind, extension in [('cvxpy','.py'), ('yalmip','.m')]:
+        page.locator(f'[data-action="export-sdp"][data-format="{kind}"]').click()
+        with page.expect_download() as event:
+            page.locator('#export-modal-download').click()
+        assert event.value.suggested_filename.endswith(extension)
+        path = tmp_path / event.value.suggested_filename
+        event.value.save_as(path)
+        text = path.read_text()
+        if kind == 'cvxpy':
+            import ast
+            compile(text,'<downloaded CVXPY script>','exec')
+            tree = ast.parse(text)
+            data_node = next(node for node in tree.body if isinstance(node, ast.Assign)
+                             and any(isinstance(t, ast.Name) and t.id == 'DATA' for t in node.targets))
+            payload = json.loads(ast.literal_eval(data_node.value.args[0]))
+            plant = page.evaluate("() => app.shell.getLqrWorkspace().getPlant()")
+            assert payload['recovery']['A'] == plant['matrices']['A']
+        else:
+            assert 'optimize(' in text and 'value(M) / value(P)' in text
+        page.locator('#export-modal-close').click()

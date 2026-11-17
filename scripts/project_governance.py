@@ -221,6 +221,52 @@ def validate_state(state, root=ROOT):
                 and len(set(proof.get("browsers", []))) >= 2,
                 "G-0B: production SDP proof in at least two browsers required",
             )
+    release = state.get("release_governance", {})
+    if release.get("status") == "VERIFIED_BY_FILE_GOVERNANCE":
+        require(release.get("mode") == "personal_repository_file_ci" and release.get("decision") == "ADR-009",
+                "ADR-009 file governance decision required")
+        adr = state.get("architecture_decisions", {}).get("ADR-009", {})
+        require(adr.get("status") == "ACCEPTED", "ADR-009 must be accepted")
+        evidence_file(root, adr.get("evidence_ref"))
+        require(set(release.get("required_controls", [])) == {"project_governance", "ci_gate", "f9_handoffs"},
+                "ADR-009 requires all local/CI controls")
+        require(by_id.get("WP-AUDIT2-FIX-F9-PROTECTION", {}).get("status") == "ACCEPTED_BY_F9",
+                "ADR-009 protection handoff must be accepted")
+        evidence_file(root, release.get("evidence_ref"))
+    native_gate = state.get("architecture_decisions", {}).get("ADR-010", {}).get("status") == "ACCEPTED"
+    gate = state["gates"]["G-0B"]
+    if native_gate and gate["status"] == "ACCEPTED_BY_F9":
+        proof = gate.get("validation", {})
+        require(proof.get("backend") == "native_primal_dual" and proof.get("independent_primal_dual") is True,
+                "ADR-010 requires native primal/dual audit")
+        require(set(proof.get("normative_tests", [])) >= {"T-SDP-A1", "T-SDP-A2", "T-SDP-A3", "T-SDP-B1", "T-SDP-C1", "T-SDP-D1", "T-SDP-D2"},
+                "ADR-010 ladder evidence required")
+        require(set(proof.get("offline_exports", [])) >= {"cvxpy", "yalmip"}, "ADR-010 offline export evidence required")
+        reports = proof.get("browser_evidence", [])
+        require(len(reports) >= 2, "ADR-010 browser evidence files required")
+        browsers, builds = set(), set()
+        cases = {"LP_A1", "LP_A2_INFEASIBLE", "LP_A3_UNBOUNDED", "PSD_2x2_B1", "SDP_3x3_C1",
+                 "CTRL_STAB_D1", "CTRL_BRL_D2_FIXED", "CTRL_BRL_D2_MIN"}
+        for reference in reports:
+            report = json.loads(evidence_file(root, reference).read_text())
+            browsers.add(report.get("browser_kind", "").lower())
+            builds.add(report.get("release_manifest_sha256"))
+            evidence = report.get("evidence", {})
+            assay = evidence.get("assay", {}).get("data", {})
+            native = assay.get("backends", {}).get("native_primal_dual", {})
+            require(evidence.get("platform") == "emscripten" and assay.get("overall_passed") is True,
+                    "ADR-010 requires successful real Wasm assay")
+            require(native.get("passed") is True and cases <= set(native.get("cases", {})),
+                    "ADR-010 native ladder incomplete")
+            require(all(native["cases"][case].get("passed") is True for case in cases),
+                    "ADR-010 native ladder failed")
+            exports = evidence.get("exports", [])
+            require(len(exports) >= 2 and all(e.get("offline_recommended") and e.get("python_syntax") and e.get("yalmip_syntax") for e in exports),
+                    "ADR-010 fallback export checks failed")
+        require(len(browsers - {""}) >= 2 and len(builds) == 1 and None not in builds,
+                "ADR-010 requires two browsers on the same release build")
+
+
     covered = {finding for wp in wps if corrective(wp) for finding in wp.get("findings", [])}
     require(
         set(state.get("audit_reference", {}).get("confirmed_findings", [])) <= covered,
@@ -236,7 +282,7 @@ def validate_state(state, root=ROOT):
             "Stable release requires every mandatory gate to pass",
         )
         release = state.get("release_governance", {})
-        require(release.get("status") == "VERIFIED", "Stable release requires server evidence")
+        require(release.get("status") in {"VERIFIED", "VERIFIED_BY_FILE_GOVERNANCE"}, "Stable release requires governance evidence")
         evidence_file(root, release.get("evidence_ref"))
     return {
         "work_packages": len(wps),

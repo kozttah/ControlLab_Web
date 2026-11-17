@@ -30,3 +30,6 @@ A cada execução na nuvem, siga estritamente estes passos:
 6. Se aprovado (`ACCEPTED_BY_F9`), atualize `@PROJECT_STATE.json`, execute `python3 scripts/budget_governor.py --record-task` e faça commit/push atômico (`git add -A && git commit -m "feat(<front>): conclui <wp_id> [auditado F9]" && git push`).
 7. Se um teste falhar após 3 tentativas, marque `"status": "BLOCKED_NEEDS_ARGON"` em `@PROJECT_STATE.json`, faça commit do diagnóstico e pare para não desperdiçar créditos em loop.
 8. Repita o loop a partir do Passo 1 enquanto `python3 scripts/budget_governor.py --check` retornar código `0`.
+
+## 4. Decisões do coordenador ADR-009 e ADR-010
+As ADRs em docs/architecture integram a fonte normativa via adendo do Documento Diretor. Governança em arquivos/CI e auditoria F9 substituem a exigência de proteção do servidor da conta pessoal. O solver SDP nativo NumPy/SciPy assume a produção Pyodide com verificação obrigatória e exportações offline. A implementação educacional mantém sua API experimental.

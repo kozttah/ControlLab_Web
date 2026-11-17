@@ -42,6 +42,8 @@ def solve(
 
         backend_obj = get_backend(backend, problem=problem)
         caps = backend_obj.capabilities()
+        if backend_obj.name == "native_primal_dual" and not verify_solution:
+            raise ValidationError("Native SDP requires independent verification.")
         prov = build_provenance(
             f"optimization.solve.{backend_obj.name}",
             tolerances=dict(tolerances) if tolerances is not None else dict(DEFAULT_SDP_TOLERANCES),
@@ -153,6 +155,24 @@ def solve(
                 "backend": backend_obj.name,
             }
 
+        from .native import within_browser_envelope
+        conditioning = data_out.get("conditioning", {})
+        recommend_offline = (
+            not within_browser_envelope(problem)
+            or conditioning.get("status") != "well_conditioned"
+            or data_out.get("certificate_status") not in ("validated_dual", "validated_infeasibility", "validated_unboundedness")
+            or result_status == "inconclusive"
+        )
+        diagnostics["offline_recommended"] = recommend_offline
+        diagnostics["offline_exports"] = ["optimization.export_cvxpy", "optimization.export_yalmip"]
+        if recommend_offline:
+            raw_warnings.append(WarningItem(
+                code="SDP_OFFLINE_RECOMMENDED",
+                message="Execute offline em Python/CVXPY ou MATLAB/YALMIP com MOSEK, Clarabel, SeDuMi ou SDPT3. "
+                        "Inspecione condicionamento, resíduos primal/dual e gap antes de usar os ganhos."))
+            if result_status == "success":
+                result_status = "warning"
+
         return Result(
             status=result_status,
             data=ensure_json_finite(data_out),
@@ -170,7 +190,7 @@ def solve(
             status="failure",
             data=None,
             assumptions={},
-            diagnostics={},
+            diagnostics={"offline_recommended": True, "offline_exports": ["optimization.export_cvxpy", "optimization.export_yalmip"]},
             provenance=prov_init,
             warnings=(),
             error=exc.to_typed_error(),
@@ -183,7 +203,7 @@ def solve(
             status="failure",
             data=None,
             assumptions={},
-            diagnostics={},
+            diagnostics={"offline_recommended": True, "offline_exports": ["optimization.export_cvxpy", "optimization.export_yalmip"]},
             provenance=prov_init,
             warnings=(),
             error=err.to_typed_error(),

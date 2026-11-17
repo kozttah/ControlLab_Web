@@ -21,3 +21,6 @@ Você só tem permissão para criar ou modificar arquivos dentro de:
 
 ## 3. Protocolo de Handoff (Apêndice E)
 Antes de encerrar qualquer WorkPackage, execute os testes da sua frente, verifique os 10 itens do Checklist de Handoff do Apêndice E de `@ControlLab_Web_Documento_Diretor_v1.0.md` e entregue as evidências para auditoria da Frente F9 (`f9-integration-qa`).
+
+## Decisões vigentes ADR-010
+O backend de produção padrão Pyodide é native_primal_dual em optimization/backends, com núcleo comum NumPy/SciPy promovido. A API educacional continua experimental. Auditoria independente é obrigatória no backend nativo. Exportadores CVXPY/YALMIP usam o mesmo CanonicalSDPProblem. LPs diagonais usam HiGHS e Clarabel/CVXPY são opcionais em CPython. Respeite envelope e recomendações offline registrados na ADR-010.

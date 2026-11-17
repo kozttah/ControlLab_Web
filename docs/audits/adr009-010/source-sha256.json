@@ -1,0 +1,20 @@
+{
+  "control_lab/optimization/backends/native_core.py": "569b2338bec88593f4e28f1ee166330d1cdea7184ba54e8c77cfb5fe47d70fe1",
+  "control_lab/optimization/backends/native.py": "0412d8df00c452f086330cdbe0b25d70eeacbf0cfd9d61c62528b0603cc8165c",
+  "control_lab/optimization/backends/capabilities.py": "8b25d9858a51071f015f90349fe53b8f99b842f961596b626cfa54779e722bd8",
+  "control_lab/optimization/backends/solve.py": "8bbf9c53b12ccf4c853582dea79d130625c56a788959a0e8b044f7672bd529c7",
+  "control_lab/optimization/exporters.py": "0eec31d8951d720d24b0d612d09c16647124255b3eeb89654221d665dd2e1b8f",
+  "control_lab/optimization/modeling/templates.py": "1fc465061e085c3aa9d493d30b8808b85c5f4814f27a2cab8f6fe3b172c9936d",
+  "control_lab/optimization/verification/verifier.py": "4e59c69165c6e73f1db8ff742ae0baeec58ae58502780f4cc28f3f2946537f0a",
+  "control_lab/optimization/verification/gate0b.py": "0d09a5aeeef58753858855e86f3b5a9ac3c3dcea01428a335dd1cfa87ab6cea8",
+  "control_lab/core/rpc.py": "0a2b2687351182c569efa4ab1b4347e97ea2d098ea137388ddf277b5277d20ba",
+  "web/app/main.ts": "934bb198aaf799ea5ad1c2093592f467d42c2b3aee32a7b665fa69f78bdb720f",
+  "web/app/shell.ts": "a4d98b3aa6ed0a9284087aa9c86cad24c017136a63bb6f58e494fd475608ef2d",
+  "web/app/tool_descriptor.ts": "a93cf3e4a9a5ad36b6ebbd2b6e3dd6cd39410a5bd446eb1b7510aea49c8d5ec3",
+  "web/features/tool_catalog.ts": "8806014fa46f77115ca0d24bfe1f8d8100df60315fc2efa9e72bd44f03a4c7f2",
+  "web/worker/pyodide_worker.ts": "c087dd4a7d786d260917cda70210dd324788269641384cea174ab7d87f696e9a",
+  "scripts/project_governance.py": "443e1719b66c83c3c146516f402aa028d5318676878a8a64cafcb16e6cb1cb60",
+  "scripts/ci_gate.py": "dc23867d88b53146f6b1da3af7b2b4518efbf1cf3b33511b2aa19a27d355ba7b",
+  "tests/wasm/test_real_runtime.py": "78730fdc773d13d6f1af84121459b73a45ac143fce5d2ff7f98b11639a6480c1",
+  "tests/unit/f6/test_native_sdp_and_exports.py": "13d4c37b2fd832095063e68921e785a981b506efe9513b40a043c668a13f932d"
+}

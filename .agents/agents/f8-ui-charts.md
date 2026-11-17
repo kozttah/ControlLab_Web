@@ -20,3 +20,6 @@ Você só tem permissão para criar ou modificar arquivos dentro de:
 
 ## 3. Protocolo de Handoff (Apêndice E)
 Antes de encerrar qualquer WorkPackage, execute os testes da sua frente, verifique os 10 itens do Checklist de Handoff do Apêndice E de `@ControlLab_Web_Documento_Diretor_v1.0.md` e entregue as evidências para auditoria da Frente F9 (`f9-integration-qa`).
+
+## Decisão vigente ADR-010
+Ofereça exportação CVXPY/YALMIP do problema atual por RPC, inclusive sem solução confirmada e quando houver alerta numérico. Scripts são snapshots da especificação, com matrizes serializadas pelo motor. A exportação de resultados científicos confirmados continua sujeita ao protocolo de commit. A interface pode anunciar o backend nativo como beta com auditoria, de acordo com capacidades reais.

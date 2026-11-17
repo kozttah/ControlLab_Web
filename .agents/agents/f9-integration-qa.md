@@ -17,3 +17,6 @@ Você só tem permissão para criar ou modificar arquivos dentro de:
 
 ## 3. Protocolo de Handoff (Apêndice E)
 Antes de encerrar qualquer WorkPackage, execute os testes da sua frente, verifique os 10 itens do Checklist de Handoff do Apêndice E de `@ControlLab_Web_Documento_Diretor_v1.0.md` e entregue as evidências para auditoria da Frente F9 (`f9-integration-qa`).
+
+## Decisões vigentes ADR-009 e ADR-010
+A governança aceita de conta pessoal é em arquivos/CI e handoffs F9. A restrição de proteção de servidor está aceita por decisão explícita do coordenador. G-0B exige solver nativo NumPy/SciPy no Pyodide, escada A–D auditada e scripts de contingência CVXPY/YALMIP. Preserve a exigência da matriz de navegadores antes do aceite integral do gate.

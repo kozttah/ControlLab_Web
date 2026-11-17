@@ -493,3 +493,32 @@ def ts_pdc_stabilization_lmi(
         recovery_plan=recovery_plan,
         metadata={"template": "ts_pdc_stabilization_lmi", "n": n, "m": m, "n_vertices": r, "alpha": alpha_val},
     )
+
+
+def lqr_lmi(plant_or_A: Any, B: Any = None, *, Q_cost: Any = None, R_cost: Any = None,
+            feedback_sign: str = "negative", eps_lmi: float = 1e-5) -> CanonicalSDPProblem:
+    """Guaranteed quadratic cost via the Schur-complement LQR LMI.
+
+    With X=P^-1 and Y=KX, the block inequality implies
+    Acl.T P + P Acl + Q_cost + K.T R_cost K < 0.
+    """
+    A, B, _ = _extract_lti_matrices(plant_or_A, B)
+    n, m = B.shape
+    sign = _validate_feedback_sign(feedback_sign)
+    eps = _validate_positive_scalar(eps_lmi, "eps_lmi")
+    Qc = ensure_finite_float64(np.eye(n) if Q_cost is None else Q_cost, ndim=2, shape=(n,n), name="Q_cost")
+    Rc = ensure_finite_float64(np.eye(m) if R_cost is None else R_cost, ndim=2, shape=(m,m), name="R_cost")
+    for name, cost in (("Q_cost", Qc), ("R_cost", Rc)):
+        if not np.allclose(cost, cost.T, atol=1e-12, rtol=0) or np.linalg.eigvalsh(cost).min() <= 0:
+            raise HypothesisViolatedError(f"{name} must be symmetric positive definite.")
+    X = sdpvar((n,n), name="Q", symmetric=True)
+    Y = sdpvar((m,n), name="Y")
+    M = A @ X + (1.0 if sign == "positive" else -1.0) * B @ Y
+    block = bmat([[M + M.T, X, Y.T],
+                  [X, -np.linalg.solve(Qc, np.eye(n)), np.zeros((n,m))],
+                  [Y, np.zeros((m,n)), -np.linalg.solve(Rc, np.eye(m))]])
+    return compile(None, [X >= eps*np.eye(n), block <= -eps*np.eye(2*n+m)],
+                   name="lqr_lmi", metadata={"template":"lqr_lmi", "Q_cost":Qc.tolist(), "R_cost":Rc.tolist()},
+                   recovery_plan={"template_kind":"continuous_stabilization", "controller_kind":"StateFeedbackController",
+                     "feedback_sign":sign,"Q_var":"Q","Y_var":"Y", "alpha":0.0,"eps_lmi":eps,"eps_q":eps,"dt":None,
+                     "A":array_to_tensor(A),"B":array_to_tensor(B)})

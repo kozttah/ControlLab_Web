@@ -77,6 +77,7 @@ interface ExportModalPayload {
   mimeType: string;
   content: string;
   bytes?: Uint8Array;
+  offlineDesign?: boolean;
   projectRevision?: number;
   projectId?: string;
   requestId?: string;
@@ -206,6 +207,7 @@ export function mountControlLabApp(
     `<h2 id="export-modal-title">Artefato Exportado</h2>`,
     `<div class="panel-actions">`,
     `<button type="button" id="export-modal-download" class="touch-control">Baixar arquivo</button>`,
+    `<button type="button" id="export-modal-copy" class="touch-control" hidden>Copiar script</button>`,
     `<button type="button" id="export-modal-close" class="touch-control">Fechar</button>`,
     `</div>`,
     `</div>`,
@@ -239,6 +241,7 @@ export function mountControlLabApp(
   const modalTitleEl = container.querySelector<HTMLElement>("#export-modal-title");
   const modalContentEl = container.querySelector<HTMLElement>("#export-modal-content");
   const modalCloseBtnEl = container.querySelector<HTMLElement>("#export-modal-close");
+  const modalCopyBtnEl = container.querySelector<HTMLElement>("#export-modal-copy");
   const modalDownloadBtnEl = container.querySelector<HTMLElement>("#export-modal-download");
   const livePoliteEl = container.querySelector<HTMLElement>("#controllab-live-polite");
   const liveAssertiveEl = container.querySelector<HTMLElement>("#controllab-live-assertive");
@@ -262,6 +265,8 @@ export function mountControlLabApp(
     }
     if (modalTitleEl) modalTitleEl.textContent = payload.title;
     if (modalContentEl) modalContentEl.textContent = payload.content;
+    if (payload.offlineDesign) modalCopyBtnEl?.removeAttribute("hidden");
+    else modalCopyBtnEl?.setAttribute("hidden", "true");
     if (modalEl) {
       modalEl.removeAttribute("hidden");
     }
@@ -706,10 +711,20 @@ export function mountControlLabApp(
   });
 
   modalCloseBtnEl?.addEventListener("click", closeExportModal);
+  modalCopyBtnEl?.addEventListener("click", () => {
+    if (!lastExportPayload?.offlineDesign) return;
+    if (!globalThis.navigator?.clipboard) {
+      shell.presentError(new Error("Cópia indisponível neste navegador. Selecione o texto ou baixe o script."));
+      return;
+    }
+    void globalThis.navigator.clipboard.writeText(lastExportPayload.content).then(() => {
+      if (livePoliteEl) livePoliteEl.textContent = "Script copiado.";
+    }).catch((error: unknown) => shell.presentError(error));
+  });
   modalDownloadBtnEl?.addEventListener("click", () => {
     if (lastExportPayload && doc) {
       try {
-        lqr.assertExportAllowed();
+        if (!lastExportPayload.offlineDesign) lqr.assertExportAllowed();
         if (lastExportPayload.projectRevision !== undefined &&
             (lastExportPayload.projectRevision !== lqr.getCommittedSnapshot()?.project_revision ||
              lastExportPayload.projectId !== lqr.getCommittedSnapshot()?.project_id ||
@@ -765,7 +780,7 @@ export function mountControlLabApp(
 
     toolsSlotEl.addEventListener("click", (ev: Event) => {
       const target = ev.target as HTMLElement | null;
-      const btn = target?.closest?.('[data-action="execute-tool"]') as HTMLElement | null;
+      const btn = (target?.closest?.('[data-action="execute-tool"]') ?? target?.closest?.('[data-action="export-sdp"]')) as HTMLElement | null;
       const toolId = btn?.getAttribute("data-tool-id");
       if (!toolId) return;
 
@@ -773,6 +788,27 @@ export function mountControlLabApp(
         if (fieldEl.getAttribute("data-param-name")) {
           syncToolInput(fieldEl);
         }
+      }
+
+      if (btn?.getAttribute("data-action") === "export-sdp") {
+        const format = btn.getAttribute("data-format") === "yalmip" ? "yalmip" : "cvxpy";
+        const validation = tabsCtrl.getTabViewModel("optimization_lmi").tools
+          .find((tool) => tool.toolId === toolId)?.validation;
+        if (!validation?.valid) {
+          shell.presentError(new Error("Corrija os parâmetros do problema antes de exportar."));
+          return;
+        }
+        const specification = {
+          ...validation.sanitized,
+          plant: lqr.getPlant(),
+          feedback_sign: feedbackSelectEl?.value === "positive" ? "positive" : "negative",
+        };
+        void shell.exportSdpScript(format, specification).then((file) => {
+          openExportModal({title: `Execução offline / ${format.toUpperCase()}`,
+            filename: file.filename, mimeType: file.media_type, content: file.script,
+            offlineDesign: true}, btn);
+        }).catch((error: unknown) => shell.presentError(error));
+        return;
       }
 
       const plant = lqr.getPlant();
@@ -797,6 +833,9 @@ export function mountControlLabApp(
             commitOnSuccess: false,
             extraPayload: {
               plant_ref: { id: plant.id, revision: plant.revision },
+              ...(toolId === "optimization.solve" ? {
+                feedback_sign: feedbackSelectEl?.value === "positive" ? "positive" : "negative",
+              } : {}),
             },
           }),
         )

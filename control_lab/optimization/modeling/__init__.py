@@ -26,6 +26,7 @@ from .svec import (
 )
 from .templates import (
     continuous_stabilization_lmi,
+    lqr_lmi,
     hinf_brl_lmi,
     regional_pole_placement_lmi,
     ts_pdc_stabilization_lmi,
@@ -43,6 +44,7 @@ __all__ = [
     "bmat",
     "compile",
     "continuous_stabilization_lmi",
+    "lqr_lmi",
     "hinf_brl_lmi",
     "is_diagonal_matrix",
     "linear_eq",

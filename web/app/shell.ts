@@ -655,6 +655,16 @@ export class ControlLabShell {
     return response;
   }
 
+  public async exportSdpScript(format: "cvxpy" | "yalmip", specification: Record<string, unknown>): Promise<{script: string; filename: string; media_type: string}> {
+    const response = await this.fileRequest(`optimization.export_${format}`, specification);
+    const data = response.result;
+    if (!isPlainObject(data) || typeof data.script !== "string" ||
+        typeof data.filename !== "string" || typeof data.media_type !== "string") {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Exportador SDP retornou um arquivo inválido.");
+    }
+    return {script: data.script, filename: data.filename, media_type: data.media_type};
+  }
+
   private async exportFile(operation: string, payload: Record<string, unknown>, extension: string): Promise<NativeFileExport> {
     this.lqr.assertExportAllowed();
     const committed = this.lqr.getCommittedSnapshot()!;

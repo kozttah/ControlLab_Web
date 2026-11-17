@@ -44,7 +44,7 @@ include = ["control_lab*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-ra"
+addopts = "-ra --import-mode=importlib"
 
 [tool.ruff]
 line-length = 100

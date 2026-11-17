@@ -588,6 +588,7 @@ def _compute_conditioning(
         or certificate_status == "failed_validation"
     )
     return {
+        "status": "ill_conditioned" if scaling_warning or loss_of_significance else "well_conditioned",
         "condition_number": cond_val,
         "scaling_warning": scaling_warning,
         "near_boundary": near_boundary,

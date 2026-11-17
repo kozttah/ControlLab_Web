@@ -759,6 +759,10 @@ function renderToolViewModelToHtml(vm: Omit<RenderedToolViewModel, "toHtml">): s
     `<section class="tool-requirements" aria-label="Requisitos e hipóteses"><ul>${reqHtml}</ul></section>`,
     `<footer class="tool-actions">`,
     `<button type="button" class="btn-primary touch-control" data-action="execute-tool" data-tool-id="${safeId}" style="min-width:${vm.executeButtonTouchTarget.minTouchTargetPx}px;min-height:${vm.executeButtonTouchTarget.minTouchTargetPx}px" ${vm.canExecute ? "" : 'disabled aria-disabled="true"'}>Executar (${safeOp})</button>`,
+    ...(vm.operation === "optimization.solve" ? [
+      `<button type="button" class="touch-control" data-action="export-sdp" data-format="cvxpy" data-tool-id="${safeId}">Exportar Python / CVXPY</button>`,
+      `<button type="button" class="touch-control" data-action="export-sdp" data-format="yalmip" data-tool-id="${safeId}">Exportar MATLAB / YALMIP</button>`,
+    ] : []),
     vm.disabledReason ? `<p class="disabled-reason">${escapeHtml(vm.disabledReason)}</p>` : "",
     `</footer>`,
     `</article>`,

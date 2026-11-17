@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from control_lab.diagnostics import ValidationError, ensure_json_finite
 
 from ..modeling.canonical import CanonicalSDPProblem
+from .native import NativePrimalDualBackend
 from .base import SDPBackend
 from .clarabel_cvxpy import ClarabelCvxpyBackend
 from .clarabel_direct import ClarabelDirectBackend
@@ -14,6 +16,7 @@ from .scipy_linprog import ScipyLinprogBackend
 from .unavailable import EducationalBarrierBackend, UnavailableBackend
 
 _BACKEND_REGISTRY: dict[str, type[SDPBackend]] = {
+    "native_primal_dual": NativePrimalDualBackend,
     "clarabel_direct": ClarabelDirectBackend,
     "clarabel_cvxpy": ClarabelCvxpyBackend,
     "scipy_linprog": ScipyLinprogBackend,
@@ -35,6 +38,10 @@ def get_backend(
     key = backend.strip().lower()
 
     if key == "auto":
+        if problem is not None and problem.all_blocks_diagonal():
+            return ScipyLinprogBackend()
+        if sys.platform == "emscripten":
+            return NativePrimalDualBackend()
         direct = ClarabelDirectBackend()
         if direct.capabilities()["available"]:
             return direct
@@ -43,10 +50,7 @@ def get_backend(
             return cvx
         if problem is not None and problem.all_blocks_diagonal():
             return ScipyLinprogBackend()
-        return UnavailableBackend(
-            reason="missing_dependency",
-            detail="Nenhum backend SDP (clarabel_direct/clarabel_cvxpy) disponível e o problema possui blocos PSD não diagonais.",
-        )
+        return NativePrimalDualBackend()
 
     if key not in _BACKEND_REGISTRY:
         raise ValidationError(

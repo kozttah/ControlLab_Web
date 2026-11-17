@@ -860,14 +860,7 @@ def test_rpc_auto_sdp_against_real_backend_profile(
 
     response = dispatch(_make_req("optimization.solve", problem))
     _validate_schema(response, "rpc_response.schema.json", schema_registry)
-    # Both production SDP backends require Clarabel. Determine the profile
-    # independently of the dispatcher, so broken backend discovery fails the test.
-    if find_spec("clarabel") is None:
-        assert response["status"] == "failure"
-        assert response["error"]["code"] == "SOLVER_UNAVAILABLE"
-        assert response["result"] is None
-        return
-
+    # ADR-010: the native audited backend also serves the no-Clarabel profile.
     assert response["status"] == "success", response["error"]
     result = response["result"]
     assert result["solver_status"] == "optimal"

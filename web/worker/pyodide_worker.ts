@@ -356,7 +356,8 @@ export class PyodideWorkerRuntime {
       backends: {
         numpy_scipy: { available: this.initialized && !!this.libVersions.numpy && !!this.libVersions.scipy, maturity: "beta" },
         clarabel_cvxpy: { available: false, maturity: "unavailable_wasm" },
-        scipy_linprog: { available: false, maturity: "unavailable_wasm" },
+        scipy_linprog: { available: this.initialized, maturity: "beta" },
+        native_primal_dual: { available: this.initialized && this.pythonOperations.includes("optimization.solve"), maturity: "beta" },
       },
       supports_transferables: true,
       supports_cooperative_cancel: this.interruptBuffer !== null,
@@ -364,7 +365,7 @@ export class PyodideWorkerRuntime {
       offline_ready: false,
       max_memory_bytes: this.modelStore.getStats().max_bytes,
       maturity: Object.fromEntries(this.pythonOperations.map((operation) => [
-        operation, operation === "optimization.solve" ? "unavailable_wasm" : "beta",
+        operation, "beta",
       ])),
       lib_versions: { ...this.libVersions },
     };

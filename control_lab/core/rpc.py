@@ -109,6 +109,8 @@ SUPPORTED_OPERATIONS: frozenset[str] = frozenset(
         "fuzzy.evaluate_surface",
         "fuzzy.import_fml",
         "fuzzy.export_fml",
+        "optimization.export_cvxpy",
+        "optimization.export_yalmip",
         "optimization.solve",
         "optimization.verify",
         "optimization.capabilities",
@@ -1678,6 +1680,7 @@ def _resolve_sdp_problem_from_payload(
     from control_lab.optimization import (
         CanonicalSDPProblem,
         continuous_stabilization_lmi,
+        lqr_lmi,
         hinf_brl_lmi,
         regional_pole_placement_lmi,
         ts_pdc_stabilization_lmi,
@@ -1706,6 +1709,13 @@ def _resolve_sdp_problem_from_payload(
             if plant_obj is not None:
                 return continuous_stabilization_lmi(plant_obj, alpha=alpha, feedback_sign=fb_sign)
             return continuous_stabilization_lmi(mats["A"], mats["B"], alpha=alpha, feedback_sign=fb_sign)
+        if t_key == "lqr_lmi":
+            plant_obj, mats = _resolve_plant_or_matrices(payload, store=store, project_id=project_id, require_B=True)
+            return lqr_lmi(plant_obj if plant_obj is not None else mats["A"],
+                           None if plant_obj is not None else mats["B"],
+                           Q_cost=_coerce_array(payload["Q_cost"], name="Q_cost", ndim=2) if "Q_cost" in payload else None,
+                           R_cost=_coerce_array(payload["R_cost"], name="R_cost", ndim=2) if "R_cost" in payload else None,
+                           feedback_sign=str(payload.get("feedback_sign", "negative")))
         if t_key == "regional_pole_placement":
             plant_obj, mats = _resolve_plant_or_matrices(payload, store=store, project_id=project_id, require_B=True)
             radius = float(payload["radius"])
@@ -1817,6 +1827,19 @@ def _handle_optimization(req: dict[str, Any], store: Any) -> dict[str, Any]:
             fallback_algorithm="optimization.verification.verify",
         )
 
+    if op in ("optimization.export_cvxpy", "optimization.export_yalmip"):
+        from control_lab.optimization import export_to_cvxpy_script, export_to_yalmip_script
+        is_python = op == "optimization.export_cvxpy"
+        script = export_to_cvxpy_script(problem) if is_python else export_to_yalmip_script(problem)
+        return _build_rpc_response(
+            request_id=req["request_id"], project_id=req["project_id"],
+            project_revision=req["project_revision"], status="success",
+            result={"script": script, "filename": "controllab_sdp.py" if is_python else "controllab_sdp.m",
+                    "media_type": "text/x-python" if is_python else "text/plain"},
+            assumptions={"offline_execution": True}, diagnostics={},
+            provenance=build_provenance(op), warnings=[], error=None, fallback_algorithm=op,
+        )
+
     # optimization.solve
     backend = _pick_param(payload, options, "backend", "auto")
     solver_opts = payload.get("solver_options")
@@ -1892,6 +1915,8 @@ _DISPATCH_TABLE = {
     "fuzzy.evaluate_surface": _handle_fuzzy,
     "fuzzy.import_fml": _handle_fuzzy,
     "fuzzy.export_fml": _handle_fuzzy,
+    "optimization.export_cvxpy": _handle_optimization,
+    "optimization.export_yalmip": _handle_optimization,
     "optimization.solve": _handle_optimization,
     "optimization.verify": _handle_optimization,
     "optimization.capabilities": _handle_optimization,

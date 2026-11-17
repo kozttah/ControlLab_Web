@@ -1,0 +1,679 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "98c68444a13cd8a89f35133be775eb46b1ca90c03620e945cc302ea5cfecdbf7",
+  "evidence": {
+    "platform": "emscripten",
+    "assay": {
+      "status": "success",
+      "data": {
+        "gate": "G-0B",
+        "environment": "pyodide_wasm",
+        "browser_matrix_pending": false,
+        "overall_passed": true,
+        "backends": {
+          "native_primal_dual": {
+            "capabilities": {
+              "name": "native_primal_dual",
+              "maturity": "beta",
+              "available": true,
+              "experimental": false,
+              "psd": true,
+              "lp": true,
+              "dual": true,
+              "infeasibility_certificate": true,
+              "unboundedness_certificate": true,
+              "warm_start": false,
+              "cancellation": false,
+              "tolerances": {
+                "configurable": true
+              },
+              "reason": null,
+              "browser_envelope": {
+                "max_variables": 128,
+                "max_block_dimension": 48,
+                "max_cone_entries": 16384
+              },
+              "lib_versions": {
+                "numpy": "2.0.2",
+                "scipy": "1.14.1"
+              }
+            },
+            "passed": true,
+            "cases": {
+              "LP_A1": {
+                "passed": true,
+                "solver_status": "optimal",
+                "audit_feasibility": "approximately_feasible",
+                "certificate_status": "validated_dual",
+                "controller_validity": "not_applicable",
+                "objective": 1.0000000000000513,
+                "elapsed_s": 0.21399999999999864,
+                "peak_memory_kb": null
+              },
+              "LP_A2_INFEASIBLE": {
+                "passed": true,
+                "solver_status": "primal_infeasible",
+                "audit_feasibility": "violated",
+                "certificate_status": "validated_infeasibility",
+                "controller_validity": "not_applicable",
+                "objective": null,
+                "elapsed_s": 0.08399999999999963,
+                "peak_memory_kb": null
+              },
+              "LP_A3_UNBOUNDED": {
+                "passed": true,
+                "solver_status": "dual_infeasible",
+                "audit_feasibility": "strictly_feasible",
+                "certificate_status": "validated_unboundedness",
+                "controller_validity": "not_applicable",
+                "objective": null,
+                "elapsed_s": 0.022999999999999687,
+                "peak_memory_kb": null
+              },
+              "PSD_2x2_B1": {
+                "passed": true,
+                "solver_status": "optimal",
+                "audit_feasibility": "approximately_feasible",
+                "certificate_status": "validated_dual",
+                "controller_validity": "not_applicable",
+                "objective": -0.9999999999997342,
+                "elapsed_s": 0.12100000000000222,
+                "peak_memory_kb": null
+              },
+              "SDP_3x3_C1": {
+                "passed": true,
+                "solver_status": "optimal",
+                "audit_feasibility": "approximately_feasible",
+                "certificate_status": "validated_dual",
+                "controller_validity": "not_applicable",
+                "objective": 3.0000000000000524,
+                "elapsed_s": 0.18599999999999994,
+                "peak_memory_kb": null
+              },
+              "CTRL_STAB_D1": {
+                "passed": true,
+                "solver_status": "optimal",
+                "audit_feasibility": "strictly_feasible",
+                "certificate_status": "validated_dual",
+                "controller_validity": "verified_under_assumptions",
+                "objective": 0,
+                "elapsed_s": 0.4510000000000005,
+                "peak_memory_kb": null
+              },
+              "CTRL_BRL_D2_FIXED": {
+                "passed": true,
+                "solver_status": "optimal",
+                "audit_feasibility": "strictly_feasible",
+                "certificate_status": "validated_dual",
+                "controller_validity": "verified_under_assumptions",
+                "objective": 0,
+                "elapsed_s": 0.39000000000000057,
+                "peak_memory_kb": null
+              },
+              "CTRL_BRL_D2_MIN": {
+                "passed": true,
+                "solver_status": "optimal",
+                "audit_feasibility": "approximately_feasible",
+                "certificate_status": "validated_dual",
+                "controller_validity": "verified_under_assumptions",
+                "objective": 0.5001250068766877,
+                "elapsed_s": 1.1189999999999998,
+                "peak_memory_kb": null
+              }
+            }
+          }
+        },
+        "summary": {
+          "n_backends_tested": 1,
+          "n_backends_passed": 1,
+          "n_cases_per_backend": 8
+        }
+      },
+      "assumptions": {
+        "local_cpython_assay": false,
+        "requires_two_browsers_in_pyodide_for_final_gate": true
+      },
+      "diagnostics": {
+        "overall_passed": true,
+        "n_backends_passed": 1,
+        "n_backends_tested": 1
+      },
+      "provenance": {
+        "algorithm": "optimization.verification.run_gate_0b_assay",
+        "lib_versions": {
+          "numpy": "2.0.2",
+          "scipy": "1.14.1",
+          "python": "3.12.7"
+        },
+        "seed": null,
+        "tolerances": {},
+        "model_revision": null,
+        "timestamp": "2026-11-17T02:10:54Z"
+      },
+      "warnings": [],
+      "error": null
+    },
+    "exports": [
+      {
+        "offline_recommended": true,
+        "python_syntax": true,
+        "yalmip_syntax": true
+      },
+      {
+        "offline_recommended": true,
+        "python_syntax": true,
+        "yalmip_syntax": true
+      }
+    ],
+    "auto_lp": {
+      "status": "success",
+      "data": {
+        "backend": "scipy_linprog",
+        "capabilities": {
+          "name": "scipy_linprog",
+          "maturity": "stable",
+          "available": true,
+          "experimental": false,
+          "psd": false,
+          "lp": true,
+          "dual": true,
+          "infeasibility_certificate": false,
+          "unboundedness_certificate": false,
+          "warm_start": false,
+          "cancellation": false,
+          "tolerances": {
+            "configurable": true,
+            "primal_feasibility_tolerance": 1e-07,
+            "dual_feasibility_tolerance": 1e-07
+          },
+          "reason": null,
+          "lib_versions": {
+            "scipy": "1.14.1"
+          }
+        },
+        "solver_status": "optimal",
+        "raw_status": "highs:0:Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+        "iterations": 0,
+        "solve_time": null,
+        "objective": 1,
+        "x": {
+          "shape": [
+            1
+          ],
+          "dtype": "float64",
+          "order": "C",
+          "data": [
+            1
+          ]
+        },
+        "dual_Z": [
+          {
+            "shape": [
+              1,
+              1
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              1
+            ]
+          }
+        ],
+        "variables": {
+          "x": {
+            "shape": [
+              1,
+              1
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              1
+            ]
+          }
+        },
+        "verification": {
+          "solver_status": "optimal",
+          "audit_feasibility": "approximately_feasible",
+          "certificate_status": "validated_dual",
+          "conditioning": {
+            "status": "well_conditioned",
+            "condition_number": 1,
+            "scaling_warning": false,
+            "near_boundary": true,
+            "loss_of_significance": false,
+            "data_scale_ratio": 1
+          },
+          "controller_validity": "not_applicable",
+          "residuals": {
+            "primal_block_min_eigs": [
+              0
+            ],
+            "primal_block_violations_abs": [
+              0
+            ],
+            "primal_block_violations_rel": [
+              0
+            ],
+            "primal_block_symmetry_errors": [
+              0
+            ],
+            "eq_residual_abs": 0,
+            "eq_residual_rel": 0,
+            "ineq_violation_abs": 0,
+            "ineq_violation_rel": 0,
+            "dual_block_min_eigs": [
+              1
+            ],
+            "dual_block_sym_errs": [
+              0
+            ],
+            "dual_stationarity_abs": 0,
+            "dual_stationarity_rel": 0,
+            "duality_gap_abs": 0,
+            "duality_gap_rel": 0,
+            "complementarity_abs": 0,
+            "complementarity_rel": 0
+          },
+          "primal_objective": 1,
+          "dual_objective": 1,
+          "variables": {
+            "x": {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                1
+              ]
+            }
+          }
+        },
+        "audit_feasibility": "approximately_feasible",
+        "certificate_status": "validated_dual",
+        "conditioning": {
+          "status": "well_conditioned",
+          "condition_number": 1,
+          "scaling_warning": false,
+          "near_boundary": true,
+          "loss_of_significance": false,
+          "data_scale_ratio": 1
+        },
+        "controller_validity": "not_applicable",
+        "residuals": {
+          "primal_block_min_eigs": [
+            0
+          ],
+          "primal_block_violations_abs": [
+            0
+          ],
+          "primal_block_violations_rel": [
+            0
+          ],
+          "primal_block_symmetry_errors": [
+            0
+          ],
+          "eq_residual_abs": 0,
+          "eq_residual_rel": 0,
+          "ineq_violation_abs": 0,
+          "ineq_violation_rel": 0,
+          "dual_block_min_eigs": [
+            1
+          ],
+          "dual_block_sym_errs": [
+            0
+          ],
+          "dual_stationarity_abs": 0,
+          "dual_stationarity_rel": 0,
+          "duality_gap_abs": 0,
+          "duality_gap_rel": 0,
+          "complementarity_abs": 0,
+          "complementarity_rel": 0
+        }
+      },
+      "assumptions": {
+        "independent_audit": true,
+        "cone_order_non_strict": true,
+        "claimed_status": "optimal",
+        "backend": "scipy_linprog",
+        "experimental": false
+      },
+      "diagnostics": {
+        "solver_status": "optimal",
+        "audit_feasibility": "approximately_feasible",
+        "certificate_status": "validated_dual",
+        "conditioning": {
+          "status": "well_conditioned",
+          "condition_number": 1,
+          "scaling_warning": false,
+          "near_boundary": true,
+          "loss_of_significance": false,
+          "data_scale_ratio": 1
+        },
+        "controller_validity": "not_applicable",
+        "residuals": {
+          "primal_block_min_eigs": [
+            0
+          ],
+          "primal_block_violations_abs": [
+            0
+          ],
+          "primal_block_violations_rel": [
+            0
+          ],
+          "primal_block_symmetry_errors": [
+            0
+          ],
+          "eq_residual_abs": 0,
+          "eq_residual_rel": 0,
+          "ineq_violation_abs": 0,
+          "ineq_violation_rel": 0,
+          "dual_block_min_eigs": [
+            1
+          ],
+          "dual_block_sym_errs": [
+            0
+          ],
+          "dual_stationarity_abs": 0,
+          "dual_stationarity_rel": 0,
+          "duality_gap_abs": 0,
+          "duality_gap_rel": 0,
+          "complementarity_abs": 0,
+          "complementarity_rel": 0
+        },
+        "backend": "scipy_linprog",
+        "raw_status": "highs:0:Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+        "iterations": 0,
+        "solve_time": null,
+        "offline_recommended": false,
+        "offline_exports": [
+          "optimization.export_cvxpy",
+          "optimization.export_yalmip"
+        ]
+      },
+      "provenance": {
+        "algorithm": "optimization.solve.scipy_linprog",
+        "lib_versions": {
+          "numpy": "2.0.2",
+          "scipy": "1.14.1",
+          "python": "3.12.7"
+        },
+        "seed": null,
+        "tolerances": {
+          "primal_tol": 1e-07,
+          "dual_tol": 1e-07,
+          "gap_tol": 1e-06,
+          "psd_tol": 1e-08,
+          "sym_tol": 1e-10,
+          "strict_margin": 0.0001
+        },
+        "model_revision": null,
+        "timestamp": "2026-11-17T02:10:58Z",
+        "backend": "scipy_linprog"
+      },
+      "warnings": [],
+      "error": null
+    },
+    "auto_psd": {
+      "status": "success",
+      "data": {
+        "backend": "native_primal_dual",
+        "capabilities": {
+          "name": "native_primal_dual",
+          "maturity": "beta",
+          "available": true,
+          "experimental": false,
+          "psd": true,
+          "lp": true,
+          "dual": true,
+          "infeasibility_certificate": true,
+          "unboundedness_certificate": true,
+          "warm_start": false,
+          "cancellation": false,
+          "tolerances": {
+            "configurable": true
+          },
+          "reason": null,
+          "browser_envelope": {
+            "max_variables": 128,
+            "max_block_dimension": 48,
+            "max_cone_entries": 16384
+          },
+          "lib_versions": {
+            "numpy": "2.0.2",
+            "scipy": "1.14.1"
+          }
+        },
+        "solver_status": "optimal",
+        "raw_status": "phase2_optimal",
+        "iterations": 9,
+        "solve_time": 0.12099999999999866,
+        "objective": -0.9999999999997342,
+        "x": {
+          "shape": [
+            1
+          ],
+          "dtype": "float64",
+          "order": "C",
+          "data": [
+            -0.9999999999997342
+          ]
+        },
+        "dual_Z": [
+          {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              0.5000000000001159,
+              0.5000000000000002,
+              0.5000000000000002,
+              0.5000000000001158
+            ]
+          }
+        ],
+        "variables": {
+          "x": {
+            "shape": [
+              1,
+              1
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              -0.9999999999997342
+            ]
+          }
+        },
+        "verification": {
+          "solver_status": "optimal",
+          "audit_feasibility": "approximately_feasible",
+          "certificate_status": "validated_dual",
+          "conditioning": {
+            "status": "well_conditioned",
+            "condition_number": 1,
+            "scaling_warning": false,
+            "near_boundary": true,
+            "loss_of_significance": false,
+            "data_scale_ratio": 1
+          },
+          "controller_validity": "not_applicable",
+          "residuals": {
+            "primal_block_min_eigs": [
+              2.6584290324649373e-13
+            ],
+            "primal_block_violations_abs": [
+              0
+            ],
+            "primal_block_violations_rel": [
+              0
+            ],
+            "primal_block_symmetry_errors": [
+              0
+            ],
+            "eq_residual_abs": 0,
+            "eq_residual_rel": 0,
+            "ineq_violation_abs": 0,
+            "ineq_violation_rel": 0,
+            "dual_block_min_eigs": [
+              1.1562972801471005e-13
+            ],
+            "dual_block_sym_errs": [
+              0
+            ],
+            "dual_stationarity_abs": 4.440892098500626e-16,
+            "dual_stationarity_rel": 1.3007071811330135e-16,
+            "duality_gap_abs": 4.976019596369952e-13,
+            "duality_gap_rel": 1.6586731987900026e-13,
+            "complementarity_abs": 4.970468481246826e-13,
+            "complementarity_rel": 1.6568228270822939e-13
+          },
+          "primal_objective": -0.9999999999997342,
+          "dual_objective": -1.0000000000002318,
+          "variables": {
+            "x": {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                -0.9999999999997342
+              ]
+            }
+          }
+        },
+        "audit_feasibility": "approximately_feasible",
+        "certificate_status": "validated_dual",
+        "conditioning": {
+          "status": "well_conditioned",
+          "condition_number": 1,
+          "scaling_warning": false,
+          "near_boundary": true,
+          "loss_of_significance": false,
+          "data_scale_ratio": 1
+        },
+        "controller_validity": "not_applicable",
+        "residuals": {
+          "primal_block_min_eigs": [
+            2.6584290324649373e-13
+          ],
+          "primal_block_violations_abs": [
+            0
+          ],
+          "primal_block_violations_rel": [
+            0
+          ],
+          "primal_block_symmetry_errors": [
+            0
+          ],
+          "eq_residual_abs": 0,
+          "eq_residual_rel": 0,
+          "ineq_violation_abs": 0,
+          "ineq_violation_rel": 0,
+          "dual_block_min_eigs": [
+            1.1562972801471005e-13
+          ],
+          "dual_block_sym_errs": [
+            0
+          ],
+          "dual_stationarity_abs": 4.440892098500626e-16,
+          "dual_stationarity_rel": 1.3007071811330135e-16,
+          "duality_gap_abs": 4.976019596369952e-13,
+          "duality_gap_rel": 1.6586731987900026e-13,
+          "complementarity_abs": 4.970468481246826e-13,
+          "complementarity_rel": 1.6568228270822939e-13
+        }
+      },
+      "assumptions": {
+        "independent_audit": true,
+        "cone_order_non_strict": true,
+        "claimed_status": "optimal",
+        "backend": "native_primal_dual",
+        "experimental": false
+      },
+      "diagnostics": {
+        "solver_status": "optimal",
+        "audit_feasibility": "approximately_feasible",
+        "certificate_status": "validated_dual",
+        "conditioning": {
+          "status": "well_conditioned",
+          "condition_number": 1,
+          "scaling_warning": false,
+          "near_boundary": true,
+          "loss_of_significance": false,
+          "data_scale_ratio": 1
+        },
+        "controller_validity": "not_applicable",
+        "residuals": {
+          "primal_block_min_eigs": [
+            2.6584290324649373e-13
+          ],
+          "primal_block_violations_abs": [
+            0
+          ],
+          "primal_block_violations_rel": [
+            0
+          ],
+          "primal_block_symmetry_errors": [
+            0
+          ],
+          "eq_residual_abs": 0,
+          "eq_residual_rel": 0,
+          "ineq_violation_abs": 0,
+          "ineq_violation_rel": 0,
+          "dual_block_min_eigs": [
+            1.1562972801471005e-13
+          ],
+          "dual_block_sym_errs": [
+            0
+          ],
+          "dual_stationarity_abs": 4.440892098500626e-16,
+          "dual_stationarity_rel": 1.3007071811330135e-16,
+          "duality_gap_abs": 4.976019596369952e-13,
+          "duality_gap_rel": 1.6586731987900026e-13,
+          "complementarity_abs": 4.970468481246826e-13,
+          "complementarity_rel": 1.6568228270822939e-13
+        },
+        "backend": "native_primal_dual",
+        "raw_status": "phase2_optimal",
+        "iterations": 9,
+        "solve_time": 0.12099999999999866,
+        "offline_recommended": false,
+        "offline_exports": [
+          "optimization.export_cvxpy",
+          "optimization.export_yalmip"
+        ]
+      },
+      "provenance": {
+        "algorithm": "optimization.solve.native_primal_dual",
+        "lib_versions": {
+          "numpy": "2.0.2",
+          "scipy": "1.14.1",
+          "python": "3.12.7"
+        },
+        "seed": null,
+        "tolerances": {
+          "primal_tol": 1e-07,
+          "dual_tol": 1e-07,
+          "gap_tol": 1e-06,
+          "psd_tol": 1e-08,
+          "sym_tol": 1e-10,
+          "strict_margin": 0.0001
+        },
+        "model_revision": null,
+        "timestamp": "2026-11-17T02:10:58Z",
+        "backend": "native_primal_dual"
+      },
+      "warnings": [],
+      "error": null
+    }
+  }
+}

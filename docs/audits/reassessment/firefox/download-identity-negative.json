@@ -1,0 +1,13 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "pathsim": {
+      "samples": 501,
+      "max_abs_error": 3.3306690738754696e-16
+    },
+    "ctrlab_sha256": "939070f23a9aff3359a2b2b9d6c28a570ef59362ebd7104502449a9cb257911d",
+    "pvm_sha256": "a01215a68da79cc275d3cfa5036ed54dda037a08542e037489773a45251e60d3"
+  }
+}

@@ -3,6 +3,7 @@
 Never regenerate references from production; official PathView/Wasm gates stay open.
 """
 import hashlib
+from copy import deepcopy
 import importlib.util
 import json
 from pathlib import Path
@@ -170,6 +171,67 @@ def test_t_pvm_01_local_graph_against_analytic_gold(index):
     assert pvm['metadata']['external_pathview_verified'] is False
 
 
+def assert_dare_regeneration_matches_frozen_gold(generated, saved):
+    """Check LAPACK results numerically while retaining exact deterministic inputs.
+
+    Frozen bytes are checked separately by verify_checksums. DARE eigenvectors,
+    residuals and costs are floating-point computations, not byte-level identities.
+    Only the fields listed below may differ, within the already frozen criteria.
+    """
+    actual = deepcopy(generated)
+    tol = saved['tolerances']
+    data, reference = actual['data'], saved['data']
+    numeric = [
+        (data, reference, 'A', 0, tol['matrix_atol']),
+        (data, reference, 'B', 0, tol['matrix_atol']),
+        (data['expected'], reference['expected'], 'P', tol['P_rel_tol'], tol['matrix_atol']),
+        (data['expected'], reference['expected'], 'K', tol['K_rel_tol'], tol['matrix_atol']),
+    ]
+    for target, frozen, key, rtol, atol in numeric:
+        # Normalize data only; shape/dtype/order must still match exactly.
+        np.testing.assert_allclose(array(target[key]), array(frozen[key]), rtol=rtol, atol=atol)
+        target[key]['data'] = deepcopy(frozen[key]['data'])
+    expected, frozen = data['expected'], reference['expected']
+    # Recompute the certificate from regenerated matrices, independently of any
+    # residual field supplied by the generator. No production solver is called.
+    A, B, Q, R, x0 = [array(generated['data'][key]) for key in ('A', 'B', 'Q', 'R', 'x0')]
+    P, K = [array(generated['data']['expected'][key]) for key in ('P', 'K')]
+    terms = [A.T@P@A, -P, -A.T@P@B@K, Q]
+    assert la.norm(sum(terms))/(1+sum(la.norm(term) for term in terms)) < tol['rDARE_max']
+    assert la.norm(P-P.T)/(1+la.norm(P)) < tol['symmetry_error_max']
+    assert np.min(la.eigvalsh(P)) > 0
+    np.testing.assert_allclose(K, la.solve(R+B.T@P@B, B.T@P@A),
+                               rtol=tol['K_rel_tol'], atol=tol['matrix_atol'])
+    poles = np.sort_complex(la.eigvals(A-B@K))
+    assert max(abs(poles)) < 1
+    np.testing.assert_allclose(poles, array(generated['data']['expected']['closed_loop_poles']),
+                               rtol=0, atol=tol['poles_atol'])
+    np.testing.assert_allclose(expected['spectral_radius'], max(abs(poles)),
+                               rtol=0, atol=tol['poles_atol'])
+    np.testing.assert_allclose(expected['optimal_cost'], (x0.T@P@x0).item(),
+                               rtol=tol['P_rel_tol'], atol=0)
+    for component in ('real', 'imag'):
+        np.testing.assert_allclose(expected['closed_loop_poles'][component],
+                                   frozen['closed_loop_poles'][component],
+                                   rtol=0, atol=tol['poles_atol'])
+        expected['closed_loop_poles'][component] = deepcopy(frozen['closed_loop_poles'][component])
+    for key, rtol, atol in (
+        ('spectral_radius', 0, tol['poles_atol']),
+        # J=x0.T P x0 inherits the frozen relative P criterion.
+        ('optimal_cost', tol['P_rel_tol'], 0),
+    ):
+        np.testing.assert_allclose(expected[key], frozen[key], rtol=rtol, atol=atol)
+        expected[key] = frozen[key]
+    for key, bound in (
+        ('rDARE', tol['rDARE_max']),
+        ('symmetry_error', tol['symmetry_error_max']),
+        ('zoh_quadrature_max_error', tol['matrix_atol']),
+    ):
+        assert np.isfinite(expected[key]) and 0 <= expected[key] < bound, key
+        expected[key] = frozen[key]
+    assert actual == saved
+
+
 def test_generator_independent_and_new_gold_deterministic():
     spec = importlib.util.spec_from_file_location('release_gold',ROOT/'scripts/generate_release_fixtures.py')
     mod = importlib.util.module_from_spec(spec)
@@ -177,12 +239,15 @@ def test_generator_independent_and_new_gold_deterministic():
     for build in (mod.dare,mod.arx,mod.mimo,mod.pvm):
         generated = build()
         saved = load(generated['fixture_id'])
-        assert generated == saved
+        if generated['fixture_id'] == 'B-DARE-12x3':
+            assert_dare_regeneration_matches_frozen_gold(generated, saved)
+        else:
+            assert generated == saved
     for name, digest in mod.OLD.items():
         assert hashlib.sha256((FIX/name).read_bytes()).hexdigest()==digest
 
 
-@pytest.mark.parametrize('damage', ['missing', 'duplicate', 'unlisted'])
+@pytest.mark.parametrize('damage', ['missing', 'duplicate', 'unlisted', 'modified'])
 def test_verifier_rejects_incomplete_or_untracked_manifest(tmp_path, monkeypatch, damage):
     spec = importlib.util.spec_from_file_location('verify_gold',ROOT/'scripts/verify_fixtures.py')
     mod = importlib.util.module_from_spec(spec)
@@ -196,8 +261,54 @@ def test_verifier_rejects_incomplete_or_untracked_manifest(tmp_path, monkeypatch
         manifest.write_text('\n'.join(lines[:-1])+'\n')
     elif damage == 'duplicate':
         manifest.write_text('\n'.join(lines+[lines[0]])+'\n')
-    else:
+    elif damage == 'unlisted':
         (tmp_path/'untracked.json').write_text('{}')
+    else:
+        target = tmp_path/'B-DARE-12x3.json'
+        target.write_text(target.read_text()+' ')  # Numerical values unchanged; bytes corrupted.
     monkeypatch.setattr(mod,'FIXTURES_DIR',tmp_path)
     with pytest.raises(ValueError):
         mod.verify_checksums()
+
+
+def test_dare_regeneration_permits_last_bit_roundoff_only_in_named_fields():
+    saved = load('B-DARE-12x3')
+    generated = deepcopy(saved)
+    for key in ('A', 'B'):
+        generated['data'][key]['data'][0] += 1e-14
+    for key in ('P', 'K'):
+        generated['data']['expected'][key]['data'][0] *= 1 + 1e-14
+    generated['data']['expected']['rDARE'] *= 2
+    generated['data']['expected']['optimal_cost'] *= 1 + 1e-14
+    generated['data']['expected']['closed_loop_poles']['real'][0] += 1e-14
+    assert_dare_regeneration_matches_frozen_gold(generated, saved)
+    assert saved == load('B-DARE-12x3')
+
+
+@pytest.mark.parametrize('field', ['A', 'B', 'P', 'K', 'poles', 'rDARE', 'symmetry_error',
+                                  'zoh_quadrature_max_error', 'optimal_cost', 'spectral_radius',
+                                  'metadata', 'tolerance', 'shape', 'nonfinite'])
+def test_dare_regeneration_rejects_corruption(field):
+    saved = load('B-DARE-12x3')
+    generated = deepcopy(saved)
+    data, tol = generated['data'], saved['tolerances']
+    if field in ('A', 'B'):
+        data[field]['data'][0] += 100 * tol['matrix_atol']
+    elif field in ('P', 'K'):
+        data['expected'][field]['data'][0] += 1
+    elif field == 'poles':
+        data['expected']['closed_loop_poles']['real'][0] += 100 * tol['poles_atol']
+    elif field in ('rDARE', 'symmetry_error', 'zoh_quadrature_max_error'):
+        data['expected'][field] = 1
+    elif field in ('optimal_cost', 'spectral_radius'):
+        data['expected'][field] += 1
+    elif field == 'metadata':
+        data['feedback_sign'] = 'positive'
+    elif field == 'nonfinite':
+        data['expected']['K']['data'][0] = float('nan')
+    elif field == 'tolerance':
+        generated['tolerances']['K_rel_tol'] *= 10
+    else:
+        data['expected']['K']['shape'] = [3, 3, 4]
+    with pytest.raises(AssertionError):
+        assert_dare_regeneration_matches_frozen_gold(generated, saved)

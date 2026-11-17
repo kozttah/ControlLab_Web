@@ -1,0 +1,819 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "src_ref",
+          "type": "Source",
+          "name": "ReferenceSource_0",
+          "position": {
+            "x": 80,
+            "y": 200
+          },
+          "inputs": [],
+          "outputs": [
+            {
+              "nodeId": "src_ref",
+              "direction": "output",
+              "index": 0,
+              "name": "out0"
+            }
+          ],
+          "params": {
+            "func": "lambda t: 0.3"
+          },
+          "controlLab": {
+            "profile": "controllab.pathview.clocked.v2",
+            "legacy_node": {
+              "id": "src_ref",
+              "type": "Source",
+              "name": "ReferenceSource",
+              "position": {
+                "x": 80,
+                "y": 200
+              },
+              "inputs": [],
+              "outputs": [
+                {
+                  "nodeId": "src_ref",
+                  "direction": "output",
+                  "index": 0,
+                  "name": "r"
+                }
+              ],
+              "params": {
+                "dim": 1,
+                "signal_type": "constant",
+                "value": [
+                  0.3
+                ],
+                "channel_names": [
+                  "r1"
+                ]
+              }
+            },
+            "component": 0,
+            "legacy_order": 0
+          }
+        },
+        {
+          "id": "gain_N",
+          "type": "Function",
+          "name": "Prefilter_N",
+          "position": {
+            "x": 280,
+            "y": 200
+          },
+          "inputs": [
+            {
+              "nodeId": "gain_N",
+              "direction": "input",
+              "index": 0,
+              "name": "r0"
+            }
+          ],
+          "outputs": [
+            {
+              "nodeId": "gain_N",
+              "direction": "output",
+              "index": 0,
+              "name": "u_ff0"
+            }
+          ],
+          "params": {
+            "func": "lambda *v: np.array([[1.0]], dtype=float) @ np.asarray(v, dtype=float)"
+          },
+          "controlLab": {
+            "profile": "controllab.pathview.clocked.v2",
+            "legacy_node": {
+              "id": "gain_N",
+              "type": "MatrixGain",
+              "name": "Prefilter_N",
+              "position": {
+                "x": 280,
+                "y": 200
+              },
+              "inputs": [
+                {
+                  "nodeId": "gain_N",
+                  "direction": "input",
+                  "index": 0,
+                  "name": "r"
+                }
+              ],
+              "outputs": [
+                {
+                  "nodeId": "gain_N",
+                  "direction": "output",
+                  "index": 0,
+                  "name": "u_ff"
+                }
+              ],
+              "params": {
+                "gain": [
+                  [
+                    1
+                  ]
+                ],
+                "shape": [
+                  1,
+                  1
+                ],
+                "role": "prefilter",
+                "label": "N"
+              }
+            },
+            "legacy_order": 1
+          }
+        },
+        {
+          "id": "sum_feedback",
+          "type": "Adder",
+          "name": "ControlSum_negative",
+          "position": {
+            "x": 480,
+            "y": 200
+          },
+          "inputs": [
+            {
+              "nodeId": "sum_feedback",
+              "direction": "input",
+              "index": 0,
+              "name": "u_ff0"
+            },
+            {
+              "nodeId": "sum_feedback",
+              "direction": "input",
+              "index": 1,
+              "name": "Kx0"
+            }
+          ],
+          "outputs": [
+            {
+              "nodeId": "sum_feedback",
+              "direction": "output",
+              "index": 0,
+              "name": "u_cmd0"
+            }
+          ],
+          "params": {
+            "operations": "'+-'"
+          },
+          "controlLab": {
+            "profile": "controllab.pathview.clocked.v2",
+            "legacy_node": {
+              "id": "sum_feedback",
+              "type": "Adder",
+              "name": "ControlSum_negative",
+              "position": {
+                "x": 480,
+                "y": 200
+              },
+              "inputs": [
+                {
+                  "nodeId": "sum_feedback",
+                  "direction": "input",
+                  "index": 0,
+                  "name": "u_ff"
+                },
+                {
+                  "nodeId": "sum_feedback",
+                  "direction": "input",
+                  "index": 1,
+                  "name": "Kx"
+                }
+              ],
+              "outputs": [
+                {
+                  "nodeId": "sum_feedback",
+                  "direction": "output",
+                  "index": 0,
+                  "name": "u_cmd"
+                }
+              ],
+              "params": {
+                "signs": [
+                  "+",
+                  "-"
+                ],
+                "feedback_sign": "negative",
+                "dim": 1
+              }
+            },
+            "legacy_order": 2
+          }
+        },
+        {
+          "id": "plant_ss",
+          "type": "Function",
+          "name": "wasm_clock_plant",
+          "position": {
+            "x": 700,
+            "y": 200
+          },
+          "inputs": [
+            {
+              "nodeId": "plant_ss",
+              "direction": "input",
+              "index": 0,
+              "name": "u0"
+            },
+            {
+              "nodeId": "plant_ss",
+              "direction": "input",
+              "index": 1,
+              "name": "delta_state0"
+            }
+          ],
+          "outputs": [
+            {
+              "nodeId": "plant_ss",
+              "direction": "output",
+              "index": 0,
+              "name": "out0"
+            },
+            {
+              "nodeId": "plant_ss",
+              "direction": "output",
+              "index": 1,
+              "name": "out1"
+            },
+            {
+              "nodeId": "plant_ss",
+              "direction": "output",
+              "index": 2,
+              "name": "input_echo0"
+            }
+          ],
+          "params": {
+            "func": "lambda *v: np.concatenate((np.array([[1.0], [1.0]], dtype=float) @ (np.asarray(v[1:2], dtype=float) + np.array([1.0], dtype=float)) + np.array([[0.0], [0.0]], dtype=float) @ np.asarray(v[:1], dtype=float), np.asarray(v[:1], dtype=float)))"
+          },
+          "controlLab": {
+            "profile": "controllab.pathview.clocked.v2",
+            "legacy_node": {
+              "id": "plant_ss",
+              "type": "StateSpace",
+              "name": "wasm_clock_plant",
+              "position": {
+                "x": 700,
+                "y": 200
+              },
+              "inputs": [
+                {
+                  "nodeId": "plant_ss",
+                  "direction": "input",
+                  "index": 0,
+                  "name": "u"
+                }
+              ],
+              "outputs": [
+                {
+                  "nodeId": "plant_ss",
+                  "direction": "output",
+                  "index": 0,
+                  "name": "y"
+                },
+                {
+                  "nodeId": "plant_ss",
+                  "direction": "output",
+                  "index": 1,
+                  "name": "x"
+                }
+              ],
+              "params": {
+                "A": [
+                  [
+                    0.8
+                  ]
+                ],
+                "B": [
+                  [
+                    0.2
+                  ]
+                ],
+                "C": [
+                  [
+                    1
+                  ]
+                ],
+                "D": [
+                  [
+                    0
+                  ]
+                ],
+                "initial_state": [
+                  1
+                ],
+                "dt": 0.1,
+                "state_names": [
+                  "x1"
+                ],
+                "input_names": [
+                  "u1"
+                ],
+                "output_names": [
+                  "y1"
+                ],
+                "expose_state": true
+              }
+            },
+            "legacy_order": 3,
+            "role": "component_output",
+            "state_output_offset": 1
+          }
+        },
+        {
+          "id": "plant_ss__clock_next",
+          "type": "Function",
+          "name": "wasm_clock_plant_NextState",
+          "position": {
+            "x": 1200,
+            "y": 200
+          },
+          "inputs": [
+            {
+              "nodeId": "plant_ss__clock_next",
+              "direction": "input",
+              "index": 0,
+              "name": "u0"
+            },
+            {
+              "nodeId": "plant_ss__clock_next",
+              "direction": "input",
+              "index": 1,
+              "name": "delta_state0"
+            }
+          ],
+          "outputs": [
+            {
+              "nodeId": "plant_ss__clock_next",
+              "direction": "output",
+              "index": 0,
+              "name": "next_delta0"
+            }
+          ],
+          "params": {
+            "func": "lambda *v: np.array([[0.8]], dtype=float) @ (np.asarray(v[1:2], dtype=float) + np.array([1.0], dtype=float)) + np.array([[0.2]], dtype=float) @ np.asarray(v[:1], dtype=float) - np.array([1.0], dtype=float)"
+          },
+          "controlLab": {
+            "profile": "controllab.pathview.clocked.v2",
+            "legacy_node": {
+              "id": "plant_ss",
+              "type": "StateSpace",
+              "name": "wasm_clock_plant",
+              "position": {
+                "x": 700,
+                "y": 200
+              },
+              "inputs": [
+                {
+                  "nodeId": "plant_ss",
+                  "direction": "input",
+                  "index": 0,
+                  "name": "u"
+                }
+              ],
+              "outputs": [
+                {
+                  "nodeId": "plant_ss",
+                  "direction": "output",
+                  "index": 0,
+                  "name": "y"
+                },
+                {
+                  "nodeId": "plant_ss",
+                  "direction": "output",
+                  "index": 1,
+                  "name": "x"
+                }
+              ],
+              "params": {
+                "A": [
+                  [
+                    0.8
+                  ]
+                ],
+                "B": [
+                  [
+                    0.2
+                  ]
+                ],
+                "C": [
+                  [
+                    1
+                  ]
+                ],
+                "D": [
+                  [
+                    0
+                  ]
+                ],
+                "initial_state": [
+                  1
+                ],
+                "dt": 0.1,
+                "state_names": [
+                  "x1"
+                ],
+                "input_names": [
+                  "u1"
+                ],
+                "output_names": [
+                  "y1"
+                ],
+                "expose_state": true
+              }
+            },
+            "legacy_order": 3,
+            "role": "component_transition"
+          }
+        },
+        {
+          "id": "scope_y",
+          "type": "Scope",
+          "name": "OutputScope",
+          "position": {
+            "x": 940,
+            "y": 200
+          },
+          "inputs": [
+            {
+              "nodeId": "scope_y",
+              "direction": "input",
+              "index": 0,
+              "name": "y0"
+            }
+          ],
+          "outputs": [],
+          "params": {
+            "labels": "['y1']"
+          },
+          "controlLab": {
+            "profile": "controllab.pathview.clocked.v2",
+            "legacy_node": {
+              "id": "scope_y",
+              "type": "Scope",
+              "name": "OutputScope",
+              "position": {
+                "x": 940,
+                "y": 200
+              },
+              "inputs": [
+                {
+                  "nodeId": "scope_y",
+                  "direction": "input",
+                  "index": 0,
+                  "name": "y"
+                }
+              ],
+              "outputs": [],
+              "params": {
+                "dim": 1,
+                "channel_names": [
+                  "y1"
+                ],
+                "units": [
+                  ""
+                ]
+              }
+            },
+            "legacy_order": 4
+          }
+        },
+        {
+          "id": "gain_K",
+          "type": "Function",
+          "name": "FeedbackGain_K",
+          "position": {
+            "x": 680,
+            "y": 420
+          },
+          "inputs": [
+            {
+              "nodeId": "gain_K",
+              "direction": "input",
+              "index": 0,
+              "name": "x0"
+            }
+          ],
+          "outputs": [
+            {
+              "nodeId": "gain_K",
+              "direction": "output",
+              "index": 0,
+              "name": "Kx0"
+            }
+          ],
+          "params": {
+            "func": "lambda *v: np.array([[0.5]], dtype=float) @ np.asarray(v, dtype=float)"
+          },
+          "controlLab": {
+            "profile": "controllab.pathview.clocked.v2",
+            "legacy_node": {
+              "id": "gain_K",
+              "type": "MatrixGain",
+              "name": "FeedbackGain_K",
+              "position": {
+                "x": 680,
+                "y": 420
+              },
+              "inputs": [
+                {
+                  "nodeId": "gain_K",
+                  "direction": "input",
+                  "index": 0,
+                  "name": "x"
+                }
+              ],
+              "outputs": [
+                {
+                  "nodeId": "gain_K",
+                  "direction": "output",
+                  "index": 0,
+                  "name": "Kx"
+                }
+              ],
+              "params": {
+                "gain": [
+                  [
+                    0.5
+                  ]
+                ],
+                "shape": [
+                  1,
+                  1
+                ],
+                "role": "feedback_gain",
+                "label": "K"
+              }
+            },
+            "legacy_order": 5
+          }
+        },
+        {
+          "id": "controllab_clock_state",
+          "type": "SampleHold",
+          "name": "SynchronousStateRegister",
+          "position": {
+            "x": 1500,
+            "y": 100
+          },
+          "inputs": [
+            {
+              "nodeId": "controllab_clock_state",
+              "direction": "input",
+              "index": 0,
+              "name": "next_delta0"
+            }
+          ],
+          "outputs": [
+            {
+              "nodeId": "controllab_clock_state",
+              "direction": "output",
+              "index": 0,
+              "name": "delta0"
+            }
+          ],
+          "params": {
+            "T": "0.1",
+            "tau": "0.1"
+          },
+          "controlLab": {
+            "profile": "controllab.pathview.clocked.v2",
+            "role": "synchronous_state_register",
+            "state_layout": [
+              {
+                "node_id": "plant_ss",
+                "offset": 0,
+                "size": 1
+              }
+            ]
+          }
+        }
+      ],
+      "connections": [
+        {
+          "sourceNodeId": "controllab_clock_state",
+          "sourcePortIndex": 0,
+          "targetNodeId": "plant_ss",
+          "targetPortIndex": 1,
+          "id": "clock_conn_0000"
+        },
+        {
+          "sourceNodeId": "controllab_clock_state",
+          "sourcePortIndex": 0,
+          "targetNodeId": "plant_ss__clock_next",
+          "targetPortIndex": 1,
+          "id": "clock_conn_0001"
+        },
+        {
+          "sourceNodeId": "plant_ss__clock_next",
+          "sourcePortIndex": 0,
+          "targetNodeId": "controllab_clock_state",
+          "targetPortIndex": 0,
+          "id": "clock_conn_0002"
+        },
+        {
+          "sourceNodeId": "plant_ss",
+          "sourcePortIndex": 2,
+          "targetNodeId": "plant_ss__clock_next",
+          "targetPortIndex": 0,
+          "id": "clock_conn_0003"
+        },
+        {
+          "sourceNodeId": "src_ref",
+          "sourcePortIndex": 0,
+          "targetNodeId": "gain_N",
+          "targetPortIndex": 0,
+          "id": "clock_conn_0004"
+        },
+        {
+          "sourceNodeId": "gain_N",
+          "sourcePortIndex": 0,
+          "targetNodeId": "sum_feedback",
+          "targetPortIndex": 0,
+          "id": "clock_conn_0005"
+        },
+        {
+          "sourceNodeId": "sum_feedback",
+          "sourcePortIndex": 0,
+          "targetNodeId": "plant_ss",
+          "targetPortIndex": 0,
+          "id": "clock_conn_0006"
+        },
+        {
+          "sourceNodeId": "plant_ss",
+          "sourcePortIndex": 0,
+          "targetNodeId": "scope_y",
+          "targetPortIndex": 0,
+          "id": "clock_conn_0007"
+        },
+        {
+          "sourceNodeId": "plant_ss",
+          "sourcePortIndex": 1,
+          "targetNodeId": "gain_K",
+          "targetPortIndex": 0,
+          "id": "clock_conn_0008"
+        },
+        {
+          "sourceNodeId": "gain_K",
+          "sourcePortIndex": 0,
+          "targetNodeId": "sum_feedback",
+          "targetPortIndex": 1,
+          "id": "clock_conn_0009"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "ann_controllab_spec",
+          "text": "ControlLab state_feedback | sign=negative | external_pathview_verified=False (execu\u00e7\u00e3o externa deste arquivo n\u00e3o realizada)"
+        }
+      ]
+    },
+    "profile": "controllab.pathview.clocked.v2",
+    "settings": {
+      "duration": "10",
+      "dt": "0.1",
+      "solver": "RKCK54",
+      "adaptive": false,
+      "atol": "1e-6",
+      "rtol": "1e-4",
+      "ftol": "1e-9",
+      "dt_min": "",
+      "dt_max": "",
+      "ghostTraces": 0,
+      "plotResults": true
+    },
+    "import_status": "warning",
+    "sim_status": "warning",
+    "x": [
+      [
+        1
+      ],
+      [
+        0.76
+      ],
+      [
+        0.5920000000000001
+      ],
+      [
+        0.4744000000000001
+      ],
+      [
+        0.3920800000000001
+      ],
+      [
+        0.3344560000000001
+      ],
+      [
+        0.2941192000000001
+      ],
+      [
+        0.2658834400000001
+      ],
+      [
+        0.24611840800000007
+      ],
+      [
+        0.23228288560000007
+      ],
+      [
+        0.22259801992000006
+      ],
+      [
+        0.21581861394400007
+      ],
+      [
+        0.21107302976080006
+      ]
+    ],
+    "u": [
+      [
+        -0.2
+      ],
+      [
+        -0.08000000000000002
+      ],
+      [
+        0.003999999999999948
+      ],
+      [
+        0.06279999999999994
+      ],
+      [
+        0.10395999999999994
+      ],
+      [
+        0.13277199999999995
+      ],
+      [
+        0.15294039999999995
+      ],
+      [
+        0.16705827999999995
+      ],
+      [
+        0.17694079599999996
+      ],
+      [
+        0.18385855719999994
+      ],
+      [
+        0.18870099003999996
+      ],
+      [
+        0.19209069302799997
+      ],
+      [
+        0.19446348511959996
+      ]
+    ],
+    "y": [
+      [
+        1
+      ],
+      [
+        0.76
+      ],
+      [
+        0.5920000000000001
+      ],
+      [
+        0.4744000000000001
+      ],
+      [
+        0.3920800000000001
+      ],
+      [
+        0.3344560000000001
+      ],
+      [
+        0.2941192000000001
+      ],
+      [
+        0.2658834400000001
+      ],
+      [
+        0.24611840800000007
+      ],
+      [
+        0.23228288560000007
+      ],
+      [
+        0.22259801992000006
+      ],
+      [
+        0.21581861394400007
+      ],
+      [
+        0.21107302976080006
+      ]
+    ],
+    "tamper_status": "failure",
+    "tamper_error": "IMPORT_UNTRUSTED_CODE",
+    "code_executed": false
+  }
+}

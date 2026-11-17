@@ -1,5 +1,7 @@
 # Relatório Consolidado — Gates Fase 0 (CL-DIR-001)
 
+Adendo de acompanhamento em 2026-11-17: [correção CI, reconciliação dos baselines e próxima fila](CI_RECONCILIATION_2026-11-17.md). Os pareceres de capacidade abaixo conservam seus escopos; aprovação dos gates não substitui o resultado do CI de cada novo commit nem declara release estável.
+
 Auditoria independente F9 em 2026-11-17, base 58d101d2d3296026af39c388f799e5577e38b027 e fontes incrementais em [source-sha256.json](gatecd/source-sha256.json). A auditoria aplica ADR-009 e ADR-010. Os produtores F1/F8/F9 são distintos do revisor /root/f9_gate_review. Manifesto SHA-256 57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d, comum a Chromium 153.0.8010.0 e Firefox 153.0, Pyodide 0.27.5, NumPy 2.0.2/SciPy 1.14.1.
 
 ## Decisão atual

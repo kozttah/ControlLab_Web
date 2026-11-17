@@ -1,0 +1,47 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "runtime_init_ms": 13141,
+    "first_rpc_ms": 197,
+    "warm_ms": [
+      43,
+      42,
+      42,
+      41,
+      40,
+      41,
+      38,
+      40,
+      40,
+      39
+    ],
+    "ticks": 149,
+    "metrics": {
+      "T_download": 0,
+      "T_init_pyodide": 2875,
+      "T_import_packages": 3007,
+      "T_first_call": 197,
+      "T_warm_call": 39,
+      "T_bridge_transfer": 0,
+      "call_count": 11,
+      "cold_completed": true,
+      "last_request_id": "benchmark-10",
+      "warm_calls_count": 10,
+      "warm_call_avg_ms": 40.6
+    },
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0",
+    "threads": 9,
+    "memory": null,
+    "median_warm_ms": 40.5,
+    "p95_warm_ms": 42.55,
+    "variation_std_ms": 1.4282856857085702,
+    "system": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "cpu": "",
+    "ram_bytes": 10451427328,
+    "hardware_scope": "container host; no reference-notebook performance approval",
+    "repetitions": 10,
+    "peak_rss_note": "JS heap snapshot only, not full browser RSS peak"
+  }
+}

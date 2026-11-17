@@ -1,0 +1,82 @@
+........................................................................ [ 18%]
+...............................................F........................ [ 37%]
+........................................................................ [ 55%]
+........................................................................ [ 74%]
+........................................................................ [ 92%]
+............................                                             [100%]
+=================================== FAILURES ===================================
+__________________ test_offline_real_calculation_after_reload __________________
+
+    def test_offline_real_calculation_after_reload():
+        manifest = json.loads((DIST / "release-manifest.json").read_bytes())
+        paths = {asset["path"] for asset in manifest["assets"]}
+        # Serve under a prefix, exactly as a project under GitHub Pages.
+        server = ThreadingHTTPServer(
+            ("127.0.0.1", 0), partial(StaticRelease, directory=DIST.parent)
+        )
+        worker = Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        origin = f"http://127.0.0.1:{server.server_port}"
+        try:
+            with sync_playwright() as playwright:
+>               browser = playwright.chromium.launch(
+                    executable_path=os.environ.get("CONTROLLAB_CHROMIUM")
+                )
+
+tests/security/offline_browser.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../gatecd-review-deps/playwright/sync_api/_generated.py:14566: in launch
+    self._sync(
+../gatecd-review-deps/playwright/_impl/_browser_type.py:97: in launch
+    await self._channel.send(
+../gatecd-review-deps/playwright/_impl/_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <playwright._impl._connection.Connection object at 0x7f708587a6f0>
+cb = <function Channel.send.<locals>.<lambda> at 0x7f7085795da0>
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -> Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        st: List[inspect.FrameInfo] = getattr(
+            task, "__pw_stack__", None
+        ) or inspect.stack(0)
+    
+        parsed_st = _extract_stack_trace_information_from_stack(st, is_internal, title)
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+>           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: BrowserType.launch: Executable doesn't exist at /home/agent/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell
+E           ╔════════════════════════════════════════════════════════════╗
+E           ║ Looks like Playwright was just installed or updated.       ║
+E           ║ Please run the following command to download new browsers: ║
+E           ║                                                            ║
+E           ║     playwright install                                     ║
+E           ║                                                            ║
+E           ║ <3 Playwright Team                                         ║
+E           ╚════════════════════════════════════════════════════════════╝
+
+../gatecd-review-deps/playwright/_impl/_connection.py:559: Error
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+../../ba21e63c86f4/testdeps/_pytest/config/__init__.py:915
+  /workspace/scratch/ba21e63c86f4/testdeps/_pytest/config/__init__.py:915: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; scripts.browser_harness
+    self.import_plugin(import_spec, consider_entry_points=True)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/security/test_real_browser_security.py::test_offline_real_calculation_after_reload
+1 failed, 387 passed, 2 warnings in 469.41s (0:07:49)

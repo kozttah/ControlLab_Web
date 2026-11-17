@@ -1,0 +1,329 @@
+Exact lock closure PASS: 34 distributions and 43 active dependency edges, including pip.
+[F9-VERIFY] 11 schemas JSON Draft 2020-12 válidos.
+[F9-VERIFY] Fixture B-CARE-02.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-CARE-12x3.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-SDP-A-D.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-ARX-PRBS.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-DARE-12x3.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-MIMO-2x2.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-PVM-LQR.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Exemplo rpc_request_lqr.json validado contra rpc_request.schema.json.
+[F9-VERIFY] Exemplo rpc_response_lqr.json validado contra rpc_response.schema.json.
+[F9-VERIFY] Exemplo statespace_example.json validado contra state_space.schema.json.
+[F9-VERIFY] Exemplo pvm_skeleton.json validado contra pvm.schema.json.
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/c294078be076/reconcile-sdp-venv/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/c294078be076/ControlLab_Web
+configfile: pyproject.toml
+collecting ... collected 147 items
+
+tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_a_box_t_sdp_a1_a2_a3_and_mixed_constraints PASSED [  0%]
+tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_b_psd_analytical_diagonal_singular_and_infeasible PASSED [  1%]
+tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_c_slater_lyapunov_ill_conditioning_and_weak_infeasibility PASSED [  2%]
+tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_d_continuous_stabilization_t_sdp_d1[positive] PASSED [  2%]
+tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_d_continuous_stabilization_t_sdp_d1[negative] PASSED [  3%]
+tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_d_hinf_brl_t_sdp_d2_fixed_and_minimized PASSED [  4%]
+tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_d_regional_pole_placement_polytopic_and_ts_pdc PASSED [  4%]
+tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_experimental_maturity_isolation_history_suite_and_ast_no_inv PASSED [  5%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[LP_A1] PASSED [  6%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[LP_A2_INFEASIBLE] PASSED [  6%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[LP_A3_UNBOUNDED] PASSED [  7%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[PSD_2x2_B1] PASSED [  8%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[SDP_3x3_C1] PASSED [  8%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[CTRL_STAB_D1] PASSED [  9%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[CTRL_BRL_D2_FIXED] PASSED [ 10%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[CTRL_BRL_D2_MIN] PASSED [ 10%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_moderate_ts_pdc_native PASSED [ 11%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_offline_exports_are_deterministic_and_python_executes PASSED [ 12%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_requires_audit_and_recommends_offline_limits PASSED [ 12%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_does_not_trust_ill_conditioning PASSED [ 13%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_lqr_lmi_cost_inequality PASSED [ 14%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_export_rpc_uses_same_template_and_is_available_before_solve PASSED [ 14%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_options_validation[options0] PASSED [ 15%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_options_validation[options1] PASSED [ 16%]
+tests/unit/f6/test_native_sdp_and_exports.py::test_native_options_validation[options2] PASSED [ 17%]
+tests/unit/f6/test_sdp_audit_remediation.py::test_canonical_sdp_deep_immutability PASSED [ 17%]
+tests/unit/f6/test_sdp_audit_remediation.py::test_lp_requires_exact_structural_diagonal[F0-1e-15] PASSED [ 18%]
+tests/unit/f6/test_sdp_audit_remediation.py::test_lp_requires_exact_structural_diagonal[F0-5e-324] PASSED [ 19%]
+tests/unit/f6/test_sdp_audit_remediation.py::test_lp_requires_exact_structural_diagonal[Fk-1e-15] PASSED [ 19%]
+tests/unit/f6/test_sdp_audit_remediation.py::test_lp_requires_exact_structural_diagonal[Fk-5e-324] PASSED [ 20%]
+tests/unit/f6/test_sdp_audit_remediation.py::test_psd_violation_uses_spectral_norm PASSED [ 21%]
+tests/unit/f6/test_sdp_audit_remediation.py::test_educational_capabilities_are_registered_not_guessed PASSED [ 21%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_svec_smat_isometry_sqrt2_and_validation PASSED [ 22%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_dsl_rejects_bilinear_products_strict_inequalities_and_bad_bmat PASSED [ 23%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_canonical_serialization_and_cpython_script_export PASSED [ 23%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a1_feasible_boundary_all_backends[clarabel_direct] PASSED [ 24%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a1_feasible_boundary_all_backends[clarabel_cvxpy] PASSED [ 25%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a1_feasible_boundary_all_backends[scipy_linprog] PASSED [ 25%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a2_infeasible_farkas_certified[clarabel_direct] PASSED [ 26%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a2_infeasible_farkas_certified[clarabel_cvxpy] PASSED [ 27%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a2_scipy_linprog_without_farkas_is_inconclusive PASSED [ 27%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a3_unbounded_certified_and_inconclusive_handling PASSED [ 28%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_b1_2x2_psd_boundary_and_scipy_rejection[clarabel_direct] PASSED [ 29%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_b1_2x2_psd_boundary_and_scipy_rejection[clarabel_cvxpy] PASSED [ 29%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_scipy_linprog_rejects_non_diagonal_psd_with_solver_unavailable PASSED [ 30%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_c1_3x3_slater_and_zero_duality_gap[clarabel_direct] PASSED [ 31%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_c1_3x3_slater_and_zero_duality_gap[clarabel_cvxpy] PASSED [ 31%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_d1_continuous_stabilization_and_fixture_oracle[positive] PASSED [ 32%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_d1_continuous_stabilization_and_fixture_oracle[negative] PASSED [ 33%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_d2_hinf_brl_fixed_minimize_and_fixture_oracle[clarabel_direct] PASSED [ 34%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_d2_hinf_brl_fixed_minimize_and_fixture_oracle[clarabel_cvxpy] PASSED [ 34%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_regional_pole_placement_disk_and_halfplane PASSED [ 35%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_ts_pdc_synthesis_cross_terms_and_polytopic_rejection PASSED [ 36%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_verifier_rejects_fake_optimal_broken_dual_and_fake_certificates PASSED [ 36%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_capabilities_unavailable_educational_and_gate_0b PASSED [ 37%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_architectural_invariants_no_linalg_inv_and_no_experimental_import PASSED [ 38%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_scipy_linprog_vs_clarabel_with_eq_ineq_and_diagonal_blocks PASSED [ 38%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_hinf_brl_optimality_vs_infeasibility_below_gamma_star PASSED [ 39%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_ts_pdc_negative_feedback_and_exported_script_execution PASSED [ 40%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_verifier_incomplete_duals_mixed_and_pure_lp_bug_f6_01 PASSED [ 40%]
+tests/unit/f6/test_sdp_modeling_and_verification.py::test_obs_f6_01_02_03_regressions PASSED [ 41%]
+tests/oracles/test_build_independent_assets.py::test_independent_runtime_lock_has_complete_transitive_closure PASSED [ 42%]
+tests/oracles/test_build_independent_assets.py::test_independent_f8_prefix_paths_have_planned_build_targets PASSED [ 42%]
+tests/oracles/test_build_independent_assets.py::test_independent_corrupt_cached_runtime_fails_before_network PASSED [ 43%]
+tests/oracles/test_build_pipeline.py::test_build_runtime_lock_closes_transitive_dependencies PASSED [ 44%]
+tests/oracles/test_build_pipeline.py::test_build_missing_browser_suites_fail_closed PASSED [ 44%]
+tests/oracles/test_build_pipeline.py::test_build_rejects_tampered_asset_and_extra_inventory PASSED [ 45%]
+tests/oracles/test_build_pipeline.py::test_integrity_manifest_defers_gate_decisions_to_external_f9_ledger PASSED [ 46%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[andMethod="PROD"-andMethod="UNSUPPORTED"] PASSED [ 46%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[orMethod="MAX"-orMethod="UNSUPPORTED"] PASSED [ 47%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[connector="and"-connector="xor"] PASSED [ 48%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="nonnumeric"] PASSED [ 48%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="NaN"] PASSED [ 49%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="Infinity"] PASSED [ 50%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-triangularShape param1="1" param2="-1" param3="0"] PASSED [ 51%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-trapezoidShape param1="-1" param2="1" param3="0" param4="1"] PASSED [ 51%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-gaussianShape param1="0" param2="0"] PASSED [ 52%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-gaussianShape param1="0" param2="-1"] PASSED [ 53%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-bellShape param1="-1" param2="2" param3="0"] PASSED [ 53%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-bellShape param1="1" param2="0" param3="0"] PASSED [ 54%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-linearShape param1="1" param2="0"] PASSED [ 55%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[tskTerm name="Negative" order="0"-tskTerm name="Negative" order="1"] PASSED [ 55%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_roundtrip_matches_analytic_partition PASSED [ 56%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_dtd_and_resource_limits_fail_closed PASSED [ 57%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_fml_unrepresentable_duplicate_clauses_are_not_collapsed PASSED [ 57%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_explicit_first_order_consequents_preserve_y_equals_2x[True-coefficients0] PASSED [ 58%]
+tests/oracles/test_fml_remediation_independent.py::test_f9_explicit_first_order_consequents_preserve_y_equals_2x[False-coefficients1] PASSED [ 59%]
+tests/oracles/test_golden_fixtures.py::test_pyproject_toml_structure PASSED [ 59%]
+tests/oracles/test_golden_fixtures.py::test_all_expected_schemas_exist_and_are_valid PASSED [ 60%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_request_lqr.json-rpc_request.schema.json] PASSED [ 61%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_response_lqr.json-rpc_response.schema.json] PASSED [ 61%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[statespace_example.json-state_space.schema.json] PASSED [ 62%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[pvm_skeleton.json-pvm.schema.json] PASSED [ 63%]
+tests/oracles/test_golden_fixtures.py::test_rpc_response_rejects_illustrative_strings_and_invalid_errors PASSED [ 63%]
+tests/oracles/test_golden_fixtures.py::test_controller_ts_and_manifest_schemas_positive_and_negative PASSED [ 64%]
+tests/oracles/test_golden_fixtures.py::test_golden_fixtures_checksums_and_schema PASSED [ 65%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_02_analytical PASSED [ 65%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_12x3_numerical PASSED [ 66%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_sdp_levels_a_to_d PASSED [ 67%]
+tests/oracles/test_release_fixtures.py::test_t_care_02_production_against_preserved_gold PASSED [ 68%]
+tests/oracles/test_release_fixtures.py::test_dare_zoh_production_and_independent_residual PASSED [ 68%]
+tests/oracles/test_release_fixtures.py::test_t_id_03_full_data_holdout_production PASSED [ 69%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_01_full_grid_production PASSED [ 70%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_02_singular_cases_are_undefined PASSED [ 70%]
+tests/oracles/test_release_fixtures.py::test_t_freq_02_all_polynomial_crossings_against_production PASSED [ 71%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[0] PASSED [ 72%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[1] PASSED [ 72%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[2] PASSED [ 73%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[3] PASSED [ 74%]
+tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic PASSED [ 74%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[missing] PASSED [ 75%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[duplicate] PASSED [ 76%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[unlisted] PASSED [ 76%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[modified] PASSED [ 77%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_permits_last_bit_roundoff_only_in_named_fields PASSED [ 78%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[A] PASSED [ 78%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[B] PASSED [ 79%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[P] PASSED [ 80%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[K] PASSED [ 80%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[poles] PASSED [ 81%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[rDARE] PASSED [ 82%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[symmetry_error] PASSED [ 82%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[zoh_quadrature_max_error] PASSED [ 83%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[optimal_cost] PASSED [ 84%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[spectral_radius] PASSED [ 85%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[metadata] PASSED [ 85%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[tolerance] PASSED [ 86%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[shape] PASSED [ 87%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[nonfinite] PASSED [ 87%]
+tests/oracles/test_release_gate_state.py::test_every_mandatory_product_gate_requires_explicit_f9_acceptance PASSED [ 88%]
+tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-CARE-02.json-f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f] PASSED [ 89%]
+tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-CARE-12x3.json-0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4] PASSED [ 89%]
+tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-SDP-A-D.json-4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076] PASSED [ 90%]
+tests/oracles/test_release_independent_baseline.py::test_independent_seven_fixture_inventory_and_full_finite_tensors PASSED [ 91%]
+tests/oracles/test_release_independent_math.py::test_independent_dare_exact_discretization_and_solution PASSED [ 91%]
+tests/oracles/test_release_independent_math.py::test_independent_arx_chronological_holdout_all_arrays PASSED [ 92%]
+tests/oracles/test_release_independent_math.py::test_independent_mimo_full_grid_svd_rga_and_crossings PASSED [ 93%]
+tests/oracles/test_release_independent_math.py::test_independent_pvm_full_state_negative_feedback_linear_and_saturated PASSED [ 93%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_sdp_snapshot_survives_input_getter_and_structure_mutation PASSED [ 94%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-1e-15] PASSED [ 95%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-1e-30] PASSED [ 95%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-5e-324] PASSED [ 96%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-1e-15] PASSED [ 97%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-1e-30] PASSED [ 97%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-5e-324] PASSED [ 98%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_spectral_residual_matches_diagonal_analytic_values PASSED [ 99%]
+tests/oracles/test_sdp_remediation_independent.py::test_f9_educational_descriptor_is_explicit_and_experimental PASSED [100%]
+
+==================================== PASSES ====================================
+__________ test_offline_exports_are_deterministic_and_python_executes __________
+----------------------------- Captured stdout call -----------------------------
+status optimal objective 0.0
+constraint violations [1.7763568394002505e-15, 1.3211653993039363e-14]
+feedback_sign positive gains {'Y': array([[-4.2410083 , -0.75191353]])}
+variables {'Q': array([[ 0.99541908, -0.70512801],
+       [-0.70512801,  1.55952154]]), 'Y': array([[-3.69138529,  1.8178284 ]])}
+____________ test_build_rejects_tampered_asset_and_extra_inventory _____________
+----------------------------- Captured stdout call -----------------------------
+Verified integrity and inventory of 1 local assets.
+- generated xml file: /workspace/scratch/c294078be076/ControlLab_Web/docs/audits/reassessment/sdp/B-sdp_available.xml -
+=========================== short test summary info ============================
+PASSED tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_a_box_t_sdp_a1_a2_a3_and_mixed_constraints
+PASSED tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_b_psd_analytical_diagonal_singular_and_infeasible
+PASSED tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_c_slater_lyapunov_ill_conditioning_and_weak_infeasibility
+PASSED tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_d_continuous_stabilization_t_sdp_d1[positive]
+PASSED tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_d_continuous_stabilization_t_sdp_d1[negative]
+PASSED tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_d_hinf_brl_t_sdp_d2_fixed_and_minimized
+PASSED tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_level_d_regional_pole_placement_polytopic_and_ts_pdc
+PASSED tests/unit/f6/test_educational_solver_levels_a_to_d.py::test_experimental_maturity_isolation_history_suite_and_ast_no_inv
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[LP_A1]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[LP_A2_INFEASIBLE]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[LP_A3_UNBOUNDED]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[PSD_2x2_B1]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[SDP_3x3_C1]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[CTRL_STAB_D1]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[CTRL_BRL_D2_FIXED]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_ladder_independently_audited[CTRL_BRL_D2_MIN]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_moderate_ts_pdc_native
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_offline_exports_are_deterministic_and_python_executes
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_requires_audit_and_recommends_offline_limits
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_does_not_trust_ill_conditioning
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_lqr_lmi_cost_inequality
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_export_rpc_uses_same_template_and_is_available_before_solve
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_options_validation[options0]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_options_validation[options1]
+PASSED tests/unit/f6/test_native_sdp_and_exports.py::test_native_options_validation[options2]
+PASSED tests/unit/f6/test_sdp_audit_remediation.py::test_canonical_sdp_deep_immutability
+PASSED tests/unit/f6/test_sdp_audit_remediation.py::test_lp_requires_exact_structural_diagonal[F0-1e-15]
+PASSED tests/unit/f6/test_sdp_audit_remediation.py::test_lp_requires_exact_structural_diagonal[F0-5e-324]
+PASSED tests/unit/f6/test_sdp_audit_remediation.py::test_lp_requires_exact_structural_diagonal[Fk-1e-15]
+PASSED tests/unit/f6/test_sdp_audit_remediation.py::test_lp_requires_exact_structural_diagonal[Fk-5e-324]
+PASSED tests/unit/f6/test_sdp_audit_remediation.py::test_psd_violation_uses_spectral_norm
+PASSED tests/unit/f6/test_sdp_audit_remediation.py::test_educational_capabilities_are_registered_not_guessed
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_svec_smat_isometry_sqrt2_and_validation
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_dsl_rejects_bilinear_products_strict_inequalities_and_bad_bmat
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_canonical_serialization_and_cpython_script_export
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a1_feasible_boundary_all_backends[clarabel_direct]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a1_feasible_boundary_all_backends[clarabel_cvxpy]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a1_feasible_boundary_all_backends[scipy_linprog]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a2_infeasible_farkas_certified[clarabel_direct]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a2_infeasible_farkas_certified[clarabel_cvxpy]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a2_scipy_linprog_without_farkas_is_inconclusive
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_a3_unbounded_certified_and_inconclusive_handling
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_b1_2x2_psd_boundary_and_scipy_rejection[clarabel_direct]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_b1_2x2_psd_boundary_and_scipy_rejection[clarabel_cvxpy]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_scipy_linprog_rejects_non_diagonal_psd_with_solver_unavailable
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_c1_3x3_slater_and_zero_duality_gap[clarabel_direct]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_c1_3x3_slater_and_zero_duality_gap[clarabel_cvxpy]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_d1_continuous_stabilization_and_fixture_oracle[positive]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_d1_continuous_stabilization_and_fixture_oracle[negative]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_d2_hinf_brl_fixed_minimize_and_fixture_oracle[clarabel_direct]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_t_sdp_d2_hinf_brl_fixed_minimize_and_fixture_oracle[clarabel_cvxpy]
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_regional_pole_placement_disk_and_halfplane
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_ts_pdc_synthesis_cross_terms_and_polytopic_rejection
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_verifier_rejects_fake_optimal_broken_dual_and_fake_certificates
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_capabilities_unavailable_educational_and_gate_0b
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_architectural_invariants_no_linalg_inv_and_no_experimental_import
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_scipy_linprog_vs_clarabel_with_eq_ineq_and_diagonal_blocks
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_hinf_brl_optimality_vs_infeasibility_below_gamma_star
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_ts_pdc_negative_feedback_and_exported_script_execution
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_verifier_incomplete_duals_mixed_and_pure_lp_bug_f6_01
+PASSED tests/unit/f6/test_sdp_modeling_and_verification.py::test_obs_f6_01_02_03_regressions
+PASSED tests/oracles/test_build_independent_assets.py::test_independent_runtime_lock_has_complete_transitive_closure
+PASSED tests/oracles/test_build_independent_assets.py::test_independent_f8_prefix_paths_have_planned_build_targets
+PASSED tests/oracles/test_build_independent_assets.py::test_independent_corrupt_cached_runtime_fails_before_network
+PASSED tests/oracles/test_build_pipeline.py::test_build_runtime_lock_closes_transitive_dependencies
+PASSED tests/oracles/test_build_pipeline.py::test_build_missing_browser_suites_fail_closed
+PASSED tests/oracles/test_build_pipeline.py::test_build_rejects_tampered_asset_and_extra_inventory
+PASSED tests/oracles/test_build_pipeline.py::test_integrity_manifest_defers_gate_decisions_to_external_f9_ledger
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[andMethod="PROD"-andMethod="UNSUPPORTED"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[orMethod="MAX"-orMethod="UNSUPPORTED"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[connector="and"-connector="xor"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="nonnumeric"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="NaN"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[defaultvalue="0"-defaultvalue="Infinity"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-triangularShape param1="1" param2="-1" param3="0"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-trapezoidShape param1="-1" param2="1" param3="0" param4="1"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-gaussianShape param1="0" param2="0"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-gaussianShape param1="0" param2="-1"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-bellShape param1="-1" param2="2" param3="0"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-bellShape param1="1" param2="0" param3="0"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[triangularShape param1="-1" param2="-1" param3="1"-linearShape param1="1" param2="0"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_invalid_semantics_are_not_repaired[tskTerm name="Negative" order="0"-tskTerm name="Negative" order="1"]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_roundtrip_matches_analytic_partition
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_dtd_and_resource_limits_fail_closed
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_fml_unrepresentable_duplicate_clauses_are_not_collapsed
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_explicit_first_order_consequents_preserve_y_equals_2x[True-coefficients0]
+PASSED tests/oracles/test_fml_remediation_independent.py::test_f9_explicit_first_order_consequents_preserve_y_equals_2x[False-coefficients1]
+PASSED tests/oracles/test_golden_fixtures.py::test_pyproject_toml_structure
+PASSED tests/oracles/test_golden_fixtures.py::test_all_expected_schemas_exist_and_are_valid
+PASSED tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_request_lqr.json-rpc_request.schema.json]
+PASSED tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_response_lqr.json-rpc_response.schema.json]
+PASSED tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[statespace_example.json-state_space.schema.json]
+PASSED tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[pvm_skeleton.json-pvm.schema.json]
+PASSED tests/oracles/test_golden_fixtures.py::test_rpc_response_rejects_illustrative_strings_and_invalid_errors
+PASSED tests/oracles/test_golden_fixtures.py::test_controller_ts_and_manifest_schemas_positive_and_negative
+PASSED tests/oracles/test_golden_fixtures.py::test_golden_fixtures_checksums_and_schema
+PASSED tests/oracles/test_golden_fixtures.py::test_oracle_b_care_02_analytical
+PASSED tests/oracles/test_golden_fixtures.py::test_oracle_b_care_12x3_numerical
+PASSED tests/oracles/test_golden_fixtures.py::test_oracle_b_sdp_levels_a_to_d
+PASSED tests/oracles/test_release_fixtures.py::test_t_care_02_production_against_preserved_gold
+PASSED tests/oracles/test_release_fixtures.py::test_dare_zoh_production_and_independent_residual
+PASSED tests/oracles/test_release_fixtures.py::test_t_id_03_full_data_holdout_production
+PASSED tests/oracles/test_release_fixtures.py::test_t_mimo_01_full_grid_production
+PASSED tests/oracles/test_release_fixtures.py::test_t_mimo_02_singular_cases_are_undefined
+PASSED tests/oracles/test_release_fixtures.py::test_t_freq_02_all_polynomial_crossings_against_production
+PASSED tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[0]
+PASSED tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[1]
+PASSED tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[2]
+PASSED tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[3]
+PASSED tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic
+PASSED tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[missing]
+PASSED tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[duplicate]
+PASSED tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[unlisted]
+PASSED tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[modified]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_permits_last_bit_roundoff_only_in_named_fields
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[A]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[B]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[P]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[K]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[poles]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[rDARE]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[symmetry_error]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[zoh_quadrature_max_error]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[optimal_cost]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[spectral_radius]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[metadata]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[tolerance]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[shape]
+PASSED tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[nonfinite]
+PASSED tests/oracles/test_release_gate_state.py::test_every_mandatory_product_gate_requires_explicit_f9_acceptance
+PASSED tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-CARE-02.json-f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f]
+PASSED tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-CARE-12x3.json-0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4]
+PASSED tests/oracles/test_release_independent_baseline.py::test_independent_original_golden_bytes[contracts/fixtures/B-SDP-A-D.json-4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076]
+PASSED tests/oracles/test_release_independent_baseline.py::test_independent_seven_fixture_inventory_and_full_finite_tensors
+PASSED tests/oracles/test_release_independent_math.py::test_independent_dare_exact_discretization_and_solution
+PASSED tests/oracles/test_release_independent_math.py::test_independent_arx_chronological_holdout_all_arrays
+PASSED tests/oracles/test_release_independent_math.py::test_independent_mimo_full_grid_svd_rga_and_crossings
+PASSED tests/oracles/test_release_independent_math.py::test_independent_pvm_full_state_negative_feedback_linear_and_saturated
+PASSED tests/oracles/test_sdp_remediation_independent.py::test_f9_sdp_snapshot_survives_input_getter_and_structure_mutation
+PASSED tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-1e-15]
+PASSED tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-1e-30]
+PASSED tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[False-5e-324]
+PASSED tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-1e-15]
+PASSED tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-1e-30]
+PASSED tests/oracles/test_sdp_remediation_independent.py::test_f9_any_nonzero_off_diagonal_prevents_exact_lp[True-5e-324]
+PASSED tests/oracles/test_sdp_remediation_independent.py::test_f9_spectral_residual_matches_diagonal_analytic_values
+PASSED tests/oracles/test_sdp_remediation_independent.py::test_f9_educational_descriptor_is_explicit_and_experimental
+============================= 147 passed in 3.75s ==============================

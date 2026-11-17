@@ -1,0 +1,18 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "before_revision": 1,
+    "after_revision": 2,
+    "preview_persisted": false,
+    "slider_bounds": {
+      "x": 33,
+      "y": 377.8999938964844,
+      "width": 428.8833312988281,
+      "height": 44
+    },
+    "pointer_steps": 20,
+    "driver": "Playwright mouse pointer events"
+  }
+}

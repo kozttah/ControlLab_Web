@@ -1,0 +1,15 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline';",
+    "inlineRan": false,
+    "blocked": true,
+    "violations": [
+      "script-src-elem",
+      "connect-src"
+    ],
+    "badge": "Motor: ready | Pyodide (beta) | offline n\u00e3o verificado (SW registrado; cache n\u00e3o verificado)"
+  }
+}

@@ -1,0 +1,30 @@
+▶ test_acceptance_runner_requires_tsc_and_tests
+  ✔ parseCliArgs valida escopos e rejeita flags/argumentos inválidos (0.868771ms)
+  ✔ CLI real falha fechado sem tsc no PATH (sem argumentos, --scope all, --scope f7, --scope f8) (204.103772ms)
+  ✔ CLI real rejeita escopos e flags inválidas com código != 0 (250.892253ms)
+  ✔ runWebTests falha com código != 0 para pasta de teste vazia/ausente, falta de TS ou falta de tsconfig (390.103283ms)
+  ✔ runWebTests com tsc mock, TS válido e .test.mjs válido retorna 0 e registra [typecheck] PASS e [unit-tests] PASS (646.890659ms)
+  ✔ falha de tsc interrompe antes dos testes unitários e falha de unitário reporta [typecheck] PASS + [unit-tests] FAIL (298.977672ms)
+  ✔ resolveTscCommand respeita precedência web/node_modules/.bin -> node_modules/.bin -> PATH -> null (43.625214ms)
+✔ test_acceptance_runner_requires_tsc_and_tests (1837.45328ms)
+✔ F9 independent: registered-reference bridge calls real CPython and matches frozen analytic CARE fixture (1315.883936ms)
+✔ F9 independent: unstabilizable plant through real CPython RPC never produces a controller (1278.80649ms)
+✔ F9: unlisted operations stay unavailable despite catalog/runtime maturity (0.769211ms)
+✔ F9: required backend must be explicitly available (0.121115ms)
+✔ F9: browser catalog does not claim stable before Wasm gates (0.096988ms)
+✔ F9: preview/pending/failure never authorize export or persistence (6.06666ms)
+✔ F9: preview/pending/inconclusive never authorize export or persistence (2.013713ms)
+✔ F9: root HTML entry uses distributable JS and matching stylesheet location (0.37489ms)
+✔ F9: root and GitHub-prefix runtime URLs preserve module scope (0.765204ms)
+✔ F9: real F7 storage/export observes preview, pending and failure (7.172682ms)
+✔ F9: real F7 storage/export observes preview, pending and inconclusive (1.975095ms)
+✔ F9: real F7 storage/export observes preview, pending and success (6.80973ms)
+✔ F9: real F7 storage/export observes preview, pending and invalid_success (5.182474ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2692.832789

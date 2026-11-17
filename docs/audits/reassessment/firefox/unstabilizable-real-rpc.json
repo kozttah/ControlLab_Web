@@ -1,0 +1,49 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "api_version": "1.0",
+    "request_id": "a55d8f3f-a6a6-4fbf-81de-7e32e6f52430",
+    "project_id": "unstabilizable",
+    "project_revision": 0,
+    "status": "failure",
+    "result": null,
+    "assumptions": {},
+    "diagnostics": {
+      "worker_id": "pw-cc626890-2a26-47a8-a7fd-f4f0bc8feffd",
+      "store_instance_id": "wms-d5b0b0ca-0b8e-4b3d-a4e3-7af5318ab780",
+      "committed": false,
+      "stale_discarded": false
+    },
+    "provenance": {
+      "algorithm": "statespace.design_lqr",
+      "lib_versions": {
+        "numpy": "2.0.2",
+        "scipy": "1.14.1",
+        "python": "3.12.7"
+      },
+      "seed": null,
+      "tolerances": {},
+      "model_revision": null,
+      "timestamp": "2026-11-17T11:45:34Z"
+    },
+    "warnings": [],
+    "error": {
+      "code": "HYPOTHESIS_VIOLATED",
+      "message": "Hip\u00f3tese violada para Riccati: par (A, B) n\u00e3o \u00e9 estabiliz\u00e1vel pelo teste PBH (1 modo(s) inst\u00e1vel(is)/marginal(is) n\u00e3o control\u00e1vel(is)).",
+      "parameters": {
+        "domain": "continuous",
+        "unstabilizable_modes": {
+          "real": [
+            1
+          ],
+          "imag": [
+            0
+          ]
+        }
+      },
+      "next_step": "Adicione atuadores/entradas que alcancem os modos inst\u00e1veis ou marginais."
+    }
+  }
+}

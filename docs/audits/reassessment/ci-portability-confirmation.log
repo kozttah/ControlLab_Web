@@ -1,0 +1,61 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/c294078be076/ControlLab_Web
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 42 items
+
+tests/oracles/test_release_fixtures.py::test_t_care_02_production_against_preserved_gold PASSED [  2%]
+tests/oracles/test_release_fixtures.py::test_dare_zoh_production_and_independent_residual PASSED [  4%]
+tests/oracles/test_release_fixtures.py::test_t_id_03_full_data_holdout_production PASSED [  7%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_01_full_grid_production PASSED [  9%]
+tests/oracles/test_release_fixtures.py::test_t_mimo_02_singular_cases_are_undefined PASSED [ 11%]
+tests/oracles/test_release_fixtures.py::test_t_freq_02_all_polynomial_crossings_against_production PASSED [ 14%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[0] PASSED [ 16%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[1] PASSED [ 19%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[2] PASSED [ 21%]
+tests/oracles/test_release_fixtures.py::test_t_pvm_01_local_graph_against_analytic_gold[3] PASSED [ 23%]
+tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic PASSED [ 26%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[missing] PASSED [ 28%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[duplicate] PASSED [ 30%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[unlisted] PASSED [ 33%]
+tests/oracles/test_release_fixtures.py::test_verifier_rejects_incomplete_or_untracked_manifest[modified] PASSED [ 35%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_permits_last_bit_roundoff_only_in_named_fields PASSED [ 38%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[A] PASSED [ 40%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[B] PASSED [ 42%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[P] PASSED [ 45%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[K] PASSED [ 47%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[poles] PASSED [ 50%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[rDARE] PASSED [ 52%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[symmetry_error] PASSED [ 54%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[zoh_quadrature_max_error] PASSED [ 57%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[optimal_cost] PASSED [ 59%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[spectral_radius] PASSED [ 61%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[metadata] PASSED [ 64%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[tolerance] PASSED [ 66%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[shape] PASSED [ 69%]
+tests/oracles/test_release_fixtures.py::test_dare_regeneration_rejects_corruption[nonfinite] PASSED [ 71%]
+tests/oracles/test_golden_fixtures.py::test_pyproject_toml_structure PASSED [ 73%]
+tests/oracles/test_golden_fixtures.py::test_all_expected_schemas_exist_and_are_valid PASSED [ 76%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_request_lqr.json-rpc_request.schema.json] PASSED [ 78%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[rpc_response_lqr.json-rpc_response.schema.json] PASSED [ 80%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[statespace_example.json-state_space.schema.json] PASSED [ 83%]
+tests/oracles/test_golden_fixtures.py::test_normative_examples_validate[pvm_skeleton.json-pvm.schema.json] PASSED [ 85%]
+tests/oracles/test_golden_fixtures.py::test_rpc_response_rejects_illustrative_strings_and_invalid_errors PASSED [ 88%]
+tests/oracles/test_golden_fixtures.py::test_controller_ts_and_manifest_schemas_positive_and_negative PASSED [ 90%]
+tests/oracles/test_golden_fixtures.py::test_golden_fixtures_checksums_and_schema PASSED [ 92%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_02_analytical PASSED [ 95%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_care_12x3_numerical PASSED [ 97%]
+tests/oracles/test_golden_fixtures.py::test_oracle_b_sdp_levels_a_to_d PASSED [100%]
+
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 42 passed, 1 warning in 0.89s =========================

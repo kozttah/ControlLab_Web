@@ -11,6 +11,14 @@ O ControlLab Web reúne um motor científico em `NumPy`/`SciPy`, modelos canôni
 
 A especificação normativa é o [Documento Diretor CL-DIR-001](./ControlLab_Web_Documento_Diretor_v1.0.md), complementado pelas [decisões de arquitetura](./docs/architecture/). O [PROJECT_STATE.json](./PROJECT_STATE.json) registra os gates, os WorkPackages e seus escopos de aceite.
 
+## Testar no navegador
+
+**[Abrir ControlLab Web — versão beta](https://kozttah.github.io/ControlLab_Web/)**
+
+O endereço permite experimentar a plataforma sem instalar Python ou Node.js. Na primeira abertura, o navegador precisa baixar e inicializar o motor Pyodide e seus pacotes; esse carregamento pode demorar. Aguarde o indicador **Motor: ready** antes de confirmar um cálculo LQR. O cálculo ocorre no dispositivo e os projetos ficam no armazenamento local do navegador; exporte o arquivo `.ctrlab` para guardar ou transferir seu trabalho.
+
+A versão publicada é destinada a testes de usuário e conserva os limites beta descritos abaixo. Atualizações da `main` são publicadas automaticamente após a aprovação dos jobs A–G do CI, reutilizando o mesmo artefato estático verificado. O modo offline depende de provisionamento completo, e limpar os dados do navegador remove o cache e os projetos locais.
+
 ## Estado atual
 
 **Referência em 17/11/2026:** commit [`f1528bb`](https://github.com/kozttah/ControlLab_Web/commit/f1528bb6fe89b4d1a8c1b684f6bea29008de362a), com **34 WorkPackages aceitos e 5 pendentes**. Os quatro gates da Fase 0 foram aprovados pela F9 no domínio documentado. O produto permanece **beta**; a aprovação dos gates não declara todos os recursos da especificação como uma release estável.

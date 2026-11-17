@@ -33,6 +33,7 @@ from .models import (
     TransferFunction,
 )
 from .rpc import RPC_API_VERSION, SUPPORTED_OPERATIONS, dispatch, dispatch_rpc
+from .model_reuse import MODEL_REUSE_VERSION, reuse_model
 from .serialization import load_model, restore_model, serialize_model
 from .tensors import (
     array_to_tensor,
@@ -51,6 +52,8 @@ __all__ = [
     "PREMISE_MODES",
     "REFERENCE_MAP_KINDS",
     "RPC_API_VERSION",
+    "MODEL_REUSE_VERSION",
+    "reuse_model",
     "SUPPORTED_OPERATIONS",
     "TS_MODEL_KINDS",
     "Controller",

@@ -80,3 +80,9 @@ Corrigir CI de reprodutibilidade de fixture e concluir reavaliação dos pacotes
 ## Limites desta proposta
 
 Nenhum teste foi executado para validar funcionalidades futuras. Não há promoção de status, criação de baseline numérica ou alteração do escopo da release. Comandos listados existem no repositório; testes adicionais exigidos ainda devem ser escritos pelas frentes. F9 mantém independência e pode devolver changes_requested quando a evidência não cobrir o domínio anunciado.
+
+## Atualização após o ciclo de reutilização F1
+
+`WP-V1-F1-MODEL-REUSE-RPC` foi implementado e auditado conforme seu [handoff](handoffs/WP-V1-F1-MODEL-REUSE-RPC.md). O aceite cobre derivação canônica, RPC inline CPython/Pyodide e referências com store Python explicitamente delimitado por projeto. A descrição anterior permanece como histórico do planejamento.
+
+A auditoria identificou dois [pré-requisitos de runtime](model-reuse/RUNTIME_FOLLOWUPS.md), agora PENDING em PROJECT_STATE: `WP-AUDIT-FIX-F9-SW-RELEASE-VERSION` e `WP-V1-F7-MODEL-REF-REHYDRATION`. A ordem passa a ser atualização determinística do cache de releases, reidratação tipada F7 e entradas tipadas F8. Nenhuma dessas correções futuras foi incorporada silenciosamente à implementação F1 nem aceita por este documento.

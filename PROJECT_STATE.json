@@ -12,7 +12,7 @@
       "2026-11-13": 6,
       "2026-11-14": 12,
       "2026-11-15": 8,
-      "2026-11-17": 8,
+      "2026-11-17": 9,
       "2026-11-16": 1
     }
   },
@@ -2795,7 +2795,7 @@
         "T-CORE-03"
       ],
       "acceptance_cmd": "python3 -m pytest tests/unit/f1/ -v",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md",
       "acceptance_requirements_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md#wp-v1-f1-model-reuse-rpc",
       "acceptance_requirements": [
@@ -2803,7 +2803,139 @@
         "Adicionar os testes novos exigidos no plano; a suíte existente isolada não prova a entrega",
         "Handoff independente F9 com checklist completo e evidências do domínio anunciado"
       ],
-      "f9_review": "not_started"
+      "f9_review": "accepted",
+      "previous_assessments": [
+        {
+          "wp_id": "WP-V1-F1-MODEL-REUSE-RPC",
+          "front": "f1-core-io",
+          "phase": "Vertical-Integration",
+          "title": "Reutilização tipada de modelos identificados e conversão TF via RPC",
+          "allowed_paths": [
+            "control_lab/core/",
+            "control_lab/diagnostics/",
+            "tests/unit/f1/"
+          ],
+          "dependencies": [
+            "WP-01-F1-CORE-MODELS",
+            "WP-AUDIT-FIX-F1-CORE-RPC"
+          ],
+          "requirement_ids": [
+            "R-03",
+            "R-06",
+            "R-27"
+          ],
+          "normative_tests": [
+            "T-CORE-01",
+            "T-CORE-02",
+            "T-CORE-03"
+          ],
+          "acceptance_cmd": "python3 -m pytest tests/unit/f1/ -v",
+          "status": "PENDING",
+          "origin_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md",
+          "acceptance_requirements_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md#wp-v1-f1-model-reuse-rpc",
+          "acceptance_requirements": [
+            "Implementar todos os critérios específicos do pacote em docs/audits/NEXT_QUEUE_2026-11-17.md",
+            "Adicionar os testes novos exigidos no plano; a suíte existente isolada não prova a entrega",
+            "Handoff independente F9 com checklist completo e evidências do domínio anunciado"
+          ],
+          "f9_review": "not_started"
+        }
+      ],
+      "acceptance_scope": "canonical_reuse_rpc_inline_cpython_pyodide_and_explicit_project_scoped_cpython_references_beta",
+      "handoff_ref": "docs/audits/handoffs/WP-V1-F1-MODEL-REUSE-RPC.md",
+      "contract_ref": "contracts/operations/core.reuse_model.v1.md",
+      "assessed_sources_ref": "docs/audits/model-reuse/review-summary.json",
+      "acceptance_evidence": [
+        "docs/audits/model-reuse/f1-acceptance.log",
+        "docs/audits/model-reuse/review-summary.json",
+        "docs/audits/model-reuse/core/B-core_no_sdp.json",
+        "docs/audits/model-reuse/sdp/B-sdp_available.json",
+        "docs/audits/model-reuse/firefox-rpc.log"
+      ],
+      "runtime_follow_up_wps": [
+        "WP-AUDIT-FIX-F9-SW-RELEASE-VERSION",
+        "WP-V1-F7-MODEL-REF-REHYDRATION"
+      ]
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F9-SW-RELEASE-VERSION",
+      "front": "f9-integration-qa",
+      "phase": "Runtime-Audit-Remediation",
+      "title": "Versionar o Service Worker deterministicamente por release e testar atualização de clientes provisionados",
+      "requirement_ids": [
+        "R-22",
+        "R-28"
+      ],
+      "findings": [
+        "F9-RUNTIME-SW-001"
+      ],
+      "allowed_paths": [
+        "scripts/",
+        "tests/oracles/",
+        "tests/e2e/",
+        ".github/workflows/",
+        "docs/audits/",
+        "docs/architecture/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F9-BUILD-CI",
+        "WP-AUDIT-FIX-F7-OFFLINE-SW"
+      ],
+      "normative_tests": [
+        "T-SEC-01",
+        "T-RPC-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && python3 -m pytest tests/oracles/test_build_pipeline.py tests/e2e/ -v && CONTROLLAB_BROWSER=firefox python3 -m pytest tests/e2e/ -v",
+      "status": "PENDING",
+      "f9_review": "not_started",
+      "origin_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md",
+      "acceptance_requirements_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md#wp-audit-fix-f9-sw-release-version",
+      "acceptance_requirements": [
+        "Implementar todos os critérios A/B, determinismo, atualização e fallback documentados em docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md",
+        "Novos testes de duas releases e clientes já provisionados em Chromium e Firefox são obrigatórios; suíte antiga isolada não prova correção",
+        "Fingerprint sem ciclo de hash, sem modificar assets fixados ou diretórios F7; propor pacote F7 se runtime precisar de alteração",
+        "Handoff independente com checklist completo e evidências de duas releases, incluindo falha de atualização e preservação da anterior"
+      ]
+    },
+    {
+      "wp_id": "WP-V1-F7-MODEL-REF-REHYDRATION",
+      "front": "f7-worker-bridge",
+      "phase": "Vertical-Runtime-Prerequisite",
+      "title": "Reidratar referências tipadas de modelos e datasets no Worker com isolamento de projeto e revisão",
+      "requirement_ids": [
+        "R-02",
+        "R-03",
+        "R-06",
+        "R-28"
+      ],
+      "allowed_paths": [
+        "web/bridge/",
+        "web/worker/",
+        "web/storage/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-V1-F1-MODEL-REUSE-RPC",
+        "WP-AUDIT-FIX-F9-SW-RELEASE-VERSION",
+        "WP-AUDIT-FIX-F7-RPC-BRIDGE"
+      ],
+      "normative_tests": [
+        "T-RPC-01",
+        "T-RPC-02",
+        "T-SEC-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f7",
+      "status": "PENDING",
+      "f9_review": "not_started",
+      "origin_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md",
+      "contract_ref": "contracts/operations/core.reuse_model.v1.md",
+      "acceptance_requirements_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md#wp-v1-f7-model-ref-rehydration",
+      "acceptance_requirements": [
+        "Implementar todos os critérios de aliases tipados, isolamento, revisão e erro explícito em docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md",
+        "Rejeitar inline+referência ambíguos antes da materialização e não interpretar campos arbitrários da proveniência como referências",
+        "Testes unitários novos e auditoria F9 no Worker/Pyodide real para registro→referência→reutilização→consumo; cobrir dataset e modelo, stale/cross-project e PyProxy",
+        "Sem cálculos científicos em TypeScript, sem registro automático do resultado científico; handoff com checklist completo"
+      ]
     },
     {
       "wp_id": "WP-V1-F8-TYPED-WORKSPACE-INPUTS",
@@ -2817,7 +2949,8 @@
       ],
       "dependencies": [
         "WP-06-F8-UI-MVP-LQR",
-        "WP-V1-F1-MODEL-REUSE-RPC"
+        "WP-V1-F1-MODEL-REUSE-RPC",
+        "WP-V1-F7-MODEL-REF-REHYDRATION"
       ],
       "requirement_ids": [
         "R-03",
@@ -2838,7 +2971,8 @@
         "Adicionar os testes novos exigidos no plano; a suíte existente isolada não prova a entrega",
         "Handoff independente F9 com checklist completo e evidências do domínio anunciado"
       ],
-      "f9_review": "not_started"
+      "f9_review": "not_started",
+      "runtime_prerequisites_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md"
     },
     {
       "wp_id": "WP-V1-F8-IDENTIFICATION-VERTICAL",

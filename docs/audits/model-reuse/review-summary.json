@@ -1,0 +1,35 @@
+{
+  "base_commit": "984651087e0248e57ba80e9bf36133d1737d6f73",
+  "independent_cpython_oracles": {
+    "passed": 15,
+    "skipped": 0,
+    "seconds": 1.07
+  },
+  "real_worker_firefox": {
+    "passed": 2,
+    "skipped": 0,
+    "seconds": 28.77
+  },
+  "release_manifest_sha256": "bc3feced6a35544d0a657f5cc94d3cbbaa723598ff01209e7eabb8193c980b2c",
+  "protected_fixture_sha256": {
+    "contracts/fixtures/B-ARX-PRBS.json": "6fc72bebb5237aca36994b0fc71e06f6444fa9a1b163be79180764f07a18acc1",
+    "contracts/fixtures/B-CARE-02.json": "f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f",
+    "contracts/fixtures/B-CARE-12x3.json": "0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4",
+    "contracts/fixtures/B-DARE-12x3.json": "2488dd78691a3a36ff96b7d00542fd506855191c0dbedc0e530c6131e6e47040",
+    "contracts/fixtures/B-MIMO-2x2.json": "23d42ef684bcb5c4fe484ef24a624ae50020c883de986a617d21981bf5ff29ed",
+    "contracts/fixtures/B-PVM-LQR.json": "eabcf5aff8a56c99c87a624857525977d3ea5c31477431d5a9ce2fbf34453fe8",
+    "contracts/fixtures/B-SDP-A-D.json": "4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076",
+    "contracts/fixtures/checksums.sha256": "4b7a39a4ad5d8eb6b48d2d28d8e8a3673e38105bce057909dbdb29884ef0cc7a"
+  },
+  "source_sha256": {
+    "control_lab/core/__init__.py": "9c2a15e5247500fa80b1662f9c24d7f261b72d13d581c5201039385386f0edd0",
+    "control_lab/core/rpc.py": "ab2c3a0c7f5d46a84718d4cf3d2e47393892b0cdcc28d28deb31d020287c20b2",
+    "control_lab/core/model_reuse.py": "8de934e78772282485547006c98db9db4de9c22790ad5628f9f46fb8c5432c7c",
+    "tests/unit/f1/test_model_reuse_rpc.py": "35e1039595bcff87516c080f0532000fd297954535bcf4e192f8292065d3294b",
+    "tests/oracles/test_model_reuse_independent.py": "7d4bf6a6f19de3183323d6b49cdb86f72493143ec9a3b2dfe1e6ea7671d40d29",
+    "tests/wasm/test_model_reuse_rpc.py": "8ae9faca5ce15e13656ec6a61323e545ed9efcaf11ca081b3bd60486d79a6777",
+    "contracts/operations/core.reuse_model.v1.md": "8a961dbe6a4ac2022e6efd95568b7b23939828a1da17e180fb2249bfcff72485"
+  },
+  "reference_scope": "CPython explicit project-scoped stores; real Worker inline only",
+  "browser_context_scope": "fresh browser context; existing release-update cache issue tracked separately"
+}

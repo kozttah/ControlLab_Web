@@ -70,6 +70,7 @@ SUPPORTED_OPERATIONS: frozenset[str] = frozenset(
         "rpc.ping",
         "worker.get_stats",
         "core.capabilities",
+        "core.reuse_model",
         "rpc.capabilities",
         "io.export_ctrlab",
         "io.import_ctrlab",
@@ -757,6 +758,73 @@ def _handle_capabilities(req: dict[str, Any], store: Any) -> dict[str, Any]:
         warnings=[],
         error=None,
         fallback_algorithm="core.capabilities",
+    )
+
+
+def _handle_core_reuse_model(req: dict[str, Any], store: Any) -> dict[str, Any]:
+    """RPC 1.0 additive operation; model reuse result contract is version 1.0.0.
+
+    Python stores must be explicitly project-bucketed or keyed by
+    project/id/revision. A store never falls back to another project or an
+    unscoped entry; resolver callables must accept all three identity arguments.
+    The JS Worker currently materializes only plant_ref; callers must send model
+    inline unless an explicit Python store is provided to dispatch.
+    """
+    from .model_reuse import reuse_model
+
+    payload = req["payload"]
+    if set(payload) - {"model", "model_ref", "target_kind"}:
+        raise ValidationError("core.reuse_model aceita apenas model/model_ref e target_kind; dt e identidade não podem ser sobrescritos.")
+    if req["options"]:
+        raise ValidationError("core.reuse_model versão 1.0.0 exige options vazio.")
+    if ("model" in payload) == ("model_ref" in payload):
+        raise ValidationError("Forneça exatamente um de model ou model_ref.")
+    if "model" in payload:
+        source = _restore_canonical_object(payload["model"], field_name="model")
+    else:
+        ref = payload["model_ref"]
+        obj_id, revision = _parse_ref(ref, field_name="model_ref")
+        if set(ref) != {"id", "revision"}:
+            raise ValidationError("model_ref contém campos desconhecidos.")
+        if store is None:
+            raise ValidationError(
+                "model_ref exige store Python explícito; a ponte Worker atual não reidrata model_ref. Envie o modelo canônico inline.",
+                next_step="Materialize a revisão requerida no cliente e envie payload.model, ou forneça store a dispatch em CPython.",
+            )
+        found = None
+        if isinstance(store, Mapping):
+            def project_bucket(value: Any) -> bool:
+                return isinstance(value, Mapping) and "kind" not in value and "value" not in value
+
+            has_project_keys = any(isinstance(key, tuple) and len(key) == 3 for key in store)
+            has_buckets = any(project_bucket(value) for value in store.values())
+            if has_project_keys:
+                found = store.get((req["project_id"], obj_id, revision))
+            elif has_buckets:
+                bucket = store.get(req["project_id"])
+                if project_bucket(bucket):
+                    found = _lookup_store({req["project_id"]: bucket}, req["project_id"], obj_id, revision)
+            else:
+                raise ValidationError("core.reuse_model exige store com escopo explícito de projeto; use chave (project_id, id, revision) ou bucket por project_id.")
+        else:
+            resolver = store if callable(store) else getattr(store, "get", None)
+            if not callable(resolver):
+                raise ValidationError("store deve ser Mapping ou resolver(project_id, id, revision).")
+            try:
+                found = resolver(req["project_id"], obj_id, revision)
+            except TypeError as exc:
+                raise ValidationError("Resolver do store exige project_id, id e revision explícitos.") from exc
+        if isinstance(found, Mapping) and "value" in found and "kind" not in found:
+            found = found["value"]
+        if found is None:
+            raise ValidationError("model_ref não encontrado no projeto e revisão solicitados.")
+        source = _restore_canonical_object(found, field_name="model_ref")
+        if source.id != obj_id or source.revision != revision:
+            raise ValidationError("model_ref diverge da identidade/revisão do objeto armazenado.")
+    res = reuse_model(source, target_kind=payload.get("target_kind", "native"))
+    return _result_to_rpc_response(
+        res, request_id=req["request_id"], project_id=req["project_id"],
+        project_revision=req["project_revision"], fallback_algorithm="core.reuse_model",
     )
 
 
@@ -1872,6 +1940,7 @@ def _handle_file(req: dict[str, Any], store: Any) -> dict[str, Any]:
 
 
 _DISPATCH_TABLE = {
+    "core.reuse_model": _handle_core_reuse_model,
     "io.export_ctrlab": _handle_file,
     "io.import_ctrlab": _handle_file,
     "io.export_pvm": _handle_file,

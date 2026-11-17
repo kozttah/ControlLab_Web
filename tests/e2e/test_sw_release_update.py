@@ -205,15 +205,39 @@ def test_provisioned_client_updates_python_atomically_and_preserves_projects(rel
                 "CONTROLLAB_CHROMIUM" if kind == "chromium" else "CONTROLLAB_FIREFOX"
             )
             browser = getattr(playwright, kind).launch(executable_path=executable)
+            if kind == "firefox":
+                assert int(browser.version.split(".")[0]) >= 147, (
+                    "Product uses module Service Workers, supported from Firefox147; "
+                    f"installed engine is {browser.version}. Use the pinned official browser runtime."
+                )
             with browser.new_context() as context:
                 page = context.new_page()
                 page.set_default_timeout(120000)
+                browser_errors = []
+                page.on("pageerror", lambda error: browser_errors.append(str(error)))
+                page.on(
+                    "console",
+                    lambda message: browser_errors.append(message.text)
+                    if message.type == "error"
+                    else None,
+                )
                 page.goto(origin + PREFIX)
                 calculate(page, "A")
                 print("SW lifecycle: product Python A ready", flush=True)
+                assert (
+                    "falha ao registrar SW" not in page.locator("#engine-status-badge").inner_text()
+                ), browser_errors
                 page.evaluate("""async () => {
-                  await Promise.race([navigator.serviceWorker.ready,
-                    new Promise((_, reject) => setTimeout(() => reject(Error('initial SW readiness timeout')), 120000))]);
+                  const timeout = new Promise((_, reject) => setTimeout(async () => {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    reject(Error('initial SW readiness timeout: ' + JSON.stringify({
+                      userAgent: navigator.userAgent,
+                      badge: document.querySelector('#engine-status-badge')?.textContent,
+                      registrations: registrations.map(r => ({scope:r.scope,
+                        installing:r.installing?.state, waiting:r.waiting?.state, active:r.active?.state}))
+                    })));
+                  }, 120000));
+                  await Promise.race([navigator.serviceWorker.ready, timeout]);
                   if (!navigator.serviceWorker.controller) await new Promise(resolve => navigator.serviceWorker.addEventListener('controllerchange', resolve, {once:true}));
                 }""")
                 print("SW lifecycle: A controlled", flush=True)

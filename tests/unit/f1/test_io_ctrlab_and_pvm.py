@@ -780,7 +780,8 @@ def test_t_pvm_01_b_pvm_lqr_c_eq_i_and_c_neq_i_and_prefilter_and_signs(
     # Transparência Gate G-0D
     assert PATHVIEW_SPEC_VERSION == "1.0.0"
     assert PATHVIEW_BLOCK_REGISTRY["external_pathview_verified"] is False
-    assert PATHVIEW_BLOCK_REGISTRY["gate_status"] == "PENDING_G0D"
+    assert PATHVIEW_BLOCK_REGISTRY["validation_gate"] == "G-0D"
+    assert PATHVIEW_BLOCK_REGISTRY["validation_scope"] == "per_file_execution"
 
     # Caso 1: B-CARE-02 (duplo integrador) com C = I e C != I
     fx = json.loads((FIXTURES_DIR / "B-CARE-02.json").read_text(encoding="utf-8"))
@@ -805,7 +806,8 @@ def test_t_pvm_01_b_pvm_lqr_c_eq_i_and_c_neq_i_and_prefilter_and_signs(
             exp_res = export_pvm(plant, ctrl, scenario={"initial_state": x0, "reference": {"type": "zero"}})
             assert exp_res.status == "warning"
             assert exp_res.diagnostics["external_pathview_verified"] is False
-            assert exp_res.diagnostics["gate_pending"] == "G-0D"
+            assert exp_res.diagnostics["validation_gate"] == "G-0D"
+            assert exp_res.diagnostics["validation_scope"] == "per_file_execution"
             assert any(
                 (w["code"] if isinstance(w, dict) else w.code) == "EXTERNAL_PATHVIEW_NOT_VERIFIED"
                 for w in exp_res.warnings
@@ -1574,10 +1576,12 @@ def _file_call(operation, payload, result_schema, schema_registry):
 
 
 @pytest.mark.parametrize("controller_index", [0, 1], ids=["T-PVM-01", "T-PVM-02"])
-def test_file_rpc_pvm_official_bytes_and_passive_import(controller_index, schema_registry):
+@pytest.mark.parametrize("saturation_enabled", [False, True], ids=["unclipped", "actuator-saturation"])
+def test_file_rpc_pvm_official_bytes_and_passive_import(controller_index, saturation_enabled, schema_registry):
     items = _make_full_project_items()
     plant, controller = items["models"][0], items["controllers"][controller_index]
-    scenario = {"initial_state": [0.25, 0.0]}
+    scenario = {"initial_state": [0.25, 0.0],
+                "saturation": {"enabled": saturation_enabled, "u_min": -0.1, "u_max": 0.1}}
     expected = export_pvm(plant, controller, scenario)
     response = _file_call("io.export_pvm", {
         "plant": serialize_model(plant), "controller": serialize_model(controller), "scenario": scenario,
@@ -1593,6 +1597,12 @@ def test_file_rpc_pvm_official_bytes_and_passive_import(controller_index, schema
     )
     # T-IO-02: an inert comment in an external document remains passive data.
     document = json.loads(raw)
+    assert response["diagnostics"]["saturation_enabled"] == saturation_enabled
+    assert any(node["type"] == "Clip" for node in document["graph"]["nodes"]) == saturation_enabled
+    assert document["metadata"]["validation_gate"] == "G-0D"
+    assert document["metadata"]["validation_scope"] == "per_file_execution"
+    assert document["metadata"]["external_pathview_verified"] is False
+    assert "gate_pending" not in document["metadata"]
     document["codeContext"]["code"] = "# marcador inerte"
     imported = _file_call("io.import_pvm", {
         "bytes_base64": base64.b64encode(json.dumps(document).encode()).decode(),
@@ -1660,3 +1670,38 @@ def test_file_rpc_bounds_base64_before_parser(raw, monkeypatch):
     }))
     assert response["error"]["code"] == "RESOURCE_LIMIT"
     assert response["result"] is None
+
+
+@pytest.mark.parametrize("feedback_sign", ["negative", "positive"])
+def test_dynamic_export_ui_validation_rpc_preserves_augmented_loop(feedback_sign):
+    """The UI's validation RPC and interconnect RPC share the canonical dynamic law."""
+    plant = StateSpace([[-1.0]], [[1.0]], [[1.0]], [[0.4]], dt=None, id="ui-plant", revision=1)
+    controller = DynamicController(
+        Ac=[[-2.0]], Bc=[[1.0]], Cc=[[1.0]], Dc=[[0.3]],
+        feedback_sign=feedback_sign, dt=None, initial_state=[0.2],
+        ports={"inputs": [{"name": "y", "role": "y", "size": 1}],
+               "outputs": [{"name": "u", "role": "u", "size": 1}]},
+        interconnection_scheme="output_feedback", id="ui-dynamic", revision=1,
+    )
+    payload = {"plant": plant.to_dict(), "controller": controller.to_dict()}
+    validation = dispatch(_file_request("core.validate_interconnection", payload))
+    assert validation["status"] in ("success", "warning"), validation["error"]
+    assert validation["result"]["valid"] is True
+    assert validation["assumptions"]["well_posed"] is True
+    assert validation["assumptions"]["feedback_sign"] == feedback_sign
+    response = dispatch(_file_request("core.interconnect", payload))
+    assert response["status"] == "success", response["error"]
+    closed_loop = response["result"]["closed_loop"]
+    sign = -1.0 if feedback_sign == "negative" else 1.0
+    # Direct scalar elimination of u = r + sign * (xc + 0.3*y), y = x + 0.4*u.
+    denom = 1.0 - sign * 0.3 * 0.4
+    ux, uc = sign * 0.3 / denom, sign / denom
+    expected = np.array([[-1.0 + ux, uc], [1.0 + 0.4 * ux, -2.0 + 0.4 * uc]])
+    np.testing.assert_allclose(tensor_to_array(closed_loop["matrices"]["A"]), expected, rtol=0, atol=1e-14)
+    assert closed_loop["matrices"]["A"]["shape"] == [2, 2]
+    singular = controller.with_revision(Dc=[[2.5]], feedback_sign="positive")
+    payload["controller"] = singular.to_dict()
+    rejected = dispatch(_file_request("core.validate_interconnection", payload))
+    assert rejected["status"] == "failure"
+    assert rejected["result"] is None
+    assert rejected["error"]["code"] == "HYPOTHESIS_VIOLATED"

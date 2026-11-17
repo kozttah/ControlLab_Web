@@ -1,0 +1,742 @@
+{
+  "browser": "153.0.8010.0",
+  "browser_kind": "chromium",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "committed": {
+      "api_version": "1.0",
+      "request_id": "4d2894c8-4bad-43db-9e98-6f011ab3b71e",
+      "project_id": "recovery",
+      "project_revision": 20,
+      "status": "success",
+      "result": {
+        "controller": {
+          "schema_version": "1.0.0",
+          "id": "ctrl-sf-01b3649f66f1",
+          "revision": 0,
+          "kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "state_coordinates": [
+            "x1",
+            "x2"
+          ],
+          "reference_map": null,
+          "dt": null,
+          "provenance": {
+            "algorithm": "scipy.linalg.solve_continuous_are",
+            "lib_versions": {
+              "numpy": "2.0.2",
+              "scipy": "1.14.1",
+              "python": "3.12.7"
+            },
+            "seed": null,
+            "tolerances": {
+              "residual_warn_tol": 1e-09,
+              "residual_fail_tol": 0.0001,
+              "symmetry_tol": 1e-10
+            },
+            "model_revision": null,
+            "timestamp": "2026-11-17T03:03:44Z",
+            "feedback_sign": "negative"
+          },
+          "input_names": [
+            "u1"
+          ]
+        },
+        "controller_ref": {
+          "id": "ctrl-sf-01b3649f66f1",
+          "revision": 0
+        },
+        "controller_kind": "StateFeedbackController",
+        "feedback_sign": "negative",
+        "K": {
+          "shape": [
+            1,
+            2
+          ],
+          "dtype": "float64",
+          "order": "C",
+          "data": [
+            2.000000000000001,
+            3.0000000000000004
+          ]
+        },
+        "K_lqr": {
+          "shape": [
+            1,
+            2
+          ],
+          "dtype": "float64",
+          "order": "C",
+          "data": [
+            2.000000000000001,
+            3.0000000000000004
+          ]
+        },
+        "P": {
+          "shape": [
+            2,
+            2
+          ],
+          "dtype": "float64",
+          "order": "C",
+          "data": [
+            6,
+            2.000000000000001,
+            2.000000000000001,
+            3.0000000000000004
+          ]
+        },
+        "open_loop_poles": {
+          "real": [
+            0,
+            0
+          ],
+          "imag": [
+            0,
+            0
+          ]
+        },
+        "closed_loop_poles": {
+          "real": [
+            -2,
+            -1.0000000000000004
+          ],
+          "imag": [
+            0,
+            0
+          ]
+        },
+        "optimal_cost": null
+      },
+      "assumptions": {
+        "domain": "continuous",
+        "dt": null,
+        "stabilizable": true,
+        "detectable": true,
+        "controllable": true,
+        "observable_Q": true,
+        "Q_positive_semidefinite": true,
+        "R_positive_definite": true,
+        "closed_loop_stable": true,
+        "feedback_sign": "negative"
+      },
+      "diagnostics": {
+        "pbh_min_sv_stabilizability": 1,
+        "pbh_min_sv_detectability": 2,
+        "pbh_min_sv_controllability": 1,
+        "pbh_min_sv_observability_Q": 2,
+        "Q_symmetry_error": 0,
+        "R_symmetry_error": 0,
+        "min_eig_Q": 4,
+        "min_eig_R": 1,
+        "cond_R": 1,
+        "care_residual_rel": 1.9377647809895066e-16,
+        "residual_rel": 1.9377647809895066e-16,
+        "symmetry_error": 0,
+        "min_eig_P": 1.9999999999999996,
+        "max_real_open_loop": 0,
+        "max_real_closed_loop": -1.0000000000000004,
+        "cond_P": 3.500000000000001,
+        "cond_Q": 1.25,
+        "worker_id": "pw-be8f3cac-4176-44b2-8f28-7f095c3a192d",
+        "store_instance_id": "wms-120cae66-ae4d-45bc-a3aa-040bddac8fff",
+        "committed": true,
+        "stale_discarded": false
+      },
+      "provenance": {
+        "algorithm": "scipy.linalg.solve_continuous_are",
+        "lib_versions": {
+          "numpy": "2.0.2",
+          "scipy": "1.14.1",
+          "python": "3.12.7"
+        },
+        "seed": null,
+        "tolerances": {
+          "residual_warn_tol": 1e-09,
+          "residual_fail_tol": 0.0001,
+          "symmetry_tol": 1e-10
+        },
+        "model_revision": null,
+        "timestamp": "2026-11-17T03:03:44Z",
+        "feedback_sign": "negative"
+      },
+      "warnings": [],
+      "error": null
+    },
+    "before": {
+      "format": "controllab_snapshot",
+      "schema_version": "1.0.0",
+      "project_id": "recovery",
+      "project_revision": 20,
+      "objects": [],
+      "experiments": [],
+      "committed_result": {
+        "api_version": "1.0",
+        "request_id": "4d2894c8-4bad-43db-9e98-6f011ab3b71e",
+        "project_id": "recovery",
+        "project_revision": 20,
+        "status": "success",
+        "result": {
+          "controller": {
+            "schema_version": "1.0.0",
+            "id": "ctrl-sf-01b3649f66f1",
+            "revision": 0,
+            "kind": "StateFeedbackController",
+            "feedback_sign": "negative",
+            "K": {
+              "shape": [
+                1,
+                2
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                2.000000000000001,
+                3.0000000000000004
+              ]
+            },
+            "state_coordinates": [
+              "x1",
+              "x2"
+            ],
+            "reference_map": null,
+            "dt": null,
+            "provenance": {
+              "algorithm": "scipy.linalg.solve_continuous_are",
+              "lib_versions": {
+                "numpy": "2.0.2",
+                "scipy": "1.14.1",
+                "python": "3.12.7"
+              },
+              "seed": null,
+              "tolerances": {
+                "residual_warn_tol": 1e-09,
+                "residual_fail_tol": 0.0001,
+                "symmetry_tol": 1e-10
+              },
+              "model_revision": null,
+              "timestamp": "2026-11-17T03:03:44Z",
+              "feedback_sign": "negative"
+            },
+            "input_names": [
+              "u1"
+            ]
+          },
+          "controller_ref": {
+            "id": "ctrl-sf-01b3649f66f1",
+            "revision": 0
+          },
+          "controller_kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "K_lqr": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "P": {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              6,
+              2.000000000000001,
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "open_loop_poles": {
+            "real": [
+              0,
+              0
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "closed_loop_poles": {
+            "real": [
+              -2,
+              -1.0000000000000004
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "optimal_cost": null
+        },
+        "assumptions": {
+          "domain": "continuous",
+          "dt": null,
+          "stabilizable": true,
+          "detectable": true,
+          "controllable": true,
+          "observable_Q": true,
+          "Q_positive_semidefinite": true,
+          "R_positive_definite": true,
+          "closed_loop_stable": true,
+          "feedback_sign": "negative"
+        },
+        "diagnostics": {
+          "pbh_min_sv_stabilizability": 1,
+          "pbh_min_sv_detectability": 2,
+          "pbh_min_sv_controllability": 1,
+          "pbh_min_sv_observability_Q": 2,
+          "Q_symmetry_error": 0,
+          "R_symmetry_error": 0,
+          "min_eig_Q": 4,
+          "min_eig_R": 1,
+          "cond_R": 1,
+          "care_residual_rel": 1.9377647809895066e-16,
+          "residual_rel": 1.9377647809895066e-16,
+          "symmetry_error": 0,
+          "min_eig_P": 1.9999999999999996,
+          "max_real_open_loop": 0,
+          "max_real_closed_loop": -1.0000000000000004,
+          "cond_P": 3.500000000000001,
+          "cond_Q": 1.25,
+          "worker_id": "pw-be8f3cac-4176-44b2-8f28-7f095c3a192d",
+          "store_instance_id": "wms-120cae66-ae4d-45bc-a3aa-040bddac8fff",
+          "committed": true,
+          "stale_discarded": false
+        },
+        "provenance": {
+          "algorithm": "scipy.linalg.solve_continuous_are",
+          "lib_versions": {
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "seed": null,
+          "tolerances": {
+            "residual_warn_tol": 1e-09,
+            "residual_fail_tol": 0.0001,
+            "symmetry_tol": 1e-10
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:03:44Z",
+          "feedback_sign": "negative"
+        },
+        "warnings": [],
+        "error": null
+      },
+      "content_hash": "7c06108cd59ee3571f8215e260660e599b6bbc68b25ef0a42671060bea6874bb",
+      "exported_at": "2026-11-17T03:03:44.926Z"
+    },
+    "after": {
+      "format": "controllab_snapshot",
+      "schema_version": "1.0.0",
+      "project_id": "recovery",
+      "project_revision": 20,
+      "objects": [],
+      "experiments": [],
+      "committed_result": {
+        "api_version": "1.0",
+        "request_id": "4d2894c8-4bad-43db-9e98-6f011ab3b71e",
+        "project_id": "recovery",
+        "project_revision": 20,
+        "status": "success",
+        "result": {
+          "controller": {
+            "schema_version": "1.0.0",
+            "id": "ctrl-sf-01b3649f66f1",
+            "revision": 0,
+            "kind": "StateFeedbackController",
+            "feedback_sign": "negative",
+            "K": {
+              "shape": [
+                1,
+                2
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                2.000000000000001,
+                3.0000000000000004
+              ]
+            },
+            "state_coordinates": [
+              "x1",
+              "x2"
+            ],
+            "reference_map": null,
+            "dt": null,
+            "provenance": {
+              "algorithm": "scipy.linalg.solve_continuous_are",
+              "lib_versions": {
+                "numpy": "2.0.2",
+                "scipy": "1.14.1",
+                "python": "3.12.7"
+              },
+              "seed": null,
+              "tolerances": {
+                "residual_warn_tol": 1e-09,
+                "residual_fail_tol": 0.0001,
+                "symmetry_tol": 1e-10
+              },
+              "model_revision": null,
+              "timestamp": "2026-11-17T03:03:44Z",
+              "feedback_sign": "negative"
+            },
+            "input_names": [
+              "u1"
+            ]
+          },
+          "controller_ref": {
+            "id": "ctrl-sf-01b3649f66f1",
+            "revision": 0
+          },
+          "controller_kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "K_lqr": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "P": {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              6,
+              2.000000000000001,
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "open_loop_poles": {
+            "real": [
+              0,
+              0
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "closed_loop_poles": {
+            "real": [
+              -2,
+              -1.0000000000000004
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "optimal_cost": null
+        },
+        "assumptions": {
+          "domain": "continuous",
+          "dt": null,
+          "stabilizable": true,
+          "detectable": true,
+          "controllable": true,
+          "observable_Q": true,
+          "Q_positive_semidefinite": true,
+          "R_positive_definite": true,
+          "closed_loop_stable": true,
+          "feedback_sign": "negative"
+        },
+        "diagnostics": {
+          "pbh_min_sv_stabilizability": 1,
+          "pbh_min_sv_detectability": 2,
+          "pbh_min_sv_controllability": 1,
+          "pbh_min_sv_observability_Q": 2,
+          "Q_symmetry_error": 0,
+          "R_symmetry_error": 0,
+          "min_eig_Q": 4,
+          "min_eig_R": 1,
+          "cond_R": 1,
+          "care_residual_rel": 1.9377647809895066e-16,
+          "residual_rel": 1.9377647809895066e-16,
+          "symmetry_error": 0,
+          "min_eig_P": 1.9999999999999996,
+          "max_real_open_loop": 0,
+          "max_real_closed_loop": -1.0000000000000004,
+          "cond_P": 3.500000000000001,
+          "cond_Q": 1.25,
+          "worker_id": "pw-be8f3cac-4176-44b2-8f28-7f095c3a192d",
+          "store_instance_id": "wms-120cae66-ae4d-45bc-a3aa-040bddac8fff",
+          "committed": true,
+          "stale_discarded": false
+        },
+        "provenance": {
+          "algorithm": "scipy.linalg.solve_continuous_are",
+          "lib_versions": {
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "seed": null,
+          "tolerances": {
+            "residual_warn_tol": 1e-09,
+            "residual_fail_tol": 0.0001,
+            "symmetry_tol": 1e-10
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:03:44Z",
+          "feedback_sign": "negative"
+        },
+        "warnings": [],
+        "error": null
+      },
+      "content_hash": "7c06108cd59ee3571f8215e260660e599b6bbc68b25ef0a42671060bea6874bb",
+      "exported_at": "2026-11-17T03:03:56.877Z"
+    },
+    "response": {
+      "api_version": "1.0",
+      "request_id": "f867bad4-07ec-4a7b-9c5c-ea6318e86aaf",
+      "project_id": "recovery",
+      "project_revision": 22,
+      "status": "success",
+      "result": {
+        "controller": {
+          "schema_version": "1.0.0",
+          "id": "ctrl-sf-01b3649f66f1",
+          "revision": 0,
+          "kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "state_coordinates": [
+            "x1",
+            "x2"
+          ],
+          "reference_map": null,
+          "dt": null,
+          "provenance": {
+            "algorithm": "scipy.linalg.solve_continuous_are",
+            "lib_versions": {
+              "numpy": "2.0.2",
+              "scipy": "1.14.1",
+              "python": "3.12.7"
+            },
+            "seed": null,
+            "tolerances": {
+              "residual_warn_tol": 1e-09,
+              "residual_fail_tol": 0.0001,
+              "symmetry_tol": 1e-10
+            },
+            "model_revision": null,
+            "timestamp": "2026-11-17T03:03:57Z",
+            "feedback_sign": "negative"
+          },
+          "input_names": [
+            "u1"
+          ]
+        },
+        "controller_ref": {
+          "id": "ctrl-sf-01b3649f66f1",
+          "revision": 0
+        },
+        "controller_kind": "StateFeedbackController",
+        "feedback_sign": "negative",
+        "K": {
+          "shape": [
+            1,
+            2
+          ],
+          "dtype": "float64",
+          "order": "C",
+          "data": [
+            2.000000000000001,
+            3.0000000000000004
+          ]
+        },
+        "K_lqr": {
+          "shape": [
+            1,
+            2
+          ],
+          "dtype": "float64",
+          "order": "C",
+          "data": [
+            2.000000000000001,
+            3.0000000000000004
+          ]
+        },
+        "P": {
+          "shape": [
+            2,
+            2
+          ],
+          "dtype": "float64",
+          "order": "C",
+          "data": [
+            6,
+            2.000000000000001,
+            2.000000000000001,
+            3.0000000000000004
+          ]
+        },
+        "open_loop_poles": {
+          "real": [
+            0,
+            0
+          ],
+          "imag": [
+            0,
+            0
+          ]
+        },
+        "closed_loop_poles": {
+          "real": [
+            -2,
+            -1.0000000000000004
+          ],
+          "imag": [
+            0,
+            0
+          ]
+        },
+        "optimal_cost": null
+      },
+      "assumptions": {
+        "domain": "continuous",
+        "dt": null,
+        "stabilizable": true,
+        "detectable": true,
+        "controllable": true,
+        "observable_Q": true,
+        "Q_positive_semidefinite": true,
+        "R_positive_definite": true,
+        "closed_loop_stable": true,
+        "feedback_sign": "negative"
+      },
+      "diagnostics": {
+        "pbh_min_sv_stabilizability": 1,
+        "pbh_min_sv_detectability": 2,
+        "pbh_min_sv_controllability": 1,
+        "pbh_min_sv_observability_Q": 2,
+        "Q_symmetry_error": 0,
+        "R_symmetry_error": 0,
+        "min_eig_Q": 4,
+        "min_eig_R": 1,
+        "cond_R": 1,
+        "care_residual_rel": 1.9377647809895066e-16,
+        "residual_rel": 1.9377647809895066e-16,
+        "symmetry_error": 0,
+        "min_eig_P": 1.9999999999999996,
+        "max_real_open_loop": 0,
+        "max_real_closed_loop": -1.0000000000000004,
+        "cond_P": 3.500000000000001,
+        "cond_Q": 1.25,
+        "worker_id": "pw-2b5e987e-78ca-4770-9ba2-525420ad99fc",
+        "store_instance_id": "wms-38a5fba3-3b08-4339-9bd2-6fdf58ea75ba",
+        "committed": false,
+        "stale_discarded": false
+      },
+      "provenance": {
+        "algorithm": "scipy.linalg.solve_continuous_are",
+        "lib_versions": {
+          "numpy": "2.0.2",
+          "scipy": "1.14.1",
+          "python": "3.12.7"
+        },
+        "seed": null,
+        "tolerances": {
+          "residual_warn_tol": 1e-09,
+          "residual_fail_tol": 0.0001,
+          "symmetry_tol": 1e-10
+        },
+        "model_revision": null,
+        "timestamp": "2026-11-17T03:03:57Z",
+        "feedback_sign": "negative"
+      },
+      "warnings": [],
+      "error": null
+    },
+    "cancelled": true,
+    "events": [
+      {
+        "type": "worker_recovered",
+        "generation": 2,
+        "restored_projects": [
+          "recovery",
+          "revisions"
+        ],
+        "restored_objects": 0,
+        "timestamp": "2026-11-17T03:03:50.918Z"
+      },
+      {
+        "type": "worker_recovered",
+        "generation": 3,
+        "restored_projects": [
+          "recovery",
+          "revisions"
+        ],
+        "restored_objects": 0,
+        "timestamp": "2026-11-17T03:03:56.876Z"
+      }
+    ]
+  }
+}

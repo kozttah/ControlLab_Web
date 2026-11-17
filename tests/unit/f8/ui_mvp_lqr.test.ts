@@ -41,6 +41,7 @@ import {
 } from "../../../web/app/tool_descriptor.ts";
 import {
   ControlLabShell,
+  DEFAULT_DYNAMIC_EXPORT_CONTROLLER,
   presentTypedError,
 } from "../../../web/app/shell.ts";
 import {
@@ -2059,6 +2060,134 @@ test("AUD-019/020/021 Node transport: bytes canônicos, metadados inertes e reab
     assert.equal(source.includes("codeContext:"), false);
     assert.equal(source.includes('type: "MatrixGain"'), false);
     assert.equal(source.includes("reshapeRowMajor"), false);
+  } finally {
+    shell.dispose(); client.dispose(); store.close();
+  }
+});
+
+
+test("G0D Node transport: DynamicController usa confirmação Python sem LQR e bloqueia configuração obsoleta", async () => {
+  const { store, client } = createMockSetup();
+  await client.init();
+  const execute = client.execute.bind(client);
+  const operations: string[] = [];
+  let validationFailed = false;
+  let waitAt: string | null = null;
+  let entered!: () => void;
+  let release!: () => void;
+  let awaiting: Promise<void> | null = null;
+  // This transport double tests sequencing and identity only. F9 checks actual
+  // DynamicController dimensions, trajectories and saturation against the real engine.
+  client.execute = async (request, options) => {
+    operations.push(request.operation);
+    if (request.operation === waitAt) {
+      entered();
+      await awaiting;
+    }
+    if (request.operation === "core.validate_interconnection") {
+      return {
+        api_version: request.api_version, request_id: request.request_id,
+        project_id: request.project_id, project_revision: request.project_revision,
+        status: validationFailed ? "failure" : "success", result: validationFailed ? null : { well_posed: true },
+        assumptions: {}, diagnostics: { transport_double_only: true },
+        provenance: { algorithm: "test.interconnection_transport", lib_versions: {} }, warnings: [],
+        error: validationFailed ? { code: "DIMENSION_MISMATCH", message: "Dimensões incompatíveis." } : null,
+      };
+    }
+    return execute(request, options);
+  };
+  const shell = new ControlLabShell({ client, project_id: "dynamic-export" });
+  const options = {
+    controller_kind: "dynamic" as const,
+    dynamic_controller: structuredClone(DEFAULT_DYNAMIC_EXPORT_CONTROLLER),
+    saturation: { enabled: false, u_min: -1, u_max: 1 },
+  };
+  try {
+    assert.equal(shell.getLqrWorkspace().getCommittedSnapshot(), null);
+    shell.setPvmExportOptions(options);
+    const file = await shell.exportPvm();
+    assert.deepEqual(operations, ["core.validate_interconnection", "io.export_pvm"]);
+    const payload = JSON.parse(new TextDecoder().decode(file.bytes));
+    assert.equal(payload.controller.kind, "DynamicController");
+    assert.equal(file.pvm_controller_kind, "dynamic");
+    shell.assertDynamicPvmExportAllowed(file.request_id, file.configuration_revision);
+    assert.equal(shell.getLqrWorkspace().getCommittedSnapshot(), null);
+    shell.setPvmExportOptions({ ...options, saturation: { enabled: true, u_min: -0.1, u_max: 0.1 } });
+    assert.throws(() => shell.assertDynamicPvmExportAllowed(file.request_id, file.configuration_revision), ControlLabBridgeError);
+
+    for (const operation of ["core.validate_interconnection", "io.export_pvm"]) {
+      waitAt = operation;
+      const reached = new Promise<void>((resolve) => { entered = resolve; });
+      awaiting = new Promise<void>((resolve) => { release = resolve; });
+      const exporting = shell.exportPvm();
+      await reached;
+      shell.setPvmExportOptions(options);
+      release();
+      await assert.rejects(exporting, (error: unknown) => error instanceof ControlLabBridgeError && error.code === "CANCELLED");
+    }
+    waitAt = null;
+    validationFailed = true;
+    operations.length = 0;
+    await assert.rejects(shell.exportPvm(), (error: unknown) => error instanceof ControlLabBridgeError && error.code === "DIMENSION_MISMATCH");
+    assert.deepEqual(operations, ["core.validate_interconnection"]);
+
+    validationFailed = false;
+    await shell.getLqrWorkspace().commitCurrentDesign();
+    shell.getLqrWorkspace().pointerDown("dynamic-export-test");
+    assert.throws(() => shell.exportPvm(), ControlLabBridgeError);
+    await shell.getLqrWorkspace().cancelDrag();
+    shell.getLqrWorkspace().beginFileImport();
+    assert.throws(() => shell.exportPvm(), ControlLabBridgeError);
+    shell.getLqrWorkspace().endFileImport();
+  } finally {
+    shell.dispose(); client.dispose(); store.close();
+  }
+});
+
+
+test("R19 Node transport: .ctrlab preserva opções PVM e aceita projetos anteriores sem o campo", async () => {
+  const { store, client } = createMockSetup();
+  await client.init();
+  const shell = new ControlLabShell({ client, project_id: "pvm-options-roundtrip" });
+  try {
+    await shell.getLqrWorkspace().commitCurrentDesign();
+    const configured = {
+      controller_kind: "dynamic" as const,
+      dynamic_controller: structuredClone(DEFAULT_DYNAMIC_EXPORT_CONTROLLER),
+      saturation: { enabled: true, u_min: [-0.2], u_max: [0.3] },
+    };
+    shell.setPvmExportOptions(configured);
+    const file = await shell.exportCtrlLab();
+    const payload = JSON.parse(new TextDecoder().decode(file.bytes));
+    assert.deepEqual(payload.project.experiments[0].parameters.pvm_export_options, configured);
+    shell.setPvmExportOptions({ controller_kind: "lqr", saturation: { enabled: false, u_min: -1, u_max: 1 } });
+    await shell.importCtrlLab(file.bytes);
+    assert.deepEqual(shell.getPvmExportOptions(), configured);
+    const execute = client.execute.bind(client);
+    let entered!: () => void;
+    let release!: () => void;
+    const reached = new Promise<void>((resolve) => { entered = resolve; });
+    const wait = new Promise<void>((resolve) => { release = resolve; });
+    client.execute = async (request, options) => {
+      if (request.operation === "io.export_ctrlab") { entered(); await wait; }
+      return execute(request, options);
+    };
+    const exporting = shell.exportCtrlLab();
+    await reached;
+    shell.setPvmExportOptions({ controller_kind: "lqr", saturation: { enabled: false, u_min: -1, u_max: 1 } });
+    release();
+    await assert.rejects(exporting, (error: unknown) => error instanceof ControlLabBridgeError && error.code === "CANCELLED");
+    client.execute = execute;
+    const snapshot = shell.getLqrWorkspace().getCommittedSnapshot();
+    delete payload.project.experiments[0].parameters.pvm_export_options;
+    await shell.importCtrlLab(new TextEncoder().encode(JSON.stringify(payload)));
+    assert.deepEqual(shell.getLqrWorkspace().getCommittedSnapshot(), snapshot);
+    assert.deepEqual(shell.getPvmExportOptions(), {
+      controller_kind: "lqr", saturation: { enabled: false, u_min: -1, u_max: 1 },
+    });
+    const state = shell.getPvmExportOptions()!;
+    state.saturation.enabled = true;
+    assert.equal(shell.getPvmExportOptions()?.saturation.enabled, false);
   } finally {
     shell.dispose(); client.dispose(); store.close();
   }

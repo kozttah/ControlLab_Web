@@ -1,0 +1,559 @@
+{
+  "codeContext": {
+    "code": "import numpy as np\nA_plant = np.array([[-1.2, 0.3], [-0.4, -2.5]], dtype=np.float64)\nB_plant = np.array([[1.0], [0.5]], dtype=np.float64)\nC_plant = np.array([[1.5, -0.5]], dtype=np.float64)\nD_plant = np.array([[0.4]], dtype=np.float64)\ndt_plant = None\nx0_plant = np.array([0.5, -0.3], dtype=np.float64)\nfeedback_sign = 'negative'\ncontroller_scheme = 'output_feedback'\nAc = np.array([[-3.0]], dtype=np.float64)\nBc = np.array([[1.0]], dtype=np.float64)\nCc = np.array([[1.2]], dtype=np.float64)\nDc = np.array([[0.3]], dtype=np.float64)\nx0_controller = np.array([-0.8], dtype=np.float64)\nsaturation_enabled = False\nu_min = np.array([-1.0], dtype=np.float64)\nu_max = np.array([1.0], dtype=np.float64)\n"
+  },
+  "events": [],
+  "graph": {
+    "annotations": [
+      {
+        "id": "ann_controllab_spec",
+        "text": "ControlLab dynamic_controller | sign=negative | external_pathview_verified=False (execu\u00e7\u00e3o externa deste arquivo n\u00e3o realizada)"
+      }
+    ],
+    "connections": [
+      {
+        "id": "scalar_conn_0000",
+        "sourceNodeId": "src_ref",
+        "sourcePortIndex": 0,
+        "targetNodeId": "sum_feedback",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0001",
+        "sourceNodeId": "sum_feedback",
+        "sourcePortIndex": 0,
+        "targetNodeId": "actuator_sat",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0002",
+        "sourceNodeId": "actuator_sat",
+        "sourcePortIndex": 0,
+        "targetNodeId": "plant_ss",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0003",
+        "sourceNodeId": "plant_ss",
+        "sourcePortIndex": 0,
+        "targetNodeId": "scope_y",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0004",
+        "sourceNodeId": "plant_ss",
+        "sourcePortIndex": 0,
+        "targetNodeId": "ctrl_dynamic",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0005",
+        "sourceNodeId": "ctrl_dynamic",
+        "sourcePortIndex": 0,
+        "targetNodeId": "sum_feedback",
+        "targetPortIndex": 1
+      }
+    ],
+    "nodes": [
+      {
+        "controlLab": {
+          "component": 0,
+          "legacy_node": {
+            "id": "src_ref",
+            "inputs": [],
+            "name": "ReferenceSource",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "r",
+                "nodeId": "src_ref"
+              }
+            ],
+            "params": {
+              "channel_names": [
+                "u1"
+              ],
+              "dim": 1,
+              "signal_type": "step",
+              "value": [
+                1.0
+              ]
+            },
+            "position": {
+              "x": 100.0,
+              "y": 200.0
+            },
+            "type": "Source"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "src_ref",
+        "inputs": [],
+        "name": "ReferenceSource_0",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "out0",
+            "nodeId": "src_ref"
+          }
+        ],
+        "params": {
+          "func": "lambda t: 1.0"
+        },
+        "position": {
+          "x": 100.0,
+          "y": 200.0
+        },
+        "type": "Source"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "sum_feedback",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "r",
+                "nodeId": "sum_feedback"
+              },
+              {
+                "direction": "input",
+                "index": 1,
+                "name": "u_ctrl",
+                "nodeId": "sum_feedback"
+              }
+            ],
+            "name": "ControlSum_negative",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "u_cmd",
+                "nodeId": "sum_feedback"
+              }
+            ],
+            "params": {
+              "dim": 1,
+              "feedback_sign": "negative",
+              "signs": [
+                "+",
+                "-"
+              ]
+            },
+            "position": {
+              "x": 320.0,
+              "y": 200.0
+            },
+            "type": "Adder"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "sum_feedback",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "r0",
+            "nodeId": "sum_feedback"
+          },
+          {
+            "direction": "input",
+            "index": 1,
+            "name": "u_ctrl0",
+            "nodeId": "sum_feedback"
+          }
+        ],
+        "name": "ControlSum_negative",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "u_cmd0",
+            "nodeId": "sum_feedback"
+          }
+        ],
+        "params": {
+          "operations": "'+-'"
+        },
+        "position": {
+          "x": 320.0,
+          "y": 200.0
+        },
+        "type": "Adder"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "actuator_sat",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "in",
+                "nodeId": "actuator_sat"
+              }
+            ],
+            "name": "ActuatorSaturation",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "out",
+                "nodeId": "actuator_sat"
+              }
+            ],
+            "params": {
+              "dim": 1,
+              "enabled": false,
+              "u_max": [
+                1.0
+              ],
+              "u_min": [
+                -1.0
+              ]
+            },
+            "position": {
+              "x": 540.0,
+              "y": 200.0
+            },
+            "type": "Saturation"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "actuator_sat",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "in0",
+            "nodeId": "actuator_sat"
+          }
+        ],
+        "name": "ActuatorSaturation",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "out0",
+            "nodeId": "actuator_sat"
+          }
+        ],
+        "params": {
+          "func": "lambda *v: np.asarray(v, dtype=float)"
+        },
+        "position": {
+          "x": 540.0,
+          "y": 200.0
+        },
+        "type": "Function"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "plant_ss",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "u",
+                "nodeId": "plant_ss"
+              }
+            ],
+            "name": "dynamic-ui-plant",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "y",
+                "nodeId": "plant_ss"
+              }
+            ],
+            "params": {
+              "A": [
+                [
+                  -1.2,
+                  0.3
+                ],
+                [
+                  -0.4,
+                  -2.5
+                ]
+              ],
+              "B": [
+                [
+                  1.0
+                ],
+                [
+                  0.5
+                ]
+              ],
+              "C": [
+                [
+                  1.5,
+                  -0.5
+                ]
+              ],
+              "D": [
+                [
+                  0.4
+                ]
+              ],
+              "dt": null,
+              "expose_state": false,
+              "initial_state": [
+                0.5,
+                -0.3
+              ],
+              "input_names": [
+                "u1"
+              ],
+              "output_names": [
+                "y1"
+              ],
+              "state_names": [
+                "x1",
+                "x2"
+              ]
+            },
+            "position": {
+              "x": 760.0,
+              "y": 200.0
+            },
+            "type": "StateSpace"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "plant_ss",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "u0",
+            "nodeId": "plant_ss"
+          }
+        ],
+        "name": "dynamic-ui-plant",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "y0",
+            "nodeId": "plant_ss"
+          }
+        ],
+        "params": {
+          "A": "np.array([[-1.2, 0.3], [-0.4, -2.5]], dtype=float)",
+          "B": "np.array([[1.0], [0.5]], dtype=float)",
+          "C": "np.array([[1.5, -0.5]], dtype=float)",
+          "D": "np.array([[0.4]], dtype=float)",
+          "initial_value": "np.array([0.5, -0.3], dtype=float)"
+        },
+        "position": {
+          "x": 760.0,
+          "y": 200.0
+        },
+        "type": "StateSpace"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "scope_y",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "y",
+                "nodeId": "scope_y"
+              }
+            ],
+            "name": "OutputScope",
+            "outputs": [],
+            "params": {
+              "channel_names": [
+                "y1"
+              ],
+              "dim": 1,
+              "units": [
+                ""
+              ]
+            },
+            "position": {
+              "x": 980.0,
+              "y": 200.0
+            },
+            "type": "Scope"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "scope_y",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "y0",
+            "nodeId": "scope_y"
+          }
+        ],
+        "name": "OutputScope",
+        "outputs": [],
+        "params": {
+          "labels": "['y1']"
+        },
+        "position": {
+          "x": 980.0,
+          "y": 200.0
+        },
+        "type": "Scope"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "ctrl_dynamic",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "y",
+                "nodeId": "ctrl_dynamic"
+              }
+            ],
+            "name": "dynamic-ui-controller",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "u",
+                "nodeId": "ctrl_dynamic"
+              }
+            ],
+            "params": {
+              "Ac": [
+                [
+                  -3.0
+                ]
+              ],
+              "Bc": [
+                [
+                  1.0
+                ]
+              ],
+              "Cc": [
+                [
+                  1.2
+                ]
+              ],
+              "Dc": [
+                [
+                  0.3
+                ]
+              ],
+              "dt": null,
+              "feedback_sign": "negative",
+              "initial_state": [
+                -0.8
+              ],
+              "interconnection_scheme": "output_feedback",
+              "ports": {
+                "inputs": [
+                  {
+                    "name": "y",
+                    "role": "y",
+                    "size": 1
+                  }
+                ],
+                "outputs": [
+                  {
+                    "name": "u",
+                    "role": "u",
+                    "size": 1
+                  }
+                ]
+              },
+              "resolved_scheme": "output_feedback",
+              "state_names": [
+                "xc1"
+              ]
+            },
+            "position": {
+              "x": 540.0,
+              "y": 420.0
+            },
+            "type": "DynamicController"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "ctrl_dynamic",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "y0",
+            "nodeId": "ctrl_dynamic"
+          }
+        ],
+        "name": "dynamic-ui-controller",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "u0",
+            "nodeId": "ctrl_dynamic"
+          }
+        ],
+        "params": {
+          "A": "np.array([[-3.0]], dtype=float)",
+          "B": "np.array([[1.0]], dtype=float)",
+          "C": "np.array([[1.2]], dtype=float)",
+          "D": "np.array([[0.3]], dtype=float)",
+          "initial_value": "np.array([-0.8], dtype=float)"
+        },
+        "position": {
+          "x": 540.0,
+          "y": 420.0
+        },
+        "type": "StateSpace"
+      }
+    ]
+  },
+  "metadata": {
+    "adapter_profile": "controllab.pathview.scalar.v1",
+    "controller_ref": {
+      "id": "dynamic-ui-controller",
+      "revision": 1
+    },
+    "created": "2026-11-13T00:00:00Z",
+    "external_pathview_verified": false,
+    "feedback_sign": "negative",
+    "generator": "ControlLab Web",
+    "interconnection_kind": "dynamic_controller",
+    "modified": "2026-11-13T00:00:00Z",
+    "name": "ControlLab DynamicController",
+    "passive_projection": true,
+    "pathview_target_commit": "4afdcc461ed63aa4231930170d20774428d51e8d",
+    "pathview_target_version": "0.21.0",
+    "plant_ref": {
+      "id": "dynamic-ui-plant",
+      "revision": 2
+    },
+    "spec_version": "1.0.0",
+    "validation_gate": "G-0D",
+    "validation_scope": "per_file_execution"
+  },
+  "simulationSettings": {
+    "adaptive": true,
+    "atol": "1e-6",
+    "dt": "0.01",
+    "dt_max": "",
+    "dt_min": "",
+    "duration": "10",
+    "ftol": "1e-9",
+    "ghostTraces": 0,
+    "plotResults": true,
+    "rtol": "1e-4",
+    "solver": "RKCK54"
+  },
+  "version": "1.0.0"
+}

@@ -554,6 +554,10 @@ export class LqrWorkspaceController {
     return this.projectRevision;
   }
 
+  public isFileImportPending(): boolean {
+    return this.fileImportPending;
+  }
+
   public isPendingCommit(): boolean {
     return this.pendingCommit;
   }

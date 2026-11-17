@@ -1,0 +1,30 @@
+{
+  "browser": "153.0.8010.0",
+  "browser_kind": "chromium",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "samples": 501,
+    "max_u_error": 0.0,
+    "max_y_error": 2.220446049250313e-16,
+    "max_plant_final_error": 0.0,
+    "max_controller_final_error": null,
+    "error_limit": 2e-06,
+    "pvm_sha256": "8b77faf44676af45dc6e463692e23f259f4f9f93a173955b2408ef414cd5bda5",
+    "connections": 7,
+    "roundtrip": {
+      "ctrlab_sha256": "ef74fe46efbba2770540bbfdc6e451ec7540d54a73b33c88408e84bf65eab897",
+      "options_preserved": true,
+      "controller_kind": "lqr"
+    },
+    "reopened_pvm": {
+      "samples": 501,
+      "max_u_error": 0.0,
+      "max_y_error": 2.220446049250313e-16,
+      "max_plant_final_error": 0.0,
+      "max_controller_final_error": null,
+      "error_limit": 2e-06,
+      "pvm_sha256": "8b77faf44676af45dc6e463692e23f259f4f9f93a173955b2408ef414cd5bda5",
+      "connections": 7
+    }
+  }
+}

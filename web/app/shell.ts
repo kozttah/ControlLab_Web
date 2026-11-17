@@ -205,7 +205,44 @@ export interface NativeFileExport {
   request_id: string;
   project_id: string;
   response: RpcResponse;
+  configuration_revision?: number;
+  pvm_controller_kind?: "lqr" | "dynamic";
 }
+
+export interface PvmExportOptions {
+  controller_kind: "lqr" | "dynamic";
+  dynamic_controller?: Record<string, unknown>;
+  saturation: { enabled: boolean; u_min: number | number[]; u_max: number | number[] };
+}
+
+function validatePvmExportOptions(value: unknown): PvmExportOptions {
+  const boundIsFinite = (bound: unknown): bound is number | number[] =>
+    typeof bound === "number" ? Number.isFinite(bound) :
+      Array.isArray(bound) && bound.length > 0 && bound.every((item) => typeof item === "number" && Number.isFinite(item));
+  if (!isPlainObject(value) || !["lqr", "dynamic"].includes(String(value.controller_kind)) ||
+      !isPlainObject(value.saturation) || typeof value.saturation.enabled !== "boolean" ||
+      !boundIsFinite(value.saturation.u_min) || !boundIsFinite(value.saturation.u_max) ||
+      (value.controller_kind === "dynamic" && value.dynamic_controller === undefined) ||
+      (value.dynamic_controller !== undefined && (!isPlainObject(value.dynamic_controller) || value.dynamic_controller.kind !== "DynamicController"))) {
+    throw new ControlLabBridgeError("VALIDATION_ERROR", "Configuração PVM inválida. Confira o controlador e os limites de saturação.");
+  }
+  return structuredClone(value) as unknown as PvmExportOptions;
+}
+
+export const DEFAULT_DYNAMIC_EXPORT_CONTROLLER: Record<string, unknown> = {
+  schema_version: "1.0.0", id: "dynamic-export", revision: 1,
+  kind: "DynamicController", feedback_sign: "negative", dt: null,
+  Ac: { shape: [1, 1], dtype: "float64", order: "C", data: [-2] },
+  Bc: { shape: [1, 1], dtype: "float64", order: "C", data: [1] },
+  Cc: { shape: [1, 1], dtype: "float64", order: "C", data: [1] },
+  Dc: { shape: [1, 1], dtype: "float64", order: "C", data: [0.1] },
+  ports: {
+    inputs: [{ name: "y", role: "y", size: 1 }],
+    outputs: [{ name: "u", role: "u", size: 1 }],
+  },
+  initial_state: { shape: [1], dtype: "float64", order: "C", data: [0.2] },
+  provenance: { source: "control_lab" }, interconnection_scheme: "output_feedback",
+};
 
 export function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -236,6 +273,14 @@ export class ControlLabShell {
   private displayDecimals: number;
   private themeMode: AccessibilityThemeMode;
   private openModalId: string | null = null;
+  private pvmExportRevision = 0;
+  private dynamicPvmConfirmation: {
+    project_id: string; project_revision: number; model_revision: number;
+    configuration_revision: number; request_id: string; input_sha256: string;
+  } | null = null;
+  private pvmExportOptions: PvmExportOptions | null = {
+    controller_kind: "lqr", saturation: { enabled: false, u_min: -1, u_max: 1 },
+  };
   private manualPresentedError: PresentedError | null = null;
   private readonly experiments: CommittedExperimentEntry[] = [];
   private readonly eventsLog: EngineClientEvent[] = [];
@@ -640,12 +685,15 @@ export class ControlLabShell {
     };
   }
 
-  private async fileRequest(operation: string, payload: Record<string, unknown>): Promise<RpcResponse> {
+  private async fileRequest(
+    operation: string, payload: Record<string, unknown>,
+    context?: { project_id: string; project_revision: number },
+  ): Promise<RpcResponse> {
     const committed = this.lqr.getCommittedSnapshot();
     const response = await this.client.execute({
       api_version: RPC_API_VERSION, request_id: `io-${generateUuid()}`,
-      project_id: committed?.project_id ?? "io-import",
-      project_revision: committed?.project_revision ?? 0,
+      project_id: context?.project_id ?? committed?.project_id ?? "io-import",
+      project_revision: context?.project_revision ?? committed?.project_revision ?? 0,
       operation, payload, options: {}, timeout_policy: { hard_timeout_ms: 30000 },
     }, { commitOnSuccess: false });
     if (response.status !== "success" && response.status !== "warning") {
@@ -665,7 +713,10 @@ export class ControlLabShell {
     return {script: data.script, filename: data.filename, media_type: data.media_type};
   }
 
-  private async exportFile(operation: string, payload: Record<string, unknown>, extension: string): Promise<NativeFileExport> {
+  private async exportFile(
+    operation: string, payload: Record<string, unknown>, extension: string,
+    configurationRevision?: number,
+  ): Promise<NativeFileExport> {
     this.lqr.assertExportAllowed();
     const committed = this.lqr.getCommittedSnapshot()!;
     const response = await this.fileRequest(operation, payload);
@@ -673,6 +724,15 @@ export class ControlLabShell {
     if (this.lqr.getCommittedSnapshot()?.request_id !== committed.request_id) {
       throw new ControlLabBridgeError("CANCELLED", "O projeto mudou durante a exportação. Exporte novamente.");
     }
+    if (configurationRevision !== undefined) this.assertPvmExportRevision(configurationRevision);
+    return this.decodeNativeFile(response, committed, extension, configurationRevision);
+  }
+
+  private decodeNativeFile(
+    response: RpcResponse,
+    identity: { project_id: string; project_revision: number; request_id: string },
+    extension: string, configurationRevision?: number,
+  ): NativeFileExport {
     const file = response.result;
     if (!isPlainObject(file) || typeof file.bytes_base64 !== "string" ||
         typeof file.sha256 !== "string" || typeof file.size_bytes !== "number" ||
@@ -684,23 +744,27 @@ export class ControlLabShell {
     if (bytes.length !== file.size_bytes || sha256Hex(bytes) !== file.sha256) {
       throw new ControlLabBridgeError("VALIDATION_ERROR", "Integridade dos bytes exportados inválida.");
     }
-    return { bytes, filename: `ControlLab_r${committed.project_revision}.${extension}`,
+    return { bytes, filename: `ControlLab_r${identity.project_revision}.${extension}`,
       media_type: file.media_type, sha256: file.sha256,
-      project_revision: committed.project_revision, request_id: committed.request_id,
-      project_id: committed.project_id, response };
+      project_revision: identity.project_revision, request_id: identity.request_id,
+      project_id: identity.project_id, response, configuration_revision: configurationRevision };
   }
 
   public async exportCtrlLab(): Promise<NativeFileExport> {
     this.lqr.assertExportAllowed();
     const committed = this.lqr.getCommittedSnapshot()!;
     const controller = this.canonicalController();
+    if (!this.pvmExportOptions) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Corrija a configuração PVM antes de salvar o projeto.");
+    }
     const experiment = {
       schema_version: "1.0.0", kind: "Experiment", id: `ui-lqr-${committed.project_revision}`,
       revision: committed.project_revision, method: "statespace.design_lqr",
       model_ref: { id: this.lqr.getPlant().id, revision: committed.model_revision },
       controller_ref: committed.controller_ref,
       parameters: { workspace: this.lqr.getWeights(), snapshot: committed,
-        comparisons: structuredClone(this.experiments) },
+        comparisons: structuredClone(this.experiments),
+        pvm_export_options: structuredClone(this.pvmExportOptions) },
       tolerances: {}, results: null, data_source: null,
       provenance: structuredClone(committed.provenance), created_at: committed.committed_at,
     };
@@ -709,16 +773,105 @@ export class ControlLabShell {
       models: [this.lqr.getPlant()], controllers: [controller], experiments: [experiment],
       created_at: committed.committed_at, provenance: structuredClone(committed.provenance),
     };
-    return this.exportFile("io.export_ctrlab", { project }, "ctrlab");
+    return this.exportFile("io.export_ctrlab", { project }, "ctrlab", this.pvmExportRevision);
+  }
+
+  public getPvmExportOptions(): PvmExportOptions | null {
+    return structuredClone(this.pvmExportOptions);
+  }
+
+  public getPvmExportRevision(): number {
+    return this.pvmExportRevision;
+  }
+
+  public invalidatePvmExportOptions(): void {
+    this.pvmExportRevision += 1;
+    this.pvmExportOptions = null;
+    this.dynamicPvmConfirmation = null;
+    this.notify();
+  }
+
+  public setPvmExportOptions(options: PvmExportOptions): void {
+    const validated = validatePvmExportOptions(options);
+    this.pvmExportRevision += 1;
+    this.pvmExportOptions = validated;
+    this.dynamicPvmConfirmation = null;
+    this.manualPresentedError = null;
+    this.notify();
+  }
+
+  public canExportPvm(): boolean {
+    if (!this.pvmExportOptions) return false;
+    if (this.pvmExportOptions.controller_kind === "lqr") return this.lqr.canExport().allowed;
+    return this.getEngineState() === "ready" && !this.lqr.isFileImportPending() &&
+      !this.lqr.isPendingCommit() && !this.lqr.getPreviewState().active;
+  }
+
+  public assertDynamicPvmExportAllowed(requestId: string | undefined, revision: number | undefined): void {
+    const confirmation = this.dynamicPvmConfirmation;
+    if (!this.canExportPvm() || !confirmation || confirmation.request_id !== requestId ||
+        confirmation.configuration_revision !== revision || revision !== this.pvmExportRevision ||
+        confirmation.project_id !== this.lqr.getProjectId() ||
+        confirmation.project_revision !== this.lqr.getProjectRevision() ||
+        confirmation.model_revision !== this.lqr.getPlant().revision ||
+        confirmation.input_sha256 !== computeCanonicalSha256({
+          plant: this.lqr.getPlant(), initial_state: this.lqr.getWeights().x0.data,
+        })) {
+      throw new ControlLabBridgeError("CANCELLED", "A configuração dinâmica mudou. Valide e gere novamente o PVM.");
+    }
+  }
+
+  private assertPvmExportRevision(revision: number): void {
+    if (revision !== this.pvmExportRevision) {
+      throw new ControlLabBridgeError(
+        "CANCELLED", "A configuração PVM mudou. Gere novamente o arquivo antes de baixar.",
+      );
+    }
   }
 
   public exportPvm(): Promise<NativeFileExport> {
-    this.lqr.assertExportAllowed();
-    return this.exportFile("io.export_pvm", {
-      plant: this.lqr.getPlant(), controller: this.canonicalController(),
-      scenario: { initial_state: this.lqr.getWeights().x0.data },
-      name: "ControlLab LQR", target_spec_version: "1.0.0",
-    }, "pvm");
+    const options = structuredClone(this.pvmExportOptions);
+    if (!options) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Corrija a configuração da exportação PVM.");
+    }
+    const revision = this.pvmExportRevision;
+    if (options.controller_kind === "lqr") {
+      this.lqr.assertExportAllowed();
+      return this.exportFile("io.export_pvm", {
+        plant: this.lqr.getPlant(), controller: this.canonicalController(),
+        scenario: { initial_state: this.lqr.getWeights().x0.data, saturation: options.saturation },
+        name: "ControlLab LQR", target_spec_version: "1.0.0",
+      }, "pvm", revision);
+    }
+    if (!this.canExportPvm()) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Conclua a edição e aguarde o motor antes de exportar o controlador dinâmico.");
+    }
+    return this.exportDynamicPvm(options, revision);
+  }
+
+  private async exportDynamicPvm(options: PvmExportOptions, revision: number): Promise<NativeFileExport> {
+    if (!isPlainObject(options.dynamic_controller) || options.dynamic_controller.kind !== "DynamicController") {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Forneça um DynamicController canônico no campo JSON.");
+    }
+    const context = { project_id: this.lqr.getProjectId(), project_revision: this.lqr.getProjectRevision() };
+    const plant = this.lqr.getPlant();
+    const initialState = this.lqr.getWeights().x0.data;
+    const payload = { plant, controller: options.dynamic_controller };
+    const validation = await this.fileRequest("core.validate_interconnection", payload, context);
+    this.dynamicPvmConfirmation = {
+      ...context, model_revision: plant.revision, configuration_revision: revision,
+      request_id: validation.request_id,
+      input_sha256: computeCanonicalSha256({ plant, initial_state: initialState }),
+    };
+    this.assertDynamicPvmExportAllowed(validation.request_id, revision);
+    const response = await this.fileRequest("io.export_pvm", {
+      ...payload,
+      scenario: { initial_state: initialState, saturation: options.saturation },
+      name: "ControlLab DynamicController", target_spec_version: "1.0.0",
+    }, context);
+    this.assertDynamicPvmExportAllowed(validation.request_id, revision);
+    return { ...this.decodeNativeFile(response, this.dynamicPvmConfirmation!, "pvm", revision),
+      pvm_controller_kind: "dynamic" };
   }
 
   public async importCtrlLab(source: Uint8Array | Promise<Uint8Array>): Promise<void> {
@@ -771,10 +924,14 @@ export class ControlLabShell {
         );
       }
       const workspace = parameters.workspace;
+      const pvmOptions = parameters.pvm_export_options === undefined
+        ? { controller_kind: "lqr" as const, saturation: { enabled: false, u_min: -1, u_max: 1 } }
+        : validatePvmExportOptions(parameters.pvm_export_options);
       await this.lqr.restoreProject({
         plant: plant as unknown as CanonicalStateSpaceModel, snapshot,
         Q: workspace.Q as RealTensor, R: workspace.R as RealTensor, x0: workspace.x0 as RealTensor,
       });
+      this.setPvmExportOptions(pvmOptions);
       this.experiments.length = 0;
       if (Array.isArray(parameters.comparisons)) {
         this.experiments.push(...structuredClone(parameters.comparisons) as CommittedExperimentEntry[]);

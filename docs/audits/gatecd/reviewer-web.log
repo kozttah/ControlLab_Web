@@ -1,0 +1,70 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> controllab-web@1.0.0 test
+> node ../scripts/run_web_tests.mjs
+
+[run_web_tests] Executando typecheck (all, 24 arquivo(s) TS)...
+[typecheck] PASS (all, 24 arquivo(s) TS)
+[run_web_tests] Executando 5 arquivo(s) de teste com node --test...
+✔ F7 offline: prefix, reload, HEAD, no misses reach the network, scope isolation (150.743834ms)
+✔ F7 offline: rollback preserves active and same-version updates switch only on activation (54.582333ms)
+✔ F7 offline: missing, corrupt and altered manifest cannot attest readiness or serve damaged code (23.511822ms)
+✔ F7 offline: reject manifest escapes, duplicates, missing hashes and incomplete transitive closure (10.854054ms)
+✔ F7-CONTRACT-01: sha256Hex puro coincide com node:crypto e checksums.sha256 das fixtures ouro (20.119233ms)
+✔ F7-CONTRACT-02: valida exemplos normativos rpc_request_lqr.json e rpc_response_lqr.json e rejeita NaN/Infinity/versão/campos extras (7.078921ms)
+✔ F7-CONTRACT-03: todas as 12 categorias normativas de erro funcionam e são validadas pelo contrato (9.25246ms)
+✔ T-RPC-01 (MockWorkerAdapter): 25 requisições rápidas fora de ordem — apenas revisão mais recente comita no IndexedDB (66.788793ms)
+✔ T-RPC-01 unidade (MessageChannel + fixture double; sem Wasm): 24 requisições fora de ordem e sem vazamento PyProxy (62.503507ms)
+✔ F7-COALESCE-01: DebouncedRequestCoalescer consolida disparos rápidos e cancela intermediários (26.36967ms)
+✔ T-RPC-02 (MockWorkerAdapter): cancel(), terminate()/resetWorker(), ciclo recovering->ready e reidratação fiel (22.313783ms)
+✔ T-RPC-02 unidade (MessageChannel + IDB em memória + fixture double): terminate() fecha o transporte, recria WorkerModelStore vazio e reidrata snapshot do IndexedDB (23.377759ms)
+✔ F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLED e preserva Worker/PyProxy limpos (18.430354ms)
+✔ T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMPORT_UNTRUSTED_CODE (1.380948ms)
+✔ F7-BUFFER-01 (fixture double): transferência de ArrayBuffer via postMessage destaca original (byteLength===0), bloqueia reúso e suporta preserveSenderCopy (5.48307ms)
+✔ F7-PYPROXY-01: PyProxyRegistry e withPyProxy garantem destroy() em retorno normal, exceção e cancelamento e proíbem saída por postMessage (0.924715ms)
+✔ F7-MODELSTORE-01: WorkerModelStore implementa LRU, pinning de projeto ativo e falha RESOURCE_LIMIT antes de alocar (0.895943ms)
+✔ F7-PARITY-01 local: mock certificado versus dispatcher CPython real via bridge; não prova Pyodide/Wasm (2105.475811ms)
+✔ F7-PYPROXY-02: erro em runtime Pyodide dentro do Worker destrói PyProxy e mantém activeProxies===0 (2.191725ms)
+✔ F7-BUFFER-02 (fixture double): transporte bidirecional Worker -> Main com return_binary_buffers=true reidrata tensores K e P fielmente (2.72379ms)
+✔ F7-SUPERSEDE-TIMEOUT-01: cancel_on_supersede=true cancela revisão anterior em voo e hard_timeout_ms retorna RESOURCE_LIMIT (38.854745ms)
+✔ test_no_python_runtime_no_scientific_success: no silent MessageChannel and no commit/provenance invented (11.434651ms)
+✔ test_no_python_runtime_no_scientific_success: explicit MessageChannel without loader fails initialization (8.072037ms)
+✔ F7-PROVISION-UNIT: local wheel is loaded before core.rpc handshake; capabilities require observed dispatcher (2.306245ms)
+✔ test_unstabilizable_plant_through_real_rpc: actual CPython dispatcher through bridge returns HYPOTHESIS_VIOLATED (2138.307239ms)
+✔ F7-CPYTHON-UNIT: real dispatcher respects Q/R, x0 and revision; no fixed two-state result (2537.244065ms)
+✔ F7-PYTHON-NONE: proxy output preserves null fields and lists without relaxing ordinary JS JSON validation (0.93415ms)
+✔ F7-SEC-ALLOWLIST: http: externo é recusado, localhost http permitido (1.426746ms)
+✔ F7-SEC-ALLOWLIST: config.allowedOrigins na mensagem init não amplia a allowlist (10.299135ms)
+✔ F7-ENTRYPOINT: sem toPy retorna erro estruturado e nunca chama runPythonAsync (4.203436ms)
+✔ F7-ENTRYPOINT: sem pyimport retorna erro estruturado sem executar código (1.262574ms)
+✔ F7-SCHEMA: protocol.ts aceita exemplos e rejeita violações dos schemas rpc_* (5.401234ms)
+✔ T-UI-01 parcial Node/Mock (B-CARE-02 e B-CARE-12x3): Fast-Preview no pointermove não grava em IndexedDB nem libera exportação; pointerup exige pending_commit e comita fixture, sem prova Wasm (164.093197ms)
+✔ UI Node: Pyodide sem worker explícito falha e não permite commit/exportação (3.055511ms)
+✔ Concorrência, cancelamento (Escape), blur, troca de aba, undo, model_revision e 12 categorias de erro (159.864174ms)
+✔ ToolDescriptor: descoberta dinâmica sem alterar roteamento global e selos stable/beta/experimental/unavailable_wasm (8.602089ms)
+✔ test_tool_descriptor_unlisted_operation_and_typecheck (6.600034ms)
+✔ UI Node/adapter explícito: resposta inconclusive não vira snapshot nem libera exportação (6.878755ms)
+✔ Bootstrap Node: contrato de URLs de build e registro SW module, sem prova offline (0.497184ms)
+✔ Overlays semânticos (exact/sufficient/heuristic/estimated) e gráficos com valores repetidos + tabela acessível (7.569645ms)
+✔ WCAG 2.2 AA: contraste (>=4.5:1 / >=3.0:1), toque >=44px, teclado, FocusRestorer, AriaLive, decimais sem mutação e relatório R-27 (10.056426ms)
+✔ UI Node: adapter F7 bruto 12x3 com ref não resolvível falha fechado antes de persistir (2.577986ms)
+✔ Guard arquitetural distingue imports Python de URLs wheel (0.255207ms)
+✔ Auditoria F8: web/{app,charts,features} não importam Python, Node globals nem duplicam síntese CARE/Riccati (11.610972ms)
+✔ F8-EXT-01: suporte explícito a m!=p (3 entradas, 4 saídas), C!=I, feedback_sign positivo, ciclo de vida e buffers transferíveis (90.39894ms)
+✔ F8-EXT-02: contraste completo WCAG 2.2 AA, ToolDescriptor HTML (<select>/number), teclado preservando Q, analyzeOpenLoop concorrente e .pvm discreto (92.803139ms)
+✔ F8-EXT-03: mountControlLabApp mantém identidade do slider durante pointermove, atualiza aria-disabled e restaura foco ao fechar modal (59.320657ms)
+✔ F8-EXT-04: aderência aos schemas (.ctrlab, StateFeedbackController, StateSpace, .pvm), contraste WCAG total, CSV alta precisão, teclado durante preview e DOM completo (47.893017ms)
+✔ F8-EXT-05: mountControlLabApp renderiza tabela temporal, painel R-27, comparador de experimentos e executa ferramenta auxiliar sem sobrescrever snapshot LQR (164.240805ms)
+✔ F8-EXT-06: B3.1 cancelDrag durante registerObject, B3.2 updateWeights invalida exportação, B3.4 x0 DIMENSION_MISMATCH, axis-ticks/chart-legend/borda 0+0j, textarea/shape_hint/simulate_lti e apply-plant/apply-weights/save-experiment em main.ts (58.254263ms)
+✔ AUD-019/020/021 Node transport: bytes canônicos, metadados inertes e reabertura sem recálculo (10.663974ms)
+✔ G0D Node transport: DynamicController usa confirmação Python sem LQR e bloqueia configuração obsoleta (3.755304ms)
+✔ R19 Node transport: .ctrlab preserva opções PVM e aceita projetos anteriores sem o campo (12.28698ms)
+ℹ tests 53
+ℹ suites 0
+ℹ pass 53
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4914.178727
+[unit-tests] PASS (all, 5 arquivo(s) de teste)

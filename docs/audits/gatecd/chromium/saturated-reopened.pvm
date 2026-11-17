@@ -1,0 +1,553 @@
+{
+  "codeContext": {
+    "code": "import numpy as np\nA_plant = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=np.float64)\nB_plant = np.array([[0.0], [1.0]], dtype=np.float64)\nC_plant = np.array([[1.0, 0.2]], dtype=np.float64)\nD_plant = np.array([[0.1]], dtype=np.float64)\ndt_plant = None\nx0_plant = np.array([2.0, 0.0], dtype=np.float64)\nfeedback_sign = 'negative'\nK_feedback = np.array([[0.9999999999999996, 1.7320508075688776]], dtype=np.float64)\nsaturation_enabled = True\nu_min = np.array([-0.25], dtype=np.float64)\nu_max = np.array([0.25], dtype=np.float64)\n"
+  },
+  "events": [],
+  "graph": {
+    "annotations": [
+      {
+        "id": "ann_controllab_spec",
+        "text": "ControlLab state_feedback | sign=negative | external_pathview_verified=False (execu\u00e7\u00e3o externa deste arquivo n\u00e3o realizada)"
+      }
+    ],
+    "connections": [
+      {
+        "id": "scalar_conn_0000",
+        "sourceNodeId": "src_ref",
+        "sourcePortIndex": 0,
+        "targetNodeId": "sum_feedback",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0001",
+        "sourceNodeId": "sum_feedback",
+        "sourcePortIndex": 0,
+        "targetNodeId": "actuator_sat",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0002",
+        "sourceNodeId": "actuator_sat",
+        "sourcePortIndex": 0,
+        "targetNodeId": "plant_ss",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0003",
+        "sourceNodeId": "plant_ss",
+        "sourcePortIndex": 0,
+        "targetNodeId": "scope_y",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0004",
+        "sourceNodeId": "plant_ss",
+        "sourcePortIndex": 1,
+        "targetNodeId": "gain_K",
+        "targetPortIndex": 0
+      },
+      {
+        "id": "scalar_conn_0005",
+        "sourceNodeId": "plant_ss",
+        "sourcePortIndex": 2,
+        "targetNodeId": "gain_K",
+        "targetPortIndex": 1
+      },
+      {
+        "id": "scalar_conn_0006",
+        "sourceNodeId": "gain_K",
+        "sourcePortIndex": 0,
+        "targetNodeId": "sum_feedback",
+        "targetPortIndex": 1
+      }
+    ],
+    "nodes": [
+      {
+        "controlLab": {
+          "component": 0,
+          "legacy_node": {
+            "id": "src_ref",
+            "inputs": [],
+            "name": "ReferenceSource",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "r",
+                "nodeId": "src_ref"
+              }
+            ],
+            "params": {
+              "channel_names": [
+                "u1"
+              ],
+              "dim": 1,
+              "signal_type": "step",
+              "value": [
+                1.0
+              ]
+            },
+            "position": {
+              "x": 80.0,
+              "y": 200.0
+            },
+            "type": "Source"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "src_ref",
+        "inputs": [],
+        "name": "ReferenceSource_0",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "out0",
+            "nodeId": "src_ref"
+          }
+        ],
+        "params": {
+          "func": "lambda t: 1.0"
+        },
+        "position": {
+          "x": 80.0,
+          "y": 200.0
+        },
+        "type": "Source"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "sum_feedback",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "u_ff",
+                "nodeId": "sum_feedback"
+              },
+              {
+                "direction": "input",
+                "index": 1,
+                "name": "Kx",
+                "nodeId": "sum_feedback"
+              }
+            ],
+            "name": "ControlSum_negative",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "u_cmd",
+                "nodeId": "sum_feedback"
+              }
+            ],
+            "params": {
+              "dim": 1,
+              "feedback_sign": "negative",
+              "signs": [
+                "+",
+                "-"
+              ]
+            },
+            "position": {
+              "x": 480.0,
+              "y": 200.0
+            },
+            "type": "Adder"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "sum_feedback",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "u_ff0",
+            "nodeId": "sum_feedback"
+          },
+          {
+            "direction": "input",
+            "index": 1,
+            "name": "Kx0",
+            "nodeId": "sum_feedback"
+          }
+        ],
+        "name": "ControlSum_negative",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "u_cmd0",
+            "nodeId": "sum_feedback"
+          }
+        ],
+        "params": {
+          "operations": "'+-'"
+        },
+        "position": {
+          "x": 480.0,
+          "y": 200.0
+        },
+        "type": "Adder"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "actuator_sat",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "in",
+                "nodeId": "actuator_sat"
+              }
+            ],
+            "name": "ActuatorSaturation",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "out",
+                "nodeId": "actuator_sat"
+              }
+            ],
+            "params": {
+              "dim": 1,
+              "enabled": true,
+              "u_max": [
+                0.25
+              ],
+              "u_min": [
+                -0.25
+              ]
+            },
+            "position": {
+              "x": 680.0,
+              "y": 200.0
+            },
+            "type": "Saturation"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "actuator_sat",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "in0",
+            "nodeId": "actuator_sat"
+          }
+        ],
+        "name": "ActuatorSaturation",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "out0",
+            "nodeId": "actuator_sat"
+          }
+        ],
+        "params": {
+          "max_val": "np.array([0.25], dtype=float)",
+          "min_val": "np.array([-0.25], dtype=float)"
+        },
+        "position": {
+          "x": 680.0,
+          "y": 200.0
+        },
+        "type": "Clip"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "plant_ss",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "u",
+                "nodeId": "plant_ss"
+              }
+            ],
+            "name": "saturated-ui-plant",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "y",
+                "nodeId": "plant_ss"
+              },
+              {
+                "direction": "output",
+                "index": 1,
+                "name": "x",
+                "nodeId": "plant_ss"
+              }
+            ],
+            "params": {
+              "A": [
+                [
+                  0.0,
+                  1.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ],
+              "B": [
+                [
+                  0.0
+                ],
+                [
+                  1.0
+                ]
+              ],
+              "C": [
+                [
+                  1.0,
+                  0.2
+                ]
+              ],
+              "D": [
+                [
+                  0.1
+                ]
+              ],
+              "dt": null,
+              "expose_state": true,
+              "initial_state": [
+                2.0,
+                0.0
+              ],
+              "input_names": [
+                "u1"
+              ],
+              "output_names": [
+                "y1"
+              ],
+              "state_names": [
+                "x1",
+                "x2"
+              ]
+            },
+            "position": {
+              "x": 880.0,
+              "y": 200.0
+            },
+            "type": "StateSpace"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "plant_ss",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "u0",
+            "nodeId": "plant_ss"
+          }
+        ],
+        "name": "saturated-ui-plant",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "y0",
+            "nodeId": "plant_ss"
+          },
+          {
+            "direction": "output",
+            "index": 1,
+            "name": "x0",
+            "nodeId": "plant_ss"
+          },
+          {
+            "direction": "output",
+            "index": 2,
+            "name": "x1",
+            "nodeId": "plant_ss"
+          }
+        ],
+        "params": {
+          "A": "np.array([[0.0, 1.0], [0.0, 0.0]], dtype=float)",
+          "B": "np.array([[0.0], [1.0]], dtype=float)",
+          "C": "np.array([[1.0, 0.2], [1.0, 0.0], [0.0, 1.0]], dtype=float)",
+          "D": "np.array([[0.1], [0.0], [0.0]], dtype=float)",
+          "initial_value": "np.array([2.0, 0.0], dtype=float)"
+        },
+        "position": {
+          "x": 880.0,
+          "y": 200.0
+        },
+        "type": "StateSpace"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "scope_y",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "y",
+                "nodeId": "scope_y"
+              }
+            ],
+            "name": "OutputScope",
+            "outputs": [],
+            "params": {
+              "channel_names": [
+                "y1"
+              ],
+              "dim": 1,
+              "units": [
+                ""
+              ]
+            },
+            "position": {
+              "x": 1100.0,
+              "y": 200.0
+            },
+            "type": "Scope"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "scope_y",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "y0",
+            "nodeId": "scope_y"
+          }
+        ],
+        "name": "OutputScope",
+        "outputs": [],
+        "params": {
+          "labels": "['y1']"
+        },
+        "position": {
+          "x": 1100.0,
+          "y": 200.0
+        },
+        "type": "Scope"
+      },
+      {
+        "controlLab": {
+          "legacy_node": {
+            "id": "gain_K",
+            "inputs": [
+              {
+                "direction": "input",
+                "index": 0,
+                "name": "x",
+                "nodeId": "gain_K"
+              }
+            ],
+            "name": "FeedbackGain_K",
+            "outputs": [
+              {
+                "direction": "output",
+                "index": 0,
+                "name": "Kx",
+                "nodeId": "gain_K"
+              }
+            ],
+            "params": {
+              "gain": [
+                [
+                  0.9999999999999996,
+                  1.7320508075688776
+                ]
+              ],
+              "label": "K",
+              "role": "feedback_gain",
+              "shape": [
+                1,
+                2
+              ]
+            },
+            "position": {
+              "x": 680.0,
+              "y": 420.0
+            },
+            "type": "MatrixGain"
+          },
+          "profile": "controllab.pathview.scalar.v1"
+        },
+        "id": "gain_K",
+        "inputs": [
+          {
+            "direction": "input",
+            "index": 0,
+            "name": "x0",
+            "nodeId": "gain_K"
+          },
+          {
+            "direction": "input",
+            "index": 1,
+            "name": "x1",
+            "nodeId": "gain_K"
+          }
+        ],
+        "name": "FeedbackGain_K",
+        "outputs": [
+          {
+            "direction": "output",
+            "index": 0,
+            "name": "Kx0",
+            "nodeId": "gain_K"
+          }
+        ],
+        "params": {
+          "func": "lambda *v: np.array([[0.9999999999999996, 1.7320508075688776]], dtype=float) @ np.asarray(v, dtype=float)"
+        },
+        "position": {
+          "x": 680.0,
+          "y": 420.0
+        },
+        "type": "Function"
+      }
+    ]
+  },
+  "metadata": {
+    "adapter_profile": "controllab.pathview.scalar.v1",
+    "controller_ref": {
+      "id": "ctrl-sf-32a11da5f1ac",
+      "revision": 0
+    },
+    "created": "2026-11-13T00:00:00Z",
+    "external_pathview_verified": false,
+    "feedback_sign": "negative",
+    "generator": "ControlLab Web",
+    "interconnection_kind": "state_feedback",
+    "modified": "2026-11-13T00:00:00Z",
+    "name": "ControlLab LQR",
+    "passive_projection": true,
+    "pathview_target_commit": "4afdcc461ed63aa4231930170d20774428d51e8d",
+    "pathview_target_version": "0.21.0",
+    "plant_ref": {
+      "id": "saturated-ui-plant",
+      "revision": 2
+    },
+    "spec_version": "1.0.0",
+    "validation_gate": "G-0D",
+    "validation_scope": "per_file_execution"
+  },
+  "simulationSettings": {
+    "adaptive": true,
+    "atol": "1e-6",
+    "dt": "0.01",
+    "dt_max": "",
+    "dt_min": "",
+    "duration": "10",
+    "ftol": "1e-9",
+    "ghostTraces": 0,
+    "plotResults": true,
+    "rtol": "1e-4",
+    "solver": "RKCK54"
+  },
+  "version": "1.0.0"
+}

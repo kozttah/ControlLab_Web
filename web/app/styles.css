@@ -330,3 +330,38 @@ select {
   max-height: 48vh;
 }
 
+
+/* Keep editable scientific data inside narrow tablet and phone viewports. */
+.panel-card,
+.tool-field {
+  min-width: 0;
+}
+
+.tool-field input,
+.tool-field select,
+.tool-field textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#pvm-dynamic-controller-json {
+  font-family: monospace;
+  resize: vertical;
+}
+
+.panel-card pre {
+  max-width: 100%;
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .controllab-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .accessible-data-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

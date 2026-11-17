@@ -1,0 +1,1059 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "responses": [
+      {
+        "api_version": "1.0",
+        "request_id": "10228b25-1595-4af1-aa88-221d9193caea",
+        "project_id": "revisions",
+        "project_revision": 0,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:06.638Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (0 < 19).",
+          "parameters": {
+            "request_revision": 0,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "3cc1c1e2-193d-4242-8618-ed548526c103",
+        "project_id": "revisions",
+        "project_revision": 1,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:06.684Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (1 < 19).",
+          "parameters": {
+            "request_revision": 1,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "78f47819-5e8e-46fe-bdbd-79c498f76969",
+        "project_id": "revisions",
+        "project_revision": 2,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:06.740Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (2 < 19).",
+          "parameters": {
+            "request_revision": 2,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "f8ccd7a7-b4c7-4d20-815f-8365c51e9d35",
+        "project_id": "revisions",
+        "project_revision": 3,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:06.783Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (3 < 19).",
+          "parameters": {
+            "request_revision": 3,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "2b3b13a1-8e49-4807-aed2-035786a4c3a0",
+        "project_id": "revisions",
+        "project_revision": 4,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:06.820Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (4 < 19).",
+          "parameters": {
+            "request_revision": 4,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "887ce42c-cadd-4de4-bec6-549f32572942",
+        "project_id": "revisions",
+        "project_revision": 5,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:06.861Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (5 < 19).",
+          "parameters": {
+            "request_revision": 5,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "66011366-95a3-4f53-80ed-f24782a1c6b5",
+        "project_id": "revisions",
+        "project_revision": 6,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:06.900Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (6 < 19).",
+          "parameters": {
+            "request_revision": 6,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "1f100efd-7fe3-4c8e-bf5c-0d5e84ec24ac",
+        "project_id": "revisions",
+        "project_revision": 7,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:06.940Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (7 < 19).",
+          "parameters": {
+            "request_revision": 7,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "8e9f309e-6b39-4d88-a5a6-be86e475310b",
+        "project_id": "revisions",
+        "project_revision": 8,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:06.990Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (8 < 19).",
+          "parameters": {
+            "request_revision": 8,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "5de79887-73f0-433d-9035-17a0ed4b75d3",
+        "project_id": "revisions",
+        "project_revision": 9,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.038Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (9 < 19).",
+          "parameters": {
+            "request_revision": 9,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "d4770788-0e03-4702-8723-ca639b08faeb",
+        "project_id": "revisions",
+        "project_revision": 10,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.077Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (10 < 19).",
+          "parameters": {
+            "request_revision": 10,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "853d1e1b-3d32-470f-ad96-3fc0c25cc7db",
+        "project_id": "revisions",
+        "project_revision": 11,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.119Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (11 < 19).",
+          "parameters": {
+            "request_revision": 11,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "96217689-2daa-4637-9b59-b1b3e4a3f7af",
+        "project_id": "revisions",
+        "project_revision": 12,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.155Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (12 < 19).",
+          "parameters": {
+            "request_revision": 12,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "ffc2d9a4-0ac6-4238-bbc2-46ef6dfc8a51",
+        "project_id": "revisions",
+        "project_revision": 13,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.194Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (13 < 19).",
+          "parameters": {
+            "request_revision": 13,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "b6738829-14ac-4fde-8146-b1513c42a0f2",
+        "project_id": "revisions",
+        "project_revision": 14,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.237Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (14 < 19).",
+          "parameters": {
+            "request_revision": 14,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "1b055323-5e1f-4d07-bdbb-2458cb4994eb",
+        "project_id": "revisions",
+        "project_revision": 15,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.279Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (15 < 19).",
+          "parameters": {
+            "request_revision": 15,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "bd95496d-a516-41b4-8daa-ef413e01e3b2",
+        "project_id": "revisions",
+        "project_revision": 16,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.318Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (16 < 19).",
+          "parameters": {
+            "request_revision": 16,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "9ac12aea-d803-4100-bfa8-d7b804d950f7",
+        "project_id": "revisions",
+        "project_revision": 17,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.363Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (17 < 19).",
+          "parameters": {
+            "request_revision": 17,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "3f1e04b8-6886-44e8-8b99-d72a0c6271b6",
+        "project_id": "revisions",
+        "project_revision": 18,
+        "status": "failure",
+        "result": null,
+        "assumptions": {},
+        "diagnostics": {
+          "stale_discarded": true,
+          "committed": false,
+          "active_revision": 19
+        },
+        "provenance": {
+          "algorithm": "statespace.design_lqr",
+          "lib_versions": {
+            "pyodide": "0.27.5",
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07.405Z"
+        },
+        "warnings": [],
+        "error": {
+          "code": "CANCELLED",
+          "message": "Resposta descartada por revis\u00e3o obsoleta (18 < 19).",
+          "parameters": {
+            "request_revision": 18,
+            "active_revision": 19,
+            "discarded": true
+          },
+          "next_step": "Utilize o resultado da revis\u00e3o mais recente do projeto."
+        }
+      },
+      {
+        "api_version": "1.0",
+        "request_id": "9494b8cc-0676-4dbf-9813-82598efa5dda",
+        "project_id": "revisions",
+        "project_revision": 19,
+        "status": "success",
+        "result": {
+          "controller": {
+            "schema_version": "1.0.0",
+            "id": "ctrl-sf-01b3649f66f1",
+            "revision": 0,
+            "kind": "StateFeedbackController",
+            "feedback_sign": "negative",
+            "K": {
+              "shape": [
+                1,
+                2
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                2.000000000000001,
+                3.0000000000000004
+              ]
+            },
+            "state_coordinates": [
+              "x1",
+              "x2"
+            ],
+            "reference_map": null,
+            "dt": null,
+            "provenance": {
+              "algorithm": "scipy.linalg.solve_continuous_are",
+              "lib_versions": {
+                "numpy": "2.0.2",
+                "scipy": "1.14.1",
+                "python": "3.12.7"
+              },
+              "seed": null,
+              "tolerances": {
+                "residual_warn_tol": 1e-09,
+                "residual_fail_tol": 0.0001,
+                "symmetry_tol": 1e-10
+              },
+              "model_revision": null,
+              "timestamp": "2026-11-17T03:18:07Z",
+              "feedback_sign": "negative"
+            },
+            "input_names": [
+              "u1"
+            ]
+          },
+          "controller_ref": {
+            "id": "ctrl-sf-01b3649f66f1",
+            "revision": 0
+          },
+          "controller_kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "K_lqr": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "P": {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              6,
+              2.000000000000001,
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "open_loop_poles": {
+            "real": [
+              0,
+              0
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "closed_loop_poles": {
+            "real": [
+              -2,
+              -1.0000000000000004
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "optimal_cost": null
+        },
+        "assumptions": {
+          "domain": "continuous",
+          "dt": null,
+          "stabilizable": true,
+          "detectable": true,
+          "controllable": true,
+          "observable_Q": true,
+          "Q_positive_semidefinite": true,
+          "R_positive_definite": true,
+          "closed_loop_stable": true,
+          "feedback_sign": "negative"
+        },
+        "diagnostics": {
+          "pbh_min_sv_stabilizability": 1,
+          "pbh_min_sv_detectability": 2,
+          "pbh_min_sv_controllability": 1,
+          "pbh_min_sv_observability_Q": 2,
+          "Q_symmetry_error": 0,
+          "R_symmetry_error": 0,
+          "min_eig_Q": 4,
+          "min_eig_R": 1,
+          "cond_R": 1,
+          "care_residual_rel": 1.9377647809895066e-16,
+          "residual_rel": 1.9377647809895066e-16,
+          "symmetry_error": 0,
+          "min_eig_P": 1.9999999999999996,
+          "max_real_open_loop": 0,
+          "max_real_closed_loop": -1.0000000000000004,
+          "cond_P": 3.500000000000001,
+          "cond_Q": 1.25,
+          "worker_id": "pw-9ca35d90-2afa-4b16-a239-68ee80458707",
+          "store_instance_id": "wms-d488d1e9-fee7-4380-884a-31b9e2cc4140",
+          "committed": true,
+          "stale_discarded": false
+        },
+        "provenance": {
+          "algorithm": "scipy.linalg.solve_continuous_are",
+          "lib_versions": {
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "seed": null,
+          "tolerances": {
+            "residual_warn_tol": 1e-09,
+            "residual_fail_tol": 0.0001,
+            "symmetry_tol": 1e-10
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07Z",
+          "feedback_sign": "negative"
+        },
+        "warnings": [],
+        "error": null
+      }
+    ],
+    "revision": 19,
+    "snapshot": {
+      "format": "controllab_snapshot",
+      "schema_version": "1.0.0",
+      "project_id": "revisions",
+      "project_revision": 19,
+      "objects": [],
+      "experiments": [],
+      "committed_result": {
+        "api_version": "1.0",
+        "request_id": "9494b8cc-0676-4dbf-9813-82598efa5dda",
+        "project_id": "revisions",
+        "project_revision": 19,
+        "status": "success",
+        "result": {
+          "controller": {
+            "schema_version": "1.0.0",
+            "id": "ctrl-sf-01b3649f66f1",
+            "revision": 0,
+            "kind": "StateFeedbackController",
+            "feedback_sign": "negative",
+            "K": {
+              "shape": [
+                1,
+                2
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                2.000000000000001,
+                3.0000000000000004
+              ]
+            },
+            "state_coordinates": [
+              "x1",
+              "x2"
+            ],
+            "reference_map": null,
+            "dt": null,
+            "provenance": {
+              "algorithm": "scipy.linalg.solve_continuous_are",
+              "lib_versions": {
+                "numpy": "2.0.2",
+                "scipy": "1.14.1",
+                "python": "3.12.7"
+              },
+              "seed": null,
+              "tolerances": {
+                "residual_warn_tol": 1e-09,
+                "residual_fail_tol": 0.0001,
+                "symmetry_tol": 1e-10
+              },
+              "model_revision": null,
+              "timestamp": "2026-11-17T03:18:07Z",
+              "feedback_sign": "negative"
+            },
+            "input_names": [
+              "u1"
+            ]
+          },
+          "controller_ref": {
+            "id": "ctrl-sf-01b3649f66f1",
+            "revision": 0
+          },
+          "controller_kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "K_lqr": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "P": {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              6,
+              2.000000000000001,
+              2.000000000000001,
+              3.0000000000000004
+            ]
+          },
+          "open_loop_poles": {
+            "real": [
+              0,
+              0
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "closed_loop_poles": {
+            "real": [
+              -2,
+              -1.0000000000000004
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "optimal_cost": null
+        },
+        "assumptions": {
+          "domain": "continuous",
+          "dt": null,
+          "stabilizable": true,
+          "detectable": true,
+          "controllable": true,
+          "observable_Q": true,
+          "Q_positive_semidefinite": true,
+          "R_positive_definite": true,
+          "closed_loop_stable": true,
+          "feedback_sign": "negative"
+        },
+        "diagnostics": {
+          "pbh_min_sv_stabilizability": 1,
+          "pbh_min_sv_detectability": 2,
+          "pbh_min_sv_controllability": 1,
+          "pbh_min_sv_observability_Q": 2,
+          "Q_symmetry_error": 0,
+          "R_symmetry_error": 0,
+          "min_eig_Q": 4,
+          "min_eig_R": 1,
+          "cond_R": 1,
+          "care_residual_rel": 1.9377647809895066e-16,
+          "residual_rel": 1.9377647809895066e-16,
+          "symmetry_error": 0,
+          "min_eig_P": 1.9999999999999996,
+          "max_real_open_loop": 0,
+          "max_real_closed_loop": -1.0000000000000004,
+          "cond_P": 3.500000000000001,
+          "cond_Q": 1.25,
+          "worker_id": "pw-9ca35d90-2afa-4b16-a239-68ee80458707",
+          "store_instance_id": "wms-d488d1e9-fee7-4380-884a-31b9e2cc4140",
+          "committed": true,
+          "stale_discarded": false
+        },
+        "provenance": {
+          "algorithm": "scipy.linalg.solve_continuous_are",
+          "lib_versions": {
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "seed": null,
+          "tolerances": {
+            "residual_warn_tol": 1e-09,
+            "residual_fail_tol": 0.0001,
+            "symmetry_tol": 1e-10
+          },
+          "model_revision": null,
+          "timestamp": "2026-11-17T03:18:07Z",
+          "feedback_sign": "negative"
+        },
+        "warnings": [],
+        "error": null
+      },
+      "content_hash": "46c804bea176bfe2f55068687b42188e3604a74dd75b530de4890571a3eb60af",
+      "exported_at": "2026-11-17T03:18:07.453Z"
+    },
+    "commits": [
+      {
+        "type": "request_committed",
+        "project_id": "revisions",
+        "request_id": "9494b8cc-0676-4dbf-9813-82598efa5dda",
+        "project_revision": 19,
+        "timestamp": "2026-11-17T03:18:07.449Z"
+      }
+    ]
+  }
+}

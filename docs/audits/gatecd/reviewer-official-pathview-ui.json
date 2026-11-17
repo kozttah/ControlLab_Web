@@ -1,0 +1,239 @@
+{
+  "pathview": "0.21.0",
+  "chromium": "153.0.8010.0",
+  "official_ui_modified": false,
+  "file_picker": "native input fallback (File System Access API disabled)",
+  "simulation_executed_in_this_check": false,
+  "cases": [
+    {
+      "case": "gatecd-saturated",
+      "model_sha256": "8b77faf44676af45dc6e463692e23f259f4f9f93a173955b2408ef414cd5bda5",
+      "input_nodes": 6,
+      "rendered_nodes": [
+        {
+          "id": "src_ref",
+          "text": "ReferenceSource_0\nSource",
+          "x": 10,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "sum_feedback",
+          "text": "ControlSum_negative\nAdder",
+          "x": 410,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "actuator_sat",
+          "text": "ActuatorSaturation\nClip",
+          "x": 610,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "plant_ss",
+          "text": "saturated-ui-plant\nStateSpace",
+          "x": 810,
+          "y": 170,
+          "width": 140,
+          "height": 60
+        },
+        {
+          "id": "scope_y",
+          "text": "OutputScope\nScope",
+          "x": 1050,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "gain_K",
+          "text": "FeedbackGain_K\nFunction",
+          "x": 620,
+          "y": 400,
+          "width": 120,
+          "height": 40
+        }
+      ],
+      "page_errors": [],
+      "import_passed": true
+    },
+    {
+      "case": "gatecd-dynamic",
+      "model_sha256": "27927df02cf0ccbd9483f49b77811bb2b459b9b843e47cdc5d4b0061b92088b9",
+      "input_nodes": 6,
+      "rendered_nodes": [
+        {
+          "id": "src_ref",
+          "text": "ReferenceSource_0\nSource",
+          "x": 30,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "sum_feedback",
+          "text": "ControlSum_negative\nAdder",
+          "x": 250,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "actuator_sat",
+          "text": "ActuatorSaturation\nFunction",
+          "x": 470,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "plant_ss",
+          "text": "dynamic-ui-plant\nStateSpace",
+          "x": 700,
+          "y": 180,
+          "width": 120,
+          "height": 40
+        },
+        {
+          "id": "scope_y",
+          "text": "OutputScope\nScope",
+          "x": 930,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "ctrl_dynamic",
+          "text": "dynamic-ui-controller\nStateSpace",
+          "x": 460,
+          "y": 400,
+          "width": 160,
+          "height": 40
+        }
+      ],
+      "page_errors": [],
+      "import_passed": true
+    },
+    {
+      "case": "saturated-reopened",
+      "model_sha256": "8b77faf44676af45dc6e463692e23f259f4f9f93a173955b2408ef414cd5bda5",
+      "input_nodes": 6,
+      "rendered_nodes": [
+        {
+          "id": "src_ref",
+          "text": "ReferenceSource_0\nSource",
+          "x": 10,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "sum_feedback",
+          "text": "ControlSum_negative\nAdder",
+          "x": 410,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "actuator_sat",
+          "text": "ActuatorSaturation\nClip",
+          "x": 610,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "plant_ss",
+          "text": "saturated-ui-plant\nStateSpace",
+          "x": 810,
+          "y": 170,
+          "width": 140,
+          "height": 60
+        },
+        {
+          "id": "scope_y",
+          "text": "OutputScope\nScope",
+          "x": 1050,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "gain_K",
+          "text": "FeedbackGain_K\nFunction",
+          "x": 620,
+          "y": 400,
+          "width": 120,
+          "height": 40
+        }
+      ],
+      "page_errors": [],
+      "import_passed": true
+    },
+    {
+      "case": "dynamic-reopened",
+      "model_sha256": "27927df02cf0ccbd9483f49b77811bb2b459b9b843e47cdc5d4b0061b92088b9",
+      "input_nodes": 6,
+      "rendered_nodes": [
+        {
+          "id": "src_ref",
+          "text": "ReferenceSource_0\nSource",
+          "x": 30,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "sum_feedback",
+          "text": "ControlSum_negative\nAdder",
+          "x": 250,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "actuator_sat",
+          "text": "ActuatorSaturation\nFunction",
+          "x": 470,
+          "y": 180,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "id": "plant_ss",
+          "text": "dynamic-ui-plant\nStateSpace",
+          "x": 700,
+          "y": 180,
+          "width": 120,
+          "height": 40
+        },
+        {
+          "id": "scope_y",
+          "text": "OutputScope\nScope",
+          "x": 930,
+          "y": 180,
+          "width": 100,
+          "height": 40
+        },
+        {
+          "id": "ctrl_dynamic",
+          "text": "dynamic-ui-controller\nStateSpace",
+          "x": 460,
+          "y": 400,
+          "width": 160,
+          "height": 40
+        }
+      ],
+      "page_errors": [],
+      "import_passed": true
+    }
+  ],
+  "global_g0d_approval": false,
+  "scope": "official UI file import/rendering only; full product gate prerequisites remain pending"
+}

@@ -1,0 +1,1584 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "before": {
+      "format": "controllab_snapshot",
+      "schema_version": "1.0.0",
+      "project_id": "f9-browser-project",
+      "project_revision": 1,
+      "objects": [
+        {
+          "storage_key": "f9-browser-project::plant-double-integrator::1",
+          "project_id": "f9-browser-project",
+          "object_id": "plant-double-integrator",
+          "revision": 1,
+          "kind": "StateSpace",
+          "value": {
+            "schema_version": "1.0.0",
+            "id": "plant-double-integrator",
+            "revision": 1,
+            "kind": "StateSpace",
+            "dt": null,
+            "state_names": [
+              "x1",
+              "x2"
+            ],
+            "input_names": [
+              "u1"
+            ],
+            "output_names": [
+              "y1"
+            ],
+            "matrices": {
+              "A": {
+                "shape": [
+                  2,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "B": {
+                "shape": [
+                  2,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1
+                ]
+              },
+              "C": {
+                "shape": [
+                  1,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  1,
+                  0
+                ]
+              },
+              "D": {
+                "shape": [
+                  1,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0
+                ]
+              }
+            },
+            "units": {
+              "time": "s",
+              "states": [
+                "m",
+                "m/s"
+              ],
+              "inputs": [
+                "N"
+              ],
+              "outputs": [
+                "m"
+              ]
+            },
+            "provenance": {
+              "source": "B-CARE-02"
+            }
+          },
+          "content_hash": "0b2621ad15fe3c0ec14f154c4f68a460045ac4336a7ee152df0800fd873b8180",
+          "created_at": "2026-11-17T03:19:00.460Z"
+        }
+      ],
+      "experiments": [],
+      "committed_result": {
+        "api_version": "1.0",
+        "request_id": "lqr-commit-r1-8ca37ed9-fc7e-47f0-94cb-1794bccb1dec",
+        "project_id": "f9-browser-project",
+        "project_revision": 1,
+        "status": "success",
+        "result": {
+          "controller": {
+            "schema_version": "1.0.0",
+            "id": "ctrl-sf-32a11da5f1ac",
+            "revision": 0,
+            "kind": "StateFeedbackController",
+            "feedback_sign": "negative",
+            "K": {
+              "shape": [
+                1,
+                2
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                0.9999999999999996,
+                1.7320508075688776
+              ]
+            },
+            "state_coordinates": [
+              "x1",
+              "x2"
+            ],
+            "reference_map": null,
+            "dt": null,
+            "provenance": {
+              "algorithm": "scipy.linalg.solve_continuous_are",
+              "lib_versions": {
+                "numpy": "2.0.2",
+                "scipy": "1.14.1",
+                "python": "3.12.7"
+              },
+              "seed": null,
+              "tolerances": {
+                "residual_warn_tol": 1e-09,
+                "residual_fail_tol": 0.0001,
+                "symmetry_tol": 1e-10
+              },
+              "model_revision": 1,
+              "timestamp": "2026-11-17T03:19:00Z",
+              "feedback_sign": "negative"
+            },
+            "input_names": [
+              "u1"
+            ]
+          },
+          "controller_ref": {
+            "id": "ctrl-sf-32a11da5f1ac",
+            "revision": 0
+          },
+          "controller_kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              0.9999999999999996,
+              1.7320508075688776
+            ]
+          },
+          "K_lqr": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              0.9999999999999996,
+              1.7320508075688776
+            ]
+          },
+          "P": {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              1.7320508075688765,
+              0.9999999999999996,
+              0.9999999999999996,
+              1.7320508075688776
+            ]
+          },
+          "open_loop_poles": {
+            "real": [
+              0,
+              0
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "closed_loop_poles": {
+            "real": [
+              -0.8660254037844387,
+              -0.8660254037844387
+            ],
+            "imag": [
+              -0.4999999999999992,
+              0.4999999999999992
+            ]
+          },
+          "optimal_cost": 1.7320508075688765,
+          "closed_loop": {
+            "schema_version": "1.0.0",
+            "id": "ss-30777675c3df",
+            "revision": 0,
+            "kind": "StateSpace",
+            "dt": null,
+            "state_names": [
+              "x1",
+              "x2"
+            ],
+            "input_names": [
+              "u1"
+            ],
+            "output_names": [
+              "y1"
+            ],
+            "matrices": {
+              "A": {
+                "shape": [
+                  2,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1,
+                  -0.9999999999999996,
+                  -1.7320508075688776
+                ]
+              },
+              "B": {
+                "shape": [
+                  2,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1
+                ]
+              },
+              "C": {
+                "shape": [
+                  1,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  1,
+                  0
+                ]
+              },
+              "D": {
+                "shape": [
+                  1,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0
+                ]
+              }
+            },
+            "units": {
+              "time": "s",
+              "inputs": [
+                "N"
+              ],
+              "outputs": [
+                "m"
+              ],
+              "states": [
+                "m",
+                "m/s"
+              ]
+            },
+            "provenance": {
+              "source": "interconnect",
+              "interconnection_kind": "state_feedback",
+              "feedback_sign": "negative",
+              "plant_ref": {
+                "id": "plant-double-integrator",
+                "revision": 1
+              },
+              "controller_ref": {
+                "id": "ctrl-sf-32a11da5f1ac",
+                "revision": 0
+              }
+            }
+          }
+        },
+        "assumptions": {
+          "domain": "continuous",
+          "dt": null,
+          "stabilizable": true,
+          "detectable": true,
+          "controllable": true,
+          "observable_Q": true,
+          "Q_positive_semidefinite": true,
+          "R_positive_definite": true,
+          "closed_loop_stable": true,
+          "feedback_sign": "negative"
+        },
+        "diagnostics": {
+          "pbh_min_sv_stabilizability": 1,
+          "pbh_min_sv_detectability": 1,
+          "pbh_min_sv_controllability": 1,
+          "pbh_min_sv_observability_Q": 1,
+          "Q_symmetry_error": 0,
+          "R_symmetry_error": 0,
+          "min_eig_Q": 1,
+          "min_eig_R": 1,
+          "cond_R": 1,
+          "care_residual_rel": 2.37423984222299e-16,
+          "residual_rel": 2.37423984222299e-16,
+          "symmetry_error": 0,
+          "min_eig_P": 0.7320508075688776,
+          "max_real_open_loop": 0,
+          "max_real_closed_loop": -0.8660254037844387,
+          "cond_P": 3.732050807568875,
+          "cond_Q": 1,
+          "worker_id": "pw-5a717de9-51d4-488e-b346-c02eb414615f",
+          "store_instance_id": "wms-0ab95ac9-3105-4fc0-99ed-864e309589de",
+          "committed": true,
+          "stale_discarded": false
+        },
+        "provenance": {
+          "algorithm": "scipy.linalg.solve_continuous_are",
+          "lib_versions": {
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "seed": null,
+          "tolerances": {
+            "residual_warn_tol": 1e-09,
+            "residual_fail_tol": 0.0001,
+            "symmetry_tol": 1e-10
+          },
+          "model_revision": 1,
+          "timestamp": "2026-11-17T03:19:00Z",
+          "feedback_sign": "negative"
+        },
+        "warnings": [],
+        "error": null
+      },
+      "content_hash": "98bdd5c6e03d21a97ef2759356d9b356219559c64f305dc1004b9823f9a47cb2",
+      "exported_at": "2026-11-17T03:19:00.474Z"
+    },
+    "during": {
+      "format": "controllab_snapshot",
+      "schema_version": "1.0.0",
+      "project_id": "f9-browser-project",
+      "project_revision": 1,
+      "objects": [
+        {
+          "storage_key": "f9-browser-project::plant-double-integrator::1",
+          "project_id": "f9-browser-project",
+          "object_id": "plant-double-integrator",
+          "revision": 1,
+          "kind": "StateSpace",
+          "value": {
+            "schema_version": "1.0.0",
+            "id": "plant-double-integrator",
+            "revision": 1,
+            "kind": "StateSpace",
+            "dt": null,
+            "state_names": [
+              "x1",
+              "x2"
+            ],
+            "input_names": [
+              "u1"
+            ],
+            "output_names": [
+              "y1"
+            ],
+            "matrices": {
+              "A": {
+                "shape": [
+                  2,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "B": {
+                "shape": [
+                  2,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1
+                ]
+              },
+              "C": {
+                "shape": [
+                  1,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  1,
+                  0
+                ]
+              },
+              "D": {
+                "shape": [
+                  1,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0
+                ]
+              }
+            },
+            "units": {
+              "time": "s",
+              "states": [
+                "m",
+                "m/s"
+              ],
+              "inputs": [
+                "N"
+              ],
+              "outputs": [
+                "m"
+              ]
+            },
+            "provenance": {
+              "source": "B-CARE-02"
+            }
+          },
+          "content_hash": "0b2621ad15fe3c0ec14f154c4f68a460045ac4336a7ee152df0800fd873b8180",
+          "created_at": "2026-11-17T03:19:00.460Z"
+        }
+      ],
+      "experiments": [],
+      "committed_result": {
+        "api_version": "1.0",
+        "request_id": "lqr-commit-r1-8ca37ed9-fc7e-47f0-94cb-1794bccb1dec",
+        "project_id": "f9-browser-project",
+        "project_revision": 1,
+        "status": "success",
+        "result": {
+          "controller": {
+            "schema_version": "1.0.0",
+            "id": "ctrl-sf-32a11da5f1ac",
+            "revision": 0,
+            "kind": "StateFeedbackController",
+            "feedback_sign": "negative",
+            "K": {
+              "shape": [
+                1,
+                2
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                0.9999999999999996,
+                1.7320508075688776
+              ]
+            },
+            "state_coordinates": [
+              "x1",
+              "x2"
+            ],
+            "reference_map": null,
+            "dt": null,
+            "provenance": {
+              "algorithm": "scipy.linalg.solve_continuous_are",
+              "lib_versions": {
+                "numpy": "2.0.2",
+                "scipy": "1.14.1",
+                "python": "3.12.7"
+              },
+              "seed": null,
+              "tolerances": {
+                "residual_warn_tol": 1e-09,
+                "residual_fail_tol": 0.0001,
+                "symmetry_tol": 1e-10
+              },
+              "model_revision": 1,
+              "timestamp": "2026-11-17T03:19:00Z",
+              "feedback_sign": "negative"
+            },
+            "input_names": [
+              "u1"
+            ]
+          },
+          "controller_ref": {
+            "id": "ctrl-sf-32a11da5f1ac",
+            "revision": 0
+          },
+          "controller_kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              0.9999999999999996,
+              1.7320508075688776
+            ]
+          },
+          "K_lqr": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              0.9999999999999996,
+              1.7320508075688776
+            ]
+          },
+          "P": {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              1.7320508075688765,
+              0.9999999999999996,
+              0.9999999999999996,
+              1.7320508075688776
+            ]
+          },
+          "open_loop_poles": {
+            "real": [
+              0,
+              0
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "closed_loop_poles": {
+            "real": [
+              -0.8660254037844387,
+              -0.8660254037844387
+            ],
+            "imag": [
+              -0.4999999999999992,
+              0.4999999999999992
+            ]
+          },
+          "optimal_cost": 1.7320508075688765,
+          "closed_loop": {
+            "schema_version": "1.0.0",
+            "id": "ss-30777675c3df",
+            "revision": 0,
+            "kind": "StateSpace",
+            "dt": null,
+            "state_names": [
+              "x1",
+              "x2"
+            ],
+            "input_names": [
+              "u1"
+            ],
+            "output_names": [
+              "y1"
+            ],
+            "matrices": {
+              "A": {
+                "shape": [
+                  2,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1,
+                  -0.9999999999999996,
+                  -1.7320508075688776
+                ]
+              },
+              "B": {
+                "shape": [
+                  2,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1
+                ]
+              },
+              "C": {
+                "shape": [
+                  1,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  1,
+                  0
+                ]
+              },
+              "D": {
+                "shape": [
+                  1,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0
+                ]
+              }
+            },
+            "units": {
+              "time": "s",
+              "inputs": [
+                "N"
+              ],
+              "outputs": [
+                "m"
+              ],
+              "states": [
+                "m",
+                "m/s"
+              ]
+            },
+            "provenance": {
+              "source": "interconnect",
+              "interconnection_kind": "state_feedback",
+              "feedback_sign": "negative",
+              "plant_ref": {
+                "id": "plant-double-integrator",
+                "revision": 1
+              },
+              "controller_ref": {
+                "id": "ctrl-sf-32a11da5f1ac",
+                "revision": 0
+              }
+            }
+          }
+        },
+        "assumptions": {
+          "domain": "continuous",
+          "dt": null,
+          "stabilizable": true,
+          "detectable": true,
+          "controllable": true,
+          "observable_Q": true,
+          "Q_positive_semidefinite": true,
+          "R_positive_definite": true,
+          "closed_loop_stable": true,
+          "feedback_sign": "negative"
+        },
+        "diagnostics": {
+          "pbh_min_sv_stabilizability": 1,
+          "pbh_min_sv_detectability": 1,
+          "pbh_min_sv_controllability": 1,
+          "pbh_min_sv_observability_Q": 1,
+          "Q_symmetry_error": 0,
+          "R_symmetry_error": 0,
+          "min_eig_Q": 1,
+          "min_eig_R": 1,
+          "cond_R": 1,
+          "care_residual_rel": 2.37423984222299e-16,
+          "residual_rel": 2.37423984222299e-16,
+          "symmetry_error": 0,
+          "min_eig_P": 0.7320508075688776,
+          "max_real_open_loop": 0,
+          "max_real_closed_loop": -0.8660254037844387,
+          "cond_P": 3.732050807568875,
+          "cond_Q": 1,
+          "worker_id": "pw-5a717de9-51d4-488e-b346-c02eb414615f",
+          "store_instance_id": "wms-0ab95ac9-3105-4fc0-99ed-864e309589de",
+          "committed": true,
+          "stale_discarded": false
+        },
+        "provenance": {
+          "algorithm": "scipy.linalg.solve_continuous_are",
+          "lib_versions": {
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "seed": null,
+          "tolerances": {
+            "residual_warn_tol": 1e-09,
+            "residual_fail_tol": 0.0001,
+            "symmetry_tol": 1e-10
+          },
+          "model_revision": 1,
+          "timestamp": "2026-11-17T03:19:00Z",
+          "feedback_sign": "negative"
+        },
+        "warnings": [],
+        "error": null
+      },
+      "content_hash": "98bdd5c6e03d21a97ef2759356d9b356219559c64f305dc1004b9823f9a47cb2",
+      "exported_at": "2026-11-17T03:19:00.499Z"
+    },
+    "after": {
+      "format": "controllab_snapshot",
+      "schema_version": "1.0.0",
+      "project_id": "f9-browser-project",
+      "project_revision": 2,
+      "objects": [
+        {
+          "storage_key": "f9-browser-project::plant-double-integrator::1",
+          "project_id": "f9-browser-project",
+          "object_id": "plant-double-integrator",
+          "revision": 1,
+          "kind": "StateSpace",
+          "value": {
+            "schema_version": "1.0.0",
+            "id": "plant-double-integrator",
+            "revision": 1,
+            "kind": "StateSpace",
+            "dt": null,
+            "state_names": [
+              "x1",
+              "x2"
+            ],
+            "input_names": [
+              "u1"
+            ],
+            "output_names": [
+              "y1"
+            ],
+            "matrices": {
+              "A": {
+                "shape": [
+                  2,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "B": {
+                "shape": [
+                  2,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1
+                ]
+              },
+              "C": {
+                "shape": [
+                  1,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  1,
+                  0
+                ]
+              },
+              "D": {
+                "shape": [
+                  1,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0
+                ]
+              }
+            },
+            "units": {
+              "time": "s",
+              "states": [
+                "m",
+                "m/s"
+              ],
+              "inputs": [
+                "N"
+              ],
+              "outputs": [
+                "m"
+              ]
+            },
+            "provenance": {
+              "source": "B-CARE-02"
+            }
+          },
+          "content_hash": "0b2621ad15fe3c0ec14f154c4f68a460045ac4336a7ee152df0800fd873b8180",
+          "created_at": "2026-11-17T03:19:00.548Z"
+        }
+      ],
+      "experiments": [],
+      "committed_result": {
+        "api_version": "1.0",
+        "request_id": "lqr-commit-r2-d17528ba-0bbc-4863-a300-72b7cfed638e",
+        "project_id": "f9-browser-project",
+        "project_revision": 2,
+        "status": "success",
+        "result": {
+          "controller": {
+            "schema_version": "1.0.0",
+            "id": "ctrl-sf-076b74e8b83b",
+            "revision": 0,
+            "kind": "StateFeedbackController",
+            "feedback_sign": "negative",
+            "K": {
+              "shape": [
+                1,
+                2
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                1.4142135623730927,
+                2.1973682269356187
+              ]
+            },
+            "state_coordinates": [
+              "x1",
+              "x2"
+            ],
+            "reference_map": null,
+            "dt": null,
+            "provenance": {
+              "algorithm": "scipy.linalg.solve_continuous_are",
+              "lib_versions": {
+                "numpy": "2.0.2",
+                "scipy": "1.14.1",
+                "python": "3.12.7"
+              },
+              "seed": null,
+              "tolerances": {
+                "residual_warn_tol": 1e-09,
+                "residual_fail_tol": 0.0001,
+                "symmetry_tol": 1e-10
+              },
+              "model_revision": 1,
+              "timestamp": "2026-11-17T03:19:00Z",
+              "feedback_sign": "negative"
+            },
+            "input_names": [
+              "u1"
+            ]
+          },
+          "controller_ref": {
+            "id": "ctrl-sf-076b74e8b83b",
+            "revision": 0
+          },
+          "controller_kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              1.4142135623730927,
+              2.1973682269356187
+            ]
+          },
+          "K_lqr": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              1.4142135623730927,
+              2.1973682269356187
+            ]
+          },
+          "P": {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              3.107547948060072,
+              1.4142135623730927,
+              1.4142135623730927,
+              2.1973682269356187
+            ]
+          },
+          "open_loop_poles": {
+            "real": [
+              0,
+              0
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "closed_loop_poles": {
+            "real": [
+              -1.0986841134678091,
+              -1.0986841134678091
+            ],
+            "imag": [
+              -0.45508986056222595,
+              0.45508986056222595
+            ]
+          },
+          "optimal_cost": 3.107547948060072,
+          "closed_loop": {
+            "schema_version": "1.0.0",
+            "id": "ss-4bededebe6f9",
+            "revision": 0,
+            "kind": "StateSpace",
+            "dt": null,
+            "state_names": [
+              "x1",
+              "x2"
+            ],
+            "input_names": [
+              "u1"
+            ],
+            "output_names": [
+              "y1"
+            ],
+            "matrices": {
+              "A": {
+                "shape": [
+                  2,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1,
+                  -1.4142135623730927,
+                  -2.1973682269356187
+                ]
+              },
+              "B": {
+                "shape": [
+                  2,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1
+                ]
+              },
+              "C": {
+                "shape": [
+                  1,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  1,
+                  0
+                ]
+              },
+              "D": {
+                "shape": [
+                  1,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0
+                ]
+              }
+            },
+            "units": {
+              "time": "s",
+              "inputs": [
+                "N"
+              ],
+              "outputs": [
+                "m"
+              ],
+              "states": [
+                "m",
+                "m/s"
+              ]
+            },
+            "provenance": {
+              "source": "interconnect",
+              "interconnection_kind": "state_feedback",
+              "feedback_sign": "negative",
+              "plant_ref": {
+                "id": "plant-double-integrator",
+                "revision": 1
+              },
+              "controller_ref": {
+                "id": "ctrl-sf-076b74e8b83b",
+                "revision": 0
+              }
+            }
+          }
+        },
+        "assumptions": {
+          "domain": "continuous",
+          "dt": null,
+          "stabilizable": true,
+          "detectable": true,
+          "controllable": true,
+          "observable_Q": true,
+          "Q_positive_semidefinite": true,
+          "R_positive_definite": true,
+          "closed_loop_stable": true,
+          "feedback_sign": "negative"
+        },
+        "diagnostics": {
+          "pbh_min_sv_stabilizability": 1,
+          "pbh_min_sv_detectability": 1.4142135623730951,
+          "pbh_min_sv_controllability": 1,
+          "pbh_min_sv_observability_Q": 1.4142135623730951,
+          "Q_symmetry_error": 0,
+          "R_symmetry_error": 0,
+          "min_eig_Q": 2,
+          "min_eig_R": 1,
+          "cond_R": 1,
+          "care_residual_rel": 5.260490514475527e-16,
+          "residual_rel": 5.260490514475527e-16,
+          "symmetry_error": 0,
+          "min_eig_P": 1.1668246262475477,
+          "max_real_open_loop": 0,
+          "max_real_closed_loop": -1.0986841134678091,
+          "cond_P": 3.546455444684989,
+          "cond_Q": 1,
+          "worker_id": "pw-5a717de9-51d4-488e-b346-c02eb414615f",
+          "store_instance_id": "wms-0ab95ac9-3105-4fc0-99ed-864e309589de",
+          "committed": true,
+          "stale_discarded": false
+        },
+        "provenance": {
+          "algorithm": "scipy.linalg.solve_continuous_are",
+          "lib_versions": {
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "seed": null,
+          "tolerances": {
+            "residual_warn_tol": 1e-09,
+            "residual_fail_tol": 0.0001,
+            "symmetry_tol": 1e-10
+          },
+          "model_revision": 1,
+          "timestamp": "2026-11-17T03:19:00Z",
+          "feedback_sign": "negative"
+        },
+        "warnings": [],
+        "error": null
+      },
+      "content_hash": "496172d8f502894253cf0356bda119e1df91d1d03575e93edb9b332538f46c2e",
+      "exported_at": "2026-11-17T03:19:00.557Z"
+    },
+    "preview": {
+      "active": true,
+      "dragHandleId": "f9-drag",
+      "indicator": "preview",
+      "baselineProjectRevision": 1,
+      "baseQ": {
+        "shape": [
+          2,
+          2
+        ],
+        "dtype": "float64",
+        "order": "C",
+        "data": [
+          1,
+          0,
+          0,
+          1
+        ]
+      },
+      "baseR": {
+        "shape": [
+          1,
+          1
+        ],
+        "dtype": "float64",
+        "order": "C",
+        "data": [
+          1
+        ]
+      },
+      "previewQ": {
+        "shape": [
+          2,
+          2
+        ],
+        "dtype": "float64",
+        "order": "C",
+        "data": [
+          1.95,
+          0,
+          0,
+          1.95
+        ]
+      },
+      "previewR": {
+        "shape": [
+          1,
+          1
+        ],
+        "dtype": "float64",
+        "order": "C",
+        "data": [
+          1
+        ]
+      },
+      "qScale": 1.95,
+      "rScale": 1,
+      "previewPoles": {
+        "real": [
+          -0.9527789840910298,
+          -0.9527789840910298
+        ],
+        "imag": [
+          -0.5166957343143906,
+          0.5166957343143906
+        ]
+      },
+      "previewY": null,
+      "pointerMoveCount": 20,
+      "lastMoveElapsedMs": 0,
+      "frameMetrics": {
+        "frameCount": 20,
+        "lastFrameMs": 0,
+        "maxFrameMs": 0,
+        "p95FrameMs": 0,
+        "droppedFrames": 0,
+        "withinBudgetRatio": 1,
+        "budgetMs": 16.666666666666668
+      }
+    },
+    "final": {
+      "project_id": "f9-browser-project",
+      "project_revision": 2,
+      "model_revision": 1,
+      "request_id": "lqr-commit-r2-d17528ba-0bbc-4863-a300-72b7cfed638e",
+      "controller_ref": {
+        "id": "ctrl-sf-076b74e8b83b",
+        "revision": 0
+      },
+      "controller_kind": "StateFeedbackController",
+      "feedback_sign": "negative",
+      "K": {
+        "shape": [
+          1,
+          2
+        ],
+        "dtype": "float64",
+        "order": "C",
+        "data": [
+          1.4142135623730927,
+          2.1973682269356187
+        ]
+      },
+      "P": {
+        "shape": [
+          2,
+          2
+        ],
+        "dtype": "float64",
+        "order": "C",
+        "data": [
+          3.107547948060072,
+          1.4142135623730927,
+          1.4142135623730927,
+          2.1973682269356187
+        ]
+      },
+      "optimal_cost": 3.107547948060072,
+      "open_loop_poles": {
+        "real": [
+          0,
+          0
+        ],
+        "imag": [
+          0,
+          0
+        ]
+      },
+      "closed_loop_poles": {
+        "real": [
+          -1.0986841134678091,
+          -1.0986841134678091
+        ],
+        "imag": [
+          -0.45508986056222595,
+          0.45508986056222595
+        ]
+      },
+      "time_response": null,
+      "assumptions": {
+        "domain": "continuous",
+        "dt": null,
+        "stabilizable": true,
+        "detectable": true,
+        "controllable": true,
+        "observable_Q": true,
+        "Q_positive_semidefinite": true,
+        "R_positive_definite": true,
+        "closed_loop_stable": true,
+        "feedback_sign": "negative"
+      },
+      "diagnostics": {
+        "pbh_min_sv_stabilizability": 1,
+        "pbh_min_sv_detectability": 1.4142135623730951,
+        "pbh_min_sv_controllability": 1,
+        "pbh_min_sv_observability_Q": 1.4142135623730951,
+        "Q_symmetry_error": 0,
+        "R_symmetry_error": 0,
+        "min_eig_Q": 2,
+        "min_eig_R": 1,
+        "cond_R": 1,
+        "care_residual_rel": 5.260490514475527e-16,
+        "residual_rel": 5.260490514475527e-16,
+        "symmetry_error": 0,
+        "min_eig_P": 1.1668246262475477,
+        "max_real_open_loop": 0,
+        "max_real_closed_loop": -1.0986841134678091,
+        "cond_P": 3.546455444684989,
+        "cond_Q": 1,
+        "worker_id": "pw-5a717de9-51d4-488e-b346-c02eb414615f",
+        "store_instance_id": "wms-0ab95ac9-3105-4fc0-99ed-864e309589de",
+        "committed": true,
+        "stale_discarded": false
+      },
+      "provenance": {
+        "algorithm": "scipy.linalg.solve_continuous_are",
+        "lib_versions": {
+          "numpy": "2.0.2",
+          "scipy": "1.14.1",
+          "python": "3.12.7"
+        },
+        "seed": null,
+        "tolerances": {
+          "residual_warn_tol": 1e-09,
+          "residual_fail_tol": 0.0001,
+          "symmetry_tol": 1e-10
+        },
+        "model_revision": 1,
+        "timestamp": "2026-11-17T03:19:00Z",
+        "feedback_sign": "negative"
+      },
+      "warnings": [],
+      "status": "success",
+      "response": {
+        "api_version": "1.0",
+        "request_id": "lqr-commit-r2-d17528ba-0bbc-4863-a300-72b7cfed638e",
+        "project_id": "f9-browser-project",
+        "project_revision": 2,
+        "status": "success",
+        "result": {
+          "controller": {
+            "schema_version": "1.0.0",
+            "id": "ctrl-sf-076b74e8b83b",
+            "revision": 0,
+            "kind": "StateFeedbackController",
+            "feedback_sign": "negative",
+            "K": {
+              "shape": [
+                1,
+                2
+              ],
+              "dtype": "float64",
+              "order": "C",
+              "data": [
+                1.4142135623730927,
+                2.1973682269356187
+              ]
+            },
+            "state_coordinates": [
+              "x1",
+              "x2"
+            ],
+            "reference_map": null,
+            "dt": null,
+            "provenance": {
+              "algorithm": "scipy.linalg.solve_continuous_are",
+              "lib_versions": {
+                "numpy": "2.0.2",
+                "scipy": "1.14.1",
+                "python": "3.12.7"
+              },
+              "seed": null,
+              "tolerances": {
+                "residual_warn_tol": 1e-09,
+                "residual_fail_tol": 0.0001,
+                "symmetry_tol": 1e-10
+              },
+              "model_revision": 1,
+              "timestamp": "2026-11-17T03:19:00Z",
+              "feedback_sign": "negative"
+            },
+            "input_names": [
+              "u1"
+            ]
+          },
+          "controller_ref": {
+            "id": "ctrl-sf-076b74e8b83b",
+            "revision": 0
+          },
+          "controller_kind": "StateFeedbackController",
+          "feedback_sign": "negative",
+          "K": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              1.4142135623730927,
+              2.1973682269356187
+            ]
+          },
+          "K_lqr": {
+            "shape": [
+              1,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              1.4142135623730927,
+              2.1973682269356187
+            ]
+          },
+          "P": {
+            "shape": [
+              2,
+              2
+            ],
+            "dtype": "float64",
+            "order": "C",
+            "data": [
+              3.107547948060072,
+              1.4142135623730927,
+              1.4142135623730927,
+              2.1973682269356187
+            ]
+          },
+          "open_loop_poles": {
+            "real": [
+              0,
+              0
+            ],
+            "imag": [
+              0,
+              0
+            ]
+          },
+          "closed_loop_poles": {
+            "real": [
+              -1.0986841134678091,
+              -1.0986841134678091
+            ],
+            "imag": [
+              -0.45508986056222595,
+              0.45508986056222595
+            ]
+          },
+          "optimal_cost": 3.107547948060072,
+          "closed_loop": {
+            "schema_version": "1.0.0",
+            "id": "ss-4bededebe6f9",
+            "revision": 0,
+            "kind": "StateSpace",
+            "dt": null,
+            "state_names": [
+              "x1",
+              "x2"
+            ],
+            "input_names": [
+              "u1"
+            ],
+            "output_names": [
+              "y1"
+            ],
+            "matrices": {
+              "A": {
+                "shape": [
+                  2,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1,
+                  -1.4142135623730927,
+                  -2.1973682269356187
+                ]
+              },
+              "B": {
+                "shape": [
+                  2,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0,
+                  1
+                ]
+              },
+              "C": {
+                "shape": [
+                  1,
+                  2
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  1,
+                  0
+                ]
+              },
+              "D": {
+                "shape": [
+                  1,
+                  1
+                ],
+                "dtype": "float64",
+                "order": "C",
+                "data": [
+                  0
+                ]
+              }
+            },
+            "units": {
+              "time": "s",
+              "inputs": [
+                "N"
+              ],
+              "outputs": [
+                "m"
+              ],
+              "states": [
+                "m",
+                "m/s"
+              ]
+            },
+            "provenance": {
+              "source": "interconnect",
+              "interconnection_kind": "state_feedback",
+              "feedback_sign": "negative",
+              "plant_ref": {
+                "id": "plant-double-integrator",
+                "revision": 1
+              },
+              "controller_ref": {
+                "id": "ctrl-sf-076b74e8b83b",
+                "revision": 0
+              }
+            }
+          }
+        },
+        "assumptions": {
+          "domain": "continuous",
+          "dt": null,
+          "stabilizable": true,
+          "detectable": true,
+          "controllable": true,
+          "observable_Q": true,
+          "Q_positive_semidefinite": true,
+          "R_positive_definite": true,
+          "closed_loop_stable": true,
+          "feedback_sign": "negative"
+        },
+        "diagnostics": {
+          "pbh_min_sv_stabilizability": 1,
+          "pbh_min_sv_detectability": 1.4142135623730951,
+          "pbh_min_sv_controllability": 1,
+          "pbh_min_sv_observability_Q": 1.4142135623730951,
+          "Q_symmetry_error": 0,
+          "R_symmetry_error": 0,
+          "min_eig_Q": 2,
+          "min_eig_R": 1,
+          "cond_R": 1,
+          "care_residual_rel": 5.260490514475527e-16,
+          "residual_rel": 5.260490514475527e-16,
+          "symmetry_error": 0,
+          "min_eig_P": 1.1668246262475477,
+          "max_real_open_loop": 0,
+          "max_real_closed_loop": -1.0986841134678091,
+          "cond_P": 3.546455444684989,
+          "cond_Q": 1,
+          "worker_id": "pw-5a717de9-51d4-488e-b346-c02eb414615f",
+          "store_instance_id": "wms-0ab95ac9-3105-4fc0-99ed-864e309589de",
+          "committed": true,
+          "stale_discarded": false
+        },
+        "provenance": {
+          "algorithm": "scipy.linalg.solve_continuous_are",
+          "lib_versions": {
+            "numpy": "2.0.2",
+            "scipy": "1.14.1",
+            "python": "3.12.7"
+          },
+          "seed": null,
+          "tolerances": {
+            "residual_warn_tol": 1e-09,
+            "residual_fail_tol": 0.0001,
+            "symmetry_tol": 1e-10
+          },
+          "model_revision": 1,
+          "timestamp": "2026-11-17T03:19:00Z",
+          "feedback_sign": "negative"
+        },
+        "warnings": [],
+        "error": null
+      },
+      "committed_at": "2026-11-17T03:19:00.551Z"
+    },
+    "pending": false,
+    "invalid": false
+  }
+}

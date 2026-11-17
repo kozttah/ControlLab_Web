@@ -76,3 +76,24 @@ def test_build_rejects_tampered_asset_and_extra_inventory(tmp_path, monkeypatch)
     (tmp_path / "extra").write_text("unlisted")
     with pytest.raises(ValueError, match="Inventory"):
         module.verify()
+
+
+def test_integrity_manifest_defers_gate_decisions_to_external_f9_ledger():
+    spec = importlib.util.spec_from_file_location(
+        "release_manifest_contract", ROOT / "scripts/build_release.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assets = [{"path": "wheel.whl", "size": 3, "sha256": "0" * 64}]
+    first = module.make_integrity_manifest({"version": "0.27.5"}, assets)
+    assert first == module.make_integrity_manifest({"version": "0.27.5"}, assets)
+    assert first["schema_version"] == 1 and first["build_profile"] == "integrity_only"
+    assert first["release_approved"] is False
+    assert first["gate_attestation"] == {
+        "source": "PROJECT_STATE.json",
+        "handoffs": "docs/audits/handoffs/",
+        "required_gates": ["G-0A", "G-0B", "G-0C", "G-0D"],
+        "embedded": False,
+    }
+    assert "blocked_gates" not in first and "browser_offline_validated" not in first
+    assert first["assets"] == assets

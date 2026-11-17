@@ -4,7 +4,7 @@ Normas (CL-DIR-001 Seções 9.3, 10.4, 12.2, 13.3, Apêndice D e Gate G-0D):
 - Importação 100% passiva: nunca executa `codeContext.code`, `eval`, `exec` nem expressões
   Python em `params`.
 - Registro oficial fixado e lowering escalar (`pvm_official`), com status transparente
-  `external_pathview_verified: False` até validação externa em Gate G-0D.
+  `external_pathview_verified: False` para cada arquivo recém-gerado, cuja execução externa não ocorreu.
 - Topologia explícita sem fan-in proibido, com exposição de `x` para realimentação de
   estados quando `C != I`, `Adder` com sinais explícitos para `feedback_sign`,
   produto matricial `Function` para `K`/`N`, `Clip` opcional e controlador dinâmico
@@ -14,9 +14,8 @@ Normas (CL-DIR-001 Seções 9.3, 10.4, 12.2, 13.3, Apêndice D e Gate G-0D):
   e portas escalares; o adaptador valida parâmetros e conexões antes de reagrupá-los.
 - `extract_lti_from_pvm` e `simulate_pvm_graph` usam essa projeção numérica validada,
   sem avaliar expressões importadas, e resolvem loops com `np.linalg.solve` (nunca `inv`).
-- A exportação oficial discreta é recusada até correção independente do relógio
-  de DiscreteStateSpace. O perfil explícito legacy_numeric serve apenas ao avaliador
-  interno e nunca é apresentado como exportação PathView compatível.
+- A exportação oficial discreta de taxa única usa um registrador síncrono compartilhado.
+  O perfil explícito legacy_numeric serve apenas ao avaliador interno.
 """
 
 from __future__ import annotations
@@ -104,7 +103,8 @@ PATHVIEW_BLOCK_REGISTRY: dict[str, Any] = {
     "supported_external_domains": ["continuous", "discrete_single_rate"],
     "discrete_external_status": "single_rate_synchronous_vector_register",
     "external_pathview_verified": False,
-    "gate_status": "PENDING_G0D",
+    "validation_gate": "G-0D",
+    "validation_scope": "per_file_execution",
     "blocks": {
         name: {"params": params, "external_verified": False}
         for name, params in OFFICIAL_PARAMS.items()
@@ -622,20 +622,22 @@ def make_pvm(
     )
     assumptions: dict[str, Any] = {
         "external_pathview_verified": False,
-        "gate_pending": "G-0D",
+        "validation_gate": "G-0D",
+        "validation_scope": "per_file_execution",
         "code_executed": False,
     }
     diagnostics: dict[str, Any] = {
         "external_pathview_verified": False,
-        "gate_pending": "G-0D",
+        "validation_gate": "G-0D",
+        "validation_scope": "per_file_execution",
         "block_registry_version": PATHVIEW_SPEC_VERSION,
     }
     warnings_out: list[WarningItem] = [
         WarningItem(
             code="EXTERNAL_PATHVIEW_NOT_VERIFIED",
             message=(
-                "Exportação .pvm gerada para PathView 0.21.0 com registro oficial fixado; abertura e simulação "
-                "externa no PathView real ainda pendentes de Gate G-0D."
+                "Exportação .pvm gerada para PathView 0.21.0 com registro oficial fixado; "
+                "este arquivo ainda requer abertura e execução externa para validar seu cenário específico."
             ),
             details={"external_pathview_verified": False, "gate": "G-0D"},
         )
@@ -1239,7 +1241,8 @@ def make_pvm(
                 "generator": "ControlLab Web",
                 "spec_version": PATHVIEW_SPEC_VERSION,
                 "external_pathview_verified": False,
-                "gate_pending": "G-0D",
+                "validation_gate": "G-0D",
+                "validation_scope": "per_file_execution",
                 "interconnection_kind": interconnection_kind,
                 "feedback_sign": resolved_sign,
                 "plant_ref": {"id": plant.id, "revision": plant.revision},
@@ -1257,7 +1260,7 @@ def make_pvm(
                         "id": "ann_controllab_spec",
                         "text": (
                             f"ControlLab {interconnection_kind} | sign={resolved_sign} | "
-                            "external_pathview_verified=False (Gate G-0D pendente)"
+                            "external_pathview_verified=False (execução externa deste arquivo não realizada)"
                         ),
                     }
                 ],

@@ -1,0 +1,50 @@
+{
+  "browser": "153.0.8010.0",
+  "browser_kind": "chromium",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "runtime_init_ms": 5812.799999999814,
+    "first_rpc_ms": 97.90000000037253,
+    "warm_ms": [
+      21.59999999962747,
+      19.100000000558794,
+      17.699999999254942,
+      19.40000000037253,
+      19,
+      17,
+      14.799999999813735,
+      18.5,
+      12.700000000186265,
+      12.200000000186265
+    ],
+    "ticks": 71,
+    "metrics": {
+      "T_download": 0,
+      "T_init_pyodide": 1537.7000000001863,
+      "T_import_packages": 1209.3999999994412,
+      "T_first_call": 96.90000000037253,
+      "T_warm_call": 12.099999999627471,
+      "T_bridge_transfer": 0.09999999962747097,
+      "call_count": 11,
+      "cold_completed": true,
+      "last_request_id": "benchmark-10",
+      "warm_calls_count": 10,
+      "warm_call_avg_ms": 17.020000000111757
+    },
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+    "threads": 9,
+    "memory": {
+      "used": 10000000,
+      "total": 10000000
+    },
+    "median_warm_ms": 18.09999999962747,
+    "p95_warm_ms": 20.609999999962746,
+    "variation_std_ms": 2.8989653326160054,
+    "system": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "cpu": "",
+    "ram_bytes": 10451427328,
+    "hardware_scope": "container host; no reference-notebook performance approval",
+    "repetitions": 10,
+    "peak_rss_note": "JS heap snapshot only, not full browser RSS peak"
+  }
+}

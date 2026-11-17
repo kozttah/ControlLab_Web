@@ -1,0 +1,44 @@
+[run_web_tests] Executando typecheck (f7, 14 arquivo(s) TS)...
+[typecheck] PASS (f7, 14 arquivo(s) TS)
+[run_web_tests] Executando 4 arquivo(s) de teste com node --test...
+✔ F7 offline: prefix, reload, HEAD, no misses reach the network, scope isolation (104.78308ms)
+✔ F7 offline: rollback preserves active and same-version updates switch only on activation (102.210927ms)
+✔ F7 offline: missing, corrupt and altered manifest cannot attest readiness or serve damaged code (23.762322ms)
+✔ F7 offline: reject manifest escapes, duplicates, missing hashes and incomplete transitive closure (5.531519ms)
+✔ F7-CONTRACT-01: sha256Hex puro coincide com node:crypto e checksums.sha256 das fixtures ouro (12.648008ms)
+✔ F7-CONTRACT-02: valida exemplos normativos rpc_request_lqr.json e rpc_response_lqr.json e rejeita NaN/Infinity/versão/campos extras (2.17398ms)
+✔ F7-CONTRACT-03: todas as 12 categorias normativas de erro funcionam e são validadas pelo contrato (6.569913ms)
+✔ T-RPC-01 (MockWorkerAdapter): 25 requisições rápidas fora de ordem — apenas revisão mais recente comita no IndexedDB (64.296785ms)
+✔ T-RPC-01 unidade (MessageChannel + fixture double; sem Wasm): 24 requisições fora de ordem e sem vazamento PyProxy (67.509489ms)
+✔ F7-COALESCE-01: DebouncedRequestCoalescer consolida disparos rápidos e cancela intermediários (25.249108ms)
+✔ T-RPC-02 (MockWorkerAdapter): cancel(), terminate()/resetWorker(), ciclo recovering->ready e reidratação fiel (21.136776ms)
+✔ T-RPC-02 unidade (MessageChannel + IDB em memória + fixture double): terminate() fecha o transporte, recria WorkerModelStore vazio e reidrata snapshot do IndexedDB (21.45209ms)
+✔ F7-CANCEL-COOP-01: cancelamento cooperativo sem terminate retorna CANCELLED e preserva Worker/PyProxy limpos (22.386651ms)
+✔ T-SEC-01 (Worker): Worker Pyodide bloqueia indexURL de CDN externo com IMPORT_UNTRUSTED_CODE (1.11719ms)
+✔ F7-BUFFER-01 (fixture double): transferência de ArrayBuffer via postMessage destaca original (byteLength===0), bloqueia reúso e suporta preserveSenderCopy (3.703239ms)
+✔ F7-PYPROXY-01: PyProxyRegistry e withPyProxy garantem destroy() em retorno normal, exceção e cancelamento e proíbem saída por postMessage (0.761605ms)
+✔ F7-MODELSTORE-01: WorkerModelStore implementa LRU, pinning de projeto ativo e falha RESOURCE_LIMIT antes de alocar (0.667756ms)
+✔ F7-PARITY-01 local: mock certificado versus dispatcher CPython real via bridge; não prova Pyodide/Wasm (1868.816843ms)
+✔ F7-PYPROXY-02: erro em runtime Pyodide dentro do Worker destrói PyProxy e mantém activeProxies===0 (1.63235ms)
+✔ F7-BUFFER-02 (fixture double): transporte bidirecional Worker -> Main com return_binary_buffers=true reidrata tensores K e P fielmente (10.211401ms)
+✔ F7-SUPERSEDE-TIMEOUT-01: cancel_on_supersede=true cancela revisão anterior em voo e hard_timeout_ms retorna RESOURCE_LIMIT (38.686694ms)
+✔ test_no_python_runtime_no_scientific_success: no silent MessageChannel and no commit/provenance invented (8.63994ms)
+✔ test_no_python_runtime_no_scientific_success: explicit MessageChannel without loader fails initialization (6.752352ms)
+✔ F7-PROVISION-UNIT: local wheel is loaded before core.rpc handshake; capabilities require observed dispatcher (2.036257ms)
+✔ test_unstabilizable_plant_through_real_rpc: actual CPython dispatcher through bridge returns HYPOTHESIS_VIOLATED (1985.767844ms)
+✔ F7-CPYTHON-UNIT: real dispatcher respects Q/R, x0 and revision; no fixed two-state result (2710.29459ms)
+✔ F7-PYTHON-NONE: proxy output preserves null fields and lists without relaxing ordinary JS JSON validation (0.999326ms)
+✔ F7-SEC-ALLOWLIST: http: externo é recusado, localhost http permitido (0.888362ms)
+✔ F7-SEC-ALLOWLIST: config.allowedOrigins na mensagem init não amplia a allowlist (1.871664ms)
+✔ F7-ENTRYPOINT: sem toPy retorna erro estruturado e nunca chama runPythonAsync (3.555501ms)
+✔ F7-ENTRYPOINT: sem pyimport retorna erro estruturado sem executar código (1.25251ms)
+✔ F7-SCHEMA: protocol.ts aceita exemplos e rejeita violações dos schemas rpc_* (1.991641ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4891.609532
+[unit-tests] PASS (f7, 4 arquivo(s) de teste)

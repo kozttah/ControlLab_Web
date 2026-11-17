@@ -1,0 +1,37 @@
+{
+  "browser": "153.0.8010.0",
+  "browser_kind": "chromium",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "tabs_visited": [
+      "identification",
+      "siso_frequency",
+      "statespace",
+      "mimo_frequency",
+      "fuzzy_ts",
+      "optimization_lmi"
+    ],
+    "viewport": {
+      "columns": "358px",
+      "viewport": 390,
+      "scroll": 390,
+      "main": {
+        "x": 0,
+        "y": -3393.96875,
+        "width": 390,
+        "height": 8363.59375,
+        "top": -3393.96875,
+        "right": 390,
+        "bottom": 4969.625,
+        "left": 0
+      }
+    },
+    "keyboard_commit_revision": 1,
+    "curves": [
+      "x",
+      "u"
+    ],
+    "dimension_error": "Incompatibilidade dimensional de matrizes/canais (DIMENSION_MISMATCH)\n\nMatriz Q deve ter shape (2, 2), recebido [3, 3].\n\nPr\u00f3ximo passo: Verifique se A \u00e9 (n\u00d7n), B \u00e9 (n\u00d7m), C \u00e9 (p\u00d7n), Q \u00e9 (n\u00d7n) e R \u00e9 (m\u00d7m).",
+    "modal_focus_restored": true
+  }
+}

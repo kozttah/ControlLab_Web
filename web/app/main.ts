@@ -10,6 +10,7 @@
  */
 
 import type { ControlLabEngineClient } from "../bridge/client.ts";
+import { ControlLabBridgeError } from "../bridge/protocol.ts";
 import { MockWorkerAdapter } from "../bridge/mock_adapter.ts";
 import { PyodideEngineClient } from "../bridge/pyodide_client.ts";
 import {
@@ -21,7 +22,7 @@ import {
   getTabPanelAriaAttributes,
   type AccessibleSliderConfig,
 } from "./accessibility.ts";
-import { ControlLabShell } from "./shell.ts";
+import { ControlLabShell, DEFAULT_DYNAMIC_EXPORT_CONTROLLER } from "./shell.ts";
 import {
   PROJECT_TAB_IDS,
   PROJECT_TAB_METADATA,
@@ -81,6 +82,8 @@ interface ExportModalPayload {
   projectRevision?: number;
   projectId?: string;
   requestId?: string;
+  configurationRevision?: number;
+  pvmControllerKind?: "lqr" | "dynamic";
 }
 
 function triggerBrowserDownload(payload: ExportModalPayload, doc: Document): void {
@@ -127,6 +130,7 @@ export function mountControlLabApp(
   let dragStartQScale = 1.0;
   let lastExportPayload: ExportModalPayload | null = null;
   let lastToolsHtmlKey = "";
+  let renderedPvmExportRevision = -1;
 
   const tabsHtml = PROJECT_TAB_IDS.map((tabId) => {
     const meta = PROJECT_TAB_METADATA[tabId];
@@ -190,6 +194,16 @@ export function mountControlLabApp(
     `<button type="button" id="btn-build-report" class="touch-control" data-action="build-report">Relatório R-27</button>`,
     `</div>`,
     `</div>`,
+    `<details id="pvm-export-options"><summary>Configuração da simulação PathView</summary>`,
+    `<div class="tool-field"><label for="pvm-controller-kind">Controlador exportado</label>`,
+    `<select id="pvm-controller-kind" class="touch-control"><option value="lqr">LQR confirmado</option><option value="dynamic">Controlador dinâmico (JSON)</option></select></div>`,
+    `<div class="tool-field"><label for="pvm-dynamic-controller-json">DynamicController canônico</label>`,
+    `<textarea id="pvm-dynamic-controller-json" rows="12" disabled aria-describedby="pvm-controller-help"></textarea>`,
+    `<p id="pvm-controller-help">Dimensões e boa-postura do controlador dinâmico são verificadas pelo motor Python antes do download. O estado inicial próprio deve constar de initial_state no JSON.</p></div>`,
+    `<label for="pvm-saturation-enabled"><input id="pvm-saturation-enabled" type="checkbox" /> Saturação do atuador após o controlador</label>`,
+    `<div class="tool-field"><label for="pvm-u-min">Limite inferior u_min (número ou vetor JSON)</label><input id="pvm-u-min" type="text" value="-1" disabled /></div>`,
+    `<div class="tool-field"><label for="pvm-u-max">Limite superior u_max (número ou vetor JSON)</label><input id="pvm-u-max" type="text" value="1" disabled /></div>`,
+    `</details>`,
     `<div id="lqr-k-display"></div>`,
     `<div id="lqr-diagnostics-panel" class="diagnostics-panel"></div>`,
     `<div id="controllab-tools-slot" class="declarative-tools"></div>`,
@@ -241,6 +255,12 @@ export function mountControlLabApp(
   const modalTitleEl = container.querySelector<HTMLElement>("#export-modal-title");
   const modalContentEl = container.querySelector<HTMLElement>("#export-modal-content");
   const modalCloseBtnEl = container.querySelector<HTMLElement>("#export-modal-close");
+  const pvmKindEl = container.querySelector<HTMLSelectElement>("#pvm-controller-kind");
+  const pvmDynamicEl = container.querySelector<HTMLTextAreaElement>("#pvm-dynamic-controller-json");
+  const pvmSaturationEl = container.querySelector<HTMLInputElement>("#pvm-saturation-enabled");
+  const pvmMinEl = container.querySelector<HTMLInputElement>("#pvm-u-min");
+  const pvmMaxEl = container.querySelector<HTMLInputElement>("#pvm-u-max");
+  if (pvmDynamicEl) pvmDynamicEl.value = JSON.stringify(DEFAULT_DYNAMIC_EXPORT_CONTROLLER, null, 2);
   const modalCopyBtnEl = container.querySelector<HTMLElement>("#export-modal-copy");
   const modalDownloadBtnEl = container.querySelector<HTMLElement>("#export-modal-download");
   const livePoliteEl = container.querySelector<HTMLElement>("#controllab-live-polite");
@@ -248,7 +268,6 @@ export function mountControlLabApp(
   const tabButtons = Array.from(container.querySelectorAll<HTMLElement>('[role="tab"]'));
 
   const exportButtons = [
-    container.querySelector<HTMLButtonElement>("#btn-export-pvm"),
     container.querySelector<HTMLButtonElement>("#btn-save-experiment"),
     container.querySelector<HTMLButtonElement>("#btn-export-ctrlab"),
     container.querySelector<HTMLButtonElement>("#btn-export-gains"),
@@ -298,7 +317,7 @@ export function mountControlLabApp(
     if (engineBadgeEl) {
       engineBadgeEl.setAttribute("data-engine-state", engineState);
       const caps = client.getCapabilities();
-      engineBadgeEl.textContent = `Motor: ${engineState} | ${caps.engine_kind === "mock" ? "Mock de fixtures (beta)" : "Pyodide (beta; gates Web pendentes)"} | offline não verificado (${serviceWorkerStatus})`;
+      engineBadgeEl.textContent = `Motor: ${engineState} | ${caps.engine_kind === "mock" ? "Mock de fixtures (beta)" : "Pyodide (beta)"} | offline não verificado (${serviceWorkerStatus})`;
     }
     if (revSummaryEl) {
       revSummaryEl.textContent = `Rev. Projeto: ${lqr.getProjectRevision()} | Rev. Modelo: ${lqr.getPlant().revision}`;
@@ -375,6 +394,34 @@ export function mountControlLabApp(
       } else {
         btn.setAttribute("aria-disabled", "true");
       }
+    }
+
+    const pvmOptions = shell.getPvmExportOptions();
+    if (pvmOptions && renderedPvmExportRevision !== shell.getPvmExportRevision()) {
+      renderedPvmExportRevision = shell.getPvmExportRevision();
+      if (pvmKindEl) pvmKindEl.value = pvmOptions.controller_kind;
+      if (pvmDynamicEl) {
+        pvmDynamicEl.disabled = pvmOptions.controller_kind !== "dynamic";
+        if (doc?.activeElement !== pvmDynamicEl) {
+          pvmDynamicEl.value = JSON.stringify(pvmOptions.dynamic_controller ?? DEFAULT_DYNAMIC_EXPORT_CONTROLLER, null, 2);
+        }
+      }
+      if (pvmSaturationEl) pvmSaturationEl.checked = pvmOptions.saturation.enabled;
+      if (pvmMinEl) {
+        pvmMinEl.disabled = !pvmOptions.saturation.enabled;
+        if (doc?.activeElement !== pvmMinEl) pvmMinEl.value = JSON.stringify(pvmOptions.saturation.u_min);
+      }
+      if (pvmMaxEl) {
+        pvmMaxEl.disabled = !pvmOptions.saturation.enabled;
+        if (doc?.activeElement !== pvmMaxEl) pvmMaxEl.value = JSON.stringify(pvmOptions.saturation.u_max);
+      }
+    }
+
+    const pvmButton = container.querySelector<HTMLButtonElement>("#btn-export-pvm");
+    if (pvmButton) {
+      pvmButton.disabled = !shell.canExportPvm();
+      if (pvmButton.disabled) pvmButton.setAttribute("aria-disabled", "true");
+      else pvmButton.removeAttribute("aria-disabled");
     }
 
     if (kDisplaySlotEl) {
@@ -637,11 +684,47 @@ export function mountControlLabApp(
     }
   });
 
+  const updatePvmExportOptions = (): void => {
+    shell.invalidatePvmExportOptions();
+    const kind = pvmKindEl?.value === "dynamic" ? "dynamic" : "lqr";
+    const enabled = pvmSaturationEl?.checked === true;
+    if (pvmDynamicEl) pvmDynamicEl.disabled = kind !== "dynamic";
+    if (pvmMinEl) pvmMinEl.disabled = !enabled;
+    if (pvmMaxEl) pvmMaxEl.disabled = !enabled;
+    try {
+      let dynamicController: Record<string, unknown> | undefined;
+      try {
+        const candidate = JSON.parse(pvmDynamicEl?.value ?? "");
+        if (kind === "dynamic" || candidate?.kind === "DynamicController") dynamicController = candidate;
+      } catch (error: unknown) {
+        if (kind === "dynamic") throw error;
+      }
+      shell.setPvmExportOptions({
+        controller_kind: kind,
+        ...(dynamicController === undefined ? {} : { dynamic_controller: dynamicController }),
+        saturation: {
+          enabled,
+          u_min: enabled ? JSON.parse(pvmMinEl?.value ?? "") : -1,
+          u_max: enabled ? JSON.parse(pvmMaxEl?.value ?? "") : 1,
+        },
+      });
+    } catch (error: unknown) {
+      shell.presentError(error instanceof SyntaxError
+        ? new ControlLabBridgeError("VALIDATION_ERROR", "JSON inválido na configuração PVM. Confira o controlador e os limites.")
+        : error);
+    }
+  };
+  for (const input of [pvmKindEl, pvmDynamicEl, pvmSaturationEl, pvmMinEl, pvmMaxEl]) {
+    input?.addEventListener("input", updatePvmExportOptions);
+    input?.addEventListener("change", updatePvmExportOptions);
+  }
+
   const openNativeFile = async (kind: "pvm" | "ctrlab", trigger: HTMLElement | null): Promise<void> => {
     const file = kind === "pvm" ? await shell.exportPvm() : await shell.exportCtrlLab();
     openExportModal({ title: `Exportação .${kind}`, filename: file.filename,
       mimeType: file.media_type, bytes: file.bytes, projectRevision: file.project_revision,
       projectId: file.project_id, requestId: file.request_id,
+      configurationRevision: file.configuration_revision, pvmControllerKind: file.pvm_controller_kind,
       content: `${file.filename} · ${file.bytes.length} bytes · SHA-256 ${file.sha256}` }, trigger);
   };
   for (const kind of ["pvm", "ctrlab"] as const) {
@@ -724,12 +807,20 @@ export function mountControlLabApp(
   modalDownloadBtnEl?.addEventListener("click", () => {
     if (lastExportPayload && doc) {
       try {
-        if (!lastExportPayload.offlineDesign) lqr.assertExportAllowed();
-        if (lastExportPayload.projectRevision !== undefined &&
+        if (lastExportPayload.pvmControllerKind === "dynamic") {
+          shell.assertDynamicPvmExportAllowed(lastExportPayload.requestId, lastExportPayload.configurationRevision);
+        } else if (!lastExportPayload.offlineDesign) {
+          lqr.assertExportAllowed();
+        }
+        if (lastExportPayload.pvmControllerKind !== "dynamic" && lastExportPayload.projectRevision !== undefined &&
             (lastExportPayload.projectRevision !== lqr.getCommittedSnapshot()?.project_revision ||
              lastExportPayload.projectId !== lqr.getCommittedSnapshot()?.project_id ||
              lastExportPayload.requestId !== lqr.getCommittedSnapshot()?.request_id)) {
           throw new Error("O projeto mudou. Gere novamente o arquivo antes de baixar.");
+        }
+        if (lastExportPayload.configurationRevision !== undefined &&
+            lastExportPayload.configurationRevision !== shell.getPvmExportRevision()) {
+          throw new Error("A configuração PVM mudou. Gere novamente o arquivo antes de baixar.");
         }
         triggerBrowserDownload(lastExportPayload, doc);
       } catch (error: unknown) { shell.presentError(error); }

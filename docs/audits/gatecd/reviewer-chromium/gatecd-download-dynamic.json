@@ -1,0 +1,30 @@
+{
+  "browser": "153.0.8010.0",
+  "browser_kind": "chromium",
+  "release_manifest_sha256": "57cb668376871e915f213707194e51c9d76504ab6a90cdfa493b01eaed77279d",
+  "evidence": {
+    "samples": 501,
+    "max_u_error": 6.661338147750939e-16,
+    "max_y_error": 4.440892098500626e-16,
+    "max_plant_final_error": 0.0,
+    "max_controller_final_error": 1.6653345369377348e-16,
+    "error_limit": 2e-06,
+    "pvm_sha256": "27927df02cf0ccbd9483f49b77811bb2b459b9b843e47cdc5d4b0061b92088b9",
+    "connections": 6,
+    "roundtrip": {
+      "ctrlab_sha256": "2ab7ecdd1beac90db90cd08b4fde53385aa677801d5d29ae44005c9ab2a07c15",
+      "options_preserved": true,
+      "controller_kind": "dynamic"
+    },
+    "reopened_pvm": {
+      "samples": 501,
+      "max_u_error": 6.661338147750939e-16,
+      "max_y_error": 4.440892098500626e-16,
+      "max_plant_final_error": 0.0,
+      "max_controller_final_error": 1.6653345369377348e-16,
+      "error_limit": 2e-06,
+      "pvm_sha256": "27927df02cf0ccbd9483f49b77811bb2b459b9b843e47cdc5d4b0061b92088b9",
+      "connections": 6
+    }
+  }
+}

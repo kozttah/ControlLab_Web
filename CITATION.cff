@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use ControlLab Web in teaching or research, please consider citing this software. Citation is appreciated, not an additional license condition."
+type: software
+title: ControlLab Web
+authors:
+  - family-names: Campos
+    given-names: Víctor
+repository-code: "https://github.com/kozttah/ControlLab_Web"
+license: MIT

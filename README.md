@@ -5,6 +5,7 @@
 [![CI](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml)
 [![Especificação](https://img.shields.io/badge/Documento_Diretor-CL--DIR--001_v1.0.0-0f172a)](./ControlLab_Web_Documento_Diretor_v1.0.md)
 [![Status](https://img.shields.io/badge/Produto-Beta-d97706)](./PROJECT_STATE.json)
+[![Licença](https://img.shields.io/badge/Licen%C3%A7a-MIT-059669)](./LICENSE)
 
 O ControlLab Web reúne um motor científico em `NumPy`/`SciPy`, modelos canônicos, diagnósticos numéricos e arquivos portáteis para ensino, pesquisa e engenharia de controle. O cálculo no navegador é executado em um Web Worker Pyodide, sem backend científico remoto obrigatório. O mesmo pacote `control_lab` pode ser utilizado em CPython local.
 
@@ -146,3 +147,11 @@ Os testes estão em `tests/`; decisões arquiteturais em `docs/architecture/`; e
 A [ADR-009](./docs/architecture/ADR-009-personal-repository-governance.md) aceita a restrição externa da conta pessoal do GitHub. A qualidade e o bloqueio de release são verificados em arquivos/CI por `project_governance.py`, `ci_gate.py` e pareceres F9, sem pressupor proteção de branch disponível no servidor.
 
 Contribuições devem respeitar ownership, tipos e revisões canônicas, convenção de sinal e hipóteses numéricas explícitas. Resultados confirmados vêm do motor Python e passam por verificação independente. Cada entrega recebe testes aplicáveis e handoff com os dez itens do Apêndice E, preservando fixtures ouro e tolerâncias. Consulte também as [informações de dependências](./docs/legal/DEPENDENCIES.md).
+
+## Licença e autoria
+
+O código e a documentação originais do ControlLab Web são disponibilizados sob a [licença MIT](./LICENSE), com copyright de Víctor Campos e dos contribuidores do projeto. Ela permite uso, modificação, redistribuição e uso comercial, exigindo a preservação dos avisos de copyright e de permissão nas cópias ou porções substanciais do software.
+
+O software é fornecido **no estado em que se encontra, sem garantia**, inclusive de funcionamento, adequação a uma finalidade ou suporte, nos termos da licença e da legislação aplicável. A maturidade beta e as limitações científicas documentadas continuam válidas.
+
+Se utilizar o projeto em ensino ou pesquisa, agradecemos a citação indicada em [CITATION.cff](./CITATION.cff). Esse é um pedido voluntário, não uma condição adicional da MIT. Bibliotecas e recursos de terceiros mantêm suas [próprias licenças e avisos](./docs/legal/THIRD_PARTY_LICENSES.md); a licença MIT do projeto não os relicencia. A decisão e o escopo estão registrados na [ADR-011](./docs/architecture/ADR-011-mit-license-and-third-party-notices.md).

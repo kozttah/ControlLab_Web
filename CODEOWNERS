@@ -90,6 +90,8 @@
 /AGENTS.md                                 @f9-integration-qa
 /CODEOWNERS                                @f9-integration-qa
 /README.md                                 @f9-integration-qa
+/LICENSE                                   @f9-integration-qa
+/CITATION.cff                              @f9-integration-qa
 /setup_repo.py                             @f9-integration-qa
 /.gitignore                                @f9-integration-qa
 /ControlLab_Web_Documento_Diretor_*        @f9-integration-qa

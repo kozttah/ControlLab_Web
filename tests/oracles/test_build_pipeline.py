@@ -5,8 +5,10 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -97,3 +99,83 @@ def test_integrity_manifest_defers_gate_decisions_to_external_f9_ledger():
     }
     assert "blocked_gates" not in first and "browser_offline_validated" not in first
     assert first["assets"] == assets
+
+
+def test_release_carries_original_license_without_relicensing_third_party(tmp_path, monkeypatch):
+    """Exercise real wheel metadata and distribution notices without network assets."""
+    from email.parser import BytesParser
+
+    spec = importlib.util.spec_from_file_location(
+        "release_license_artifacts", ROOT / "scripts/build_release.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    project = tmp_path / "project"
+    project.mkdir()
+    for name in ("pyproject.toml", "README.md", "LICENSE"):
+        shutil.copyfile(ROOT / name, project / name)
+    (project / "control_lab").mkdir()
+    (project / "control_lab/__init__.py").write_text('"""Packaging probe only."""\n')
+    shutil.copytree(ROOT / "docs/legal", project / "docs/legal")
+    (project / "web/app").mkdir(parents=True)
+    for name in ("index.html", "styles.css"):
+        (project / "web/app" / name).write_text("<!-- packaging probe -->")
+    shutil.copyfile(ROOT / "web/package-lock.json", project / "web/package-lock.json")
+    (project / "scripts").mkdir()
+    shutil.copyfile(ROOT / "scripts/requirements-ci.lock", project / "scripts/requirements-ci.lock")
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    archive = tmp_path / "upstream.zip"
+    notice = b"Copyright independent upstream. MPL-2.0. Preserve this exact notice.\n"
+    with zipfile.ZipFile(archive, "w") as zipped:
+        zipped.writestr("LICENSE", notice)
+    blob = archive.read_bytes()
+    checksum = hashlib.sha256(blob).hexdigest()
+    (cache / checksum).write_bytes(blob)
+    lock = {
+        "version": "0.27.5",
+        "packages": {},
+        "components": [
+            {
+                "name": "upstream-probe",
+                "version": "1",
+                "license": "MPL-2.0",
+                "source": "https://example.invalid/source",
+            }
+        ],
+        "assets": [
+            {
+                "path": "pyodide/runtime.zip",
+                "sha256": checksum,
+                "size": len(blob),
+                "url": "https://example.invalid/runtime.zip",
+            }
+        ],
+    }
+    lock_path = project / "scripts/pyodide-assets.lock.json"
+    lock_path.write_text(json.dumps(lock))
+    monkeypatch.setattr(module, "ROOT", project)
+    monkeypatch.setattr(module, "DIST", project / "web/dist")
+    monkeypatch.setattr(module, "LOCK", lock_path)
+    monkeypatch.setenv("CONTROLLAB_ASSET_CACHE", str(cache))
+    module.assemble()
+    module.manifest()
+    license_bytes = (ROOT / "LICENSE").read_bytes()
+    assert (module.DIST / "legal/ControlLab-Web-MIT.txt").read_bytes() == license_bytes
+    assert (module.DIST / "legal/third-party/runtime.zip/LICENSE").read_bytes() == notice
+    assert (module.DIST / "pyodide/runtime.zip").read_bytes() == blob
+    assert (module.DIST / "legal/licenses/Pyodide-MPL-2.0.txt").is_file()
+    assert (module.DIST / "legal/THIRD_PARTY_NOTICES.md").is_file()
+    wheel = next((module.DIST / "wheels").glob("*.whl"))
+    with zipfile.ZipFile(wheel) as zipped:
+        metadata_name = next(n for n in zipped.namelist() if n.endswith(".dist-info/METADATA"))
+        metadata = BytesParser().parsebytes(zipped.read(metadata_name))
+        assert metadata["License-Expression"] == "MIT"
+        assert metadata["License-File"] == "LICENSE"
+        license_name = next(
+            n for n in zipped.namelist() if n.endswith(".dist-info/licenses/LICENSE")
+        )
+        assert zipped.read(license_name) == license_bytes
+    components = json.loads((module.DIST / "sbom.json").read_text())["components"]
+    assert components[0]["licenses"] == [{"license": {"id": "MIT"}}]
+    assert components[1]["licenses"] == [{"license": {"name": "MPL-2.0"}}]

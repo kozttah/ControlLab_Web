@@ -58,7 +58,7 @@ def assemble():
             source / "control_lab",
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
-        for name in ("pyproject.toml", "README.md"):
+        for name in ("pyproject.toml", "README.md", "LICENSE"):
             shutil.copyfile(ROOT / name, source / name)
         env = {**os.environ, "SOURCE_DATE_EPOCH": str(EPOCH), "PYTHONHASHSEED": "0"}
         subprocess.run(
@@ -91,6 +91,7 @@ def assemble():
     (DIST / "app").mkdir()
     shutil.copyfile(ROOT / "web/app/styles.css", DIST / "app/styles.css")
     shutil.copytree(ROOT / "docs/legal", DIST / "legal")
+    shutil.copyfile(ROOT / "LICENSE", DIST / "legal/ControlLab-Web-MIT.txt")
     for archive in sorted((DIST / "pyodide").iterdir()):
         if not zipfile.is_zipfile(archive):
             continue
@@ -111,7 +112,7 @@ def manifest():
             "type": "library",
             "name": "control-lab",
             "version": "1.0.0",
-            "licenses": [{"license": {"name": "NOASSERTION"}}],
+            "licenses": [{"license": {"id": "MIT"}}],
             "hashes": [
                 {
                     "alg": "SHA-256",
@@ -161,7 +162,7 @@ def manifest():
                     },
                     {
                         "name": "controllab:clearance",
-                        "value": "Pending legal/vulnerability audit; native SDP packages not distributed in browser",
+                        "value": "ControlLab original code MIT (ADR-011); third-party licenses retained; vulnerability clearance is separate",
                     },
                 ],
             },

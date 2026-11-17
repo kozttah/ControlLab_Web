@@ -3007,6 +3007,18 @@
       "status": "ACCEPTED",
       "authority": "project_coordinator",
       "evidence_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md"
+    },
+    "ADR-011": {
+      "status": "ACCEPTED",
+      "authority": "project_coordinator",
+      "decision_date": "2026-11-17",
+      "decision": "MIT for original ControlLab Web code; third-party licenses preserved",
+      "resolves": [
+        "DEC-OPEN-05"
+      ],
+      "scope": "original_project_code_only_not_third_party_relicensing_or_stable_release",
+      "evidence_ref": "docs/architecture/ADR-011-mit-license-and-third-party-notices.md",
+      "review_ref": "docs/audits/handoffs/LICENSE-MIT-2026-11-17.md"
     }
   }
 }

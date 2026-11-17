@@ -1,93 +1,148 @@
 # ControlLab Web
 
-**Ambiente Integrado, Aberto e *Local-First* para Identificação, Análise, Síntese e Verificação de Sistemas de Controle no Navegador**
+**Identificação, análise, síntese e verificação de sistemas de controle no navegador, com cálculo local em Python/Pyodide e interface TypeScript.**
 
+[![CI](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml)
 [![Especificação](https://img.shields.io/badge/Documento_Diretor-CL--DIR--001_v1.0.0-0f172a)](./ControlLab_Web_Documento_Diretor_v1.0.md)
-[![Arquitetura](https://img.shields.io/badge/Runtime-Python_%2F_Pyodide_(Wasm)_%2B_TypeScript-2563eb)](./ControlLab_Web_Documento_Diretor_v1.0.md#3-arquitetura-lógica-e-física)
-[![Simulação Externa](https://img.shields.io/badge/Interoperabilidade-PathView_%2F_PathSim_(.pvm_v1.0.0)-059669)](./ControlLab_Web_Documento_Diretor_v1.0.md#93-pathview-como-simulador-externo)
-[![Status](https://img.shields.io/badge/Status-Baseline_Arquitetural_(Fase_de_Gates_G--0)-d97706)](./PROJECT_STATE.json)
+[![Status](https://img.shields.io/badge/Produto-Beta-d97706)](./PROJECT_STATE.json)
 
----
+O ControlLab Web reúne um motor científico em `NumPy`/`SciPy`, modelos canônicos, diagnósticos numéricos e arquivos portáteis para ensino, pesquisa e engenharia de controle. O cálculo no navegador é executado em um Web Worker Pyodide, sem backend científico remoto obrigatório. O mesmo pacote `control_lab` pode ser utilizado em CPython local.
 
-## 1. Visão Geral
+A especificação normativa é o [Documento Diretor CL-DIR-001](./ControlLab_Web_Documento_Diretor_v1.0.md), complementado pelas [decisões de arquitetura](./docs/architecture/). O [PROJECT_STATE.json](./PROJECT_STATE.json) registra os gates, os WorkPackages e seus escopos de aceite.
 
-O **ControlLab Web** é uma plataforma assistida por computador para ensino, pesquisa e engenharia de controle e automação, executada **100% no dispositivo do usuário (*client-side / local-first*)** sem necessidade de backend científico remoto.
+## Estado atual
 
-O objetivo do ambiente é unificar em um único fluxo reprodutível e auditável o ciclo completo de engenharia de controle:
+**Referência em 17/11/2026:** commit [`f1528bb`](https://github.com/kozttah/ControlLab_Web/commit/f1528bb6fe89b4d1a8c1b684f6bea29008de362a), com **34 WorkPackages aceitos e 5 pendentes**. Os quatro gates da Fase 0 foram aprovados pela F9 no domínio documentado. O produto permanece **beta**; a aprovação dos gates não declara todos os recursos da especificação como uma release estável.
 
-$$\text{Dados Experimentais} \longrightarrow \text{Modelo Identificado / Canônico} \longrightarrow \text{Requisitos} \longrightarrow \text{Síntese do Controlador} \longrightarrow \text{Auditoria Numérica} \longrightarrow \text{Simulação Externa (.pvm)} \longrightarrow \text{Arquivo Portátil (.ctrlab)}$$
+| Gate | Resultado | Capacidade verificada |
+| --- | --- | --- |
+| **G-0A** | `ACCEPTED_BY_F9` | CARE/LQR 12×3, paridade CPython/Pyodide, recuperação do Worker e controle de PyProxy. |
+| **G-0B** | `ACCEPTED_BY_F9` | Solver SDP nativo no Wasm, escada A–D, auditoria primal/dual e exportadores CVXPY/YALMIP em Chromium e Firefox. |
+| **G-0C** | `ACCEPTED_BY_F9` | Arraste DOM real com Fast-Preview/commit, teclado, viewport mobile, validação dimensional e curvas temporais de estados/entradas. |
+| **G-0D** | `ACCEPTED_BY_F9` | Round-trip `.ctrlab`, downloads `.pvm` estáticos/dinâmicos e saturação, com abertura e comparação de trajetórias no PathView/PathSim. |
 
-### Princípios Inegociáveis de Engenharia
-1. **Autoridade Científica Única (`control_lab` em Python):** Todo resultado confirmado, resíduo ou diagnóstico provém do pacote Python científico (`NumPy`/`SciPy`), que roda de forma idêntica em **CPython nativo** (via CLI/`pytest`) e no navegador via **Pyodide em Web Worker**.
-2. **Interatividade a 60 FPS com Commit Autoritativo:** A interface em TypeScript pode exibir pré-visualizações cinemáticas efêmeras (*Fast-Preview*) durante o arraste de polos/ganhos, mas a persistência, os diagnósticos e a exportação exigem recálculo completo pelo motor Python no *commit* (`pointerup`).
-3. **Semântica de Controle Explícita:** Convenções de sinal (`feedback_sign = "negative" | "positive"`), mapeamento dimensional de referências ($u_{ff} = N r_y$), interconexão dinâmica bem-posta e distinção estrita entre sistemas Takagi-Sugeno com premissas medidas (`ts_measured`), parcialmente observadas (`ts_partially_observed`) e incerteza politópica não medida (`polytopic_uncertain`).
-4. **Verificação Independente de Solvers:** Nenhum status retornado por um solver numérico é aceito sem auditoria externa de resíduos matriciais, autovalores, simetria, condicionamento e certificados duais.
+A [execução CI dessa referência](https://github.com/kozttah/ControlLab_Web/actions/runs/44078018770) concluiu os oito jobs com sucesso, incluindo os dois perfis matemáticos, Wasm, segurança, integração e artefatos. O badge acima acompanha a `main` atual; essa execução é uma evidência vinculada ao commit indicado. Os perfis matemáticos passaram com 298 testes sem SDP opcional e 147 com SDP, sem skips. As contagens se sobrepõem entre suítes e não devem ser somadas como casos distintos.
 
----
+Evidências e limites estão no [relatório dos gates](./docs/audits/RELATORIO_STATUS_GATES_FASE0.md), no [fechamento CI e reconciliação](./docs/audits/CI_RECONCILIATION_2026-11-17.md) e nos [handoffs F9](./docs/audits/handoffs/). Relatórios de auditorias anteriores são preservados como histórico.
 
-## 2. Arquitetura do Sistema
+## O que já pode ser demonstrado pela interface
 
-![Arquitetura Modular do ControlLab Web](./controllab_v1_assets/arquitetura_v1.png)
+- **LQR:** configuração de planta e pesos, pré-visualização transitória durante o arraste do slider e confirmação pelo motor Python. O preview não é salvo como resultado científico confirmado.
+- **Resultados:** ganho, polos, curvas temporais de estados `x` e entradas `u`, erros dimensionais visíveis, navegação por teclado e layout mobile nos cenários auditados.
+- **Projetos `.ctrlab`:** salvar e reabrir o workspace LQR confirmado, preservando matrizes, revisões e opções de exportação, incluindo saturação e o DTO de controlador dinâmico.
+- **Simulação externa `.pvm`:** exportar realimentação de estados contínua/discreta, saturação de atuador e `DynamicController`, com validação de dimensões, sinal e bem-postura. A exportação dinâmica pode ser feita sem síntese LQR prévia; o fluxo ZIP da tela ainda exige um workspace LQR confirmado.
+- **Contingência SDP:** obter scripts Python/CVXPY (`.py`) ou MATLAB/YALMIP (`.m`) do problema atual, inclusive antes de confirmar uma solução.
+- **Execução local/offline:** cálculo no dispositivo após distribuição e provisionamento completo dos recursos, com integridade dos assets verificada. A instalação/build inicial pode precisar de rede.
 
-### Escopo Funcional (6 Abas de Projeto + Simulação Externa)
+A interoperabilidade foi auditada com **PathView 0.21.0 / PathSim 0.31.0**. Eventos externos e simulação multirate estão fora do domínio homologado. A validação YALMIP foi estrutural/sintática; não houve execução MATLAB nesta auditoria. As provas de desempenho usam o hardware do container, conforme `DEC-OPEN-03`, sem homologação de notebook de referência. Acessibilidade WCAG 2.2 AA e interatividade a 60 FPS são metas da especificação; os testes de teclado/mobile e de preview não constituem certificação integral dessas metas.
 
-| Módulo / Aba | Frente | Escopo Técnico Principal |
-| :--- | :---: | :--- |
-| **1. Identificação de Sistemas** | `F4` | Importação de séries `t, u, y` (SISO/MIMO), pré-processamento, divisão treino/validação, estimação **ARX** (QR/SVD), **OE/ARMAX/BJ** e **Subespaços (MOESP/N4SID/PBSID)**, previsão de 1 passo, simulação livre, `FIT%`, RMSE e diagnóstico de persistência de excitação (PE). |
-| **2. Projeto SISO na Frequência** | `F3` | Funções de transferência contínuas/discretas, Bode, Nyquist SISO, múltiplas frequências de cruzamento e margens, **Lugar das Raízes** interativo com rastreamento de ramos, síntese de **PID / Avanço-Atraso** e overlays semânticos (`exact`, `sufficient`, `heuristic`, `estimated`). |
-| **3. Espaço de Estados Linear** | `F2` | Testes de posto/PBH (controlabilidade, observabilidade, estabilizabilidade, detectabilidade), gramianos, realização mínima, equações de **Lyapunov e Sylvester**, **CARE/DARE**, **LQR/LQI**, alocação de polos, observador de Luenberger, **Filtro de Kalman / LQG** e síntese $H_2/H_\infty$. |
-| **4. Frequência Multivariável (MIMO)** | `F3` | Resposta em frequência matricial, **Valores Singulares ($\sigma$)**, funções de sensibilidade ($S$, $T$, $KS$ com verificação $S+T=I$), **RGA ($\Lambda(G)$)** para matrizes quadradas invertíveis, número de condição e critério de **Nyquist Multivariável** generalizado. |
-| **5. Controle Fuzzy, TS e ANFIS** | `F5` | Inferência **Mamdani** e **Takagi-Sugeno**, importação/exportação no padrão **IEEE 1855-2016 (FML)**, treinamento híbrido **ANFIS** e especificação auditada de modelos dinâmicos `TSStateSpace` e controladores `PDCController`. |
-| **6. Otimização Convexa e LMIs/SDPs** | `F6` | DSL algébrica afim (`sdpvar`, `bmat`, `svec`), templates clássicos (estabilização com taxa $\alpha$, $\mathcal{D}$-estabilidade, Lema Real Limitado $H_\infty$, síntese TS/PDC com termos cruzados), backends cônicos (`Clarabel`/`CVXPY` sob gate Wasm), **Verificador Espectral Independente** e solver didático de barreira/pontos interiores (`experimental/sdp_educational`). |
-| **Interoperabilidade PathView / PathSim** | `F1` / `F9` | Exportação determinística da malha fechada (planta + controlador estático/dinâmico + blocos de saturação/referência) para o formato aberto **`.pvm` (v1.0.0)** do simulador externo **PathView / PathSim**, sem necessidade de manter um *fork* do simulador. |
+## Motor científico e escopo de evolução
 
----
+![Arquitetura modular](./controllab_v1_assets/arquitetura_v1.png)
 
-## 3. Organização Operacional: 8 Frentes Produtoras + 1 Frente Independente de QA
+O projeto organiza seis áreas de projeto e a integração com simulador externo. A tabela distingue os módulos científicos existentes dos fluxos completos de UI que ainda serão integrados e homologados. A existência de uma operação Python/RPC ou de uma card não equivale ao aceite de toda a vertical no navegador.
 
-Para permitir o desenvolvimento paralelo seguro por pesquisadores, desenvolvedores e agentes de IA sem validação circular, o código é regido por propriedade estrita de diretórios (`CODEOWNERS`):
+| Área | Núcleo científico / API | Situação da interface e próximos incrementos |
+| --- | --- | --- |
+| **Identificação** | ARX, OE, subespaços, pré-processamento, PE e validação/resíduos. | Seleção de dataset, treino/holdout, gráficos e reutilização em LQR/SISO estão na próxima fila. |
+| **Frequência SISO** | Resposta em frequência, margens, lugar das raízes e compensadores. | Fluxo com gráficos, overlays, edição e commit ainda será completado e homologado. |
+| **Espaço de estados** | PBH/posto, Lyapunov/Sylvester, CARE/DARE, LQR, observadores, Kalman/LQG e simulação LTI. | Vertical LQR auditada. A UI ampliada de observadores/LQG faz parte das etapas seguintes. |
+| **Frequência MIMO** | RGA, valores singulares e funções de sensibilidade, com hipóteses e diagnósticos. | Integração visual e seleção de entradas/saídas exigem homologação própria. |
+| **Fuzzy / TS / ANFIS** | Inferência, perfil FML suportado, ANFIS e modelos TS/PDC tipados. | Aceite FML mantém escopo CPython/perfil suportado. A vertical visual completa ainda será homologada. |
+| **LMIs / SDP** | Modelagem canônica afim, templates de controle, solver nativo e verificador independente. | Motor Wasm e exportadores auditados; a experiência ampliada de modelagem/templates continua no roadmap. |
+| **PathView / PathSim** | Adaptadores `.pvm`, controladores estáticos/dinâmicos e importação passiva. | Downloads e cenários externos descritos acima aprovados em G-0D. |
 
-![Grafo de Dependências entre as Frentes F1 a F9](./controllab_v1_assets/dependencias_v1.png)
+### SDP no navegador e execução offline
 
-* **`F1` — Core, Contratos e I/O (`control_lab/core/`, `diagnostics/`, `io/`):** Tipos canônicos imutáveis por revisão (`StateSpace`, `TransferFunction`, `TSStateSpace`, `StateFeedbackController`, `DynamicController`, `PDCController`, `Result`), interconexões, contêiner portátil `.ctrlab` (ZIP) e adaptador `.pvm`.
-* **`F2` — Espaço de Estados (`control_lab/statespace/`):** Álgebra linear de controle, Lyapunov, CARE/DARE, LQR/LQG e simulação LTI.
-* **`F3` — Frequência SISO e MIMO (`control_lab/frequency/siso/`, `mimo/`):** Bode, Lugar das Raízes, compensadores, RGA, valores singulares e Nyquist.
-* **`F4` — Identificação de Sistemas (`control_lab/identification/`):** Estimação paramétrica e por subespaços, análise residual e validação estatística.
-* **`F5` — Fuzzy, TS e ANFIS (`control_lab/fuzzy/`):** Motor de inferência nebulosa, padrão IEEE 1855-2016 (FML), ANFIS e semântica TS/PDC.
-* **`F6` — Otimização e LMIs/SDP (`control_lab/optimization/`, `experimental/sdp_educational/`):** Compilador canônico `CanonicalSDPProblem`, adaptadores de solver, auditor independente de certificados primais/duais e solver educacional.
-* **`F7` — Runtime Web, Bridge e Storage (`web/bridge/`, `worker/`, `storage/`):** Protocolo RPC `api_version="1.0"`, Web Worker Pyodide, `WorkerModelStore`, `MockWorkerAdapter`, transferência via `ArrayBuffer` e persistência transacional em `IndexedDB`.
-* **`F8` — Interface e Visualização (`web/features/`, `charts/`, `app/`):** Componentes declarativos (`ToolDescriptor`), gráficos interativos, `Fast-Preview` a 60 FPS com `pending_commit` e acessibilidade WCAG 2.2 AA.
-* **`F9` — Integração Independente, Oráculos e CI (`contracts/`, `tests/oracles/`, `tests/e2e/`, `.github/workflows/`):** Frente transversal não produtora de features científicas; congela schemas, mantém as *fixtures ouro* assinadas por hash, executa os Gates (`G-0A` a `G-0D`) e audita os handoffs de `F1`–`F8`.
+A [ADR-010](./docs/architecture/ADR-010-native-sdp-and-offline-exports.md) define o **solver primal-dual nativo NumPy/SciPy** como backend SDP padrão do Pyodide. Casos estruturalmente diagonais/LP usam `scipy.optimize.linprog`/HiGHS. CVXPY/Clarabel permanecem opcionais em CPython local; o bundle Wasm base não depende de empacotar seus binários C++/Rust.
 
----
+Cada solução é submetida ao verificador espectral independente, preservando as cinco dimensões de status. Condicionamento inadequado, gap/certificado não validado, resultado inconclusivo ou tamanho acima do envelope recomendado geram diagnóstico e recomendação de execução offline em CVXPY ou YALMIP com solver dedicado.
 
-## 4. Estrutura Física do Repositório
+O envelope denso inicial do backend nativo limita 128 variáveis, dimensão máxima de bloco 48 e 16.384 entradas cônicas. Esses são limites operacionais, sujeitos a medição. A API de produção é beta; a API didática em `control_lab/experimental/sdp_educational/` permanece experimental.
 
-```text
-controllab/
-├── ControlLab_Web_Documento_Diretor_v1.0.md   # Especificação normativa completa (CL-DIR-001)
-├── ControlLab_Web_Documento_Diretor_v1.0.pdf  # Versão diagramada para leitura
-├── AGENTS.md                                  # Protocolo do Maestro e regras para agentes de IA
-├── PROJECT_STATE.json                         # Máquina de estados, WorkPackages e status dos Gates
-├── CODEOWNERS                                 # Isolamento de propriedade por frente (F1–F9)
-├── pyproject.toml                             # Configuração do pacote Python control_lab (F9)
-├── control_lab/                               # Motor científico Python (CPython & Pyodide)
-│   ├── core/                                  # F1: Modelos canônicos e interconexões
-│   ├── diagnostics/                           # F1: Envelope Result, resíduos e proveniência
-│   ├── io/                                    # F1: Adaptadores .ctrlab, .pvm, CSV, MAT, FML
-│   ├── statespace/                            # F2: PBH, Lyapunov, CARE/DARE, LQR/LQG
-│   ├── frequency/                             # F3: Subpacotes siso/ e mimo/
-│   ├── identification/                        # F4: ARX, OE, Subespaços e validação
-│   ├── fuzzy/                                 # F5: Mamdani, TS, FML IEEE 1855 e ANFIS
-│   ├── optimization/                          # F6: modeling/, backends/ e verification/
-│   └── experimental/sdp_educational/          # F6: Solver didático isolado (Escada A–D)
-├── web/                                       # Aplicação Frontend TypeScript + Web Worker
-│   ├── bridge/                                # F7: Cliente RPC, Pyodide e MockWorkerAdapter
-│   ├── worker/                                # F7: WorkerModelStore e execução Wasm
-│   ├── storage/                               # F7: IndexedDB e snapshots locais
-│   ├── features/                              # F8: Seis abas funcionais de projeto
-│   ├── charts/                                # F8: Gráficos científicos e overlays
-│   └── app/                                   # F8: Shell, roteamento e acessibilidade
-├── contracts/                                 # Schemas JSON/RPC e Fixtures Ouro (F1 propõe, F9 aprova)
-├── tests/                                     # Suítes unit/, metamorphic/, oracles/, wasm/, e2e/, security/
-└── scripts/                                   # Governança de execução, benchmarks e utilitários CI
+## Executar localmente
+
+Os comandos abaixo partem da raiz do repositório e usam shell POSIX. O CI de referência utiliza **Python 3.12.14** e **Node.js 24.22.1**; `web/package.json` admite Node 24.x. Use um ambiente Python virtual dedicado.
+
+```bash
+python3.12 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r scripts/requirements-ci.lock
+npm --prefix web ci
+npm --prefix web run build
+python -m http.server 8000 --directory web/dist
+```
+
+Abra **http://localhost:8000**. O build gera a distribuição estática em `web/dist/`, incluindo a wheel científica, bundles, Pyodide, manifesto de integridade, SBOM e informações de dependências. O servidor HTTP só entrega arquivos; o cálculo roda no navegador. O diretório gerado pode ser servido por hospedagem estática com contexto seguro para Service Worker; `localhost` serve para desenvolvimento.
+
+O build baixa os assets listados em [`scripts/pyodide-assets.lock.json`](./scripts/pyodide-assets.lock.json) e verifica seus hashes SHA-256. O cache padrão é `~/.cache/controllab-build`; `CONTROLLAB_ASSET_CACHE` permite selecionar outro diretório. Um cache completo evita novos downloads desses assets no build. No navegador, aguarde a inicialização do motor e o provisionamento verificado antes de depender do modo offline. A disponibilidade offline não é inferida apenas da primeira abertura da página.
+
+## Verificação e CI
+
+No ambiente virtual científico acima, antes de adicionar dependências browser:
+
+```bash
+python scripts/verify_fixtures.py
+python scripts/project_governance.py
+python scripts/ci_math.py sdp_available
+npm --prefix web run typecheck
+npm --prefix web test
+python scripts/build_release.py --verify
+python scripts/check_reproducible.py
+```
+
+O perfil `sdp_available` exige correspondência exata com `scripts/requirements-ci.lock`. Para `core_no_sdp`, crie outro ambiente virtual e instale exclusivamente `scripts/requirements-core.lock` antes de executar `python scripts/ci_math.py core_no_sdp`. Não misture dependências opcionais/browser nesses ambientes: o verificador deve rejeitar pacotes adicionais.
+
+Para testes reais de navegador/interoperabilidade, use **outro ambiente**, mantendo o ambiente matemático isolado:
+
+```bash
+python3.12 -m venv .venv-browser
+. .venv-browser/bin/activate
+python -m pip install -r scripts/requirements-ci.lock
+python -m pip install -r scripts/requirements-browser.lock
+python -m playwright install --with-deps chromium firefox
+npm --prefix web ci
+npm --prefix web run build
+python -m pytest tests/wasm/ tests/e2e/ tests/security/ tests/performance/ -v
+CONTROLLAB_BROWSER=firefox python -m pytest tests/wasm/ tests/e2e/ -v
+```
+
+A instalação de dependências de sistema pelo Playwright pode exigir privilégios administrativos. As dependências oficiais PathView/PathSim estão incluídas no lock browser para as provas externas; elas não são distribuídas ao usuário da aplicação. O teste offline de segurança seleciona Chromium explicitamente, mesmo quando outros testes são configurados para Firefox. `CONTROLLAB_CHROMIUM` e `CONTROLLAB_FIREFOX` permitem apontar para executáveis compatíveis já provisionados.
+
+O [workflow A–G](./.github/workflows/ci.yml) executa análise estática, dois perfis matemáticos, testes web, Wasm, integração, segurança e artefatos reproduzíveis. O manifesto de build é de integridade (`release_approved=false`); o aceite de capacidade fica nos registros externos F9. Ouro e tolerâncias científicas não devem ser alterados para fazer testes passarem.
+
+## Próxima fila de trabalho
+
+A fila abaixo está registrada como `PENDING` na referência de estado indicada no início. Os critérios completos, dependências e testes adicionais estão no [plano vertical](./docs/audits/NEXT_QUEUE_2026-11-17.md).
+
+| Ordem / dependência | WorkPackage | Entrega prevista |
+| --- | --- | --- |
+| Próximo elegível | `WP-V1-F1-MODEL-REUSE-RPC` | Reutilização tipada de modelos identificados e conversão TF→StateSpace pelo RPC. |
+| Após reutilização RPC | `WP-V1-F8-TYPED-WORKSPACE-INPUTS` | Seleção de insumos tipados e composição correta de payload por ferramenta. |
+| Após entradas tipadas | `WP-V1-F8-IDENTIFICATION-VERTICAL` | Dataset, ARX/subespaços, resíduos e reutilização em LQR/SISO. |
+| Após entradas tipadas | `WP-V1-F8-SISO-VERTICAL` | Gráficos, margens, compensadores e preview/commit SISO. |
+| Após as duas verticais | `WP-V1-F9-ID-SISO-BROWSER-AUDIT` | Homologação independente dos fluxos em Chromium e Firefox. |
+
+As fases seguintes do Documento Diretor incluem persistência multidomínio, UI de observadores/LQG, fuzzy/MIMO, experiência LMI ampliada e preparação da release 1.0. Os backends existentes serão reutilizados; novos aceites exigem evidência do fluxo completo e de seu domínio.
+
+## Organização do repositório e contribuição
+
+O [AGENTS.md](./AGENTS.md) define o papel do Maestro, e o [CODEOWNERS](./CODEOWNERS) separa as oito frentes produtoras da auditoria independente F9. As frentes F1–F9 são equipes de trabalho; as fases 1–7 são etapas do produto.
+
+| Frente | Responsabilidade | Diretórios principais |
+| --- | --- | --- |
+| **F1** | Core, diagnósticos e I/O | `control_lab/core/`, `control_lab/diagnostics/`, `control_lab/io/` |
+| **F2** | Espaço de estados | `control_lab/statespace/` |
+| **F3** | Frequência SISO/MIMO | `control_lab/frequency/` |
+| **F4** | Identificação | `control_lab/identification/` |
+| **F5** | Fuzzy/TS/ANFIS | `control_lab/fuzzy/` |
+| **F6** | Otimização, LMIs/SDP e experimental | `control_lab/optimization/`, `control_lab/experimental/sdp_educational/` |
+| **F7** | Worker, RPC e armazenamento | `web/bridge/`, `web/worker/`, `web/storage/` |
+| **F8** | UI e gráficos | `web/app/`, `web/features/`, `web/charts/` |
+| **F9** | Contratos finais, oráculos, CI e auditoria | `contracts/`, `scripts/`, `tests/oracles/`, `tests/wasm/`, `tests/e2e/`, `docs/audits/` |
+
+Os testes estão em `tests/`; decisões arquiteturais em `docs/architecture/`; evidências e handoffs em `docs/audits/`. O pacote e sua configuração estão em [`pyproject.toml`](./pyproject.toml), e o frontend em [`web/package.json`](./web/package.json).
+
+A [ADR-009](./docs/architecture/ADR-009-personal-repository-governance.md) aceita a restrição externa da conta pessoal do GitHub. A qualidade e o bloqueio de release são verificados em arquivos/CI por `project_governance.py`, `ci_gate.py` e pareceres F9, sem pressupor proteção de branch disponível no servidor.
+
+Contribuições devem respeitar ownership, tipos e revisões canônicas, convenção de sinal e hipóteses numéricas explícitas. Resultados confirmados vêm do motor Python e passam por verificação independente. Cada entrega recebe testes aplicáveis e handoff com os dez itens do Apêndice E, preservando fixtures ouro e tolerâncias. Consulte também as [informações de dependências](./docs/legal/DEPENDENCIES.md).

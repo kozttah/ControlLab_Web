@@ -181,7 +181,7 @@ jobs:
         run: |
           set -o pipefail
           python -m pip install -r scripts/requirements-browser.lock 2>&1 | tee reports/E-browser-install.log
-          python -m playwright install --with-deps chromium 2>&1 | tee reports/E-browser-binaries.log
+          python -m playwright install --with-deps chromium firefox 2>&1 | tee reports/E-browser-binaries.log
       - name: Build complete static release
         shell: bash
         run: |
@@ -192,7 +192,15 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p reports
-          python scripts/ci_gate.py E 2>&1 | tee reports/E-2.log
+          CONTROLLAB_SW_RELEASE_REPORT=reports/E-chromium-sw-release.json python scripts/ci_gate.py E 2>&1 | tee reports/E-2.log
+      - name: Provisioned-client two-release regression in Firefox
+        shell: bash
+        env:
+          CONTROLLAB_BROWSER: firefox
+          CONTROLLAB_SW_RELEASE_REPORT: reports/E-firefox-sw-release.json
+        run: |
+          set -o pipefail
+          python -m pytest tests/e2e/test_sw_release_update.py -v -s --junitxml=reports/E-firefox-sw-release.xml 2>&1 | tee reports/E-firefox-sw-release.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4; GitHub ref verified 2026-11-14
         if: always()
         with:

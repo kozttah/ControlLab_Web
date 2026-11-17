@@ -1,0 +1,17 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /workspace/scratch/c294078be076/reconcile-sdp-venv/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/c294078be076/ControlLab_Web
+configfile: pyproject.toml
+collecting ... collected 8 items
+
+tests/oracles/test_build_pipeline.py::test_build_runtime_lock_closes_transitive_dependencies PASSED [ 12%]
+tests/oracles/test_build_pipeline.py::test_build_missing_browser_suites_fail_closed PASSED [ 25%]
+tests/oracles/test_build_pipeline.py::test_build_rejects_tampered_asset_and_extra_inventory PASSED [ 37%]
+tests/oracles/test_build_pipeline.py::test_integrity_manifest_defers_gate_decisions_to_external_f9_ledger PASSED [ 50%]
+tests/oracles/test_build_pipeline.py::test_release_carries_original_license_without_relicensing_third_party PASSED [ 62%]
+tests/oracles/test_sw_release_fingerprint.py::test_release_identity_is_deterministic_and_tracks_wheel_and_sbom PASSED [ 75%]
+tests/oracles/test_sw_release_independent.py::test_independent_identity_covers_wheel_and_sbom_without_manifest_cycle PASSED [ 87%]
+tests/oracles/test_sw_release_independent.py::test_independent_rebuild_order_and_worker_edits PASSED [100%]
+
+============================== 8 passed in 1.48s ===============================

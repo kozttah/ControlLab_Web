@@ -32,6 +32,7 @@ import {
   buildAccessibleChartTable,
   renderAccessibleTableHtml,
   renderPoleZeroSvg,
+  renderResidualCorrelationSvg,
   renderTimeResponseSvg,
 } from "../charts/scientific_chart.ts";
 import {
@@ -131,6 +132,7 @@ export function mountControlLabApp(
   const lqr = shell.getLqrWorkspace();
   const tabsCtrl = shell.getTabsController();
   const typedWorkspace = shell.getTypedWorkspace();
+  const idWorkspace = shell.getIdentificationWorkspace();
   const doc = container.ownerDocument;
 
   let serviceWorkerStatus = "cache não verificado";
@@ -243,6 +245,35 @@ export function mountControlLabApp(
     `<div id="typed-workspace-selectors-slot"></div>`,
     `<div id="typed-workspace-status-slot"></div>`,
     `</section>`,
+    `<section id="identification-workspace-panel" class="panel-card" aria-label="Fluxo Vertical de Identificação (Aba 1)">`,
+    `<h3>Fluxo Vertical de Identificação (Aba 1: Dataset Treino/Holdout, Estimação, Resíduos e Reutilização)</h3>`,
+    `<div class="tool-field">`,
+    `<label for="id-csv-input">Importar Dataset CSV (t, u, y) ou Carregar Benchmark PRBS / Entrada Constante (T-ID-02)</label>`,
+    `<textarea id="id-csv-input" class="touch-control" rows="2" data-field="id-csv-input" aria-label="Conteúdo CSV do Dataset (t, u, y)"></textarea>`,
+    `<div class="panel-actions">`,
+    `<label for="id-train-fraction">Fração Treino (0.1–0.9)</label>`,
+    `<input type="number" id="id-train-fraction" class="touch-control" min="0.2" max="0.85" step="0.05" value="0.7" aria-label="Fração de treino para particionamento holdout" />`,
+    `<button type="button" id="btn-id-import-csv" class="touch-control" data-action="id-import-csv">Importar CSV + Particionar</button>`,
+    `<button type="button" id="btn-id-load-prbs" class="touch-control" data-action="id-load-prbs">Benchmark PRBS (Treino + Holdout)</button>`,
+    `<button type="button" id="btn-id-load-const-pe" class="touch-control" data-action="id-load-const-pe">Dataset Entrada Constante (T-ID-02)</button>`,
+    `<button type="button" id="btn-id-split-dataset" class="touch-control" data-action="id-split-dataset">Particionar Dataset Selecionado</button>`,
+    `</div>`,
+    `</div>`,
+    `<div class="panel-actions">`,
+    `<label for="id-chart-partition-select">Partição Visualizada nos Gráficos de Identificação</label>`,
+    `<select id="id-chart-partition-select" class="touch-control" data-action="id-select-partition" aria-label="Partição visualizada nos gráficos de identificação">`,
+    `<option value="validation">Validação / Holdout</option>`,
+    `<option value="train">Treino</option>`,
+    `</select>`,
+    `<button type="button" id="btn-id-reuse-to-lqr" class="touch-control" data-action="id-reuse-to-lqr">Derivar StateSpace + Registrar + Aplicar ao LQR (Aba 3)</button>`,
+    `<button type="button" id="btn-id-reuse-to-siso" class="touch-control" data-action="id-reuse-to-siso">Derivar Modelo + Registrar + Selecionar em SISO (Aba 2)</button>`,
+    `</div>`,
+    `<div id="id-diagnostics-panel" class="diagnostics-panel" aria-live="polite"></div>`,
+    `<div id="id-response-chart-slot" class="chart-container"></div>`,
+    `<div id="id-residuals-chart-slot" class="chart-container"></div>`,
+    `<details><summary>Tabela acessível de comparação temporal da identificação (WCAG 2.2 AA)</summary><div id="id-response-table-slot"></div></details>`,
+    `<details><summary>Tabela acessível de correlação de resíduos R_ee / R_ue (WCAG 2.2 AA)</summary><div id="id-residuals-table-slot"></div></details>`,
+    `</section>`,
     `<div id="lqr-k-display"></div>`,
     `<div id="lqr-diagnostics-panel" class="diagnostics-panel"></div>`,
     `<div id="controllab-tools-slot" class="declarative-tools"></div>`,
@@ -288,6 +319,15 @@ export function mountControlLabApp(
   const btnRegisterPendingDerivedEl = container.querySelector<HTMLButtonElement>("#btn-register-pending-derived");
   const typedSelectorsSlotEl = container.querySelector<HTMLElement>("#typed-workspace-selectors-slot");
   const typedStatusSlotEl = container.querySelector<HTMLElement>("#typed-workspace-status-slot");
+  const idWorkspacePanelEl = container.querySelector<HTMLElement>("#identification-workspace-panel");
+  const idCsvInputEl = container.querySelector<HTMLTextAreaElement>("#id-csv-input");
+  const idTrainFractionEl = container.querySelector<HTMLInputElement>("#id-train-fraction");
+  const idPartitionSelectEl = container.querySelector<HTMLSelectElement>("#id-chart-partition-select");
+  const idDiagnosticsPanelEl = container.querySelector<HTMLElement>("#id-diagnostics-panel");
+  const idResponseChartSlotEl = container.querySelector<HTMLElement>("#id-response-chart-slot");
+  const idResidualsChartSlotEl = container.querySelector<HTMLElement>("#id-residuals-chart-slot");
+  const idResponseTableSlotEl = container.querySelector<HTMLElement>("#id-response-table-slot");
+  const idResidualsTableSlotEl = container.querySelector<HTMLElement>("#id-residuals-table-slot");
   const kDisplaySlotEl = container.querySelector<HTMLElement>("#lqr-k-display");
   const diagnosticsPanelEl = container.querySelector<HTMLElement>("#lqr-diagnostics-panel");
   const toolsSlotEl = container.querySelector<HTMLElement>("#controllab-tools-slot");
@@ -620,6 +660,128 @@ export function mountControlLabApp(
       typedStatusSlotEl.innerHTML = `<p>${pendingParts.join(" | ")}</p>`;
     }
 
+    if (idWorkspacePanelEl) {
+      if (activeTab === "identification") {
+        idWorkspacePanelEl.removeAttribute("hidden");
+      } else {
+        idWorkspacePanelEl.setAttribute("hidden", "true");
+      }
+    }
+
+    if (idPartitionSelectEl) {
+      idPartitionSelectEl.value = idWorkspace.getActivePartitionView();
+    }
+
+    const activeIdReport = idWorkspace.getActiveReport();
+    if (idDiagnosticsPanelEl) {
+      if (!activeIdReport) {
+        idDiagnosticsPanelEl.innerHTML = `<p>Aguardando estimação (<code>identification.fit_arx</code> / <code>identification.fit_subspace</code>) ou validação (<code>identification.validate_model</code>) para exibir métricas 1-passo vs simulação livre, PE/posto e resíduos.</p>`;
+      } else {
+        const fmtMetric = (val: number | null) =>
+          val !== null ? formatNumericDisplay(val, decimals) : "N/D";
+        const trPredFit = fmtMetric(
+          activeIdReport.train_metrics?.one_step_prediction.fit_percent ?? null,
+        );
+        const trSimFit = fmtMetric(
+          activeIdReport.train_metrics?.free_simulation.fit_percent ?? null,
+        );
+        const trPredRmse = fmtMetric(
+          activeIdReport.train_metrics?.one_step_prediction.rmse ?? null,
+        );
+        const trSimRmse = fmtMetric(
+          activeIdReport.train_metrics?.free_simulation.rmse ?? null,
+        );
+
+        const valPredFit = fmtMetric(
+          activeIdReport.validation_metrics?.one_step_prediction.fit_percent ?? null,
+        );
+        const valSimFit = fmtMetric(
+          activeIdReport.validation_metrics?.free_simulation.fit_percent ?? null,
+        );
+        const valPredRmse = fmtMetric(
+          activeIdReport.validation_metrics?.one_step_prediction.rmse ?? null,
+        );
+        const valSimRmse = fmtMetric(
+          activeIdReport.validation_metrics?.free_simulation.rmse ?? null,
+        );
+
+        const condDisplay = fmtMetric(activeIdReport.excitation.condition);
+        const rhoDisplay = fmtMetric(activeIdReport.spectral_radius);
+        const rankDisplay =
+          activeIdReport.excitation.rank !== null
+            ? `${String(activeIdReport.excitation.rank)}/${String(activeIdReport.excitation.expected_rank ?? "?")}`
+            : "N/D";
+        const peTag =
+          activeIdReport.excitation.pe_satisfied === false ||
+          activeIdReport.excitation.rank_deficient
+            ? `<strong data-pe-status="insufficient">Deficiente / PE Insuficiente (rank_deficient=true)</strong>`
+            : `<span data-pe-status="satisfied">Posto completo / PE satisfeita</span>`;
+
+        const warnItemsHtml =
+          activeIdReport.warnings.length > 0
+            ? `<ul class="id-warnings-list" data-testid="id-warnings-list">${activeIdReport.warnings
+                .map((w) =>
+                  typeof w === "string"
+                    ? `<li><code>WARNING</code>: ${escapeHtml(w)}</li>`
+                    : `<li data-warning-code="${escapeHtml(w.code)}"><code>${escapeHtml(w.code)}</code>: ${escapeHtml(w.message)}</li>`,
+                )
+                .join("")}</ul>`
+            : "";
+
+        idDiagnosticsPanelEl.innerHTML = [
+          `<p><strong>Modelo Identificado:</strong> algoritmo <code>${escapeHtml(activeIdReport.algorithm)}</code> | status <code>${escapeHtml(activeIdReport.status)}</code> | representação <code>${escapeHtml(activeIdReport.inner_model_kind ?? "N/D")}</code> | dt=<code>${escapeHtml(String(activeIdReport.dt ?? "N/D"))}</code> | ρ(A)=<code>${escapeHtml(rhoDisplay)}</code> (${activeIdReport.is_stable === false ? "INSTÁVEL" : "estável"})</p>`,
+          `<p><strong>Excitação &amp; Posto (T-ID-02):</strong> posto=<code>${escapeHtml(rankDisplay)}</code> | κ(Φ)=<code>${escapeHtml(condDisplay)}</code> | ${peTag}</p>`,
+          `<p data-testid="id-train-metrics"><strong>Treino (${escapeHtml(activeIdReport.train_dataset_ref?.id ?? "N/D")}):</strong> Previsão 1-Passo FIT=<code>${escapeHtml(trPredFit)}%</code> (RMSE=<code>${escapeHtml(trPredRmse)}</code>) | Simulação Livre FIT=<code>${escapeHtml(trSimFit)}%</code> (RMSE=<code>${escapeHtml(trSimRmse)}</code>)</p>`,
+          `<p data-testid="id-holdout-metrics"><strong>Validação / Holdout (${escapeHtml(activeIdReport.val_dataset_ref?.id ?? "N/D")}, T-ID-03):</strong> Previsão 1-Passo FIT=<code>${escapeHtml(valPredFit)}%</code> (RMSE=<code>${escapeHtml(valPredRmse)}</code>) | Simulação Livre FIT=<code>${escapeHtml(valSimFit)}%</code> (RMSE=<code>${escapeHtml(valSimRmse)}</code>)</p>`,
+          `<p><strong>Critérios de Informação:</strong> AIC=<code>${escapeHtml(fmtMetric(activeIdReport.information_criteria.aic))}</code> | BIC=<code>${escapeHtml(fmtMetric(activeIdReport.information_criteria.bic))}</code> | FPE=<code>${escapeHtml(fmtMetric(activeIdReport.information_criteria.fpe))}</code></p>`,
+          warnItemsHtml,
+        ].join("");
+      }
+    }
+
+    const idRespChart = idWorkspace.buildResponseChart();
+    if (idResponseChartSlotEl) {
+      idResponseChartSlotEl.innerHTML = idRespChart
+        ? renderTimeResponseSvg(idRespChart, { decimals })
+        : "";
+    }
+    if (idResponseTableSlotEl) {
+      if (idRespChart) {
+        const respTable = buildAccessibleChartTable(idRespChart, decimals);
+        idResponseTableSlotEl.innerHTML = renderAccessibleTableHtml(respTable);
+      } else {
+        idResponseTableSlotEl.innerHTML = `<p>Sem séries temporais de identificação para exibir.</p>`;
+      }
+    }
+
+    const idResidChart = idWorkspace.buildResidualCorrelationChart();
+    if (idResidualsChartSlotEl) {
+      idResidualsChartSlotEl.innerHTML = idResidChart
+        ? renderResidualCorrelationSvg(idResidChart, { decimals })
+        : "";
+    }
+    if (idResidualsTableSlotEl) {
+      if (idResidChart) {
+        const residTable = buildAccessibleChartTable(idResidChart, decimals);
+        idResidualsTableSlotEl.innerHTML = renderAccessibleTableHtml(residTable);
+      } else {
+        idResidualsTableSlotEl.innerHTML = `<p>Sem diagnóstico de correlação de resíduos para exibir.</p>`;
+      }
+    }
+
+    if (activeTab === "identification") {
+      const idPzChart = idWorkspace.buildIdentifiedPoleZeroChart();
+      if (idPzChart) {
+        if (pzChartSlotEl) {
+          pzChartSlotEl.innerHTML = renderPoleZeroSvg(idPzChart, { decimals });
+        }
+        if (pzTableSlotEl) {
+          const idPzTable = buildAccessibleChartTable(idPzChart, decimals);
+          pzTableSlotEl.innerHTML = renderAccessibleTableHtml(idPzTable);
+        }
+      }
+    }
+
     if (toolsSlotEl) {
       const nextToolsHtml = tabVm.tools.map((t) => t.toHtml()).join("\n");
       if (nextToolsHtml !== lastToolsHtmlKey) {
@@ -824,6 +986,89 @@ export function mountControlLabApp(
     } catch (err: unknown) {
       shell.presentError(err);
     }
+  });
+
+  const getConfiguredTrainFraction = (): number => {
+    const raw = Number(idTrainFractionEl?.value ?? "0.7");
+    return Number.isFinite(raw) ? raw : 0.7;
+  };
+
+  container.querySelector<HTMLElement>('[data-action="id-import-csv"]')?.addEventListener("click", () => {
+    const csvRaw = idCsvInputEl?.value ?? "";
+    void idWorkspace
+      .importCsvDataset(csvRaw, {
+        splitTrainHoldout: true,
+        trainFraction: getConfiguredTrainFraction(),
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="id-load-prbs"]')?.addEventListener("click", () => {
+    void idWorkspace
+      .loadBenchmarkDataset({
+        preset: "prbs",
+        splitTrainHoldout: true,
+        trainFraction: getConfiguredTrainFraction(),
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="id-load-const-pe"]')?.addEventListener("click", () => {
+    void idWorkspace
+      .loadBenchmarkDataset({
+        preset: "constant_input",
+        splitTrainHoldout: true,
+        trainFraction: getConfiguredTrainFraction(),
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="id-split-dataset"]')?.addEventListener("click", () => {
+    void idWorkspace
+      .splitSelectedDatasetTrainHoldout({
+        trainFraction: getConfiguredTrainFraction(),
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  idPartitionSelectEl?.addEventListener("change", () => {
+    idWorkspace.setActivePartitionView(
+      idPartitionSelectEl.value === "train" ? "train" : "validation",
+    );
+  });
+
+  container.querySelector<HTMLElement>('[data-action="id-reuse-to-lqr"]')?.addEventListener("click", () => {
+    void idWorkspace
+      .reuseIdentifiedModel({
+        targetKind: "StateSpace",
+        registerIdentifiedIfPending: true,
+        registerDerived: true,
+        applyToDestination: "lqr",
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="id-reuse-to-siso"]')?.addEventListener("click", () => {
+    void idWorkspace
+      .reuseIdentifiedModel({
+        targetKind: "native",
+        registerIdentifiedIfPending: true,
+        registerDerived: true,
+        applyToDestination: "siso_frequency",
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
   });
 
   typedSelectorsSlotEl?.addEventListener("change", (ev: Event) => {
@@ -1143,6 +1388,7 @@ export function mountControlLabApp(
           feedbackSign,
         })
         .then((record) => {
+          idWorkspace.ingestExecutionRecord(record);
           openExportModal(
             {
               title: `Resultado RPC: ${record.operation}`,

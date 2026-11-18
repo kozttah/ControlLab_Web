@@ -49,6 +49,18 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
         max: 50,
         step: 1,
       },
+      {
+        name: "detrend",
+        label: "Remoção de tendência (detrend)",
+        type: "select",
+        required: false,
+        default_value: "none",
+        options: [
+          { value: "none", label: "Nenhuma (none)" },
+          { value: "mean", label: "Média removida (mean)" },
+          { value: "linear", label: "Linear (linear)" },
+        ],
+      },
     ],
     operation: "identification.fit_arx",
     output_types: ["IdentifiedModel", "ResidualsReport"],
@@ -71,7 +83,7 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
         title: "Sistema ARX 2ª ordem (B-ARX-PRBS)",
         description: "Ordem na=2, nb=2, nk=1 com validação em conjunto separado.",
         fixture_id: "B-ARX-PRBS",
-        parameters: { na: 2, nb: 2, nk: 1 },
+        parameters: { na: 2, nb: 2, nk: 1, detrend: "none" },
       },
     ],
     default_indicator: "numeric_verified",
@@ -84,6 +96,17 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
     tab: "identification",
     input_types: ["Dataset(t,u,y)"],
     parameter_schema: [
+      {
+        name: "method",
+        label: "Algoritmo de subespaços",
+        type: "select",
+        required: false,
+        default_value: "moesp",
+        options: [
+          { value: "moesp", label: "MOESP (Projeção Ortogonal LQ/SVD)" },
+          { value: "n4sid", label: "N4SID (Projeção Oblíqua 3 Blocos)" },
+        ],
+      },
       {
         name: "order",
         label: "Ordem do sistema (n)",
@@ -104,10 +127,17 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
         max: 60,
         step: 1,
       },
+      {
+        name: "estimate_feedthrough",
+        label: "Estimar matriz direta D",
+        type: "boolean",
+        required: false,
+        default_value: false,
+      },
     ],
     operation: "identification.fit_subspace",
     output_types: ["IdentifiedModel", "StateSpace"],
-    visualizations: ["pole_zero_map", "time_response"],
+    visualizations: ["pole_zero_map", "time_response", "residuals_correlation"],
     requirements: [
       "Dataset registrado com amostragem uniforme e excitação persistente",
     ],
@@ -131,7 +161,7 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
     parameter_schema: [],
     operation: "identification.validate_model",
     output_types: ["ValidationMetrics", "ResidualsReport"],
-    visualizations: ["time_response", "residuals_correlation"],
+    visualizations: ["time_response", "residuals_correlation", "pole_zero_map"],
     requirements: [
       "Modelo alvo (model_ref) e Dataset de validação (val_dataset_ref) registrados no projeto",
     ],

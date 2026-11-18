@@ -14,7 +14,7 @@
       "2026-11-15": 8,
       "2026-11-17": 10,
       "2026-11-16": 1,
-      "2026-11-18": 4
+      "2026-11-18": 5
     }
   },
   "audit_reference": {
@@ -3294,7 +3294,7 @@
         "T-ID-03"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md",
       "acceptance_requirements_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md#wp-v1-f8-identification-vertical",
       "acceptance_requirements": [
@@ -3302,7 +3302,31 @@
         "Adicionar os testes novos exigidos no plano; a suíte existente isolada não prova a entrega",
         "Handoff independente F9 com checklist completo e evidências do domínio anunciado"
       ],
-      "f9_review": "not_started"
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-V1-F8-IDENTIFICATION-VERTICAL.md",
+      "assessed_commit": "18654f5bcb7a0c48df3a9c50c24f73e91f498e17",
+      "reviewed_source_sha256": {
+        "web/features/identification_workspace.ts": "fdc1a63a561ab8eef01c23a6f8265ac7ccdd0266594dc3e9f5981caa0496c98e",
+        "web/charts/scientific_chart.ts": "ca2072a1b50ce11900d9eea127f20b946ea9ecbb6449da3fb3dc85c487afebb0",
+        "web/features/tool_catalog.ts": "c9cbbbdd9181a81c938d6493aa439b7235278551288f8e1ce4da5030710401ab",
+        "web/app/shell.ts": "fbc22bcfc2a8b9cca6de4361400d304853fbd1ce0f289d463021a0235ec23916",
+        "web/app/main.ts": "0b0bb73420c917c9f5ebae66384714a95932ee1596536862b40974c94d1d2d82",
+        "tests/unit/f8/identification_vertical.test.ts": "a5d9cd8cf7905529dbe57eaf472019426b49468fd8c1eebd6b7eeedd8489ca8a"
+      },
+      "completed_on": "2026-11-18",
+      "acceptance_scope": "identification_vertical_dataset_split_arx_subspace_residuals_and_reuse_in_lqr_siso_verified_node_and_chromium_pyodide_wasm",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-V1-F8-IDENTIFICATION-VERTICAL.md",
+        "tests/unit/f8/identification_vertical.test.ts"
+      ],
+      "validation": {
+        "f8_unit_tests": 29,
+        "all_web_unit_tests": 92,
+        "f4_identification_unit_tests": 11,
+        "wasm_and_e2e_browser_tests": 26,
+        "frozen_fixtures_verified": true,
+        "oracle_tolerances_unchanged": true
+      }
     },
     {
       "wp_id": "WP-V1-F8-SISO-VERTICAL",

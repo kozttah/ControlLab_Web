@@ -158,7 +158,317 @@ export interface TimeResponseChartModel extends ChartCommonMetadata {
   preview_channels: readonly TimeSeriesChannel[];
 }
 
-export type ScientificChartModel = PoleZeroChartModel | TimeResponseChartModel;
+export interface ResidualCorrelationChartModel extends ChartCommonMetadata {
+  kind: "residual_correlation";
+  partition: "train" | "validation";
+  n_effective_samples: number;
+  bound_95: number;
+  bound_99: number;
+  lags: readonly number[];
+  autocorrelation: readonly number[];
+  cross_lags: readonly number[];
+  crosscorrelation_u_e: readonly number[];
+  whiteness_within_99_fraction: number | null;
+  uncorrelated_input_within_99_fraction: number | null;
+}
+
+export type ScientificChartModel =
+  | PoleZeroChartModel
+  | TimeResponseChartModel
+  | ResidualCorrelationChartModel;
+
+export function buildIdentificationResponseChartModel(input: {
+  chart_id?: string;
+  title?: string;
+  partition: "train" | "validation";
+  dt: number | null;
+  t: readonly number[];
+  y_measured: readonly number[];
+  y_one_step?: readonly number[] | null;
+  y_free_sim?: readonly number[] | null;
+  residuals?: readonly number[] | null;
+  u?: readonly number[] | null;
+  units?: {
+    time?: string;
+    input?: string;
+    output?: string;
+  };
+  model_revision: number | null;
+  project_revision: number | null;
+  provenance: Provenance | null;
+  series_semantics?: ResultVerificationIndicator;
+  theme_mode?: AccessibilityThemeMode;
+}): TimeResponseChartModel {
+  const semantics = input.series_semantics ?? "numeric_verified";
+  const timeUnit = input.units?.time ?? "s";
+  const outUnit = input.units?.output ?? "y";
+  const inUnit = input.units?.input ?? "u";
+  const partLabel = input.partition === "validation" ? "Holdout" : "Treino";
+
+  const channels: TimeSeriesChannel[] = [
+    {
+      id: `y-measured-${input.partition}`,
+      group: "y",
+      label: `y Medido (${partLabel})`,
+      unit: outUnit,
+      values: [...input.y_measured],
+      shape: "circle",
+      stroke_dasharray: "",
+      series_semantics: semantics,
+    },
+  ];
+
+  if (input.y_one_step && input.y_one_step.length > 0) {
+    channels.push({
+      id: `y-hat-one-step-${input.partition}`,
+      group: "y",
+      label: `ŷ Previsão 1-Passo (${partLabel})`,
+      unit: outUnit,
+      values: [...input.y_one_step],
+      shape: "square",
+      stroke_dasharray: "6 3",
+      series_semantics: semantics,
+    });
+  }
+
+  if (input.y_free_sim && input.y_free_sim.length > 0) {
+    channels.push({
+      id: `y-hat-free-sim-${input.partition}`,
+      group: "x",
+      label: `ŷ Simulação Livre (${partLabel})`,
+      unit: outUnit,
+      values: [...input.y_free_sim],
+      shape: "triangle",
+      stroke_dasharray: "2 2",
+      series_semantics: semantics,
+    });
+  }
+
+  if (input.residuals && input.residuals.length > 0) {
+    channels.push({
+      id: `residuals-one-step-${input.partition}`,
+      group: "u",
+      label: `Resíduo e(k)=y-ŷ (${partLabel})`,
+      unit: outUnit,
+      values: [...input.residuals],
+      shape: "diamond",
+      stroke_dasharray: "8 3 2 3",
+      series_semantics: semantics,
+    });
+  }
+
+  if (input.u && input.u.length > 0) {
+    channels.push({
+      id: `u-input-${input.partition}`,
+      group: "u",
+      label: `Entrada u(k) (${partLabel})`,
+      unit: inUnit,
+      values: [...input.u],
+      shape: "cross",
+      stroke_dasharray: "4 2",
+      series_semantics: semantics,
+    });
+  }
+
+  return {
+    kind: "time_response",
+    chart_id: input.chart_id ?? `id-response-${input.partition}`,
+    title:
+      input.title ??
+      `Identificação (${partLabel}): y Medido vs Previsão 1-Passo vs Simulação Livre`,
+    model_revision: input.model_revision,
+    project_revision: input.project_revision,
+    provenance: input.provenance,
+    series_semantics: semantics,
+    units: {
+      x_axis: `Tempo [${timeUnit}]`,
+      y_axis: `Saída [${outUnit}]`,
+      time: timeUnit,
+      inputs: [inUnit],
+      outputs: [outUnit],
+    },
+    theme_mode: input.theme_mode ?? "standard_aa",
+    dt: input.dt,
+    t: [...input.t],
+    channels,
+    preview_channels: [],
+  };
+}
+
+export function buildResidualCorrelationChartModel(input: {
+  chart_id?: string;
+  title?: string;
+  partition: "train" | "validation";
+  n_effective_samples: number;
+  bound_95: number;
+  bound_99: number;
+  lags: readonly number[];
+  autocorrelation: readonly number[];
+  cross_lags: readonly number[];
+  crosscorrelation_u_e: readonly number[];
+  whiteness_within_99_fraction?: number | null;
+  uncorrelated_input_within_99_fraction?: number | null;
+  model_revision: number | null;
+  project_revision: number | null;
+  provenance: Provenance | null;
+  series_semantics?: ResultVerificationIndicator;
+  theme_mode?: AccessibilityThemeMode;
+}): ResidualCorrelationChartModel {
+  const partLabel = input.partition === "validation" ? "Holdout" : "Treino";
+  return {
+    kind: "residual_correlation",
+    chart_id: input.chart_id ?? `id-residuals-corr-${input.partition}`,
+    title:
+      input.title ??
+      `Diagnóstico de Resíduos (${partLabel}): Autocorrelação R_ee(τ) e Correlação Cruzada R_ue(τ)`,
+    partition: input.partition,
+    n_effective_samples: input.n_effective_samples,
+    bound_95: input.bound_95,
+    bound_99: input.bound_99,
+    lags: [...input.lags],
+    autocorrelation: [...input.autocorrelation],
+    cross_lags: [...input.cross_lags],
+    crosscorrelation_u_e: [...input.crosscorrelation_u_e],
+    whiteness_within_99_fraction: input.whiteness_within_99_fraction ?? null,
+    uncorrelated_input_within_99_fraction:
+      input.uncorrelated_input_within_99_fraction ?? null,
+    model_revision: input.model_revision,
+    project_revision: input.project_revision,
+    provenance: input.provenance,
+    series_semantics: input.series_semantics ?? "numeric_verified",
+    units: {
+      x_axis: "Atraso (Lag τ [amostras])",
+      y_axis: "Correlação Normalizada [-1, 1]",
+    },
+    theme_mode: input.theme_mode ?? "standard_aa",
+  };
+}
+
+export function renderResidualCorrelationSvg(
+  model: ResidualCorrelationChartModel,
+  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+): string {
+  const widthPx = options?.widthPx ?? 640;
+  const heightPx = options?.heightPx ?? 360;
+  const decimals = options?.decimals ?? 3;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+
+  const allLags: number[] = [0, ...model.lags, ...model.cross_lags];
+  const allVals: number[] = [
+    -1,
+    1,
+    model.bound_95,
+    -model.bound_95,
+    model.bound_99,
+    -model.bound_99,
+    ...model.autocorrelation,
+    ...model.crosscorrelation_u_e,
+  ];
+  const xBounds = computeSafeAxisBounds(allLags, 0.06);
+  const yBounds = computeSafeAxisBounds(allVals, 0.08);
+
+  const padLeft = 64;
+  const padRight = 24;
+  const padTop = 44;
+  const padBottom = 52;
+  const plotW = widthPx - padLeft - padRight;
+  const plotH = heightPx - padTop - padBottom;
+
+  const toPxX = (lagVal: number) =>
+    mapCoord(lagVal, xBounds.min, xBounds.span, padLeft, plotW, false);
+  const toPxY = (corrVal: number) =>
+    mapCoord(corrVal, yBounds.min, yBounds.span, padTop, plotH, true);
+
+  const yZero = toPxY(0);
+  const b95PosY = toPxY(model.bound_95);
+  const b95NegY = toPxY(-model.bound_95);
+  const b99PosY = toPxY(model.bound_99);
+  const b99NegY = toPxY(-model.bound_99);
+
+  const autoPoints: string[] = [];
+  const autoCount = Math.min(model.lags.length, model.autocorrelation.length);
+  for (let i = 0; i < autoCount; i += 1) {
+    const lag = model.lags[i];
+    const val = model.autocorrelation[i];
+    const px = toPxX(lag);
+    const py = toPxY(val);
+    const within99 = lag === 0 || Math.abs(val) <= model.bound_99;
+    const lbl = `R_ee(τ=${lag}) = ${formatNumericDisplay(val, decimals)} (${within99 ? "dentro 99%" : "FORA 99%"})`;
+    autoPoints.push(
+      `<line x1="${px.toFixed(2)}" y1="${yZero.toFixed(2)}" x2="${px.toFixed(2)}" y2="${py.toFixed(2)}" stroke="${theme.chartClosedLoop}" stroke-width="2" />` +
+        renderMarkerSvg(
+          within99 ? "circle" : "cross",
+          px,
+          py,
+          4,
+          theme.chartClosedLoop,
+          lbl,
+          `data-corr-kind="R_ee" data-lag="${lag}" data-within-99="${within99 ? "true" : "false"}"`,
+        ),
+    );
+  }
+
+  const crossPoints: string[] = [];
+  const crossCount = Math.min(
+    model.cross_lags.length,
+    model.crosscorrelation_u_e.length,
+  );
+  for (let i = 0; i < crossCount; i += 1) {
+    const lag = model.cross_lags[i];
+    const val = model.crosscorrelation_u_e[i];
+    const px = toPxX(lag);
+    const py = toPxY(val);
+    const within99 = Math.abs(val) <= model.bound_99;
+    const lbl = `R_ue(τ=${lag}) = ${formatNumericDisplay(val, decimals)} (${within99 ? "dentro 99%" : "FORA 99%"})`;
+    crossPoints.push(
+      renderMarkerSvg(
+        within99 ? "square" : "diamond",
+        px,
+        py,
+        3.8,
+        theme.chartOpenLoop,
+        lbl,
+        `data-corr-kind="R_ue" data-lag="${lag}" data-within-99="${within99 ? "true" : "false"}"`,
+      ),
+    );
+  }
+  const crossPolylinePts: string[] = [];
+  for (let i = 0; i < crossCount; i += 1) {
+    crossPolylinePts.push(
+      `${toPxX(model.cross_lags[i]).toFixed(2)},${toPxY(model.crosscorrelation_u_e[i]).toFixed(2)}`,
+    );
+  }
+  const crossPolyline =
+    crossPolylinePts.length > 1
+      ? `<polyline fill="none" stroke="${theme.chartOpenLoop}" stroke-width="1.6" stroke-dasharray="5 3" points="${crossPolylinePts.join(" ")}" data-series="R_ue" />`
+      : "";
+
+  const ariaSummary = `${model.title}; partição=${model.partition}; N_eff=${model.n_effective_samples}; banda 95%=±${formatNumericDisplay(model.bound_95, decimals)}; banda 99%=±${formatNumericDisplay(model.bound_99, decimals)}.`;
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${widthPx} ${heightPx}" role="img" aria-label="${escapeHtml(ariaSummary)}" style="background:${theme.surface};color:${theme.textPrimary}" data-chart-kind="residual_correlation" data-partition="${escapeHtml(model.partition)}" data-series-semantics="${escapeHtml(model.series_semantics)}" data-model-revision="${escapeHtml(String(model.model_revision))}" data-project-revision="${escapeHtml(String(model.project_revision))}">`,
+    `<title>${escapeHtml(model.title)}</title>`,
+    `<desc>${escapeHtml(ariaSummary)}</desc>`,
+    `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="${theme.surfaceAlt}" stroke="${theme.border}" stroke-width="1" />`,
+    `<line x1="${padLeft}" y1="${yZero.toFixed(2)}" x2="${widthPx - padRight}" y2="${yZero.toFixed(2)}" stroke="${theme.chartAxis}" stroke-width="1.2" />`,
+    `<line x1="${padLeft}" y1="${b95PosY.toFixed(2)}" x2="${widthPx - padRight}" y2="${b95PosY.toFixed(2)}" stroke="${theme.chartOverlaySufficient}" stroke-dasharray="4 4" stroke-width="1.3" data-bound="95-upper"><title>Limite confiança 95% (+${escapeHtml(formatNumericDisplay(model.bound_95, decimals))})</title></line>`,
+    `<line x1="${padLeft}" y1="${b95NegY.toFixed(2)}" x2="${widthPx - padRight}" y2="${b95NegY.toFixed(2)}" stroke="${theme.chartOverlaySufficient}" stroke-dasharray="4 4" stroke-width="1.3" data-bound="95-lower"><title>Limite confiança 95% (-${escapeHtml(formatNumericDisplay(model.bound_95, decimals))})</title></line>`,
+    `<line x1="${padLeft}" y1="${b99PosY.toFixed(2)}" x2="${widthPx - padRight}" y2="${b99PosY.toFixed(2)}" stroke="${theme.chartOverlayHeuristic}" stroke-dasharray="2 3" stroke-width="1.4" data-bound="99-upper"><title>Limite confiança 99% (+${escapeHtml(formatNumericDisplay(model.bound_99, decimals))})</title></line>`,
+    `<line x1="${padLeft}" y1="${b99NegY.toFixed(2)}" x2="${widthPx - padRight}" y2="${b99NegY.toFixed(2)}" stroke="${theme.chartOverlayHeuristic}" stroke-dasharray="2 3" stroke-width="1.4" data-bound="99-lower"><title>Limite confiança 99% (-${escapeHtml(formatNumericDisplay(model.bound_99, decimals))})</title></line>`,
+    `<g data-layer="autocorrelation-R_ee">${autoPoints.join("")}</g>`,
+    `<g data-layer="crosscorrelation-R_ue">${crossPolyline}${crossPoints.join("")}</g>`,
+    `<g class="chart-legend" data-layer="legend">`,
+    `<text x="${padLeft + 8}" y="${padTop + 14}" font-size="10" fill="${theme.chartClosedLoop}">● R_ee(τ) Autocorrelação</text>`,
+    `<text x="${padLeft + 150}" y="${padTop + 14}" font-size="10" fill="${theme.chartOpenLoop}">■ R_ue(τ) Cruzada u-e</text>`,
+    `<text x="${padLeft + 285}" y="${padTop + 14}" font-size="10" fill="${theme.chartOverlaySufficient}">-- Banda 95% (±${escapeHtml(formatNumericDisplay(model.bound_95, decimals))})</text>`,
+    `<text x="${padLeft + 430}" y="${padTop + 14}" font-size="10" fill="${theme.chartOverlayHeuristic}">·· Banda 99% (±${escapeHtml(formatNumericDisplay(model.bound_99, decimals))})</text>`,
+    `</g>`,
+    `<text x="${padLeft}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)}</text>`,
+    `<text x="${(padLeft + plotW / 2).toFixed(2)}" y="${heightPx - 10}" text-anchor="middle" font-size="12" fill="${theme.textSecondary}">${escapeHtml(model.units.x_axis)} | N_eff=${model.n_effective_samples}</text>`,
+    `<text x="16" y="${(padTop + plotH / 2).toFixed(2)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(2)})" text-anchor="middle" font-size="12" fill="${theme.textSecondary}">${escapeHtml(model.units.y_axis)}</text>`,
+    `</svg>`,
+  ].join("");
+}
 
 export function buildPoleZeroChartModel(input: {
   chart_id?: string;
@@ -781,6 +1091,57 @@ export function buildAccessibleChartTable(
 
     return {
       caption: `${chart.title} (Rev. Modelo ${String(chart.model_revision)}, Rev. Projeto ${String(chart.project_revision)})`,
+      headers,
+      rows,
+      rawNumericRowCount: rows.length,
+      decimals,
+      series_semantics: chart.series_semantics,
+      ariaAttributes: {
+        role: "table",
+        "aria-label": `Tabela acessível de ${chart.title}`,
+      },
+    };
+  }
+
+  if (chart.kind === "residual_correlation") {
+    const headers = [
+      "Lag τ",
+      "R_ee(τ) Autocorrelação",
+      "R_ue(τ) Cruzada u-e",
+      "Banda 95% (±)",
+      "Banda 99% (±)",
+      "Dentro de 99%",
+    ];
+    const autoByLag = new Map<number, number>();
+    for (let i = 0; i < Math.min(chart.lags.length, chart.autocorrelation.length); i += 1) {
+      autoByLag.set(chart.lags[i], chart.autocorrelation[i]);
+    }
+    const crossByLag = new Map<number, number>();
+    for (let i = 0; i < Math.min(chart.cross_lags.length, chart.crosscorrelation_u_e.length); i += 1) {
+      crossByLag.set(chart.cross_lags[i], chart.crosscorrelation_u_e[i]);
+    }
+    const allLags = Array.from(new Set([...chart.cross_lags, ...chart.lags])).sort((a, b) => a - b);
+    const rows: string[][] = [];
+    const b95Str = formatNumericDisplay(chart.bound_95, decimals);
+    const b99Str = formatNumericDisplay(chart.bound_99, decimals);
+
+    for (const lag of allLags) {
+      const ree = autoByLag.get(lag);
+      const rue = crossByLag.get(lag);
+      const reeOk = ree === undefined || lag === 0 || Math.abs(ree) <= chart.bound_99;
+      const rueOk = rue === undefined || Math.abs(rue) <= chart.bound_99;
+      rows.push([
+        String(lag),
+        ree !== undefined ? formatNumericDisplay(ree, decimals) : "—",
+        rue !== undefined ? formatNumericDisplay(rue, decimals) : "—",
+        b95Str,
+        b99Str,
+        reeOk && rueOk ? "Sim" : "Não (Fora)",
+      ]);
+    }
+
+    return {
+      caption: `${chart.title} (Partição: ${chart.partition}, N_eff=${chart.n_effective_samples}, Rev. Modelo ${String(chart.model_revision)}, Rev. Projeto ${String(chart.project_revision)})`,
       headers,
       rows,
       rawNumericRowCount: rows.length,

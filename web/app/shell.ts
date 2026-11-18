@@ -59,6 +59,9 @@ import { ProjectTabsController } from "../features/project_tabs.ts";
 import {
   TypedObjectWorkspace,
 } from "../features/typed_workspace.ts";
+import {
+  IdentificationWorkspace,
+} from "../features/identification_workspace.ts";
 
 export interface PresentedError {
   code: ErrorCategory;
@@ -261,6 +264,7 @@ export interface ShellOptions {
   lqrWorkspace?: LqrWorkspaceController;
   tabsController?: ProjectTabsController;
   typedWorkspace?: TypedObjectWorkspace;
+  identificationWorkspace?: IdentificationWorkspace;
   initialTab?: ProjectTabId;
   displayDecimals?: number;
   themeMode?: AccessibilityThemeMode;
@@ -271,6 +275,7 @@ export class ControlLabShell {
   private readonly lqr: LqrWorkspaceController;
   private readonly tabs: ProjectTabsController;
   private readonly typedWorkspace: TypedObjectWorkspace;
+  private readonly identificationWorkspace: IdentificationWorkspace;
   private readonly announcer: AriaLiveAnnouncer;
   private readonly focusRestorer: FocusRestorer;
 
@@ -332,6 +337,21 @@ export class ControlLabShell {
       this.tabs.setTypedWorkspace(this.typedWorkspace);
     }
 
+    this.identificationWorkspace =
+      options.identificationWorkspace ??
+      new IdentificationWorkspace({
+        client: this.client,
+        typedWorkspace: this.typedWorkspace,
+        tabsController: this.tabs,
+        projectIdProvider: () => this.lqr.getProjectId(),
+        projectRevisionProvider: () => this.lqr.getProjectRevision(),
+        themeModeProvider: () => this.themeMode,
+        announcer: this.announcer,
+        onApplyStateSpaceToLqr: () => this.applySelectedPlantToLqr(),
+        onSwitchTab: (tab) => this.switchTab(tab),
+        onError: (err) => this.presentError(err),
+      });
+
     this.engineState = this.client.getLifecycleState();
     this.unsubscribeClient = this.client.subscribe((ev) => {
       this.eventsLog.push(ev);
@@ -374,6 +394,7 @@ export class ControlLabShell {
     });
     this.tabs.subscribe(() => this.notify());
     this.typedWorkspace.subscribe(() => this.notify());
+    this.identificationWorkspace.subscribe(() => this.notify());
   }
 
   private clampDecimals(decimals: number): number {
@@ -393,6 +414,10 @@ export class ControlLabShell {
 
   public getTypedWorkspace(): TypedObjectWorkspace {
     return this.typedWorkspace;
+  }
+
+  public getIdentificationWorkspace(): IdentificationWorkspace {
+    return this.identificationWorkspace;
   }
 
   public applySelectedPlantToLqr(): CanonicalStateSpaceModel {

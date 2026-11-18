@@ -77,12 +77,81 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
     default_indicator: "numeric_verified",
   },
   {
+    id: "identification.fit_subspace",
+    title: "Identificação por Subespaços (MOESP / N4SID)",
+    description:
+      "Estima modelo em espaço de estados discreto por subespaços a partir de Dataset registrado com avaliação em holdout.",
+    tab: "identification",
+    input_types: ["Dataset(t,u,y)"],
+    parameter_schema: [
+      {
+        name: "order",
+        label: "Ordem do sistema (n)",
+        type: "integer",
+        required: false,
+        default_value: 2,
+        min: 1,
+        max: 24,
+        step: 1,
+      },
+      {
+        name: "horizon",
+        label: "Horizonte de Hankel",
+        type: "integer",
+        required: false,
+        default_value: 8,
+        min: 2,
+        max: 60,
+        step: 1,
+      },
+    ],
+    operation: "identification.fit_subspace",
+    output_types: ["IdentifiedModel", "StateSpace"],
+    visualizations: ["pole_zero_map", "time_response"],
+    requirements: [
+      "Dataset registrado com amostragem uniforme e excitação persistente",
+    ],
+    interaction_mode: "batch_async",
+    maturity: "beta",
+    limits: {
+      max_samples: 100000,
+      hard_timeout_ms: 15000,
+      notes: "Modelo identificado deve ser registrado explicitamente antes de reuso.",
+    },
+    examples: [],
+    default_indicator: "numeric_verified",
+  },
+  {
+    id: "identification.validate_model",
+    title: "Validação Cruzada de Modelo Identificado",
+    description:
+      "Avalia IdentifiedModel, StateSpace ou TransferFunction contra Dataset de validação (holdout).",
+    tab: "identification",
+    input_types: ["IdentifiedModel", "StateSpace", "TransferFunction", "Dataset(t,u,y)"],
+    parameter_schema: [],
+    operation: "identification.validate_model",
+    output_types: ["ValidationMetrics", "ResidualsReport"],
+    visualizations: ["time_response", "residuals_correlation"],
+    requirements: [
+      "Modelo alvo (model_ref) e Dataset de validação (val_dataset_ref) registrados no projeto",
+    ],
+    interaction_mode: "immediate",
+    maturity: "beta",
+    limits: {
+      max_samples: 100000,
+      hard_timeout_ms: 15000,
+      notes: "Requer model_ref e val_dataset_ref explicitamente registrados na sessão.",
+    },
+    examples: [],
+    default_indicator: "numeric_verified",
+  },
+  {
     id: "siso.bode_nyquist",
     title: "Bode, Nyquist e Margens SISO",
     description:
       "Calcula resposta em frequência G(s)/G(z), múltiplas frequências de cruzamento, margens de ganho/fase e overlays semânticos.",
     tab: "siso_frequency",
-    input_types: ["TransferFunction", "Controller"],
+    input_types: ["TransferFunction", "StateSpace", "Controller"],
     parameter_schema: [
       {
         name: "w_min",
@@ -407,6 +476,24 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
           { value: "ieee_1855_2016", label: "IEEE 1855-2016 (Baseline)" },
         ],
       },
+      {
+        name: "inputs",
+        label: "Ponto de entrada JSON (opcional; vazio = superfície)",
+        type: "json",
+        required: false,
+      },
+      {
+        name: "input_axes",
+        label: "Eixos da superfície JSON (opcional)",
+        type: "json",
+        required: false,
+      },
+      {
+        name: "fixed_inputs",
+        label: "Entradas fixas JSON (opcional)",
+        type: "json",
+        required: false,
+      },
     ],
     operation: "fuzzy.evaluate",
     output_types: ["FuzzySurface", "FMLDocument"],
@@ -438,7 +525,7 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
     description:
       "Resolve LMIs no motor primal-dual NumPy/SciPy com auditoria primal, dual, gap e condicionamento.",
     tab: "optimization_lmi",
-    input_types: ["CanonicalSDPProblem", "StateSpace"],
+    input_types: ["CanonicalSDPProblem", "StateSpace", "TSStateSpace"],
     parameter_schema: [
       {
         name: "template",
@@ -447,10 +534,12 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
         required: true,
         default_value: "quadratic_stabilization",
         options: [
-          { value: "quadratic_stabilization", label: "Estabilização Quadrática (u=Kx)" },
+          { value: "quadratic_stabilization", label: "Estabilização Quadrática LTI (u=Kx)" },
           { value: "lqr_lmi", label: "LQR-LMI com custo quadrático" },
           { value: "decay_rate", label: "Decaimento α ((AQ+BY)+(AQ+BY)^T+2αQ < 0)" },
+          { value: "regional_pole_placement", label: "Alocação Regional de Polos (disco/α)" },
           { value: "hinf_brl", label: "BRL H∞ (realimentação de estados)" },
+          { value: "ts_pdc_stabilization", label: "Estabilização Takagi-Sugeno PDC (TSStateSpace)" },
         ],
       },
       {
@@ -461,6 +550,20 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
         default_value: 0.5,
         min: 0,
         max: 100,
+      },
+      {
+        name: "radius",
+        label: "Raio do disco LMI (regional_pole_placement)",
+        type: "number",
+        required: false,
+        min: 1e-6,
+        max: 1e6,
+      },
+      {
+        name: "premise_estimator",
+        label: "Estimador de premissas JSON (ts_partially_observed)",
+        type: "json",
+        required: false,
       },
       {
         name: "problem", label: "Problema SDP canônico (JSON opcional)",

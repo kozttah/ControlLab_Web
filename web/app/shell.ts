@@ -56,6 +56,9 @@ import {
   type FeedbackSign,
 } from "../features/lqr_workspace.ts";
 import { ProjectTabsController } from "../features/project_tabs.ts";
+import {
+  TypedObjectWorkspace,
+} from "../features/typed_workspace.ts";
 
 export interface PresentedError {
   code: ErrorCategory;
@@ -257,6 +260,7 @@ export interface ShellOptions {
   project_id?: string;
   lqrWorkspace?: LqrWorkspaceController;
   tabsController?: ProjectTabsController;
+  typedWorkspace?: TypedObjectWorkspace;
   initialTab?: ProjectTabId;
   displayDecimals?: number;
   themeMode?: AccessibilityThemeMode;
@@ -266,6 +270,7 @@ export class ControlLabShell {
   private readonly client: ControlLabEngineClient;
   private readonly lqr: LqrWorkspaceController;
   private readonly tabs: ProjectTabsController;
+  private readonly typedWorkspace: TypedObjectWorkspace;
   private readonly announcer: AriaLiveAnnouncer;
   private readonly focusRestorer: FocusRestorer;
 
@@ -303,12 +308,29 @@ export class ControlLabShell {
         themeMode: this.themeMode,
       });
 
+    this.typedWorkspace =
+      options.typedWorkspace ??
+      new TypedObjectWorkspace({
+        client: this.client,
+        projectIdProvider: () => this.lqr.getProjectId(),
+        projectRevisionProvider: () => this.lqr.getProjectRevision(),
+        activeLqrPlantProvider: () => this.lqr.getPlant(),
+        announcer: this.announcer,
+        onError: (err) => {
+          this.presentError(err);
+        },
+      });
+
     this.tabs =
       options.tabsController ??
       new ProjectTabsController({
         client: this.client,
+        typedWorkspace: this.typedWorkspace,
         initialTab: options.initialTab ?? "statespace",
       });
+    if (options.tabsController) {
+      this.tabs.setTypedWorkspace(this.typedWorkspace);
+    }
 
     this.engineState = this.client.getLifecycleState();
     this.unsubscribeClient = this.client.subscribe((ev) => {
@@ -323,12 +345,16 @@ export class ControlLabShell {
           ev.current === "error" ? "assertive" : "polite",
           ev.current === "error" ? "error" : "status",
         );
+        if (ev.current === "ready") {
+          void this.typedWorkspace.rehydrateFromStorage();
+        }
       } else if (ev.type === "worker_recovered") {
         this.announcer.announce(
           `Worker recuperado (geração ${ev.generation}): ${ev.restored_objects} objeto(s) reidratado(s).`,
           "polite",
           "status",
         );
+        void this.typedWorkspace.rehydrateFromStorage();
       } else if (ev.type === "error") {
         this.announcer.announce(
           `Erro no motor científico: ${ev.error.message}`,
@@ -340,12 +366,14 @@ export class ControlLabShell {
     });
 
     this.lqr.subscribe(() => {
+      this.typedWorkspace.syncFromActiveLqrPlant(this.lqr.getPlant());
       if (this.lqr.isPendingCommit() || this.lqr.getLastError() !== null) {
         this.manualPresentedError = null;
       }
       this.notify();
     });
     this.tabs.subscribe(() => this.notify());
+    this.typedWorkspace.subscribe(() => this.notify());
   }
 
   private clampDecimals(decimals: number): number {
@@ -361,6 +389,23 @@ export class ControlLabShell {
 
   public getTabsController(): ProjectTabsController {
     return this.tabs;
+  }
+
+  public getTypedWorkspace(): TypedObjectWorkspace {
+    return this.typedWorkspace;
+  }
+
+  public applySelectedPlantToLqr(): CanonicalStateSpaceModel {
+    const eff = this.typedWorkspace.getEffectiveSelection("statespacePlant");
+    if (!eff || eff.object.kind !== "StateSpace") {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        "Nenhum objeto StateSpace selecionado para aplicar ao workspace LQR.",
+      );
+    }
+    this.lqr.updatePlant(eff.object.value as unknown as CanonicalStateSpaceModel);
+    this.typedWorkspace.selectRef("statespacePlant", null);
+    return this.lqr.getPlant();
   }
 
   public getAnnouncer(): AriaLiveAnnouncer {
@@ -692,8 +737,8 @@ export class ControlLabShell {
     const committed = this.lqr.getCommittedSnapshot();
     const response = await this.client.execute({
       api_version: RPC_API_VERSION, request_id: `io-${generateUuid()}`,
-      project_id: context?.project_id ?? committed?.project_id ?? "io-import",
-      project_revision: context?.project_revision ?? committed?.project_revision ?? 0,
+      project_id: context?.project_id ?? committed?.project_id ?? this.lqr.getProjectId(),
+      project_revision: context?.project_revision ?? committed?.project_revision ?? this.lqr.getProjectRevision(),
       operation, payload, options: {}, timeout_policy: { hard_timeout_ms: 30000 },
     }, { commitOnSuccess: false });
     if (response.status !== "success" && response.status !== "warning") {

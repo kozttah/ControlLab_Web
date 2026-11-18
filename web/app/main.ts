@@ -34,6 +34,12 @@ import {
   renderPoleZeroSvg,
   renderTimeResponseSvg,
 } from "../charts/scientific_chart.ts";
+import {
+  encodeObjectRefKey,
+  decodeObjectRefKey,
+  TYPED_SELECTION_ROLES,
+  type TypedSelectionRole,
+} from "../features/typed_workspace.ts";
 
 export interface MountControlLabOptions {
   engineMode?: "pyodide" | "mock";
@@ -124,13 +130,26 @@ export function mountControlLabApp(
   });
   const lqr = shell.getLqrWorkspace();
   const tabsCtrl = shell.getTabsController();
+  const typedWorkspace = shell.getTypedWorkspace();
   const doc = container.ownerDocument;
 
   let serviceWorkerStatus = "cache não verificado";
   let dragStartQScale = 1.0;
   let lastExportPayload: ExportModalPayload | null = null;
   let lastToolsHtmlKey = "";
+  let lastTypedWorkspaceHtmlKey = "";
   let renderedPvmExportRevision = -1;
+
+  const ROLE_LABELS: Record<TypedSelectionRole, string> = {
+    statespacePlant: "Planta StateSpace (statespace.* / LMI LTI)",
+    frequencyPlant: "Modelo Frequência (StateSpace / TransferFunction)",
+    dataset: "Dataset de Treino (identification.fit_*)",
+    valDataset: "Dataset de Validação / Holdout",
+    fuzzySystem: "Sistema Fuzzy (FuzzySystem -> fuzzy.*)",
+    tsModel: "Modelo Takagi-Sugeno (TSStateSpace -> LMI PDC)",
+    validationModel: "Modelo para Validação (identification.validate_model)",
+    reuseSource: "Modelo Origem para Reutilização (core.reuse_model)",
+  };
 
   const tabsHtml = PROJECT_TAB_IDS.map((tabId) => {
     const meta = PROJECT_TAB_METADATA[tabId];
@@ -204,6 +223,26 @@ export function mountControlLabApp(
     `<div class="tool-field"><label for="pvm-u-min">Limite inferior u_min (número ou vetor JSON)</label><input id="pvm-u-min" type="text" value="-1" disabled /></div>`,
     `<div class="tool-field"><label for="pvm-u-max">Limite superior u_max (número ou vetor JSON)</label><input id="pvm-u-max" type="text" value="1" disabled /></div>`,
     `</details>`,
+    `<section id="typed-workspace-panel" class="panel-card" aria-label="Insumos tipados da sessão">`,
+    `<h3>Insumos Tipados da Sessão (Dataset / Modelo / Sistema)</h3>`,
+    `<div class="tool-field">`,
+    `<label for="typed-object-json">Registrar Objeto Canônico (JSON: Dataset, TransferFunction, StateSpace, IdentifiedModel, FuzzySystem, TS)</label>`,
+    `<textarea id="typed-object-json" class="touch-control" rows="3" data-field="typed-object-json" aria-label="Registrar objeto canônico JSON"></textarea>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-register-typed-object" class="touch-control" data-action="register-typed-object">Registrar Objeto Tipado</button>`,
+    `<select id="reuse-target-kind" class="touch-control" aria-label="Formato alvo de core.reuse_model">`,
+    `<option value="native">Formato nativo do modelo (native)</option>`,
+    `<option value="StateSpace">Converter para StateSpace (TF -> SS)</option>`,
+    `</select>`,
+    `<button type="button" id="btn-reuse-model" class="touch-control" data-action="reuse-model">Derivar via core.reuse_model</button>`,
+    `<button type="button" id="btn-register-pending-identified" class="touch-control" data-action="register-pending-identified" disabled aria-disabled="true">Registrar IdentifiedModel Pendente</button>`,
+    `<button type="button" id="btn-register-pending-derived" class="touch-control" data-action="register-pending-derived" disabled aria-disabled="true">Registrar Derivado Pendente</button>`,
+    `<button type="button" id="btn-apply-selected-to-lqr" class="touch-control" data-action="apply-selected-to-lqr">Aplicar StateSpace Selecionado ao LQR</button>`,
+    `</div>`,
+    `</div>`,
+    `<div id="typed-workspace-selectors-slot"></div>`,
+    `<div id="typed-workspace-status-slot"></div>`,
+    `</section>`,
     `<div id="lqr-k-display"></div>`,
     `<div id="lqr-diagnostics-panel" class="diagnostics-panel"></div>`,
     `<div id="controllab-tools-slot" class="declarative-tools"></div>`,
@@ -243,6 +282,12 @@ export function mountControlLabApp(
   const feedbackSelectEl = container.querySelector<HTMLSelectElement>("#lqr-feedback-sign");
   const plantJsonInputEl = container.querySelector<HTMLInputElement>("#lqr-plant-json");
   const weightsJsonInputEl = container.querySelector<HTMLInputElement>("#lqr-weights-json");
+  const typedObjectJsonEl = container.querySelector<HTMLTextAreaElement>("#typed-object-json");
+  const reuseTargetKindEl = container.querySelector<HTMLSelectElement>("#reuse-target-kind");
+  const btnRegisterPendingIdentifiedEl = container.querySelector<HTMLButtonElement>("#btn-register-pending-identified");
+  const btnRegisterPendingDerivedEl = container.querySelector<HTMLButtonElement>("#btn-register-pending-derived");
+  const typedSelectorsSlotEl = container.querySelector<HTMLElement>("#typed-workspace-selectors-slot");
+  const typedStatusSlotEl = container.querySelector<HTMLElement>("#typed-workspace-status-slot");
   const kDisplaySlotEl = container.querySelector<HTMLElement>("#lqr-k-display");
   const diagnosticsPanelEl = container.querySelector<HTMLElement>("#lqr-diagnostics-panel");
   const toolsSlotEl = container.querySelector<HTMLElement>("#controllab-tools-slot");
@@ -508,6 +553,73 @@ export function mountControlLabApp(
       }
     }
 
+    if (typedSelectorsSlotEl) {
+      const selectorsHtml = TYPED_SELECTION_ROLES.map((role) => {
+        const items = typedWorkspace.listSelectableObjectsForRole(role);
+        const eff = typedWorkspace.getEffectiveSelection(role);
+        const selectedKey = eff ? encodeObjectRefKey(eff.ref) : "";
+        const optionsHtml = [
+          `<option value="">— Nenhum selecionado —</option>`,
+          ...items.map((item) => {
+            const k = encodeObjectRefKey({ id: item.id, revision: item.revision });
+            const selAttr = k === selectedKey ? " selected" : "";
+            const originTag = item.source === "lqr_plant" ? " [LQR ativo]" : "";
+            return `<option value="${escapeHtml(k)}"${selAttr}>${escapeHtml(item.id)}#r${item.revision} — ${escapeHtml(item.summary)}${escapeHtml(originTag)}</option>`;
+          }),
+        ].join("");
+        return [
+          `<div class="tool-field" data-typed-role="${escapeHtml(role)}">`,
+          `<label for="typed-select-${escapeHtml(role)}">${escapeHtml(ROLE_LABELS[role])}</label>`,
+          `<select id="typed-select-${escapeHtml(role)}" class="touch-control" data-action="select-typed-ref" data-role="${escapeHtml(role)}" aria-label="${escapeHtml(ROLE_LABELS[role])}">${optionsHtml}</select>`,
+          `</div>`,
+        ].join("");
+      }).join("\n");
+
+      if (selectorsHtml !== lastTypedWorkspaceHtmlKey) {
+        const activeId = (doc?.activeElement as HTMLElement | null)?.id ?? "";
+        typedSelectorsSlotEl.innerHTML = selectorsHtml;
+        lastTypedWorkspaceHtmlKey = selectorsHtml;
+        if (activeId.startsWith("typed-select-")) {
+          const refocused = typedSelectorsSlotEl.querySelector<HTMLElement>(`#${activeId}`);
+          refocused?.focus();
+        }
+      }
+    }
+
+    const pendingIdentified = typedWorkspace.getPendingIdentifiedModel();
+    if (btnRegisterPendingIdentifiedEl) {
+      const canRegId = pendingIdentified !== null && !pendingIdentified.registered;
+      btnRegisterPendingIdentifiedEl.disabled = !canRegId;
+      if (canRegId) btnRegisterPendingIdentifiedEl.removeAttribute("aria-disabled");
+      else btnRegisterPendingIdentifiedEl.setAttribute("aria-disabled", "true");
+    }
+
+    const pendingDerived = typedWorkspace.getPendingDerivedModel();
+    if (btnRegisterPendingDerivedEl) {
+      const canRegDerived = pendingDerived !== null && !pendingDerived.registered;
+      btnRegisterPendingDerivedEl.disabled = !canRegDerived;
+      if (canRegDerived) btnRegisterPendingDerivedEl.removeAttribute("aria-disabled");
+      else btnRegisterPendingDerivedEl.setAttribute("aria-disabled", "true");
+    }
+
+    if (typedStatusSlotEl) {
+      const regCount = typedWorkspace.listRegisteredObjects().length;
+      const pendingParts: string[] = [
+        `Objetos registrados na sessão: <strong>${regCount}</strong>`,
+      ];
+      if (pendingIdentified) {
+        pendingParts.push(
+          `IdentifiedModel: <code>${escapeHtml(pendingIdentified.model_ref.id)}#r${pendingIdentified.model_ref.revision}</code> (${pendingIdentified.registered ? "registrado" : "aguardando registro explícito"})`,
+        );
+      }
+      if (pendingDerived) {
+        pendingParts.push(
+          `Derivado (${escapeHtml(pendingDerived.kind)}): <code>${escapeHtml(pendingDerived.model_ref.id)}#r${pendingDerived.model_ref.revision}</code> (${pendingDerived.registered ? "registrado" : "aguardando registro explícito"})`,
+        );
+      }
+      typedStatusSlotEl.innerHTML = `<p>${pendingParts.join(" | ")}</p>`;
+    }
+
     if (toolsSlotEl) {
       const nextToolsHtml = tabVm.tools.map((t) => t.toHtml()).join("\n");
       if (nextToolsHtml !== lastToolsHtmlKey) {
@@ -638,6 +750,116 @@ export function mountControlLabApp(
                   : lqr.getFeedbackSign(),
             };
       lqr.updateWeights(nextWeights);
+    } catch (err: unknown) {
+      shell.presentError(err);
+    }
+  });
+
+  container.querySelector<HTMLElement>('[data-action="register-typed-object"]')?.addEventListener("click", () => {
+    const raw = typedObjectJsonEl?.value?.trim() ?? "";
+    if (raw.length === 0) {
+      shell.presentError(
+        new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Informe um objeto JSON canônico (Dataset, TransferFunction, StateSpace, IdentifiedModel, FuzzySystem ou TS) antes de registrar.",
+        ),
+      );
+      return;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      shell.presentError(
+        new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "JSON inválido no campo de registro de objeto tipado.",
+        ),
+      );
+      return;
+    }
+    void typedWorkspace.registerTypedObject(parsed).catch((err: unknown) => {
+      shell.presentError(err);
+    });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="reuse-model"]')?.addEventListener("click", (ev) => {
+    const targetKind = reuseTargetKindEl?.value === "StateSpace" ? "StateSpace" : "native";
+    const triggerBtn = ev.currentTarget as HTMLElement | null;
+    void typedWorkspace
+      .reuseModel({ targetKind })
+      .then((outcome) => {
+        openExportModal(
+          {
+            title: `Derivação core.reuse_model (${outcome.derivedKind})`,
+            filename: `${outcome.derivedRef.id}_r${outcome.derivedRef.revision}.json`,
+            mimeType: "application/json",
+            content: JSON.stringify(outcome.response, null, 2),
+          },
+          triggerBtn,
+        );
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  btnRegisterPendingIdentifiedEl?.addEventListener("click", () => {
+    void typedWorkspace.registerPendingIdentifiedModel().catch((err: unknown) => {
+      shell.presentError(err);
+    });
+  });
+
+  btnRegisterPendingDerivedEl?.addEventListener("click", () => {
+    void typedWorkspace
+      .registerPendingDerivedModel({ selectCompatible: true })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="apply-selected-to-lqr"]')?.addEventListener("click", () => {
+    try {
+      shell.applySelectedPlantToLqr();
+    } catch (err: unknown) {
+      shell.presentError(err);
+    }
+  });
+
+  typedSelectorsSlotEl?.addEventListener("change", (ev: Event) => {
+    const target = ev.target as HTMLSelectElement | null;
+    if (!target || target.getAttribute("data-action") !== "select-typed-ref") return;
+    const role = target.getAttribute("data-role") as TypedSelectionRole | null;
+    if (!role || !(TYPED_SELECTION_ROLES as readonly string[]).includes(role)) return;
+    try {
+      const val = target.value.trim();
+      if (val === "") {
+        typedWorkspace.selectRef(role, null);
+      } else {
+        const decoded = decodeObjectRefKey(val);
+        if (!decoded) {
+          throw new ControlLabBridgeError(
+            "VALIDATION_ERROR",
+            `Chave de referência inválida: '${val}'.`,
+          );
+        }
+        typedWorkspace.selectRef(role, decoded, { allowHistoricalDowngrade: true });
+      }
+    } catch (err: unknown) {
+      shell.presentError(err);
+    }
+  });
+
+  typedSelectorsSlotEl?.addEventListener("keydown", (ev: KeyboardEvent) => {
+    const target = ev.target as HTMLElement | null;
+    if (!target || target.getAttribute("data-action") !== "select-typed-ref") return;
+    const role = target.getAttribute("data-role") as TypedSelectionRole | null;
+    if (!role || !(TYPED_SELECTION_ROLES as readonly string[]).includes(role)) return;
+    try {
+      const nav = typedWorkspace.handleRoleKeyNavigation(role, ev.key);
+      if (nav.handled) {
+        ev.preventDefault();
+      }
     } catch (err: unknown) {
       shell.presentError(err);
     }
@@ -849,9 +1071,13 @@ export function mountControlLabApp(
       const rawVal = "value" in target ? String((target as HTMLInputElement | HTMLSelectElement).value) : "";
       if (paramType === "number" || paramType === "integer") {
         tabsCtrl.setToolParameters(toolId, {
-          [paramName]: rawVal.trim() === "" ? Number.NaN : Number(rawVal),
+          [paramName]: rawVal.trim() === "" ? "" : Number(rawVal),
         });
       } else if (paramType === "json" || paramType === "matrix" || paramType === "vector") {
+        if (rawVal.trim() === "") {
+          tabsCtrl.setToolParameters(toolId, { [paramName]: "" });
+          return;
+        }
         try {
           tabsCtrl.setToolParameters(toolId, { [paramName]: JSON.parse(rawVal) });
         } catch {
@@ -889,47 +1115,33 @@ export function mountControlLabApp(
           shell.presentError(new Error("Corrija os parâmetros do problema antes de exportar."));
           return;
         }
-        const specification = {
-          ...validation.sanitized,
-          plant: lqr.getPlant(),
-          feedback_sign: feedbackSelectEl?.value === "positive" ? "positive" : "negative",
-        };
-        void shell.exportSdpScript(format, specification).then((file) => {
-          openExportModal({title: `Execução offline / ${format.toUpperCase()}`,
-            filename: file.filename, mimeType: file.media_type, content: file.script,
-            offlineDesign: true}, btn);
-        }).catch((error: unknown) => shell.presentError(error));
+        const feedbackSign = feedbackSelectEl?.value === "positive" ? "positive" : "negative";
+        void typedWorkspace
+          .prepareSdpExportSpecification(validation.sanitized, feedbackSign)
+          .then((specification) => shell.exportSdpScript(format, specification))
+          .then((file) => {
+            openExportModal({title: `Execução offline / ${format.toUpperCase()}`,
+              filename: file.filename, mimeType: file.media_type, content: file.script,
+              offlineDesign: true}, btn);
+          })
+          .catch((error: unknown) => shell.presentError(error));
         return;
       }
 
-      const plant = lqr.getPlant();
       const projectId = lqr.getProjectId();
       const execRev = Math.max(
         lqr.getProjectRevision(),
         client.getCommittedRevision(projectId),
       );
+      const feedbackSign = feedbackSelectEl?.value === "positive" ? "positive" : "negative";
 
-      void client
-        .registerObject(
-          projectId,
-          plant.id,
-          plant.revision,
-          plant as unknown as Record<string, unknown>,
-          { kind: "StateSpace", pinProject: true, persistToIndexedDB: false },
-        )
-        .then(() =>
-          tabsCtrl.executeTool(toolId, {
-            project_id: projectId,
-            project_revision: execRev,
-            commitOnSuccess: false,
-            extraPayload: {
-              plant_ref: { id: plant.id, revision: plant.revision },
-              ...(toolId === "optimization.solve" ? {
-                feedback_sign: feedbackSelectEl?.value === "positive" ? "positive" : "negative",
-              } : {}),
-            },
-          }),
-        )
+      void tabsCtrl
+        .executeTool(toolId, {
+          project_id: projectId,
+          project_revision: execRev,
+          commitOnSuccess: false,
+          feedbackSign,
+        })
         .then((record) => {
           openExportModal(
             {

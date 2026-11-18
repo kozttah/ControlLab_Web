@@ -14,7 +14,7 @@
       "2026-11-15": 8,
       "2026-11-17": 10,
       "2026-11-16": 1,
-      "2026-11-18": 3
+      "2026-11-18": 4
     }
   },
   "audit_reference": {
@@ -3229,7 +3229,7 @@
         "T-RPC-01"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md",
       "acceptance_requirements_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md#wp-v1-f8-typed-workspace-inputs",
       "acceptance_requirements": [
@@ -3237,8 +3237,35 @@
         "Adicionar os testes novos exigidos no plano; a suíte existente isolada não prova a entrega",
         "Handoff independente F9 com checklist completo e evidências do domínio anunciado"
       ],
-      "f9_review": "not_started",
-      "runtime_prerequisites_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md"
+      "f9_review": "accepted",
+      "runtime_prerequisites_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md",
+      "handoff_ref": "docs/audits/handoffs/WP-V1-F8-TYPED-WORKSPACE-INPUTS.md",
+      "assessed_commit": "747f9b548f3fa88fbb13bf951f1d0f297019f5a0",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "c5b2bdec0d76d060f1ed3aa9342fefe6fe6f80e33239d37dfab58807c8711408",
+        "web/app/shell.ts": "cf1ca180242523fc69fd7eba59e56865daac787042b54c6dc40a50cb045cc683",
+        "web/features/project_tabs.ts": "2ec292c76e8fe3cb2fddfca605715a32c24cec7fed262f001eeb538875e69d21",
+        "web/features/tool_catalog.ts": "91c6e8b4f44d50f2919474ee971083a2643366b0533df3c51453499626af3f3f",
+        "web/features/typed_workspace.ts": "ca79fc73633289aa6f2367205493b2de3bb2e8cae0d3a6c0faaf02f009d2ef31",
+        "tests/unit/f8/typed_workspace_inputs.test.ts": "4a8b5765808e91314c4821aa48a8b14836a5f8805094d2c08fed61894a84a388"
+      },
+      "completed_on": "2026-11-18",
+      "acceptance_scope": "typed_workspace_inputs_and_per_tool_payload_composition_verified_node_and_chromium_pyodide_wasm",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-V1-F8-TYPED-WORKSPACE-INPUTS.md",
+        "tests/unit/f8/typed_workspace_inputs.test.ts"
+      ],
+      "validation": {
+        "f8_unit_tests": 26,
+        "all_web_unit_tests": 89,
+        "wasm_and_e2e_browser_tests": 26,
+        "frozen_fixtures_verified": true,
+        "oracle_tolerances_unchanged": true
+      },
+      "limitations": [
+        "Escopo de persistência .ctrlab mantido no workspace LQR atual até pacote dedicado de persistência multidomínio.",
+        "Cards sem implementação no runtime ativo (ex.: fuzzy.evaluate no MockWorkerAdapter) permanecem honestamente marcadas como indisponíveis."
+      ]
     },
     {
       "wp_id": "WP-V1-F8-IDENTIFICATION-VERTICAL",

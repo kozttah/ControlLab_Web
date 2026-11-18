@@ -10,6 +10,7 @@ import type { ControlLabEngineClient } from "../bridge/client.ts";
 import {
   ControlLabBridgeError,
   generateUuid,
+  isPlainObject,
   RPC_API_VERSION,
   type CapabilityDescriptor,
   type RpcRequest,
@@ -26,6 +27,8 @@ import {
   type ToolDescriptor,
 } from "../app/tool_descriptor.ts";
 import { createDefaultToolRegistry } from "./tool_catalog.ts";
+import type { FeedbackSign } from "./lqr_workspace.ts";
+import type { TypedObjectWorkspace } from "./typed_workspace.ts";
 
 export interface TabToolExecutionRecord {
   toolId: string;
@@ -50,6 +53,7 @@ export class ProjectTabsController {
   private readonly client: ControlLabEngineClient;
   private readonly registry: ToolDescriptorRegistry;
   private readonly renderer: ToolDescriptorRenderer;
+  private typedWorkspace?: TypedObjectWorkspace;
   private readonly parameterState = new Map<string, Record<string, unknown>>();
   private readonly lastExecutions = new Map<string, TabToolExecutionRecord>();
   private activeTab: ProjectTabId = "statespace";
@@ -59,17 +63,27 @@ export class ProjectTabsController {
     client: ControlLabEngineClient;
     registry?: ToolDescriptorRegistry;
     renderer?: ToolDescriptorRenderer;
+    typedWorkspace?: TypedObjectWorkspace;
     initialTab?: ProjectTabId;
   }) {
     this.client = options.client;
     this.registry = options.registry ?? createDefaultToolRegistry();
     this.renderer = options.renderer ?? new ToolDescriptorRenderer();
+    this.typedWorkspace = options.typedWorkspace;
     if (options.initialTab) {
       this.activeTab = options.initialTab;
     }
     this.registry.subscribe(() => {
       this.notify();
     });
+  }
+
+  public setTypedWorkspace(workspace: TypedObjectWorkspace): void {
+    this.typedWorkspace = workspace;
+  }
+
+  public getTypedWorkspace(): TypedObjectWorkspace | undefined {
+    return this.typedWorkspace;
   }
 
   public getRegistry(): ToolDescriptorRegistry {
@@ -165,6 +179,7 @@ export class ProjectTabsController {
       extraPayload?: Record<string, unknown>;
       options?: Record<string, unknown>;
       commitOnSuccess?: boolean;
+      feedbackSign?: FeedbackSign;
     },
   ): Promise<TabToolExecutionRecord> {
     const desc = this.registry.get(toolId);
@@ -208,6 +223,21 @@ export class ProjectTabsController {
       );
     }
 
+    let effectiveExtraPayload = context.extraPayload
+      ? { ...context.extraPayload }
+      : {};
+    if (this.typedWorkspace) {
+      const plan = await this.typedWorkspace.prepareToolExecution(
+        desc.operation,
+        vm.validation.sanitized,
+        {
+          extraPayload: context.extraPayload,
+          feedbackSign: context.feedbackSign,
+        },
+      );
+      effectiveExtraPayload = plan.extraPayload;
+    }
+
     const req: RpcRequest = {
       api_version: RPC_API_VERSION,
       request_id: `tool-${desc.id}-${generateUuid()}`,
@@ -216,7 +246,7 @@ export class ProjectTabsController {
       operation: desc.operation,
       payload: {
         ...vm.validation.sanitized,
-        ...(context.extraPayload ?? {}),
+        ...effectiveExtraPayload,
       },
       options: { ...(context.options ?? {}) },
       timeout_policy: {
@@ -228,6 +258,26 @@ export class ProjectTabsController {
     const response = await this.client.execute(req, {
       commitOnSuccess: context.commitOnSuccess ?? true,
     });
+    if (
+      this.typedWorkspace &&
+      (response.status === "success" || response.status === "warning") &&
+      response.result
+    ) {
+      if (
+        desc.operation.startsWith("identification.fit_") &&
+        isPlainObject(response.result.identified_model)
+      ) {
+        this.typedWorkspace.recordIdentifiedModelResult(
+          response.result.identified_model,
+          response,
+        );
+      } else if (
+        desc.operation === "core.reuse_model" &&
+        isPlainObject(response.result.model)
+      ) {
+        this.typedWorkspace.recordReuseResult(response);
+      }
+    }
     const record: TabToolExecutionRecord = {
       toolId: desc.id,
       operation: desc.operation,

@@ -737,8 +737,8 @@ export class ControlLabShell {
     const committed = this.lqr.getCommittedSnapshot();
     const response = await this.client.execute({
       api_version: RPC_API_VERSION, request_id: `io-${generateUuid()}`,
-      project_id: context?.project_id ?? committed?.project_id ?? this.lqr.getProjectId(),
-      project_revision: context?.project_revision ?? committed?.project_revision ?? this.lqr.getProjectRevision(),
+      project_id: context?.project_id ?? committed?.project_id ?? "io-import",
+      project_revision: context?.project_revision ?? committed?.project_revision ?? 0,
       operation, payload, options: {}, timeout_policy: { hard_timeout_ms: 30000 },
     }, { commitOnSuccess: false });
     if (response.status !== "success" && response.status !== "warning") {
@@ -749,7 +749,15 @@ export class ControlLabShell {
   }
 
   public async exportSdpScript(format: "cvxpy" | "yalmip", specification: Record<string, unknown>): Promise<{script: string; filename: string; media_type: string}> {
-    const response = await this.fileRequest(`optimization.export_${format}`, specification);
+    const projectId = this.lqr.getProjectId();
+    const projectRevision = Math.max(
+      this.lqr.getProjectRevision(),
+      this.client.getCommittedRevision(projectId),
+    );
+    const response = await this.fileRequest(`optimization.export_${format}`, specification, {
+      project_id: projectId,
+      project_revision: projectRevision,
+    });
     const data = response.result;
     if (!isPlainObject(data) || typeof data.script !== "string" ||
         typeof data.filename !== "string" || typeof data.media_type !== "string") {

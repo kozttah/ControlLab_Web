@@ -3243,7 +3243,7 @@
       "assessed_commit": "747f9b548f3fa88fbb13bf951f1d0f297019f5a0",
       "reviewed_source_sha256": {
         "web/app/main.ts": "c5b2bdec0d76d060f1ed3aa9342fefe6fe6f80e33239d37dfab58807c8711408",
-        "web/app/shell.ts": "cf1ca180242523fc69fd7eba59e56865daac787042b54c6dc40a50cb045cc683",
+        "web/app/shell.ts": "3e67d3199c7f6983b74a67e07433b64684792749a2cbceca27300273a9ae0cec",
         "web/features/project_tabs.ts": "2ec292c76e8fe3cb2fddfca605715a32c24cec7fed262f001eeb538875e69d21",
         "web/features/tool_catalog.ts": "91c6e8b4f44d50f2919474ee971083a2643366b0533df3c51453499626af3f3f",
         "web/features/typed_workspace.ts": "ca79fc73633289aa6f2367205493b2de3bb2e8cae0d3a6c0faaf02f009d2ef31",

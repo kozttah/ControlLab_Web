@@ -13,6 +13,8 @@ import pytest
 import scipy.linalg as la
 
 from scripts.arx_regeneration_certificate import assert_arx_regeneration_matches_frozen_gold
+from scripts.mimo_regeneration_certificate import assert_mimo_regeneration_matches_frozen_gold
+from scripts.pvm_regeneration_certificate import assert_pvm_regeneration_matches_frozen_gold
 
 from control_lab.core import Dataset, StateFeedbackController, StateSpace, TransferFunction
 from control_lab.frequency.mimo import eval_mimo_response, rga, sensitivity, singular_values
@@ -245,6 +247,10 @@ def test_generator_independent_and_new_gold_deterministic():
             assert_dare_regeneration_matches_frozen_gold(generated, saved)
         elif generated['fixture_id'] == 'B-ARX-PRBS':
             assert_arx_regeneration_matches_frozen_gold(generated, saved)
+        elif generated['fixture_id'] == 'B-MIMO-2x2':
+            assert_mimo_regeneration_matches_frozen_gold(generated, saved)
+        elif generated['fixture_id'] == 'B-PVM-LQR':
+            assert_pvm_regeneration_matches_frozen_gold(generated, saved)
         else:
             assert generated == saved
     for name, digest in mod.OLD.items():

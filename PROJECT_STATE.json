@@ -14,7 +14,7 @@
       "2026-11-15": 8,
       "2026-11-17": 10,
       "2026-11-16": 1,
-      "2026-11-18": 2
+      "2026-11-18": 3
     }
   },
   "audit_reference": {
@@ -3098,13 +3098,14 @@
       "wp_id": "WP-AUDIT-FIX-F9-MIMO-REGENERATION",
       "front": "f9-integration-qa",
       "phase": "CI-Remediation",
-      "title": "Portabilidade independente da regeneração MIMO e da grade logarítmica preservando ouro",
+      "title": "Portabilidade independente da regeneração MIMO e da grade logarítmica, com trajetórias PVM correlatas",
       "requirement_ids": [
         "R-23",
         "R-24"
       ],
       "findings": [
-        "F9-CI-MIMO-PORTABILITY"
+        "F9-CI-MIMO-PORTABILITY",
+        "F9-CI-PVM-SIMD-PORTABILITY"
       ],
       "allowed_paths": [
         "tests/oracles/",
@@ -3118,21 +3119,88 @@
       "normative_tests": [
         "T-MIMO-01",
         "T-MIMO-02",
-        "T-FREQ-02"
+        "T-FREQ-02",
+        "T-PVM-01"
       ],
       "acceptance_cmd": "python3 scripts/ci_math.py core_no_sdp && python3 scripts/ci_math.py sdp_available && python3 scripts/verify_fixtures.py",
       "acceptance_environment": "Run profiles in separate isolated environments from exact locks; demonstrate multiple actual CPU/libm/NumPy/BLAS configurations and preserve complete environment diagnostics.",
-      "status": "PENDING",
-      "f9_review": "not_started",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
       "origin_ref": "docs/audits/mimo-regeneration/FOLLOWUP.md",
       "acceptance_requirements_ref": "docs/audits/mimo-regeneration/FOLLOWUP.md",
-      "evidence_ref": "docs/audits/mimo-regeneration/CI_FAILURE_DIAGNOSTIC.json",
+      "evidence_ref": "docs/audits/mimo-regeneration/maestro/SUMMARY.json",
       "observed_commit": "6369aa79b7280a2c534474d9860f1ef855f97c29",
       "acceptance_requirements": [
         "Implement the independent grid/response/spectrum/identity/crossing certificates and adversarial cases required in the acceptance reference.",
         "Keep frozen fixture bytes/checksums and existing scientific oracle tolerances unchanged; preserve exact structure, metadata, matrices and unenumerated fields.",
         "Generated logspace input differences require a justified independent high-precision grid criterion; do not borrow response_atol or normalize arbitrary input changes.",
-        "Retain negative CI evidence and verify both complete profiles; no generic allclose, production code as its own oracle, skips or reruns until green."
+        "Retain negative CI evidence and verify both complete profiles; no generic allclose, production code as its own oracle, skips or reruns until green.",
+        "Explicit correlated PVM scope: implement a separate independent verifier allowing only cases[i].expected.x/u/y calculated data to vary; all inputs, time grid, switch_times, structure, metadata and historical maturity flags remain exact.",
+        "For PVM independently reconstruct the piecewise diagonal closed-loop ODE, switching/saturation continuity, u=clip(v-Kx), y=Cx, CARE/gain conditions and fixed frozen trajectory/equation/gain criteria; add positive real SIMD regression and negative coherent/near-but-incoherent/structural cases without touching gold or generator."
+      ],
+      "scope_addendum": {
+        "date": "2026-11-18",
+        "decision": "Explicit Maestro scope addition independently approved by F9 for a concrete correlated failure in the same acceptance loop; same WorkPackage and allowed paths.",
+        "evidence_ref": "docs/audits/mimo-regeneration/reviewer/pvm-simd-differences.json",
+        "observed": "Same effective SIMD-disabled configuration reproduces the complete MIMO CI candidate and ten PVM expected.x/u/y differences, max 5.551e-17; inputs, grid, switch_times and metadata are unchanged.",
+        "maturity_scope": "CPython frozen-fixture regeneration QA only; no new PathView, production or gate approval."
+      },
+      "previous_assessments": [
+        {
+          "status": "PENDING",
+          "f9_review": "not_started",
+          "observed_commit": "6369aa79b7280a2c534474d9860f1ef855f97c29",
+          "evidence_ref": "docs/audits/mimo-regeneration/CI_FAILURE_DIAGNOSTIC.json",
+          "note": "MIMO exact dictionary regeneration failed across numerical dispatch paths; the same configuration exposed ten calculated PVM trajectory differences. Explicit correlated PVM scope was independently approved before implementation. Original negative evidence is retained."
+        }
+      ],
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F9-MIMO-REGENERATION.md",
+      "assessed_commit": "4c908f97fe955ca41db6f5d582a56493198ea78c",
+      "reviewed_source_sha256": {
+        "scripts/mimo_regeneration_certificate.py": "cd2e34796cfcfb48afce5af643733c4589bd4d7e5932c5ad1849b47054eec75e",
+        "scripts/pvm_regeneration_certificate.py": "f036da3f0a2c2e3ba82f74c578f533b9d98eca202083f8ff8c7381f3d9f2b818",
+        "tests/oracles/test_release_fixtures.py": "5eed7d9333aeec697275a7fe787ceea68b0bf526d1670ef44a1d0b3166dabaf8",
+        "tests/oracles/test_mimo_regeneration_certificate.py": "cbad54484e786403279774f17f852789018515ec1a915ff00a8bc389000e3b08",
+        "tests/oracles/test_mimo_regeneration_independent.py": "11070073a419c3e218491db6d6a15cba63bdc1997516b3035634135c0da17649",
+        "tests/oracles/test_pvm_regeneration_certificate.py": "7fead232bf642b1b7dedb3634840a55b8ed962be4899bb7bdc20ef25ae88beb7",
+        "tests/oracles/test_pvm_regeneration_independent.py": "251c6db0d6a20b7f67b6286a2ba06b5c5b3a65246dfc511cdd5dbe7a45ef5b03"
+      },
+      "completed_on": "2026-11-18",
+      "acceptance_scope": "independent_fixed_mimo_logspace_and_correlated_pvm_regeneration_cpython_two_locked_profiles_three_numerical_configurations",
+      "acceptance_evidence": [
+        "docs/audits/mimo-regeneration/maestro/SUMMARY.json",
+        "docs/audits/handoffs/WP-AUDIT-FIX-F9-MIMO-REGENERATION.md",
+        "docs/audits/mimo-regeneration/implementation/NUMERICAL_CERTIFICATE.md",
+        "docs/audits/mimo-regeneration/implementation/PRODUCER_HANDOFF.md",
+        "docs/audits/mimo-regeneration/reviewer/haswell-simd-disabled-configuration.json",
+        "docs/audits/mimo-regeneration/reviewer/pvm-simd-differences.json"
+      ],
+      "validation": {
+        "profiles": [
+          "core_no_sdp",
+          "sdp_available"
+        ],
+        "numerical_configurations": [
+          "Haswell/default SIMD",
+          "Sandybridge/default SIMD",
+          "Haswell/AVX512F,AVX2,FMA3 disabled in NumPy"
+        ],
+        "core_tests_per_configuration": 525,
+        "sdp_tests_per_configuration": 359,
+        "total_test_executions": 2652,
+        "distinct_new_mimo_pvm_cases_per_run": 138,
+        "exact_ci_mimo_candidate_reproduced_and_certified": true,
+        "correlated_pvm_calculated_differences_certified": 10,
+        "protected_files_unchanged": 11,
+        "frozen_scientific_tolerances_unchanged": true,
+        "generator_unchanged": true
+      },
+      "limitations": [
+        "Independent QA of two fixed CPython fixtures only; no production algorithm, general simulator, new Wasm/PathView capability or gate maturity promotion.",
+        "Two actual BLAS CPU kernels and NumPy SIMD dispatch configurations were tested on one host, not three physical machines.",
+        "Transcendental two-ULP accuracy is an explicit supported-platform envelope, not a universal IEEE-754/libm guarantee; a candidate outside the certificate must fail.",
+        "PVM inputs, temporal grid, stored switching times, metadata and historical maturity flags remain exact; only specified calculated trajectory data may round differently.",
+        "Hosted CI and Pages of the completion commit must still be checked; local acceptance does not predeclare their result."
       ]
     },
     {

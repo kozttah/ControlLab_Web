@@ -1,0 +1,87 @@
+{
+  "verdict": "accepted",
+  "reviewer": "/root/f9_mimo_audit; separate from /root/f9_mimo_producer",
+  "base_commit": "4c908f97fe955ca41db6f5d582a56493198ea78c",
+  "protected_sha256": {
+    "contracts/fixtures/B-ARX-PRBS.json": "6fc72bebb5237aca36994b0fc71e06f6444fa9a1b163be79180764f07a18acc1",
+    "contracts/fixtures/B-CARE-02.json": "f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f",
+    "contracts/fixtures/B-CARE-12x3.json": "0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4",
+    "contracts/fixtures/B-DARE-12x3.json": "2488dd78691a3a36ff96b7d00542fd506855191c0dbedc0e530c6131e6e47040",
+    "contracts/fixtures/B-MIMO-2x2.json": "23d42ef684bcb5c4fe484ef24a624ae50020c883de986a617d21981bf5ff29ed",
+    "contracts/fixtures/B-PVM-LQR.json": "eabcf5aff8a56c99c87a624857525977d3ea5c31477431d5a9ce2fbf34453fe8",
+    "contracts/fixtures/B-SDP-A-D.json": "4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076",
+    "contracts/fixtures/checksums.sha256": "4b7a39a4ad5d8eb6b48d2d28d8e8a3673e38105bce057909dbdb29884ef0cc7a",
+    "scripts/pyodide-assets.lock.json": "9f5e8e2ea0ab4abfbd33976ffa38821250dfab6d08dcde9c85a6747240251956",
+    "scripts/generate_release_fixtures.py": "0a4e221fe3dc9454b4df59ea35f0a4e64fc0b9a7e212c15a4163ae77b38c99d1",
+    "scripts/arx_regeneration_certificate.py": "51a95f404f0a1d0a6f136415666203b4016f1334157ca6977474c8a0fba4741f"
+  },
+  "mimo_tolerances_unchanged": {
+    "response_atol": 1e-11,
+    "identity_atol": 1e-11,
+    "singular_values_atol": 1e-11,
+    "crossing_atol": 1e-07
+  },
+  "source_sha256": {
+    "scripts/mimo_regeneration_certificate.py": "cd2e34796cfcfb48afce5af643733c4589bd4d7e5932c5ad1849b47054eec75e",
+    "scripts/pvm_regeneration_certificate.py": "f036da3f0a2c2e3ba82f74c578f533b9d98eca202083f8ff8c7381f3d9f2b818",
+    "tests/oracles/test_release_fixtures.py": "5eed7d9333aeec697275a7fe787ceea68b0bf526d1670ef44a1d0b3166dabaf8",
+    "tests/oracles/test_mimo_regeneration_certificate.py": "cbad54484e786403279774f17f852789018515ec1a915ff00a8bc389000e3b08",
+    "tests/oracles/test_mimo_regeneration_independent.py": "11070073a419c3e218491db6d6a15cba63bdc1997516b3035634135c0da17649",
+    "tests/oracles/test_pvm_regeneration_certificate.py": "7fead232bf642b1b7dedb3634840a55b8ed962be4899bb7bdc20ef25ae88beb7",
+    "tests/oracles/test_pvm_regeneration_independent.py": "251c6db0d6a20b7f67b6286a2ba06b5c5b3a65246dfc511cdd5dbe7a45ef5b03"
+  },
+  "six_exact_lock_profile_results": [
+    {
+      "profile": "core_no_sdp",
+      "configuration": "haswell",
+      "tests": 525,
+      "skipped": 0
+    },
+    {
+      "profile": "core_no_sdp",
+      "configuration": "haswell-simd-disabled",
+      "tests": 525,
+      "skipped": 0
+    },
+    {
+      "profile": "core_no_sdp",
+      "configuration": "sandybridge",
+      "tests": 525,
+      "skipped": 0
+    },
+    {
+      "profile": "sdp_available",
+      "configuration": "haswell",
+      "tests": 359,
+      "skipped": 0
+    },
+    {
+      "profile": "sdp_available",
+      "configuration": "haswell-simd-disabled",
+      "tests": 359,
+      "skipped": 0
+    },
+    {
+      "profile": "sdp_available",
+      "configuration": "sandybridge",
+      "tests": 359,
+      "skipped": 0
+    }
+  ],
+  "total_test_executions": 2652,
+  "independent_test_cases": 95,
+  "scope": "Independent fixed-fixture CPython QA for MIMO grid/outputs and explicit PVM x/u/y addendum. Two actual BLAS kernels and NumPy SIMD dispatch changes on one physical host, not multiple physical machines.",
+  "math_review": [
+    "Decimal80 logspace exponent and transcendental error criteria separate from frozen response_atol; endpoints/positivity/order/spacing checked.",
+    "Independent rational complex 2x2 G/S/T/RGA, spectrum, invertibility, grid derivative propagation and isolated cubic crossing roots; all frozen numerical limits remain mandatory.",
+    "Separate PVM Decimal scalar piecewise ODE, switch continuity/error propagation, CARE/gain, u clip, y=Cx and trajectory/equation frozen limits.",
+    "Type/key/length/finiteness preflight before normalization; only enumerated numeric leaves may vary."
+  ],
+  "limitations": [
+    "Two-ULP transcendental and fixed-operation gamma envelopes are declared accuracy criteria for the supported fixed conditioned fixtures; not universal libm/LAPACK or directed interval guarantees.",
+    "PVM time, switch_times, model parameters and historical PathView flags remain exact; no new product/Wasm/official PathView capability is inferred.",
+    "Hosted CI and Pages of the eventual completion commit remain separate mandatory release evidence."
+  ],
+  "source_ownership": "scripts/, tests/oracles/, docs/audits/ only; Maestro governance record edits separate",
+  "actual_ci_candidate_reproduced": true
+}

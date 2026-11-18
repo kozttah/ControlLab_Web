@@ -1,0 +1,167 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "libc": [
+    "glibc",
+    "2.41"
+  ],
+  "numpy": "2.3.5",
+  "scipy": "1.17.0",
+  "environment": {
+    "OPENBLAS_CORETYPE": "Haswell",
+    "OPENBLAS_NUM_THREADS": "1",
+    "NPY_DISABLE_CPU_FEATURES": "AVX512F,AVX2,FMA3"
+  },
+  "cpu_features": {
+    "MMX": true,
+    "SSE": true,
+    "SSE2": true,
+    "SSE3": true,
+    "SSSE3": true,
+    "SSE41": true,
+    "POPCNT": true,
+    "SSE42": true,
+    "AVX": true,
+    "F16C": true,
+    "XOP": false,
+    "FMA4": false,
+    "FMA3": false,
+    "AVX2": false,
+    "AVX512F": false,
+    "AVX512CD": true,
+    "AVX512ER": false,
+    "AVX512PF": false,
+    "AVX5124FMAPS": false,
+    "AVX5124VNNIW": false,
+    "AVX512VPOPCNTDQ": true,
+    "AVX512VL": true,
+    "AVX512BW": true,
+    "AVX512DQ": true,
+    "AVX512VNNI": true,
+    "AVX512IFMA": true,
+    "AVX512VBMI": true,
+    "AVX512VBMI2": true,
+    "AVX512BITALG": true,
+    "AVX512FP16": false,
+    "AVX512_KNL": false,
+    "AVX512_KNM": false,
+    "AVX512_SKX": true,
+    "AVX512_CLX": true,
+    "AVX512_CNL": true,
+    "AVX512_ICL": true,
+    "AVX512_SPR": false,
+    "VSX": false,
+    "VSX2": false,
+    "VSX3": false,
+    "VSX4": false,
+    "VX": false,
+    "VXE": false,
+    "VXE2": false,
+    "NEON": false,
+    "NEON_FP16": false,
+    "NEON_VFPV4": false,
+    "ASIMD": false,
+    "FPHP": false,
+    "ASIMDHP": false,
+    "ASIMDDP": false,
+    "ASIMDFHM": false,
+    "SVE": false,
+    "RVV": false,
+    "LSX": false
+  },
+  "blas": {
+    "numpy": {
+      "get_corename": "Haswell",
+      "get_config": "OpenBLAS 0.3.30  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64"
+    },
+    "scipy": {
+      "get_corename": "Haswell",
+      "get_config": "OpenBLAS 0.3.30 DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64"
+    }
+  },
+  "candidate_sha256": "76eb43ec7132be586636c15aec154250eb0e52eade7b624108c740754faeb900",
+  "candidate_equals_preserved_ci": true,
+  "grid_differences": [
+    {
+      "path": ".data.omega.data[9]",
+      "actual": 0.00630957344480193,
+      "frozen": 0.006309573444801929
+    },
+    {
+      "path": ".data.omega.data[23]",
+      "actual": 0.15848931924611143,
+      "frozen": 0.1584893192461114
+    },
+    {
+      "path": ".data.omega.data[48]",
+      "actual": 50.11872336272725,
+      "frozen": 50.118723362727245
+    },
+    {
+      "path": ".data.omega.data[54]",
+      "actual": 199.5262314968883,
+      "frozen": 199.52623149688827
+    },
+    {
+      "path": ".data.omega.data[56]",
+      "actual": 316.22776601683796,
+      "frozen": 316.2277660168379
+    }
+  ],
+  "mimo_different_leaves": 92,
+  "pvm_different_leaves": 10,
+  "pvm_first_differences": [
+    {
+      "path": ".data.cases[0].expected.x.data[64]",
+      "actual": 0.232609763182693,
+      "frozen": 0.23260976318269297
+    },
+    {
+      "path": ".data.cases[0].expected.u.data[64]",
+      "actual": 0.16739023681730703,
+      "frozen": 0.16739023681730705
+    },
+    {
+      "path": ".data.cases[0].expected.y.data[64]",
+      "actual": 0.232609763182693,
+      "frozen": 0.23260976318269297
+    },
+    {
+      "path": ".data.cases[1].expected.x.data[23]",
+      "actual": -0.15081872036138097,
+      "frozen": -0.150818720361381
+    },
+    {
+      "path": ".data.cases[1].expected.u.data[23]",
+      "actual": -0.04918127963861904,
+      "frozen": -0.04918127963861901
+    },
+    {
+      "path": ".data.cases[1].expected.y.data[23]",
+      "actual": -0.15081872036138097,
+      "frozen": -0.150818720361381
+    }
+  ],
+  "certificate": {
+    "decimal_precision": 80,
+    "grid_points": 62,
+    "max_grid_relative_error": 1.7053559701797622e-15,
+    "max_closed_form_error": 6.563514396994065e-16,
+    "max_identity_residual": 2.7755575615628914e-16,
+    "max_grid_propagation_bound": 6.136599994176425e-16,
+    "max_crossing_reference_error": 5.919553862683718e-15,
+    "pow_accuracy_assumption": "two ULP float64, fixture-specific supported libm envelope"
+  },
+  "pvm_certificate": {
+    "decimal_precision": 80,
+    "cases": 4,
+    "time_points_checked": 324,
+    "independent_care_residual": 0.0,
+    "independent_gain_error": 0.0,
+    "max_state_reference_error": 1.6291178509646905e-16,
+    "max_ode_residual": 3.258235701929381e-16,
+    "max_closed_form_roundoff_budget": 1.1901590823981696e-14,
+    "max_frozen_switch_reference_error": 6.188187174383816e-17,
+    "exp_accuracy_assumption": "two float64 ULPs, fixture-specific libm envelope"
+  }
+}

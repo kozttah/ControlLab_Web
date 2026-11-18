@@ -1,0 +1,70 @@
+{
+  "scope": "Observation only; no PVM test or gold changes",
+  "tolerances": {
+    "trajectory_atol": 2e-08,
+    "gain_atol": 1e-12,
+    "equation_atol": 1e-12
+  },
+  "differences": [
+    {
+      "path": ".data.cases[0].expected.x.data[64]",
+      "actual": 0.232609763182693,
+      "frozen": 0.23260976318269297,
+      "abs_difference": 2.7755575615628914e-17
+    },
+    {
+      "path": ".data.cases[0].expected.u.data[64]",
+      "actual": 0.16739023681730703,
+      "frozen": 0.16739023681730705,
+      "abs_difference": 2.7755575615628914e-17
+    },
+    {
+      "path": ".data.cases[0].expected.y.data[64]",
+      "actual": 0.232609763182693,
+      "frozen": 0.23260976318269297,
+      "abs_difference": 2.7755575615628914e-17
+    },
+    {
+      "path": ".data.cases[1].expected.x.data[23]",
+      "actual": -0.15081872036138097,
+      "frozen": -0.150818720361381,
+      "abs_difference": 2.7755575615628914e-17
+    },
+    {
+      "path": ".data.cases[1].expected.u.data[23]",
+      "actual": -0.04918127963861904,
+      "frozen": -0.04918127963861901,
+      "abs_difference": 2.7755575615628914e-17
+    },
+    {
+      "path": ".data.cases[1].expected.y.data[23]",
+      "actual": -0.15081872036138097,
+      "frozen": -0.150818720361381,
+      "abs_difference": 2.7755575615628914e-17
+    },
+    {
+      "path": ".data.cases[2].expected.x.data[55]",
+      "actual": 0.056793987704287015,
+      "frozen": 0.05679398770428702,
+      "abs_difference": 6.938893903907228e-18
+    },
+    {
+      "path": ".data.cases[2].expected.x.data[64]",
+      "actual": 0.232609763182693,
+      "frozen": 0.23260976318269297,
+      "abs_difference": 2.7755575615628914e-17
+    },
+    {
+      "path": ".data.cases[2].expected.u.data[64]",
+      "actual": 0.16739023681730703,
+      "frozen": 0.16739023681730705,
+      "abs_difference": 2.7755575615628914e-17
+    },
+    {
+      "path": ".data.cases[2].expected.y.data[32]",
+      "actual": 0.3566160498604703,
+      "frozen": 0.35661604986047024,
+      "abs_difference": 5.551115123125783e-17
+    }
+  ]
+}

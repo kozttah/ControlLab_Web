@@ -1,6 +1,14 @@
 # F9 — Portabilidade da regeneração MIMO e da grade logarítmica
 
+**Resolução em 2026-11-18:** `WP-AUDIT-FIX-F9-MIMO-REGENERATION`, incluindo o adendo PVM correlato, recebeu parecer independente `accepted` no [handoff F9](../handoffs/WP-AUDIT-FIX-F9-MIMO-REGENERATION.md). Os certificados de grade, respostas MIMO e trajetórias PVM estão documentados em `implementation/NUMERICAL_CERTIFICATE.md`; seis combinações de ambientes/configurações completaram 2.652 execuções de teste sem falhas ou skips. Ouro, gerador e tolerâncias congeladas permanecem intactos. Os relatos, requisitos e limites de repetição abaixo preservam o histórico das fontes anteriores à correção; o CI hospedado e a publicação do commit corrigido continuam sendo verificações separadas obrigatórias.
+
 Estado: **achado aberto**. Pacote proposto: `WP-AUDIT-FIX-F9-MIMO-REGENERATION`. Este documento não implementa a correção nem altera fixture, gerador, teste ou tolerância.
+
+## Adendo explícito de escopo — PVM correlato, 2026-11-18
+
+Na execução deste pacote, a F9 reproduziu integralmente `candidate-from-ci.json` com a configuração efetiva `NPY_DISABLE_CPU_FEATURES=AVX512F,AVX2,FMA3` e kernel OpenBLAS Haswell. A mesma configuração revelou dez diferenças em `B-PVM-LQR`, apenas nas folhas calculadas `cases[i].expected.x/u/y`, com erro máximo `5.551e-17`; entradas, grade temporal, tempos de troca, metadados e tolerâncias permaneceram exatos. A evidência é `reviewer/pvm-simd-differences.json`. Isso alcança outra comparação exata no mesmo laço e comando de aceite, após o ramo MIMO.
+
+O Maestro e a revisão F9 aprovaram tratar esse achado concreto no **mesmo WorkPackage**, dentro dos mesmos `allowed_paths`, com regressão `T-PVM-01`. Exige-se verificador PVM separado, sem normalização genérica: somente dados calculados de x/u/y podem variar; todos os demais campos permanecem exatos. O certificado deve reconstruir independentemente, em alta precisão, a solução por regimes da ODE diagonal, saturação e continuidade, `u=clip(v-Kx)`, `y=Cx` e condições CARE/ganho, preservando os critérios congelados de trajetória, equação e ganho. Positivos da configuração real e negativos científicos/estruturais independentes são obrigatórios. Gerador, ouro, checksums, schemas e fontes científicas de produção não mudam. Este adendo é QA de regeneração CPython e não promove a maturidade PathView ou os gates históricos.
 
 ## Evidência independente e alcance
 

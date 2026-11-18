@@ -1,0 +1,12 @@
+[F9-VERIFY] 11 schemas JSON Draft 2020-12 válidos.
+[F9-VERIFY] Fixture B-CARE-02.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-CARE-12x3.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-SDP-A-D.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-ARX-PRBS.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-DARE-12x3.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-MIMO-2x2.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Fixture B-PVM-LQR.json: SHA-256 OK + golden_fixture.schema.json OK.
+[F9-VERIFY] Exemplo rpc_request_lqr.json validado contra rpc_request.schema.json.
+[F9-VERIFY] Exemplo rpc_response_lqr.json validado contra rpc_response.schema.json.
+[F9-VERIFY] Exemplo statespace_example.json validado contra state_space.schema.json.
+[F9-VERIFY] Exemplo pvm_skeleton.json validado contra pvm.schema.json.

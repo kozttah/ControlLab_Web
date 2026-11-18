@@ -20,6 +20,8 @@ Paths F9: `scripts/`, `tests/oracles/`, `tests/e2e/`, `.github/workflows/`, `doc
 
 ## WP-V1-F7-MODEL-REF-REHYDRATION
 
+**Resolução em 2026-11-18:** parecer independente `accepted` no [handoff F9](../handoffs/WP-V1-F7-MODEL-REF-REHYDRATION.md). O Worker agora materializa os aliases tipados por operação descritos em [MODEL_REFERENCES.md](../../../web/worker/MODEL_REFERENCES.md), com projeto/identidade/revisão exatos e registro explícito de resultados. As provas em Worker/Pyodide real, inclusive datasets referenciados, identificação/reutilização/consumo e recuperação, estão em `docs/audits/model-ref-rehydration/`. O diagnóstico e os requisitos abaixo preservam o histórico anterior à implementação; não constituem uma limitação atual dos aliases cobertos. Campos arbitrários de proveniência e referências fora da allowlist continuam sem resolução implícita.
+
 Frente F7. Requisitos R-02/R-03/R-06/R-28 e T-RPC-01/T-RPC-02/T-SEC-01. Depende do modelo reutilizável F1 e do pré-requisito de atualização de release acima.
 
 `PyodideWorkerRuntime.handleRpcRequest` resolve atualmente apenas `plant_ref` no WorkerModelStore. O entrypoint Python recebe `{request, payload}` sem store Python. Logo, `core.reuse_model` funciona no Worker com `payload.model` inline, mas `payload.model_ref` isolado não é materializado e deve falhar explicitamente. O mesmo inventário de aliases precisa ser confrontado com as entradas de identificação, antes da UI de datasets/modelos tipados.

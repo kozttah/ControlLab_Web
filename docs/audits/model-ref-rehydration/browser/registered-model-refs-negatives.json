@@ -1,0 +1,181 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "9e1717cadc79f13029eb89816464a53b3fb6903903766997eb3604751a8e6d31",
+  "evidence": {
+    "transport": "real product Worker RPC",
+    "cases": [
+      {
+        "case": "entry_kind_disagrees_with_dto",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] model_ref diverge da identidade/revis\u00e3o/tipo do objeto armazenado.",
+          "parameters": {
+            "ref_field": "model_ref"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      },
+      {
+        "case": "cross_project",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] model_ref n\u00e3o encontrado no projeto e revis\u00e3o solicitados.",
+          "parameters": {
+            "ref_field": "model_ref"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      },
+      {
+        "case": "missing_revision",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] model_ref n\u00e3o encontrado no projeto e revis\u00e3o solicitados.",
+          "parameters": {
+            "ref_field": "model_ref"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      },
+      {
+        "case": "wrong_kind_model",
+        "error": {
+          "code": "UNSUPPORTED_MODEL",
+          "message": "[UNSUPPORTED_MODEL] model_ref requer StateSpace/TransferFunction/IdentifiedModel/ts_measured/polytopic_uncertain/ts_partially_observed, recebido Dataset.",
+          "parameters": {
+            "ref_field": "model_ref",
+            "kind": "Dataset"
+          }
+        }
+      },
+      {
+        "case": "wrong_kind_dataset",
+        "error": {
+          "code": "UNSUPPORTED_MODEL",
+          "message": "[UNSUPPORTED_MODEL] dataset_ref requer Dataset, recebido StateSpace.",
+          "parameters": {
+            "ref_field": "dataset_ref",
+            "kind": "StateSpace"
+          }
+        }
+      },
+      {
+        "case": "inline_and_ref",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] Fontes simult\u00e2neas/amb\u00edguas: model, model_ref.",
+          "parameters": {
+            "ref_field": "model"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      },
+      {
+        "case": "null_inline_and_ref",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] Fontes simult\u00e2neas/amb\u00edguas: model, model_ref.",
+          "parameters": {
+            "ref_field": "model"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      },
+      {
+        "case": "ref_extra_project",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] model_ref exige somente {id: string n\u00e3o vazia, revision: inteiro >= 0}.",
+          "parameters": {
+            "ref_field": "model_ref"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      },
+      {
+        "case": "ref_fractional_revision",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] model_ref exige somente {id: string n\u00e3o vazia, revision: inteiro >= 0}.",
+          "parameters": {
+            "ref_field": "model_ref"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      },
+      {
+        "case": "reference_string",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] model_ref exige somente {id: string n\u00e3o vazia, revision: inteiro >= 0}.",
+          "parameters": {
+            "ref_field": "model_ref"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      },
+      {
+        "case": "dataset_ambiguous",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] Fontes simult\u00e2neas/amb\u00edguas: dataset, dataset_ref.",
+          "parameters": {
+            "ref_field": "dataset"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      },
+      {
+        "case": "validation_alias_ambiguous",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "[VALIDATION_ERROR] Fontes simult\u00e2neas/amb\u00edguas: val_dataset, dataset_ref.",
+          "parameters": {
+            "ref_field": "val_dataset"
+          },
+          "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+        }
+      }
+    ],
+    "historical_revision_exact": {
+      "id": "same-model-id",
+      "revision": 2
+    },
+    "impostor_rejected": {
+      "code": "VALIDATION_ERROR",
+      "message": "[VALIDATION_ERROR] model_ref diverge da identidade/revis\u00e3o/tipo do objeto armazenado.",
+      "parameters": {
+        "ref_field": "model_ref"
+      },
+      "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+    },
+    "stats": {
+      "worker_id": "pw-098acdd8-bd22-4b7e-8510-8f03497f1cf7",
+      "store": {
+        "store_instance_id": "wms-2f70536e-e498-49c8-b5f6-5edde9f18a92",
+        "entry_count": 13,
+        "total_bytes": 117110,
+        "max_bytes": 67108864,
+        "max_entries": 1024,
+        "pinned_projects": [
+          "f9-reference-negative",
+          "f9-registered-arx_delay",
+          "f9-registered-subspace",
+          "other-project"
+        ],
+        "active_project_id": null,
+        "hits": 19,
+        "misses": 3,
+        "evictions": 0
+      },
+      "pyproxy": {
+        "activeProxies": 0,
+        "totalCreated": 18,
+        "totalDestroyed": 18,
+        "activeLabels": []
+      },
+      "active_request_ids": []
+    }
+  }
+}

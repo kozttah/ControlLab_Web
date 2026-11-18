@@ -37,6 +37,7 @@ import {
   IndexedDBProjectStore,
   type IndexedDBProjectStoreOptions,
 } from "../storage/indexeddb_store.ts";
+import { materializePayloadReferences } from "../worker/payload_references.ts";
 import {
   WorkerModelStore,
   type WorkerModelStoreOptions,
@@ -632,22 +633,7 @@ export class MockWorkerAdapter extends BaseEngineClient {
     };
     const withBuffers = replaceRefs(resolved) as Record<string, unknown>;
 
-    if (
-      isPlainObject(withBuffers.plant_ref) &&
-      typeof withBuffers.plant_ref.id === "string" &&
-      typeof withBuffers.plant_ref.revision === "number" &&
-      withBuffers.plant === undefined
-    ) {
-      const fromWorkerStore = this.workerStore.get(
-        request.project_id,
-        withBuffers.plant_ref.id,
-        withBuffers.plant_ref.revision,
-      );
-      if (fromWorkerStore) {
-        withBuffers.plant = fromWorkerStore.value;
-      }
-    }
-    return withBuffers;
+    return materializePayloadReferences(request, withBuffers, this.workerStore);
   }
 
   private computeMockResponse(
@@ -770,7 +756,7 @@ export class MockWorkerAdapter extends BaseEngineClient {
         ? qObj.shape[0]
         : 12;
 
-    const plantRef = payload.plant_ref as
+    const plantRef = payload.plant as
       | { id?: string; revision?: number }
       | undefined;
     const modelRev = typeof plantRef?.revision === "number" ? plantRef.revision : 3;
@@ -876,7 +862,7 @@ export class MockWorkerAdapter extends BaseEngineClient {
       f12 && isPlainObject(f12.data.expected) && f12.data.expected.open_loop_poles
         ? f12.data.expected.open_loop_poles
         : { real: [0.0, 0.0], imag: [0.0, 0.0] };
-    const plantRef = payload.plant_ref as { revision?: number } | undefined;
+    const plantRef = payload.plant as { revision?: number } | undefined;
     return {
       api_version: RPC_API_VERSION,
       request_id: request.request_id,

@@ -72,6 +72,10 @@ async function runWith(
   const req = readJson(
     path.join(CONTRACTS, "examples", "rpc_request_lqr.json"),
   ) as RpcRequest;
+  // Test the missing Python entrypoint, not an unregistered example reference.
+  delete req.payload.plant_ref;
+  req.payload.A = [[0, 1], [0, 0]];
+  req.payload.B = [[0], [1]];
   await rt.handleMessage({ kind: "rpc_request", request: req } as never);
   const r = messages.find((m) => m.kind === "rpc_response");
   assert.ok(r, "sem rpc_response");

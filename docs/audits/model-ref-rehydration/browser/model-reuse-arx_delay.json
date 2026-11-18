@@ -1,0 +1,29 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "9e1717cadc79f13029eb89816464a53b3fb6903903766997eb3604751a8e6d31",
+  "evidence": {
+    "operation": "core.reuse_model",
+    "transport": "real product Worker RPC",
+    "source_kind": "IdentifiedModel",
+    "dt": 0.2,
+    "frequency_errors": [
+      2.987304636342383e-15,
+      3.831501141992745e-16,
+      7.376145397762941e-17
+    ],
+    "independent_dare_residual": 4.2808244936463673e-16,
+    "model_ref": {
+      "id": "reuse-9f69e76ed2cfc43855064d87e45f0bb326a5ec6ce3a6ea4991dc47c5731f949e",
+      "revision": 0
+    },
+    "reference_without_store": {
+      "code": "VALIDATION_ERROR",
+      "message": "[VALIDATION_ERROR] model_ref n\u00e3o encontrado no projeto e revis\u00e3o solicitados.",
+      "parameters": {
+        "ref_field": "model_ref"
+      },
+      "next_step": "Forne\u00e7a uma \u00fanica fonte can\u00f4nica ou registre a identidade/revis\u00e3o exata no mesmo projeto."
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "9e1717cadc79f13029eb89816464a53b3fb6903903766997eb3604751a8e6d31",
+  "evidence": {
+    "transport": "real product Worker RPC",
+    "method": "arx_delay",
+    "dataset_refs": [
+      {
+        "id": "refs-arx_delay-train",
+        "revision": 2
+      },
+      {
+        "id": "refs-arx_delay-validation",
+        "revision": 2
+      }
+    ],
+    "identified_ref": {
+      "id": "idmod-a6cdac1e8a14",
+      "revision": 0
+    },
+    "derived_ref": {
+      "id": "reuse-2658465faf1ccb93ddeded62d1900ff6e4091bcb4e957ae62268ad0a3c19509f",
+      "revision": 0
+    },
+    "frequency_error": 2.7755575615628914e-15,
+    "independent_dare_residual": 4.2808244936463673e-16,
+    "registration_explicit": true,
+    "binary_input_buffers_detached": [
+      0,
+      0
+    ],
+    "binary_output_tensors_restored": [
+      "P",
+      "K"
+    ],
+    "source_not_mutated": true,
+    "recovery": {
+      "worker_before": "pw-6debdd54-88b4-4607-9fca-1b2b71dc69a8",
+      "worker_after": "pw-098acdd8-bd22-4b7e-8510-8f03497f1cf7",
+      "snapshots_equal": true
+    },
+    "stats": {
+      "worker_id": "pw-098acdd8-bd22-4b7e-8510-8f03497f1cf7",
+      "store": {
+        "store_instance_id": "wms-2f70536e-e498-49c8-b5f6-5edde9f18a92",
+        "entry_count": 4,
+        "total_bytes": 46220,
+        "max_bytes": 67108864,
+        "max_entries": 1024,
+        "pinned_projects": [
+          "f9-registered-arx_delay"
+        ],
+        "active_project_id": null,
+        "hits": 3,
+        "misses": 0,
+        "evictions": 0
+      },
+      "pyproxy": {
+        "activeProxies": 0,
+        "totalCreated": 6,
+        "totalDestroyed": 6,
+        "activeLabels": []
+      },
+      "active_request_ids": []
+    }
+  }
+}

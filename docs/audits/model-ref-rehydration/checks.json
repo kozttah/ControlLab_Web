@@ -1,0 +1,59 @@
+{
+  "base_commit": "31227da6fe93ba142058e741c8dbcd4c5637b89e",
+  "reviewer": "/root/f9_model_refs",
+  "scope": "Independent real Worker/Pyodide reference transport verification; no production scientific algorithms changed",
+  "source_sha256": {
+    "web/worker/payload_references.ts": "d4ccb141e109b1bd7098f5c87b6456be358a00a7b6d64c790228623110081b3b",
+    "web/worker/pyodide_worker.ts": "10456d13ab2cbb0c8c3032229d77d85b21f24ad16127404d190cc8b6047b7592",
+    "web/bridge/mock_adapter.ts": "0fe28ee38163be8fa2fa08127961a6de5877498305f3bd1ade9ca8b1df501bfe",
+    "tests/unit/f7/model_references.test.ts": "369a0a5a63c3cf86507715bdf2ec33d6e340bfd143af1fdb83174a9f8c4891b8",
+    "tests/unit/f7/rpc_bridge_worker.test.ts": "55b1c18872354b2e370b96817c91037a855f5f8cc41c876b7f46e16fad9e235a",
+    "tests/unit/f7/worker_hardening.test.ts": "43d3f2221a2d196c1ae412c835cc0cb8de31887395c75e85b79af2b9d313a9e8",
+    "tests/wasm/test_model_ref_rehydration.py": "e6faa789826150b01fad3195c626e3641c560a997b1c5ecc74fafad95f1afab3",
+    "web/worker/MODEL_REFERENCES.md": "207205012f53dccacac0d9a1cd5bd8c9c069a18545c4f17b7e4cab8251d8955d"
+  },
+  "release_manifest_sha256": "9e1717cadc79f13029eb89816464a53b3fb6903903766997eb3604751a8e6d31",
+  "protected_files_unchanged": {
+    "contracts/fixtures/B-ARX-PRBS.json": "6fc72bebb5237aca36994b0fc71e06f6444fa9a1b163be79180764f07a18acc1",
+    "contracts/fixtures/B-CARE-02.json": "f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f",
+    "contracts/fixtures/B-CARE-12x3.json": "0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4",
+    "contracts/fixtures/B-DARE-12x3.json": "2488dd78691a3a36ff96b7d00542fd506855191c0dbedc0e530c6131e6e47040",
+    "contracts/fixtures/B-MIMO-2x2.json": "23d42ef684bcb5c4fe484ef24a624ae50020c883de986a617d21981bf5ff29ed",
+    "contracts/fixtures/B-PVM-LQR.json": "eabcf5aff8a56c99c87a624857525977d3ea5c31477431d5a9ce2fbf34453fe8",
+    "contracts/fixtures/B-SDP-A-D.json": "4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076",
+    "contracts/fixtures/checksums.sha256": "4b7a39a4ad5d8eb6b48d2d28d8e8a3673e38105bce057909dbdb29884ef0cc7a",
+    "scripts/pyodide-assets.lock.json": "9f5e8e2ea0ab4abfbd33976ffa38821250dfab6d08dcde9c85a6747240251956"
+  },
+  "verdict": "accepted",
+  "tests": {
+    "firefox_rehydration_and_existing_reuse": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 47.77
+    },
+    "firefox_existing_revision_and_cancellation": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 43.3
+    },
+    "f7_acceptance": {
+      "passed": 63,
+      "failed": 0,
+      "skipped": 0
+    },
+    "web_unit_all": {
+      "passed": 84,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "initial_test_correction": "First five-case run: 4 passed, 1 failed only because the new F9 assertion read dt on IdentifiedModel wrapper. Contract stores dt on identified_model.model.dt. Corrected assertion only; no F7 code, bundle, tolerance or build changed. Second run passed all five.",
+  "browser": {
+    "kind": "firefox",
+    "version": "153.0",
+    "driver": "Playwright1.62.0",
+    "scope": "real product Worker/Pyodide shipped build; no mock as runtime proof"
+  }
+}

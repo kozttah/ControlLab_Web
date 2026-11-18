@@ -14,7 +14,7 @@
       "2026-11-15": 8,
       "2026-11-17": 10,
       "2026-11-16": 1,
-      "2026-11-18": 1
+      "2026-11-18": 2
     }
   },
   "audit_reference": {
@@ -3018,8 +3018,8 @@
         "T-SEC-01"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f7",
-      "status": "PENDING",
-      "f9_review": "not_started",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
       "origin_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md",
       "contract_ref": "contracts/operations/core.reuse_model.v1.md",
       "acceptance_requirements_ref": "docs/audits/model-reuse/RUNTIME_FOLLOWUPS.md#wp-v1-f7-model-ref-rehydration",
@@ -3028,6 +3028,60 @@
         "Rejeitar inline+referência ambíguos antes da materialização e não interpretar campos arbitrários da proveniência como referências",
         "Testes unitários novos e auditoria F9 no Worker/Pyodide real para registro→referência→reutilização→consumo; cobrir dataset e modelo, stale/cross-project e PyProxy",
         "Sem cálculos científicos em TypeScript, sem registro automático do resultado científico; handoff com checklist completo"
+      ],
+      "previous_assessments": [
+        {
+          "status": "PENDING",
+          "f9_review": "not_started",
+          "note": "Worker previously materialized only plant_ref; canonical typed model/dataset aliases and independent real Worker proof were pending."
+        }
+      ],
+      "handoff_ref": "docs/audits/handoffs/WP-V1-F7-MODEL-REF-REHYDRATION.md",
+      "evidence_ref": "docs/audits/model-ref-rehydration/checks.json",
+      "assessed_commit": "31227da6fe93ba142058e741c8dbcd4c5637b89e",
+      "reviewed_source_sha256": {
+        "web/worker/payload_references.ts": "d4ccb141e109b1bd7098f5c87b6456be358a00a7b6d64c790228623110081b3b",
+        "web/worker/pyodide_worker.ts": "10456d13ab2cbb0c8c3032229d77d85b21f24ad16127404d190cc8b6047b7592",
+        "web/bridge/mock_adapter.ts": "0fe28ee38163be8fa2fa08127961a6de5877498305f3bd1ade9ca8b1df501bfe",
+        "tests/unit/f7/model_references.test.ts": "369a0a5a63c3cf86507715bdf2ec33d6e340bfd143af1fdb83174a9f8c4891b8",
+        "tests/unit/f7/rpc_bridge_worker.test.ts": "55b1c18872354b2e370b96817c91037a855f5f8cc41c876b7f46e16fad9e235a",
+        "tests/unit/f7/worker_hardening.test.ts": "43d3f2221a2d196c1ae412c835cc0cb8de31887395c75e85b79af2b9d313a9e8",
+        "tests/wasm/test_model_ref_rehydration.py": "e6faa789826150b01fad3195c626e3641c560a997b1c5ecc74fafad95f1afab3",
+        "web/worker/MODEL_REFERENCES.md": "207205012f53dccacac0d9a1cd5bd8c9c069a18545c4f17b7e4cab8251d8955d"
+      },
+      "completed_on": "2026-11-18",
+      "acceptance_scope": "operation_specific_typed_model_dataset_references_real_firefox153_pyodide_exact_project_revision_binary_and_recovery",
+      "validation": {
+        "producer_f7_tests": 63,
+        "web_all_tests": 84,
+        "real_worker_reuse_tests": 5,
+        "real_revision_cancellation_recovery_tests": 2,
+        "browser": {
+          "kind": "firefox",
+          "version": "153.0",
+          "driver": "Playwright1.62.0",
+          "scope": "real product Worker/Pyodide shipped build; no mock as runtime proof"
+        },
+        "release_manifest_sha256": "9e1717cadc79f13029eb89816464a53b3fb6903903766997eb3604751a8e6d31",
+        "independent_analytic_frequency_and_dare_checks": true,
+        "automatic_result_registration": false,
+        "active_pyproxies_after_requests": 0
+      },
+      "acceptance_evidence": [
+        "docs/audits/model-ref-rehydration/checks.json",
+        "docs/audits/handoffs/WP-V1-F7-MODEL-REF-REHYDRATION.md",
+        "web/worker/MODEL_REFERENCES.md",
+        "docs/audits/model-ref-rehydration/browser/registered-model-refs-arx_delay.json",
+        "docs/audits/model-ref-rehydration/browser/registered-model-refs-subspace.json",
+        "docs/audits/model-ref-rehydration/browser/registered-model-refs-negatives.json",
+        "docs/audits/model-ref-rehydration/model-ref-firefox.xml",
+        "docs/audits/model-ref-rehydration/model-ref-recovery.xml"
+      ],
+      "limitations": [
+        "Only explicit operation-specific top-level aliases are resolved; arbitrary provenance fields and controller_ref are not inferred from their names.",
+        "The exact historical revision must be present in the requested project. Results require explicit registration before their references can be consumed.",
+        "Independent acceptance records the real Firefox/Pyodide build and source hashes; hosted Chromium/full-release CI of the completion commit is separate mandatory release evidence.",
+        "No production scientific algorithm, schema, frozen fixture, existing oracle tolerance or product/gate maturity changed."
       ]
     },
     {

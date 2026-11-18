@@ -76,7 +76,9 @@ function makeLqrRequest(overrides?: Partial<RpcRequest>): RpcRequest {
     project_revision: overrides?.project_revision ?? 1,
     operation: overrides?.operation ?? "statespace.design_lqr",
     payload: overrides?.payload ?? {
-      plant_ref: { id: "plant-001", revision: 1 },
+      // Lifecycle/transport doubles need a self-contained source. Dedicated
+      // reference tests below register exact revisions before resolving them.
+      plant: make2x2Plant(1),
       Q: {
         shape: [2, 2],
         dtype: "float64",
@@ -743,6 +745,12 @@ test("F7-BUFFER-01 (fixture double): transferência de ArrayBuffer via postMessa
     const reqExample = JSON.parse(
       fs.readFileSync(path.join(EXAMPLES_DIR, "rpc_request_lqr.json"), "utf8"),
     ) as RpcRequest;
+    // The example reference is not registered in this transport-only test.
+    // Supply its 12x3 source matrices explicitly, preserving the gold bytes.
+    const gold12 = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, "B-CARE-12x3.json"), "utf8"));
+    delete reqExample.payload.plant_ref;
+    reqExample.payload.A = gold12.data.A;
+    reqExample.payload.B = gold12.data.B;
 
     // Construir buffers Float64 reais para Q (12x12) e R (3x3)
     const qData = new Float64Array(12 * 12);

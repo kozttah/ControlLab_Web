@@ -22,6 +22,7 @@ import {
   type RpcResponse,
   type WireBinaryBuffer,
 } from "../bridge/protocol.ts";
+import { materializePayloadReferences } from "./payload_references.ts";
 import type { StoredProjectSnapshot } from "../storage/indexeddb_store.ts";
 import {
   WorkerModelStore,
@@ -851,26 +852,11 @@ export class PyodideWorkerRuntime {
         replaceBufferRefsInObject(resolvedPayload, rehydratedTensors);
       }
 
-      // Resolver plant_ref no WorkerModelStore se não estiver inline
-      if (
-        isPlainObject(resolvedPayload.plant_ref) &&
-        typeof resolvedPayload.plant_ref.id === "string" &&
-        typeof resolvedPayload.plant_ref.revision === "number" &&
-        resolvedPayload.plant === undefined
-      ) {
-        const plantEntry = this.modelStore.get(
-          request.project_id,
-          resolvedPayload.plant_ref.id,
-          resolvedPayload.plant_ref.revision,
-        );
-        if (plantEntry) {
-          resolvedPayload.plant = plantEntry.value;
-        }
-      }
+      const canonicalPayload = materializePayloadReferences(request, resolvedPayload, this.modelStore);
 
       const rawResult = await this.executeOperation(
         request,
-        resolvedPayload,
+        canonicalPayload,
         abortController.signal,
       );
 

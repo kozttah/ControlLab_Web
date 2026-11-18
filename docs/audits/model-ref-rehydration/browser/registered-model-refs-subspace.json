@@ -1,0 +1,65 @@
+{
+  "browser": "153.0",
+  "browser_kind": "firefox",
+  "release_manifest_sha256": "9e1717cadc79f13029eb89816464a53b3fb6903903766997eb3604751a8e6d31",
+  "evidence": {
+    "transport": "real product Worker RPC",
+    "method": "subspace",
+    "dataset_refs": [
+      {
+        "id": "refs-subspace-train",
+        "revision": 2
+      },
+      {
+        "id": "refs-subspace-validation",
+        "revision": 2
+      }
+    ],
+    "identified_ref": {
+      "id": "idmod-7025e2cfb5cc",
+      "revision": 0
+    },
+    "derived_ref": {
+      "id": "reuse-e1d705b9de6d47edbca767d9ac3d67df04c6b9ce04b6ad3176bcff54604d98b0",
+      "revision": 0
+    },
+    "frequency_error": 1.1957467920563633e-15,
+    "independent_dare_residual": 1.4119437001902058e-16,
+    "registration_explicit": true,
+    "binary_input_buffers_detached": [
+      0,
+      0
+    ],
+    "binary_output_tensors_restored": [
+      "P",
+      "K"
+    ],
+    "source_not_mutated": true,
+    "recovery": null,
+    "stats": {
+      "worker_id": "pw-098acdd8-bd22-4b7e-8510-8f03497f1cf7",
+      "store": {
+        "store_instance_id": "wms-2f70536e-e498-49c8-b5f6-5edde9f18a92",
+        "entry_count": 8,
+        "total_bytes": 96853,
+        "max_bytes": 67108864,
+        "max_entries": 1024,
+        "pinned_projects": [
+          "f9-registered-arx_delay",
+          "f9-registered-subspace"
+        ],
+        "active_project_id": null,
+        "hits": 14,
+        "misses": 1,
+        "evictions": 0
+      },
+      "pyproxy": {
+        "activeProxies": 0,
+        "totalCreated": 16,
+        "totalDestroyed": 16,
+        "activeLabels": []
+      },
+      "active_request_ids": []
+    }
+  }
+}

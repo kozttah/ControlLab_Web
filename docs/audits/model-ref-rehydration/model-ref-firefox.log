@@ -1,0 +1,25 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/c294078be076/ControlLab_Web
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 5 items
+
+tests/wasm/test_model_ref_rehydration.py::test_registered_dataset_model_reuse_and_registered_consumers[arx_delay] PASSED
+tests/wasm/test_model_ref_rehydration.py::test_registered_dataset_model_reuse_and_registered_consumers[subspace] PASSED
+tests/wasm/test_model_ref_rehydration.py::test_reference_isolation_types_revisions_and_ambiguity PASSED
+tests/wasm/test_model_reuse_rpc.py::test_identification_reuse_consumer_and_ref_limit_through_real_worker[arx_delay] PASSED
+tests/wasm/test_model_reuse_rpc.py::test_identification_reuse_consumer_and_ref_limit_through_real_worker[subspace] PASSED
+
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+-- generated xml file: /workspace/scratch/c294078be076/model-ref-firefox.xml ---
+======================== 5 passed, 1 warning in 47.77s =========================

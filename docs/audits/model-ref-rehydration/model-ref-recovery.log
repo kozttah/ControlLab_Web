@@ -1,0 +1,22 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace/scratch/c294078be076/ControlLab_Web
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 2 items
+
+tests/e2e/test_revision_recovery.py::test_twenty_revisions_only_current_commits PASSED
+tests/e2e/test_revision_recovery.py::test_worker_cancel_restart_recovers_confirmed_snapshot PASSED
+
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+-- generated xml file: /workspace/scratch/c294078be076/model-ref-recovery.xml --
+======================== 2 passed, 1 warning in 43.30s =========================

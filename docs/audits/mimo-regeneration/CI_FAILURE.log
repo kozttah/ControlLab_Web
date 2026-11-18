@@ -1,0 +1,20 @@
+2026-11-18T15:12:38.4925457Z [F9-VERIFY] Fixture B-MIMO-2x2.json: SHA-256 OK + golden_fixture.schema.json OK.
+2026-11-18T15:12:47.5939572Z tests/oracles/test_release_fixtures.py::test_t_id_03_full_data_holdout_production PASSED [ 78%]
+2026-11-18T15:12:47.6659893Z tests/oracles/test_release_fixtures.py::test_t_mimo_01_full_grid_production PASSED [ 78%]
+2026-11-18T15:12:47.6779655Z tests/oracles/test_release_fixtures.py::test_t_mimo_02_singular_cases_are_undefined PASSED [ 79%]
+2026-11-18T15:12:48.1954318Z tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic FAILED [ 81%]
+2026-11-18T15:12:49.6045807Z ____________ test_generator_independent_and_new_gold_deterministic _____________
+2026-11-18T15:12:49.6046709Z     def test_generator_independent_and_new_gold_deterministic():
+2026-11-18T15:12:49.6064899Z E                       'fixture_id': 'B-MIMO-2x2',
+2026-11-18T15:12:49.6072319Z E                           'response_atol': 1e-11,
+2026-11-18T15:12:49.6073588Z E                           'singular_values_atol': 1e-11,
+2026-11-18T15:12:49.6074236Z E                           'crossing_atol': 1e-07,
+2026-11-18T15:12:49.6900418Z PASSED tests/oracles/test_release_fixtures.py::test_t_id_03_full_data_holdout_production
+2026-11-18T15:12:49.6900729Z PASSED tests/oracles/test_release_fixtures.py::test_t_mimo_01_full_grid_production
+2026-11-18T15:12:49.6901077Z PASSED tests/oracles/test_release_fixtures.py::test_t_mimo_02_singular_cases_are_undefined
+2026-11-18T15:12:49.6923115Z FAILED tests/oracles/test_release_fixtures.py::test_generator_independent_and_new_gold_deterministic - AssertionError: assert {'fixture_id'...g SISO.', ...} == {'fixture_id'...g SISO.', ...}
+2026-11-18T15:12:49.6925267Z         'fixture_id': 'B-MIMO-2x2',
+2026-11-18T15:12:49.6926690Z             'response_atol': 1e-11,
+2026-11-18T15:12:49.6926953Z             'singular_values_atol': 1e-11,
+2026-11-18T15:12:49.6927070Z             'crossing_atol': 1e-07,
+2026-11-18T15:12:49.7353311Z ======================== 1 failed, 220 passed in 10.93s ========================

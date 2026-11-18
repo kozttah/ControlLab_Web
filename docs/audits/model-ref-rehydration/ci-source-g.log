@@ -1,0 +1,17 @@
+2026-11-18T15:13:07.7518861Z Downloading Chrome for Testing 151.0.7922.34 (playwright chromium v1234) from https://cdn.playwright.dev/builds/cft/151.0.7922.34/linux64/chrome-linux64.zip
+2026-11-18T15:13:11.6569594Z Chrome for Testing 151.0.7922.34 (playwright chromium v1234) downloaded to /home/runner/.cache/ms-playwright/chromium-1234
+2026-11-18T15:13:32.7062893Z tests/wasm/test_model_ref_rehydration.py::test_registered_dataset_model_reuse_and_registered_consumers[arx_delay] PASSED [  2%]
+2026-11-18T15:13:33.0699518Z tests/wasm/test_model_ref_rehydration.py::test_registered_dataset_model_reuse_and_registered_consumers[subspace] PASSED [  5%]
+2026-11-18T15:13:33.4414220Z tests/wasm/test_model_ref_rehydration.py::test_reference_isolation_types_revisions_and_ambiguity PASSED [  8%]
+2026-11-18T15:13:39.4044908Z tests/wasm/test_model_reuse_rpc.py::test_identification_reuse_consumer_and_ref_limit_through_real_worker[arx_delay] PASSED [ 11%]
+2026-11-18T15:13:39.7034871Z tests/wasm/test_model_reuse_rpc.py::test_identification_reuse_consumer_and_ref_limit_through_real_worker[subspace] PASSED [ 13%]
+2026-11-18T15:16:04.4519437Z tests/e2e/test_revision_recovery.py::test_twenty_revisions_only_current_commits PASSED [ 63%]
+2026-11-18T15:16:14.5344619Z tests/e2e/test_revision_recovery.py::test_worker_cancel_restart_recovers_confirmed_snapshot PASSED [ 66%]
+2026-11-18T15:17:41.0750120Z PASSED tests/wasm/test_model_ref_rehydration.py::test_registered_dataset_model_reuse_and_registered_consumers[arx_delay]
+2026-11-18T15:17:41.0750494Z PASSED tests/wasm/test_model_ref_rehydration.py::test_registered_dataset_model_reuse_and_registered_consumers[subspace]
+2026-11-18T15:17:41.0750802Z PASSED tests/wasm/test_model_ref_rehydration.py::test_reference_isolation_types_revisions_and_ambiguity
+2026-11-18T15:17:41.0751179Z PASSED tests/wasm/test_model_reuse_rpc.py::test_identification_reuse_consumer_and_ref_limit_through_real_worker[arx_delay]
+2026-11-18T15:17:41.0751544Z PASSED tests/wasm/test_model_reuse_rpc.py::test_identification_reuse_consumer_and_ref_limit_through_real_worker[subspace]
+2026-11-18T15:17:41.0757043Z PASSED tests/e2e/test_revision_recovery.py::test_twenty_revisions_only_current_commits
+2026-11-18T15:17:41.0757529Z PASSED tests/e2e/test_revision_recovery.py::test_worker_cancel_restart_recovers_confirmed_snapshot
+2026-11-18T15:17:41.0761502Z ================== 36 passed, 1 warning in 264.28s (0:04:24) ===================

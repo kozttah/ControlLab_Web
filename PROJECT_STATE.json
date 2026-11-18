@@ -3082,6 +3082,57 @@
         "The exact historical revision must be present in the requested project. Results require explicit registration before their references can be consumed.",
         "Independent acceptance records the real Firefox/Pyodide build and source hashes; hosted Chromium/full-release CI of the completion commit is separate mandatory release evidence.",
         "No production scientific algorithm, schema, frozen fixture, existing oracle tolerance or product/gate maturity changed."
+      ],
+      "hosted_source_ci": {
+        "source_commit": "6369aa79b7280a2c534474d9860f1ef855f97c29",
+        "run_url": "https://github.com/kozttah/ControlLab_Web/actions/runs/44332821471",
+        "chromium_g_tests_passed": 36,
+        "chromium_new_reference_cases_passed": 3,
+        "pipeline_initial_result": "BLOCKED_BY_SEPARATE_MIMO_REGENERATION_EXACT_COMPARISON",
+        "evidence_ref": "docs/audits/model-ref-rehydration/CI_SOURCE_FOLLOWUP.md",
+        "followup_wp": "WP-AUDIT-FIX-F9-MIMO-REGENERATION",
+        "diagnostic_policy": "One metadata-only commit execution with all scientific/runtime/test/tooling source hashes unchanged, replacing same-SHA rerun; no additional reruns if it fails."
+      }
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F9-MIMO-REGENERATION",
+      "front": "f9-integration-qa",
+      "phase": "CI-Remediation",
+      "title": "Portabilidade independente da regeneração MIMO e da grade logarítmica preservando ouro",
+      "requirement_ids": [
+        "R-23",
+        "R-24"
+      ],
+      "findings": [
+        "F9-CI-MIMO-PORTABILITY"
+      ],
+      "allowed_paths": [
+        "tests/oracles/",
+        "scripts/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-CI-F9-FIXTURE-PORTABILITY",
+        "WP-AUDIT-FIX-F9-ARX-REGENERATION"
+      ],
+      "normative_tests": [
+        "T-MIMO-01",
+        "T-MIMO-02",
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "python3 scripts/ci_math.py core_no_sdp && python3 scripts/ci_math.py sdp_available && python3 scripts/verify_fixtures.py",
+      "acceptance_environment": "Run profiles in separate isolated environments from exact locks; demonstrate multiple actual CPU/libm/NumPy/BLAS configurations and preserve complete environment diagnostics.",
+      "status": "PENDING",
+      "f9_review": "not_started",
+      "origin_ref": "docs/audits/mimo-regeneration/FOLLOWUP.md",
+      "acceptance_requirements_ref": "docs/audits/mimo-regeneration/FOLLOWUP.md",
+      "evidence_ref": "docs/audits/mimo-regeneration/CI_FAILURE_DIAGNOSTIC.json",
+      "observed_commit": "6369aa79b7280a2c534474d9860f1ef855f97c29",
+      "acceptance_requirements": [
+        "Implement the independent grid/response/spectrum/identity/crossing certificates and adversarial cases required in the acceptance reference.",
+        "Keep frozen fixture bytes/checksums and existing scientific oracle tolerances unchanged; preserve exact structure, metadata, matrices and unenumerated fields.",
+        "Generated logspace input differences require a justified independent high-precision grid criterion; do not borrow response_atol or normalize arbitrary input changes.",
+        "Retain negative CI evidence and verify both complete profiles; no generic allclose, production code as its own oracle, skips or reruns until green."
       ]
     },
     {

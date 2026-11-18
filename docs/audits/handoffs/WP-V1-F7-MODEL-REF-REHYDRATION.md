@@ -62,3 +62,11 @@ A primeira execução de cinco casos teve quatro aprovações e uma falha exclus
 O Maestro pode registrar `ACCEPTED_BY_F9` para este WorkPackage, com a fonte identificada por base e hashes e escopo de referências tipadas no Worker/Pyodide demonstrado acima. A disponibilidade dos aliases não implica qualidade estatística nova do modelo identificado e não autoriza interpretar referências arbitrárias da proveniência. Bibliotecas científicas, schemas, fixtures e tolerâncias permanecem preservados.
 
 O commit de conclusão e seus jobs hospedados devem ser acompanhados pelo Maestro. Este documento não afirma que um CI ainda não executado passou, não substitui a auditoria de release estável e não amplia o escopo dos gates existentes.
+
+## Complemento F9 — CI pós-publicação da fonte
+
+Na fonte publicada `6369aa79b7280a2c534474d9860f1ef855f97c29`, run `44332821471`, o auditor conferiu diretamente **36 testes aprovados no job G**, incluindo os três novos casos de referências e as regressões de concorrência/cancelamento, em Chromium 151.0.7922.34. O complemento `docs/audits/model-ref-rehydration/CI_SOURCE_FOLLOWUP.md` e o extrato `ci-source-g.log` preservam essa evidência remota, além da prova Firefox local.
+
+O mesmo CI apresentou uma falha separada no job B SDP: igualdade exata da regeneração MIMO, com **220 aprovações e uma falha**. Cinco pontos da grade de frequência e respostas derivadas diferem nos últimos bits; os testes científicos produção-versus-ouro MIMO e o certificado ARX passaram. O achado está preservado em `docs/audits/mimo-regeneration/FOLLOWUP.md` e `CI_FAILURE_DIAGNOSTIC.json`; não foi corrigido alterando tolerância, ouro ou código F7. O aceite funcional deste WorkPackage permanece o acima, mas **não significa aprovação do pipeline completo ou liberação do Pages enquanto existir falha obrigatória**.
+
+O Maestro poderá persistir a pendência MIMO em um commit exclusivamente de metadados/documentação e usar a execução normal desse commit como a única execução diagnóstica adicional da fonte científica idêntica, em substituição ao rerun B do SHA original. Ambos os SHAs e a identidade por hashes devem ser registrados; nenhum resultado positivo fecha o achado MIMO, e uma nova falha não autoriza reruns sucessivos. Os oito hashes da entrega F7 e as tolerâncias científicas permanecem inalterados.

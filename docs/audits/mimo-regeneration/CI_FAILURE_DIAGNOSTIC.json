@@ -1,0 +1,775 @@
+{
+  "source_commit": "6369aa79b7280a2c534474d9860f1ef855f97c29",
+  "run_id": 44332821471,
+  "job_id": 134901467320,
+  "fixture": "B-MIMO-2x2",
+  "fixture_sha256": "23d42ef684bcb5c4fe484ef24a624ae50020c883de986a617d21981bf5ff29ed",
+  "changed_numeric_leaves": 92,
+  "max_absolute_error": 5.684341886080802e-14,
+  "max_relative_error": 6.85786801858699e-16,
+  "max_ulp_distance": 6.0,
+  "changes": [
+    {
+      "path": "/data/omega/data/9",
+      "frozen": 0.006309573444801929,
+      "generated": 0.00630957344480193,
+      "absolute_error": 8.673617379884035e-19,
+      "relative_error": 1.3746757139390611e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/omega/data/23",
+      "frozen": 0.1584893192461114,
+      "generated": 0.15848931924611143,
+      "absolute_error": 2.7755575615628914e-17,
+      "relative_error": 1.7512584284956417e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/omega/data/48",
+      "frozen": 50.118723362727245,
+      "generated": 50.11872336272725,
+      "absolute_error": 7.105427357601002e-15,
+      "relative_error": 1.4177191438370179e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/omega/data/54",
+      "frozen": 199.52623149688827,
+      "generated": 199.5262314968883,
+      "absolute_error": 2.842170943040401e-14,
+      "relative_error": 1.4244597924382317e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/omega/data/56",
+      "frozen": 316.2277660168379,
+      "generated": 316.22776601683796,
+      "absolute_error": 5.684341886080802e-14,
+      "relative_error": 1.7975467359112707e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/real/192",
+      "frozen": 0.0007958974886097528,
+      "generated": 0.0007958974886097526,
+      "absolute_error": 1.0842021724855044e-19,
+      "relative_error": 1.3622384641260178e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/real/193",
+      "frozen": 0.0003979487443048764,
+      "generated": 0.0003979487443048763,
+      "absolute_error": 5.421010862427522e-20,
+      "relative_error": 1.3622384641260178e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/real/194",
+      "frozen": 0.0001989743721524382,
+      "generated": 0.00019897437215243816,
+      "absolute_error": 2.710505431213761e-20,
+      "relative_error": 1.3622384641260178e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/real/195",
+      "frozen": 0.0011938462329146291,
+      "generated": 0.001193846232914629,
+      "absolute_error": 2.168404344971009e-19,
+      "relative_error": 1.816317952168024e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/real/216",
+      "frozen": 5.0236466747199557e-05,
+      "generated": 5.0236466747199536e-05,
+      "absolute_error": 2.0328790734103208e-20,
+      "relative_error": 4.0466203239176733e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/G/real/217",
+      "frozen": 2.5118233373599778e-05,
+      "generated": 2.5118233373599768e-05,
+      "absolute_error": 1.0164395367051604e-20,
+      "relative_error": 4.0466203239176733e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/G/real/218",
+      "frozen": 1.2559116686799889e-05,
+      "generated": 1.2559116686799884e-05,
+      "absolute_error": 5.082197683525802e-21,
+      "relative_error": 4.0466203239176733e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/G/real/219",
+      "frozen": 7.535470012079933e-05,
+      "generated": 7.53547001207993e-05,
+      "absolute_error": 2.710505431213761e-20,
+      "relative_error": 3.5969958434823763e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/G/real/224",
+      "frozen": 1.9999800001999985e-05,
+      "generated": 1.9999800001999975e-05,
+      "absolute_error": 1.0164395367051604e-20,
+      "relative_error": 5.082248505502636e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/G/real/225",
+      "frozen": 9.999900000999992e-06,
+      "generated": 9.999900000999987e-06,
+      "absolute_error": 5.082197683525802e-21,
+      "relative_error": 5.082248505502636e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/G/real/226",
+      "frozen": 4.999950000499996e-06,
+      "generated": 4.999950000499994e-06,
+      "absolute_error": 2.541098841762901e-21,
+      "relative_error": 5.082248505502636e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/G/real/227",
+      "frozen": 2.9999700002999977e-05,
+      "generated": 2.9999700002999957e-05,
+      "absolute_error": 2.0328790734103208e-20,
+      "relative_error": 6.776331340670181e-16,
+      "ulp_distance": 6.0
+    },
+    {
+      "path": "/data/expected/G/imag/36",
+      "frozen": -0.01261864453231676,
+      "generated": -0.012618644532316762,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 1.3747304407649517e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/37",
+      "frozen": -0.00630932226615838,
+      "generated": -0.006309322266158381,
+      "absolute_error": 8.673617379884035e-19,
+      "relative_error": 1.3747304407649517e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/38",
+      "frozen": -0.00315466113307919,
+      "generated": -0.0031546611330791905,
+      "absolute_error": 4.336808689942018e-19,
+      "relative_error": 1.3747304407649517e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/39",
+      "frozen": -0.018927966798475138,
+      "generated": -0.01892796679847514,
+      "absolute_error": 3.469446951953614e-18,
+      "relative_error": 1.8329739210199358e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/92",
+      "frozen": -0.30921159440764273,
+      "generated": -0.3092115944076428,
+      "absolute_error": 5.551115123125783e-17,
+      "relative_error": 1.7952480513416917e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/93",
+      "frozen": -0.15460579720382137,
+      "generated": -0.1546057972038214,
+      "absolute_error": 2.7755575615628914e-17,
+      "relative_error": 1.7952480513416917e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/94",
+      "frozen": -0.07730289860191068,
+      "generated": -0.0773028986019107,
+      "absolute_error": 1.3877787807814457e-17,
+      "relative_error": 1.7952480513416917e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/95",
+      "frozen": -0.46381739161146407,
+      "generated": -0.4638173916114642,
+      "absolute_error": 1.1102230246251565e-16,
+      "relative_error": 2.393664068455589e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/G/imag/192",
+      "frozen": -0.03988936605672156,
+      "generated": -0.039889366056721554,
+      "absolute_error": 6.938893903907228e-18,
+      "relative_error": 1.739534765741906e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/193",
+      "frozen": -0.01994468302836078,
+      "generated": -0.019944683028360777,
+      "absolute_error": 3.469446951953614e-18,
+      "relative_error": 1.739534765741906e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/194",
+      "frozen": -0.00997234151418039,
+      "generated": -0.009972341514180388,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 1.739534765741906e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/195",
+      "frozen": -0.059834049085082344,
+      "generated": -0.05983404908508233,
+      "absolute_error": 1.3877787807814457e-17,
+      "relative_error": 2.319379687655875e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/G/imag/216",
+      "frozen": -0.010023492893787468,
+      "generated": -0.010023492893787466,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 1.7306576603171772e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/217",
+      "frozen": -0.005011746446893734,
+      "generated": -0.005011746446893733,
+      "absolute_error": 8.673617379884035e-19,
+      "relative_error": 1.7306576603171772e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/218",
+      "frozen": -0.002505873223446867,
+      "generated": -0.0025058732234468665,
+      "absolute_error": 4.336808689942018e-19,
+      "relative_error": 1.7306576603171772e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/219",
+      "frozen": -0.0150352393406812,
+      "generated": -0.015035239340681199,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 1.1537717735447849e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/G/imag/224",
+      "frozen": -0.006324492075416005,
+      "generated": -0.0063244920754160034,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 2.742866075712021e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/G/imag/225",
+      "frozen": -0.0031622460377080026,
+      "generated": -0.0031622460377080017,
+      "absolute_error": 8.673617379884035e-19,
+      "relative_error": 2.742866075712021e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/G/imag/226",
+      "frozen": -0.0015811230188540013,
+      "generated": -0.0015811230188540009,
+      "absolute_error": 4.336808689942018e-19,
+      "relative_error": 2.742866075712021e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/G/imag/227",
+      "frozen": -0.009486738113124008,
+      "generated": -0.009486738113124005,
+      "absolute_error": 3.469446951953614e-18,
+      "relative_error": 3.6571547676160275e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/singular_values/data/96",
+      "frozen": 0.06810184213698763,
+      "generated": 0.06810184213698761,
+      "absolute_error": 1.3877787807814457e-17,
+      "relative_error": 2.0377991802188155e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/singular_values/data/97",
+      "frozen": 0.032138897054710944,
+      "generated": 0.03213889705471093,
+      "absolute_error": 1.3877787807814457e-17,
+      "relative_error": 4.318065982223942e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/singular_values/data/108",
+      "frozen": 0.017109599190246173,
+      "generated": 0.01710959919024617,
+      "absolute_error": 3.469446951953614e-18,
+      "relative_error": 2.0277780404882154e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/singular_values/data/109",
+      "frozen": 0.008074431318856108,
+      "generated": 0.008074431318856106,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 2.1484156685136838e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/singular_values/data/112",
+      "frozen": 0.010795508876373759,
+      "generated": 0.010795508876373757,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 1.6068936590597344e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/singular_values/data/113",
+      "frozen": 0.005094660255049915,
+      "generated": 0.005094660255049914,
+      "absolute_error": 8.673617379884035e-19,
+      "relative_error": 1.7024918141080353e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/real/192",
+      "frozen": 0.9974253374354382,
+      "generated": 0.997425337435438,
+      "absolute_error": 1.1102230246251565e-16,
+      "relative_error": 1.1130888528255576e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/real/193",
+      "frozen": -0.002365926856551159,
+      "generated": -0.002365926856551158,
+      "absolute_error": 8.673617379884035e-19,
+      "relative_error": 3.6660547454656633e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/S/real/194",
+      "frozen": -0.0011829634282755795,
+      "generated": -0.001182963428275579,
+      "absolute_error": 4.336808689942018e-19,
+      "relative_error": 3.6660547454656633e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/S/real/195",
+      "frozen": 0.9950594105788869,
+      "generated": 0.9950594105788868,
+      "absolute_error": 1.1102230246251565e-16,
+      "relative_error": 1.1157354152143258e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/real/216",
+      "frozen": 0.9998367795732063,
+      "generated": 0.9998367795732064,
+      "absolute_error": 1.1102230246251565e-16,
+      "relative_error": 1.1104042652832494e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/real/217",
+      "frozen": -0.00015062205949955117,
+      "generated": -0.00015062205949955111,
+      "absolute_error": 5.421010862427522e-20,
+      "relative_error": 3.5990816222000176e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/S/real/218",
+      "frozen": -7.531102974977558e-05,
+      "generated": -7.531102974977556e-05,
+      "absolute_error": 2.710505431213761e-20,
+      "relative_error": 3.5990816222000176e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/S/real/224",
+      "frozen": 0.9999350082737085,
+      "generated": 0.9999350082737084,
+      "absolute_error": 1.1102230246251565e-16,
+      "relative_error": 1.1102951846258986e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/real/225",
+      "frozen": -5.998555296292072e-05,
+      "generated": -5.99855529629207e-05,
+      "absolute_error": 2.0328790734103208e-20,
+      "relative_error": 3.3889477932576837e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/S/real/226",
+      "frozen": -2.999277648146036e-05,
+      "generated": -2.999277648146035e-05,
+      "absolute_error": 1.0164395367051604e-20,
+      "relative_error": 3.3889477932576837e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/S/imag/36",
+      "frozen": 0.0014074212643101667,
+      "generated": 0.0014074212643101673,
+      "absolute_error": 6.505213034913027e-19,
+      "relative_error": 4.622079543541278e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/S/imag/37",
+      "frozen": -0.00021468890051213132,
+      "generated": -0.00021468890051213135,
+      "absolute_error": 2.710505431213761e-20,
+      "relative_error": 1.2625270448299677e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/imag/38",
+      "frozen": -0.00010734445025606566,
+      "generated": -0.00010734445025606567,
+      "absolute_error": 1.3552527156068805e-20,
+      "relative_error": 1.2625270448299677e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/imag/39",
+      "frozen": 0.0011927323637980357,
+      "generated": 0.001192732363798036,
+      "absolute_error": 2.168404344971009e-19,
+      "relative_error": 1.818014175507174e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/imag/192",
+      "frozen": 0.03972752926022838,
+      "generated": 0.03972752926022839,
+      "absolute_error": 1.3877787807814457e-17,
+      "relative_error": 3.4932421084911623e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/S/imag/193",
+      "frozen": 0.019712426089926502,
+      "generated": 0.0197124260899265,
+      "absolute_error": 3.469446951953614e-18,
+      "relative_error": 1.760030417426184e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/imag/194",
+      "frozen": 0.009856213044963251,
+      "generated": 0.00985621304496325,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 1.760030417426184e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/imag/195",
+      "frozen": 0.05943995535015488,
+      "generated": 0.059439955350154894,
+      "absolute_error": 1.3877787807814457e-17,
+      "relative_error": 2.3347574415326833e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/S/imag/216",
+      "frozen": 0.010020913103453526,
+      "generated": 0.010020913103453523,
+      "absolute_error": 3.469446951953614e-18,
+      "relative_error": 3.462206403883427e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/S/imag/219",
+      "frozen": 0.015028947805651525,
+      "generated": 0.015028947805651522,
+      "absolute_error": 3.469446951953614e-18,
+      "relative_error": 2.308509548917958e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/S/imag/224",
+      "frozen": 0.006323843909197283,
+      "generated": 0.006323843909197279,
+      "absolute_error": 4.336808689942018e-18,
+      "relative_error": 6.85786801858699e-16,
+      "ulp_distance": 5.0
+    },
+    {
+      "path": "/data/expected/S/imag/225",
+      "frozen": 0.0031613133743879623,
+      "generated": 0.003161313374387962,
+      "absolute_error": 4.336808689942018e-19,
+      "relative_error": 1.3718376435179046e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/imag/226",
+      "frozen": 0.0015806566871939811,
+      "generated": 0.001580656687193981,
+      "absolute_error": 2.168404344971009e-19,
+      "relative_error": 1.3718376435179046e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/S/imag/227",
+      "frozen": 0.009485157283585247,
+      "generated": 0.009485157283585241,
+      "absolute_error": 5.204170427930421e-18,
+      "relative_error": 5.486646422760555e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/T/real/192",
+      "frozen": 0.0025746625645619134,
+      "generated": 0.002574662564561913,
+      "absolute_error": 4.336808689942018e-19,
+      "relative_error": 1.6844182805290987e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/real/193",
+      "frozen": 0.002365926856551159,
+      "generated": 0.002365926856551158,
+      "absolute_error": 8.673617379884035e-19,
+      "relative_error": 3.6660547454656633e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/real/194",
+      "frozen": 0.0011829634282755795,
+      "generated": 0.001182963428275579,
+      "absolute_error": 4.336808689942018e-19,
+      "relative_error": 3.6660547454656633e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/real/195",
+      "frozen": 0.004940589421113072,
+      "generated": 0.004940589421113071,
+      "absolute_error": 8.673617379884035e-19,
+      "relative_error": 1.7555835226498025e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/real/216",
+      "frozen": 0.0001632204267936944,
+      "generated": 0.00016322042679369435,
+      "absolute_error": 5.421010862427522e-20,
+      "relative_error": 3.3212821268256535e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/real/217",
+      "frozen": 0.00015062205949955117,
+      "generated": 0.00015062205949955111,
+      "absolute_error": 5.421010862427522e-20,
+      "relative_error": 3.5990816222000176e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/real/218",
+      "frozen": 7.531102974977558e-05,
+      "generated": 7.531102974977556e-05,
+      "absolute_error": 2.710505431213761e-20,
+      "relative_error": 3.5990816222000176e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/real/224",
+      "frozen": 6.499172629164861e-05,
+      "generated": 6.499172629164858e-05,
+      "absolute_error": 2.710505431213761e-20,
+      "relative_error": 4.170539214561622e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/real/225",
+      "frozen": 5.998555296292072e-05,
+      "generated": 5.99855529629207e-05,
+      "absolute_error": 2.0328790734103208e-20,
+      "relative_error": 3.3889477932576837e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/T/real/226",
+      "frozen": 2.999277648146036e-05,
+      "generated": 2.999277648146035e-05,
+      "absolute_error": 1.0164395367051604e-20,
+      "relative_error": 3.3889477932576837e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/T/real/227",
+      "frozen": 0.00012497727925456933,
+      "generated": 0.00012497727925456928,
+      "absolute_error": 5.421010862427522e-20,
+      "relative_error": 4.337597117461111e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/imag/37",
+      "frozen": 0.00021468890051213132,
+      "generated": 0.00021468890051213135,
+      "absolute_error": 2.710505431213761e-20,
+      "relative_error": 1.2625270448299677e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/imag/38",
+      "frozen": 0.00010734445025606566,
+      "generated": 0.00010734445025606567,
+      "absolute_error": 1.3552527156068805e-20,
+      "relative_error": 1.2625270448299677e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/imag/39",
+      "frozen": -0.0011927323637980361,
+      "generated": -0.0011927323637980357,
+      "absolute_error": 4.336808689942018e-19,
+      "relative_error": 3.636028351014347e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/imag/92",
+      "frozen": -0.03523902123127834,
+      "generated": -0.03523902123127835,
+      "absolute_error": 1.3877787807814457e-17,
+      "relative_error": 3.9381876462268066e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/imag/95",
+      "frozen": -0.02990267054618498,
+      "generated": -0.02990267054618499,
+      "absolute_error": 1.0408340855860843e-17,
+      "relative_error": 3.480739567987766e-16,
+      "ulp_distance": 3.0
+    },
+    {
+      "path": "/data/expected/T/imag/192",
+      "frozen": -0.039727529260228385,
+      "generated": -0.03972752926022838,
+      "absolute_error": 6.938893903907228e-18,
+      "relative_error": 1.7466210542455814e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/imag/193",
+      "frozen": -0.019712426089926502,
+      "generated": -0.0197124260899265,
+      "absolute_error": 3.469446951953614e-18,
+      "relative_error": 1.760030417426184e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/imag/194",
+      "frozen": -0.009856213044963251,
+      "generated": -0.00985621304496325,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 1.760030417426184e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/imag/195",
+      "frozen": -0.059439955350154894,
+      "generated": -0.05943995535015488,
+      "absolute_error": 1.3877787807814457e-17,
+      "relative_error": 2.3347574415326833e-16,
+      "ulp_distance": 2.0
+    },
+    {
+      "path": "/data/expected/T/imag/216",
+      "frozen": -0.010020913103453525,
+      "generated": -0.010020913103453526,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 1.7311032019417134e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/imag/219",
+      "frozen": -0.015028947805651525,
+      "generated": -0.015028947805651527,
+      "absolute_error": 1.734723475976807e-18,
+      "relative_error": 1.154254774458979e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/imag/224",
+      "frozen": -0.0063238439091972826,
+      "generated": -0.006323843909197282,
+      "absolute_error": 8.673617379884035e-19,
+      "relative_error": 1.371573603717398e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/imag/225",
+      "frozen": -0.0031613133743879623,
+      "generated": -0.003161313374387962,
+      "absolute_error": 4.336808689942018e-19,
+      "relative_error": 1.3718376435179046e-16,
+      "ulp_distance": 1.0
+    },
+    {
+      "path": "/data/expected/T/imag/226",
+      "frozen": -0.0015806566871939811,
+      "generated": -0.001580656687193981,
+      "absolute_error": 2.168404344971009e-19,
+      "relative_error": 1.3718376435179046e-16,
+      "ulp_distance": 1.0
+    }
+  ],
+  "protected_files_unchanged": {
+    "contracts/fixtures/B-ARX-PRBS.json": "6fc72bebb5237aca36994b0fc71e06f6444fa9a1b163be79180764f07a18acc1",
+    "contracts/fixtures/B-CARE-02.json": "f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f",
+    "contracts/fixtures/B-CARE-12x3.json": "0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4",
+    "contracts/fixtures/B-DARE-12x3.json": "2488dd78691a3a36ff96b7d00542fd506855191c0dbedc0e530c6131e6e47040",
+    "contracts/fixtures/B-MIMO-2x2.json": "23d42ef684bcb5c4fe484ef24a624ae50020c883de986a617d21981bf5ff29ed",
+    "contracts/fixtures/B-PVM-LQR.json": "eabcf5aff8a56c99c87a624857525977d3ea5c31477431d5a9ce2fbf34453fe8",
+    "contracts/fixtures/B-SDP-A-D.json": "4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076",
+    "contracts/fixtures/checksums.sha256": "4b7a39a4ad5d8eb6b48d2d28d8e8a3673e38105bce057909dbdb29884ef0cc7a",
+    "scripts/pyodide-assets.lock.json": "9f5e8e2ea0ab4abfbd33976ffa38821250dfab6d08dcde9c85a6747240251956"
+  },
+  "scientific_and_generator_changes_since_base": [],
+  "independent_analytical_checks_at_generated_grid": {
+    "G_formula_max_abs_error": 4.440892098500626e-16,
+    "S_formula_max_abs_error": 1.7772239894833365e-16,
+    "T_formula_max_abs_error": 1.2412670766236366e-16,
+    "singular_values_closed_form_max_abs_error": 8.881784197001252e-16,
+    "S_plus_T_identity_max_abs_error": 2.2887833992611187e-16
+  },
+  "tol_values_unchanged": {
+    "response_atol": 1e-11,
+    "identity_atol": 1e-11,
+    "singular_values_atol": 1e-11,
+    "crossing_atol": 1e-07
+  },
+  "analytical_checks_pass_existing_thresholds": true
+}

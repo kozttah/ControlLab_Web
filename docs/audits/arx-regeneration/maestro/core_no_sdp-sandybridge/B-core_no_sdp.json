@@ -1,0 +1,21 @@
+{
+  "profile": "core_no_sdp",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "optional_modules": {
+    "clarabel": false,
+    "cvxpy": false
+  },
+  "backend_available": {},
+  "suites": [
+    "tests/unit/f1",
+    "tests/unit/f2",
+    "tests/unit/f3",
+    "tests/unit/f4",
+    "tests/unit/f5",
+    "tests/oracles",
+    "tests/integration"
+  ],
+  "tests": 387,
+  "skipped": 0,
+  "returncode": 0
+}

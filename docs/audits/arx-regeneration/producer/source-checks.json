@@ -1,0 +1,19 @@
+{
+  "base": "181bba0f864f9ea3bb02f136227d664aa3913e07",
+  "files": {
+    "scripts/arx_regeneration_certificate.py": "51a95f404f0a1d0a6f136415666203b4016f1334157ca6977474c8a0fba4741f",
+    "tests/oracles/test_arx_regeneration_certificate.py": "fdc7a21bc489809c2f6768b94bc69eeb11f667b8cf4cc4b29a9230e667959245",
+    "tests/oracles/test_release_fixtures.py": "d8cc4ffd0b853ba97230dc9ab4dd0b3478f3079b623e8d6d9aeaf1254bd1609c"
+  },
+  "protected_unchanged": {
+    "contracts/fixtures/B-CARE-02.json": true,
+    "contracts/fixtures/checksums.sha256": true,
+    "contracts/fixtures/B-MIMO-2x2.json": true,
+    "contracts/fixtures/B-DARE-12x3.json": true,
+    "contracts/fixtures/B-PVM-LQR.json": true,
+    "contracts/fixtures/B-CARE-12x3.json": true,
+    "contracts/fixtures/B-ARX-PRBS.json": true,
+    "contracts/fixtures/B-SDP-A-D.json": true,
+    "scripts/pyodide-assets.lock.json": true
+  }
+}

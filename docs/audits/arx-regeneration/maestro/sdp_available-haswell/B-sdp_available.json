@@ -1,0 +1,23 @@
+{
+  "profile": "sdp_available",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "optional_modules": {
+    "clarabel": true,
+    "cvxpy": true
+  },
+  "backend_available": {
+    "native_primal_dual": true,
+    "clarabel_direct": true,
+    "clarabel_cvxpy": true,
+    "scipy_linprog": true,
+    "educational_barrier": false,
+    "unavailable": false
+  },
+  "suites": [
+    "tests/unit/f6",
+    "tests/oracles"
+  ],
+  "tests": 221,
+  "skipped": 0,
+  "returncode": 0
+}

@@ -1,5 +1,7 @@
 # F9 — Follow-up de regeneração ARX entre implementações BLAS
 
+**Resolução em 2026-11-18:** `WP-AUDIT-FIX-F9-ARX-REGENERATION` recebeu parecer independente `accepted` para a fixture CPython `B-ARX-PRBS`. O [handoff](../handoffs/WP-AUDIT-FIX-F9-ARX-REGENERATION.md) registra os dez itens, certificados e execução nos perfis isolados com dois kernels BLAS reais. Ouro, gerador e tolerâncias congeladas permanecem intactos. O relato abaixo preserva o achado e os requisitos históricos da rodada de Service Worker; seu estado aberto foi encerrado por esse aceite, sem promover outros gates ou o escopo de maturidade.
+
 **Estado: achado aberto; sem alteração de fixture, gerador, teste ou tolerância neste WorkPackage de Service Worker.** Proposta de pacote separado: `WP-AUDIT-FIX-F9-ARX-REGENERATION`. O Maestro registra a fila em `PROJECT_STATE.json`.
 
 ## Evidência e alcance

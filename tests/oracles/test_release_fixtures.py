@@ -12,6 +12,8 @@ import numpy as np
 import pytest
 import scipy.linalg as la
 
+from scripts.arx_regeneration_certificate import assert_arx_regeneration_matches_frozen_gold
+
 from control_lab.core import Dataset, StateFeedbackController, StateSpace, TransferFunction
 from control_lab.frequency.mimo import eval_mimo_response, rga, sensitivity, singular_values
 from control_lab.frequency.siso import stability_margins
@@ -241,6 +243,8 @@ def test_generator_independent_and_new_gold_deterministic():
         saved = load(generated['fixture_id'])
         if generated['fixture_id'] == 'B-DARE-12x3':
             assert_dare_regeneration_matches_frozen_gold(generated, saved)
+        elif generated['fixture_id'] == 'B-ARX-PRBS':
+            assert_arx_regeneration_matches_frozen_gold(generated, saved)
         else:
             assert generated == saved
     for name, digest in mod.OLD.items():

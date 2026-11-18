@@ -1,0 +1,11 @@
+{
+  "contracts/fixtures/B-ARX-PRBS.json": "6fc72bebb5237aca36994b0fc71e06f6444fa9a1b163be79180764f07a18acc1",
+  "contracts/fixtures/B-CARE-02.json": "f08f9fe28302c1704554460eb660a00c2911b75272358872672bbbb5068e516f",
+  "contracts/fixtures/B-CARE-12x3.json": "0bacb2e43ebfb4a7803cd223de8c219deda4876a180175af30f20cd07f8686a4",
+  "contracts/fixtures/B-DARE-12x3.json": "2488dd78691a3a36ff96b7d00542fd506855191c0dbedc0e530c6131e6e47040",
+  "contracts/fixtures/B-MIMO-2x2.json": "23d42ef684bcb5c4fe484ef24a624ae50020c883de986a617d21981bf5ff29ed",
+  "contracts/fixtures/B-PVM-LQR.json": "eabcf5aff8a56c99c87a624857525977d3ea5c31477431d5a9ce2fbf34453fe8",
+  "contracts/fixtures/B-SDP-A-D.json": "4377341309c5df1df3c814e3f1a3d38ea3783232c3f4ae84e201f829e5f33076",
+  "contracts/fixtures/checksums.sha256": "4b7a39a4ad5d8eb6b48d2d28d8e8a3673e38105bce057909dbdb29884ef0cc7a",
+  "scripts/pyodide-assets.lock.json": "9f5e8e2ea0ab4abfbd33976ffa38821250dfab6d08dcde9c85a6747240251956"
+}

@@ -48,6 +48,15 @@ import {
   type TypedSelectionRole,
 } from "../features/typed_workspace.ts";
 import type { CanonicalStateSpaceModel } from "../features/lqr_workspace.ts";
+import {
+  renderNewObjectModalHtml,
+  renderWorkspaceDockHtml,
+  WorkspaceDockController,
+} from "./workspace_dock.ts";
+import {
+  InspectorDrawerController,
+  renderInspectorDrawerHtml,
+} from "./inspector_drawer.ts";
 
 export interface MountControlLabOptions {
   engineMode?: "pyodide" | "mock";
@@ -441,15 +450,17 @@ export function mountControlLabApp(
   };
 
   const ROLE_LABELS: Record<TypedSelectionRole, string> = {
-    statespacePlant: "Planta StateSpace (statespace.* / LMI LTI)",
-    frequencyPlant: "Modelo Frequência (StateSpace / TransferFunction)",
-    dataset: "Dataset de Treino (identification.fit_*)",
-    valDataset: "Dataset de Validação / Holdout",
-    fuzzySystem: "Sistema Fuzzy (FuzzySystem -> fuzzy.*)",
-    tsModel: "Modelo Takagi-Sugeno (TSStateSpace -> LMI PDC)",
-    validationModel: "Modelo para Validação (identification.validate_model)",
-    reuseSource: "Modelo Origem para Reutilização (core.reuse_model)",
+    statespacePlant: "Planta em Espaço de Estados (StateSpace)",
+    frequencyPlant: "Modelo para Análise em Frequência (SS / TF)",
+    dataset: "Série Temporal de Treino (Dataset)",
+    valDataset: "Série Temporal de Validação / Holdout",
+    fuzzySystem: "Sistema Fuzzy",
+    tsModel: "Modelo Takagi-Sugeno (TS)",
+    validationModel: "Modelo para Validação Cruzada",
+    reuseSource: "Modelo de Origem para Conversão",
   };
+
+  let projectTitle = "Projeto ControlLab";
 
   const tabsHtml = PROJECT_TAB_IDS.map((tabId) => {
     const meta = PROJECT_TAB_METADATA[tabId];
@@ -473,7 +484,10 @@ export function mountControlLabApp(
     `<div class="brand">`,
     `<div class="brand-mark" aria-hidden="true">∿</div>`,
     `<div class="brand-text">`,
+    `<div class="brand-title-row">`,
     `<h1>ControlLab Web</h1>`,
+    `<input id="project-title-input" class="touch-control project-title-input" type="text" value="${escapeHtml(projectTitle)}" aria-label="Nome do projeto ativo" />`,
+    `</div>`,
     `<div class="header-meta">`,
     `<span id="engine-status-badge" class="badge status-badge"></span>`,
     `<span id="revision-summary" class="revision-summary"></span>`,
@@ -481,30 +495,34 @@ export function mountControlLabApp(
     `</div>`,
     `</div>`,
     `<div class="panel-actions header-controls">`,
+    `<button type="button" id="btn-toggle-workspace-dock" class="touch-control btn-secondary btn-small" data-action="toggle-workspace-dock" aria-expanded="true">Workspace</button>`,
+    `<button type="button" id="btn-toggle-inspector" class="touch-control btn-secondary btn-small" data-action="toggle-inspector" aria-expanded="false">Inspetor R-27</button>`,
     `<label for="decimals-select" class="compact-label">Casas decimais</label>`,
     `<input id="decimals-select" class="touch-control decimals-input" type="number" min="0" max="15" value="${shell.getDisplayDecimals()}" data-action="decimals" />`,
     `<button type="button" id="theme-toggle-btn" class="touch-control btn-secondary" data-action="toggle-theme"></button>`,
     `</div>`,
     `</header>`,
     `<nav aria-label="Áreas de projeto" class="controllab-tablist" role="tablist">${tabsHtml}</nav>`,
+    `<div class="app-workbench-shell">`,
+    renderWorkspaceDockHtml(),
     `<main id="controllab-main" class="controllab-main" role="tabpanel" tabindex="0">`,
     `<section class="panel-card">`,
     `<h2 id="controllab-tab-heading"></h2>`,
     `<div id="controllab-error-slot"></div>`,
-    `<section id="identification-workspace-panel" class="panel-card workspace-section" aria-label="Fluxo Vertical de Identificação (Aba 1)">`,
-    `<h3>Fluxo Vertical de Identificação (Aba 1: Dataset Treino/Holdout, Estimação, Resíduos e Reutilização)</h3>`,
+    `<section id="identification-workspace-panel" class="panel-card workspace-section" aria-label="Identificação de Sistemas">`,
+    `<h3>Identificação de Sistemas (Dados → Estimação → Validação)</h3>`,
     `<div class="workspace-two-col">`,
     `<div class="workspace-controls-col">`,
     `<div class="subcard">`,
     `<div class="tool-field">`,
-    `<label for="id-csv-input">Importar Dataset CSV (t, u, y) ou Carregar Benchmark PRBS / Entrada Constante (T-ID-02)</label>`,
+    `<label for="id-csv-input">Importar Dataset CSV (t, u, y) ou Carregar Benchmark PRBS / Entrada Constante</label>`,
     `<textarea id="id-csv-input" class="touch-control" rows="2" data-field="id-csv-input" aria-label="Conteúdo CSV do Dataset (t, u, y)"></textarea>`,
     `<div class="panel-actions">`,
     `<label for="id-train-fraction">Fração Treino (0.1–0.9)</label>`,
     `<input type="number" id="id-train-fraction" class="touch-control" min="0.2" max="0.85" step="0.05" value="0.7" aria-label="Fração de treino para particionamento holdout" />`,
     `<button type="button" id="btn-id-import-csv" class="touch-control btn-primary" data-action="id-import-csv">Importar CSV + Particionar</button>`,
     `<button type="button" id="btn-id-load-prbs" class="touch-control btn-primary" data-action="id-load-prbs">Benchmark PRBS (Treino + Holdout)</button>`,
-    `<button type="button" id="btn-id-load-const-pe" class="touch-control btn-secondary" data-action="id-load-const-pe">Dataset Entrada Constante (T-ID-02)</button>`,
+    `<button type="button" id="btn-id-load-const-pe" class="touch-control btn-secondary" data-action="id-load-const-pe">Dataset Entrada Constante (Sem Excitação)</button>`,
     `<button type="button" id="btn-id-split-dataset" class="touch-control btn-secondary" data-action="id-split-dataset">Particionar Dataset Selecionado</button>`,
     `</div>`,
     `</div>`,
@@ -518,8 +536,8 @@ export function mountControlLabApp(
     `</select>`,
     `</div>`,
     `<div class="panel-actions">`,
-    `<button type="button" id="btn-id-reuse-to-lqr" class="touch-control btn-secondary" data-action="id-reuse-to-lqr">Derivar StateSpace + Registrar + Aplicar ao LQR (Aba 3)</button>`,
-    `<button type="button" id="btn-id-reuse-to-siso" class="touch-control btn-secondary" data-action="id-reuse-to-siso">Derivar Modelo + Registrar + Selecionar em SISO (Aba 2)</button>`,
+    `<button type="button" id="btn-id-reuse-to-lqr" class="touch-control btn-secondary" data-action="id-reuse-to-lqr">Enviar para Espaço de Estados / LQR →</button>`,
+    `<button type="button" id="btn-id-reuse-to-siso" class="touch-control btn-secondary" data-action="id-reuse-to-siso">Enviar para Análise SISO →</button>`,
     `</div>`,
     `</div>`,
     `</div>`,
@@ -538,8 +556,8 @@ export function mountControlLabApp(
     `</div>`,
     `</div>`,
     `</section>`,
-    `<section id="siso-workspace-panel" class="panel-card workspace-section" aria-label="Fluxo Vertical SISO (Aba 2)">`,
-    `<h3>Fluxo Vertical SISO (Aba 2: Frequência, Margens e Lugar das Raízes)</h3>`,
+    `<section id="siso-workspace-panel" class="panel-card workspace-section" aria-label="Análise e Projeto SISO na Frequência">`,
+    `<h3>Análise &amp; Projeto SISO na Frequência</h3>`,
     `<div class="workspace-two-col">`,
     `<div class="workspace-controls-col">`,
     `<div class="subcard tool-field">`,
@@ -642,7 +660,7 @@ export function mountControlLabApp(
     `<button type="button" id="btn-export-ctrlab" class="touch-control btn-secondary" data-action="export-ctrlab">Exportar .ctrlab</button>`,
     `<button type="button" id="btn-export-gains" class="touch-control btn-secondary" data-action="export-gains">Exportar Ganhos JSON</button>`,
     `<button type="button" id="btn-export-csv" class="touch-control btn-secondary" data-action="export-csv">Exportar CSV</button>`,
-    `<button type="button" id="btn-build-report" class="touch-control btn-secondary" data-action="build-report">Relatório R-27</button>`,
+    `<button type="button" id="btn-build-report" class="touch-control btn-secondary" data-action="build-report">Relatório Científico (R-27)</button>`,
     `</div>`,
     `<details id="pvm-export-options"><summary>Configuração da simulação PathView</summary>`,
     `<div class="tool-field"><label for="pvm-controller-kind">Controlador exportado</label>`,
@@ -717,13 +735,13 @@ export function mountControlLabApp(
     `<p class="json-format-hint">Exemplos de JSON canônico — <strong>TransferFunction:</strong> <code>{"schema_version":"1.0.0","id":"tf-1","revision":1,"kind":"TransferFunction","dt":null,"variable":"s","poly_order":"descending","num":[[{"shape":[1],"dtype":"float64","order":"C","data":[1]}]],"den":[[{"shape":[2],"dtype":"float64","order":"C","data":[1,1]}]],"units":{"time":"s","inputs":["u1"],"outputs":["y1"]}}</code> | <strong>Dataset:</strong> <code>{"schema_version":"1.0.0","id":"ds-1","revision":1,"kind":"Dataset","dt":0.05,"t":{"shape":[3],"dtype":"float64","order":"C","data":[0,0.05,0.1]},"u":{"shape":[3,1],"dtype":"float64","order":"C","data":[1,1,1]},"y":{"shape":[3,1],"dtype":"float64","order":"C","data":[0,0.05,0.1]}}</code></p>`,
     `<div class="panel-actions">`,
     `<button type="button" id="btn-register-typed-object" class="touch-control btn-primary" data-action="register-typed-object">Registrar Objeto Tipado</button>`,
-    `<select id="reuse-target-kind" class="touch-control" aria-label="Formato alvo de core.reuse_model">`,
+    `<select id="reuse-target-kind" class="touch-control" aria-label="Formato alvo de conversão de modelo">`,
     `<option value="native">Formato nativo do modelo (native)</option>`,
     `<option value="StateSpace">Converter para StateSpace (TF -> SS)</option>`,
     `</select>`,
-    `<button type="button" id="btn-reuse-model" class="touch-control btn-secondary" data-action="reuse-model">Derivar via core.reuse_model</button>`,
-    `<button type="button" id="btn-register-pending-identified" class="touch-control btn-secondary" data-action="register-pending-identified" disabled aria-disabled="true">Registrar IdentifiedModel Pendente</button>`,
-    `<button type="button" id="btn-register-pending-derived" class="touch-control btn-secondary" data-action="register-pending-derived" disabled aria-disabled="true">Registrar Derivado Pendente</button>`,
+    `<button type="button" id="btn-reuse-model" class="touch-control btn-secondary" data-action="reuse-model">Converter / Registrar Modelo</button>`,
+    `<button type="button" id="btn-register-pending-identified" class="touch-control btn-secondary" data-action="register-pending-identified" disabled aria-disabled="true">Validar Modelo na Sessão</button>`,
+    `<button type="button" id="btn-register-pending-derived" class="touch-control btn-secondary" data-action="register-pending-derived" disabled aria-disabled="true">Registrar Modelo Derivado</button>`,
     `</div>`,
     `</div>`,
     `</section>`,
@@ -742,6 +760,8 @@ export function mountControlLabApp(
     `<section id="experiments-compare-panel" aria-label="Comparador de experimentos confirmados"><h3>Comparador de Experimentos Confirmados</h3><div id="experiments-compare-slot"></div></section>`,
     `</section>`,
     `</main>`,
+    renderInspectorDrawerHtml(),
+    `</div>`,
     `<section id="controllab-export-modal" class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="export-modal-title" hidden>`,
     `<div class="modal-header">`,
     `<h2 id="export-modal-title">Artefato Exportado</h2>`,
@@ -753,10 +773,12 @@ export function mountControlLabApp(
     `</div>`,
     `<pre id="export-modal-content" class="modal-pre"></pre>`,
     `</section>`,
+    renderNewObjectModalHtml(),
     `<div id="controllab-live-polite" class="sr-only" aria-live="polite"></div>`,
     `<div id="controllab-live-assertive" class="sr-only" aria-live="assertive"></div>`,
   ].join("\n");
 
+  const projectTitleInputEl = container.querySelector<HTMLInputElement>("#project-title-input");
   const engineBadgeEl = container.querySelector<HTMLElement>("#engine-status-badge");
   const revSummaryEl = container.querySelector<HTMLElement>("#revision-summary");
   const decimalsInputEl = container.querySelector<HTMLInputElement>("#decimals-select");
@@ -855,6 +877,21 @@ export function mountControlLabApp(
     container.querySelector<HTMLButtonElement>("#btn-export-csv"),
     container.querySelector<HTMLButtonElement>("#btn-build-report"),
   ].filter((b): b is HTMLButtonElement => b !== null);
+
+  const inspectorDrawer = new InspectorDrawerController({
+    shell,
+    container,
+    initialOpen: false,
+  });
+
+  const workspaceDock = new WorkspaceDockController({
+    shell,
+    container,
+    initialCollapsed: false,
+    onInspectObject: (target) => {
+      inspectorDrawer.inspectTarget(target);
+    },
+  });
 
   const openExportModal = (payload: ExportModalPayload, trigger: HTMLElement | null): void => {
     lastExportPayload = payload;
@@ -1004,6 +1041,7 @@ export function mountControlLabApp(
     setHidden(timeTableDetailsEl, !isStatespace);
     setHidden(experimentsComparePanelEl, !isStatespace);
     toggleCssClass(mainEl, "single-main-col", !(isStatespace || isIdentification));
+    toggleCssClass(mainEl, "tab-identification", isIdentification);
 
     syncLqrInputsFromWorkspace();
 
@@ -1018,10 +1056,13 @@ export function mountControlLabApp(
 
     container.setAttribute("data-theme", themeMode);
 
+    if (projectTitleInputEl && doc?.activeElement !== projectTitleInputEl && projectTitleInputEl.value !== projectTitle) {
+      projectTitleInputEl.value = projectTitle;
+    }
     if (engineBadgeEl) {
       engineBadgeEl.setAttribute("data-engine-state", engineState);
       const caps = client.getCapabilities();
-      const engineLabel = `Motor: ${engineState} | ${caps.engine_kind === "mock" ? "Mock de fixtures (beta)" : "Pyodide (beta)"} | offline não verificado (${serviceWorkerStatus})`;
+      const engineLabel = `Motor: ${engineState} | ${caps.engine_kind === "mock" ? "Simulador Local (beta)" : "Pyodide/Wasm (beta)"} | ${serviceWorkerStatus}`;
       engineBadgeEl.innerHTML = `<span class="status-dot" aria-hidden="true"></span>${escapeHtml(engineLabel)}`;
     }
     if (revSummaryEl) {
@@ -1295,7 +1336,7 @@ export function mountControlLabApp(
     const activeIdReport = idWorkspace.getActiveReport();
     if (idDiagnosticsPanelEl) {
       if (!activeIdReport) {
-        idDiagnosticsPanelEl.innerHTML = `<p>Aguardando estimação (<code>identification.fit_arx</code> / <code>identification.fit_subspace</code>) ou validação (<code>identification.validate_model</code>) para exibir métricas 1-passo vs simulação livre, PE/posto e resíduos.</p>`;
+        idDiagnosticsPanelEl.innerHTML = `<p>Aguardando estimação (ARX ou Subespaços) ou validação em holdout para exibir métricas 1-passo vs simulação livre, excitação e resíduos.</p>`;
       } else {
         const fmtMetric = (val: number | null) =>
           val !== null ? formatNumericDisplay(val, decimals) : "N/D";
@@ -1350,9 +1391,9 @@ export function mountControlLabApp(
 
         idDiagnosticsPanelEl.innerHTML = [
           `<p><strong>Modelo Identificado:</strong> algoritmo <code>${escapeHtml(activeIdReport.algorithm)}</code> | status <code>${escapeHtml(activeIdReport.status)}</code> | representação <code>${escapeHtml(activeIdReport.inner_model_kind ?? "N/D")}</code> | dt=<code>${escapeHtml(String(activeIdReport.dt ?? "N/D"))}</code> | ρ(A)=<code>${escapeHtml(rhoDisplay)}</code> (${activeIdReport.is_stable === false ? "INSTÁVEL" : "estável"})</p>`,
-          `<p><strong>Excitação &amp; Posto (T-ID-02):</strong> posto=<code>${escapeHtml(rankDisplay)}</code> | κ(Φ)=<code>${escapeHtml(condDisplay)}</code> | ${peTag}</p>`,
+          `<p><strong>Excitação &amp; Posto:</strong> posto=<code>${escapeHtml(rankDisplay)}</code> | κ(Φ)=<code>${escapeHtml(condDisplay)}</code> | ${peTag}</p>`,
           `<p data-testid="id-train-metrics"><strong>Treino (${escapeHtml(activeIdReport.train_dataset_ref?.id ?? "N/D")}):</strong> Previsão 1-Passo FIT=<code>${escapeHtml(trPredFit)}%</code> (RMSE=<code>${escapeHtml(trPredRmse)}</code>) | Simulação Livre FIT=<code>${escapeHtml(trSimFit)}%</code> (RMSE=<code>${escapeHtml(trSimRmse)}</code>)</p>`,
-          `<p data-testid="id-holdout-metrics"><strong>Validação / Holdout (${escapeHtml(activeIdReport.val_dataset_ref?.id ?? "N/D")}, T-ID-03):</strong> Previsão 1-Passo FIT=<code>${escapeHtml(valPredFit)}%</code> (RMSE=<code>${escapeHtml(valPredRmse)}</code>) | Simulação Livre FIT=<code>${escapeHtml(valSimFit)}%</code> (RMSE=<code>${escapeHtml(valSimRmse)}</code>)</p>`,
+          `<p data-testid="id-holdout-metrics"><strong>Validação / Holdout (${escapeHtml(activeIdReport.val_dataset_ref?.id ?? "N/D")}):</strong> Previsão 1-Passo FIT=<code>${escapeHtml(valPredFit)}%</code> (RMSE=<code>${escapeHtml(valPredRmse)}</code>) | Simulação Livre FIT=<code>${escapeHtml(valSimFit)}%</code> (RMSE=<code>${escapeHtml(valSimRmse)}</code>)</p>`,
           `<p><strong>Critérios de Informação:</strong> AIC=<code>${escapeHtml(fmtMetric(activeIdReport.information_criteria.aic))}</code> | BIC=<code>${escapeHtml(fmtMetric(activeIdReport.information_criteria.bic))}</code> | FPE=<code>${escapeHtml(fmtMetric(activeIdReport.information_criteria.fpe))}</code></p>`,
           warnItemsHtml,
         ].join("");
@@ -1413,7 +1454,7 @@ export function mountControlLabApp(
       const margins = sisoWorkspace.getMarginsView();
       if (sisoDiagnosticsPanelEl) {
         if (!margins) {
-          sisoDiagnosticsPanelEl.innerHTML = `<p>Aguardando avaliação de resposta em frequência (<code>frequency.eval_response</code> / <code>frequency.stability_margins</code>) ou Lugar das Raízes (<code>frequency.root_locus</code>).</p>`;
+          sisoDiagnosticsPanelEl.innerHTML = `<p>Aguardando avaliação de resposta em frequência (Bode / Nyquist / Margens) ou Lugar das Raízes.</p>`;
         } else {
           const fmtM = (v: number | null, unit: string) =>
             v !== null ? `${formatNumericDisplay(v, decimals)} ${unit}` : "∞";
@@ -1558,7 +1599,22 @@ export function mountControlLabApp(
     if (liveAssertiveEl) {
       liveAssertiveEl.textContent = shell.getAnnouncer().getCurrentText("assertive");
     }
+
+    workspaceDock.render();
+    inspectorDrawer.render();
   };
+
+  projectTitleInputEl?.addEventListener("input", () => {
+    const val = projectTitleInputEl.value.trim();
+    projectTitle = val || "Projeto ControlLab";
+  });
+  projectTitleInputEl?.addEventListener("change", () => {
+    const val = projectTitleInputEl.value.trim();
+    projectTitle = val || "Projeto ControlLab";
+    if (projectTitleInputEl.value !== projectTitle) {
+      projectTitleInputEl.value = projectTitle;
+    }
+  });
 
   for (const btn of tabButtons) {
     btn.addEventListener("click", () => {

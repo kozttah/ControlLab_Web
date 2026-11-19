@@ -195,10 +195,26 @@ textarea {
   min-width: 0;
 }
 
+.brand-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .brand-text h1 {
   margin: 0;
   font-size: 1.15rem;
   line-height: 1.2;
+}
+
+.project-title-input {
+  width: min(220px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  background: var(--surface-alt);
 }
 
 .header-meta {
@@ -291,18 +307,184 @@ textarea {
   font-weight: 600;
 }
 
-/* Layout principal */
-.controllab-main {
-  max-width: 1560px;
+/* Workbench Shell de 3 Zonas (Workspace Dock | Bancada Central | Inspetor R-27) */
+.app-workbench-shell {
+  max-width: 1680px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(300px, 1.05fr) minmax(340px, 1.35fr);
+  grid-template-columns: 268px minmax(0, 1fr);
   gap: 1rem;
   padding: 1rem;
   align-items: start;
 }
 
-.controllab-main.single-main-col {
+.app-workbench-shell.dock-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-workbench-shell.inspector-open {
+  grid-template-columns: 268px minmax(0, 1fr) 320px;
+}
+
+.app-workbench-shell.dock-collapsed.inspector-open {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.workspace-dock,
+.inspector-drawer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dock-header,
+.inspector-header,
+.inspector-json-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dock-title,
+.inspector-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dock-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.dock-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.dock-group-title {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0.25rem;
+}
+
+.dock-item {
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dock-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dock-item-link {
+  border: none;
+  background: transparent;
+  padding: 0.2rem 0.25rem;
+  min-height: 44px;
+  min-width: 44px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.dock-item-summary {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.dock-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.dock-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.inspector-kv-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.inspector-kv-list dt {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.inspector-kv-list dd {
+  margin: 0 0 0.25rem 0;
+}
+
+.inspector-json-pre {
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.65rem;
+  margin: 0;
+  max-height: 42vh;
+  overflow: auto;
+  font-size: 0.8rem;
+}
+
+.new-object-mode-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Layout principal */
+.controllab-main {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 1.05fr) minmax(320px, 1.35fr);
+  gap: 1rem;
+  padding: 0;
+  align-items: start;
+}
+
+.controllab-main.single-main-col,
+.controllab-main.tab-identification {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -312,6 +494,7 @@ textarea {
   border-radius: 10px;
   padding: 1rem;
   min-width: 0;
+  max-width: 100%;
 }
 
 .panel-card h2 {
@@ -342,7 +525,7 @@ textarea {
 /* Grid interno 2 colunas para Abas 1 e 2 */
 .workspace-two-col {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.3fr);
+  grid-template-columns: minmax(250px, 0.85fr) minmax(360px, 1.35fr);
   gap: 1rem;
   align-items: start;
 }
@@ -405,6 +588,9 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-alt);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .badge {
@@ -669,17 +855,52 @@ textarea {
   margin-bottom: 0.5rem;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1400px) {
+  .app-workbench-shell.inspector-open .workspace-two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1380px) {
+  .app-workbench-shell.inspector-open .controllab-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1180px) {
+  .app-workbench-shell.inspector-open {
+    grid-template-columns: 248px minmax(0, 1fr);
+  }
+
+  .app-workbench-shell.inspector-open .inspector-drawer {
+    grid-column: 1 / -1;
+  }
+
   .siso-charts-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@media (max-width: 960px) {
-  .controllab-main,
-  .controllab-main.single-main-col,
+@media (max-width: 1120px) {
   .workspace-two-col {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 960px) {
+  .app-workbench-shell,
+  .app-workbench-shell.dock-collapsed,
+  .app-workbench-shell.inspector-open,
+  .app-workbench-shell.dock-collapsed.inspector-open,
+  .controllab-main,
+  .controllab-main.single-main-col,
+  .controllab-main.tab-identification,
+  .workspace-two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-workbench-shell {
+    padding: 0.65rem;
   }
 
   .accessible-data-table {
@@ -698,7 +919,7 @@ textarea {
     padding: 0.5rem 0.75rem;
   }
 
-  .controllab-main {
-    padding: 0.65rem;
+  .app-workbench-shell {
+    padding: 0.5rem;
   }
 }

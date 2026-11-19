@@ -22,7 +22,7 @@
       "2026-11-17": 10,
       "2026-11-16": 1,
       "2026-11-18": 5,
-      "2026-11-19": 5
+      "2026-11-19": 6
     }
   },
   "audit_reference": {
@@ -3616,7 +3616,7 @@
         "T-UI-01"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
@@ -3624,6 +3624,23 @@
         "Extrair gaveta recolhível Inspetor Técnico R-27 / JSON (web/app/inspector_drawer.ts) fechada por padrão, removendo rCARE, hashes, revisões e payloads JSON brutos da área central de trabalho",
         "Aplicar Dicionário de Tradução Semântica (Seção 2 de CL-UX-DIR-001) eliminando jargões internos (core.reuse_model, T-ID-*, Fast-Preview Transitório) dos rótulos primários sem violar R-23, R-26 ou R-27",
         "Manter layout responsivo sem overflow horizontal em desktop (>=1200px) e mobile (390px) e preservar compatibilidade da suíte F8"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-REFACTOR-01-SHELL-DOCK.md",
+      "assessed_commit": "52212db1a6c9410c57b1b97fd8eed471361f3086",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "c23f26ac6fdf77db3c6988346196a23a3bf56880b09f241fa84bd4623678672c",
+        "web/app/styles.css": "06e88c4ebca7aaf2c43fbc988ee817648adf10dcf88f80c82b375dcffd567adf",
+        "web/app/workspace_dock.ts": "58f4cffb51c948ef80b7fabaeec73eba7362d204ecda571f58e9c17d1f759c2d",
+        "web/app/inspector_drawer.ts": "5db5b8c929fc616fe35afa68e5ba516d3bb4dfaa65a056cfc00f4b089bf52532",
+        "tests/unit/f8/shell_dock_ux.test.ts": "fed36176b4c13b0ce0274573d76d32dceaf591ccd26c22d43450b3b55f92ff52"
+      },
+      "acceptance_scope": "app_shell_3zone_workspace_dock_r27_inspector_semantic_dict_responsive_chromium_firefox",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-REFACTOR-01-SHELL-DOCK.md",
+        "tests/unit/f8/shell_dock_ux.test.ts",
+        "tests/e2e/test_gatecd_interactions.py",
+        "tests/e2e/test_id_siso_verticals.py"
       ]
     },
     {

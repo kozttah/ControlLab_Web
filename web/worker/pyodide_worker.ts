@@ -90,6 +90,7 @@ export interface WorkerInitConfig {
   storeOptions?: WorkerModelStoreOptions;
   pyodideLoader?: PyodideLoaderFn;
   executionDelayMs?: number;
+  initTimeoutMs?: number;
 }
 
 export type WorkerInboundMessage =
@@ -602,7 +603,7 @@ export class PyodideWorkerRuntime {
         project_id: "runtime-capabilities",
         project_revision: 0,
         operation: "core.capabilities",
-        payload: {}, options: {}, timeout_policy: { hard_timeout_ms: 30000 },
+        payload: {}, options: {}, timeout_policy: { hard_timeout_ms: msg.config?.initTimeoutMs ?? 120000 },
       };
       const observed = validateRpcResponse(await this.executeOperation(capabilityRequest, {}, new AbortController().signal));
       if (observed.status !== "success" || !Array.isArray(observed.result?.supported_operations) ||

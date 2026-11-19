@@ -1240,3 +1240,89 @@ test("F7-SUPERSEDE-TIMEOUT-01: cancel_on_supersede=true cancela revisão anterio
   }
 });
 
+test("F7-INIT-TIMEOUT-01: initTimeoutMs customizado é repassado ao config da mensagem init e respeitado pela bridge e worker double", async () => {
+  const store = new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory() });
+  let receivedInitConfig: Record<string, unknown> | undefined;
+  const client = new PyodideEngineClient({
+    store,
+    workerFactory: () => {
+      const created = createMessageChannelWorkerTransport({ pyodideLoader: fixturePyodideLoader });
+      const origPostMessage = created.worker.postMessage.bind(created.worker);
+      created.worker.postMessage = (msg: unknown, transfer?: ArrayBuffer[]) => {
+        if (typeof msg === "object" && msg !== null && (msg as { kind?: string }).kind === "init") {
+          receivedInitConfig = (msg as { config?: Record<string, unknown> }).config;
+        }
+        origPostMessage(msg, transfer);
+      };
+      return created;
+    },
+  });
+
+  try {
+    const caps = await client.init({ initTimeoutMs: 75000 });
+    assert.ok(receivedInitConfig !== undefined);
+    assert.equal(receivedInitConfig.initTimeoutMs, 75000);
+    assert.equal(client.getLifecycleState(), "ready");
+    assert.ok(caps.operations.length > 0);
+  } finally {
+    client.dispose();
+  }
+});
+
+test("F7-INIT-TIMEOUT-02: init timeout customizado dispara RESOURCE_LIMIT com o valor configurado quando Worker excede prazo", async () => {
+  const store = new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory() });
+  const client = new PyodideEngineClient({
+    store,
+    workerFactory: () => {
+      const created = createMessageChannelWorkerTransport({
+        pyodideLoader: async () => {
+          await new Promise((r) => setTimeout(r, 100));
+          return fixturePyodideLoader({ indexURL: "", packages: [] });
+        },
+      });
+      return created;
+    },
+  });
+
+  try {
+    await assert.rejects(
+      () => client.init({ initTimeoutMs: 25 }),
+      (err: unknown) =>
+        err instanceof ControlLabBridgeError &&
+        err.code === "RESOURCE_LIMIT" &&
+        err.message.includes("25 ms"),
+    );
+    assert.equal(client.getLifecycleState(), "error");
+  } finally {
+    client.dispose();
+  }
+});
+
+test("F7-INIT-TIMEOUT-03: initTimeoutMs padrão de 120000 ms é repassado quando nenhuma opção é informada", async () => {
+  const store = new IndexedDBProjectStore({ idbFactory: new InMemoryIDBFactory() });
+  let receivedInitConfig: Record<string, unknown> | undefined;
+  const client = new PyodideEngineClient({
+    store,
+    workerFactory: () => {
+      const created = createMessageChannelWorkerTransport({ pyodideLoader: fixturePyodideLoader });
+      const origPostMessage = created.worker.postMessage.bind(created.worker);
+      created.worker.postMessage = (msg: unknown, transfer?: ArrayBuffer[]) => {
+        if (typeof msg === "object" && msg !== null && (msg as { kind?: string }).kind === "init") {
+          receivedInitConfig = (msg as { config?: Record<string, unknown> }).config;
+        }
+        origPostMessage(msg, transfer);
+      };
+      return created;
+    },
+  });
+
+  try {
+    await client.init();
+    assert.ok(receivedInitConfig !== undefined);
+    assert.equal(receivedInitConfig.initTimeoutMs, 120000);
+    assert.equal(client.getLifecycleState(), "ready");
+  } finally {
+    client.dispose();
+  }
+});
+

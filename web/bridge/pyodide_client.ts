@@ -274,6 +274,7 @@ export class PyodideEngineClient extends BaseEngineClient {
       this.worker.addEventListener("error", this.errorHandler);
 
       const msgId = `init-${generateUuid()}`;
+      const initTimeoutMs = options.initTimeoutMs ?? 120000;
       const initResult = await this.sendControlAndWait(
         {
           kind: "init",
@@ -283,6 +284,7 @@ export class PyodideEngineClient extends BaseEngineClient {
             packages: options.packages,
             allowedOrigins: options.allowedOrigins,
             offlineOnly: options.offlineOnly,
+            initTimeoutMs,
             storeOptions:
               options.maxMemoryBytes !== undefined || options.maxEntries !== undefined
                 ? {
@@ -292,7 +294,7 @@ export class PyodideEngineClient extends BaseEngineClient {
                 : undefined,
           },
         },
-        30000,
+        initTimeoutMs,
       );
 
       const timings = initResult.timings as

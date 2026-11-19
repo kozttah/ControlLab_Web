@@ -15,7 +15,7 @@
       "2026-11-17": 10,
       "2026-11-16": 1,
       "2026-11-18": 5,
-      "2026-11-19": 1
+      "2026-11-19": 2
     }
   },
   "audit_reference": {
@@ -3392,6 +3392,43 @@
       }
     },
     {
+      "wp_id": "WP-AUDIT-FIX-F7-WORKER-INIT-TIMEOUT",
+      "front": "f7-worker-bridge",
+      "phase": "Runtime-Audit-Remediation",
+      "title": "Tornar timeout de inicialização do Pyodide Worker configurável e resiliente a cold starts no Firefox",
+      "allowed_paths": [
+        "web/bridge/",
+        "web/worker/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-V1-F8-SISO-VERTICAL"
+      ],
+      "requirement_ids": [
+        "R-28"
+      ],
+      "findings": [
+        "F9-RUNTIME-FIREFOX-INIT-TIMEOUT"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1266368177/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1266368177/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" node scripts/run_web_tests.mjs --scope f7",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F7-WORKER-INIT-TIMEOUT.md",
+      "assessed_commit": "379a23f717d8e09306f329fee9c74fc816dda696",
+      "reviewed_source_sha256": {
+        "web/bridge/client.ts": "6857ba3d27b41c3d8ca3117360a761049e5c89b92d0ff414f550207a29d3e102",
+        "web/bridge/pyodide_client.ts": "eb0783e6619a3fb9803dd188a7120cae1fd6f1cb485a3ce1c46806d2102d7fa5",
+        "web/worker/pyodide_worker.ts": "cebaeb1625f4495d799f0cb383061b7f43a3ad51f02a25f0501cde749b72fb80",
+        "tests/unit/f7/rpc_bridge_worker.test.ts": "974e2e8438099aca7c92534926de2c34b2838b0e0ec90256b54a65a4bde481bc"
+      },
+      "completed_on": "2026-11-19",
+      "acceptance_scope": "pyodide_worker_configurable_init_timeout_and_120s_default_resilience_firefox_linux",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-AUDIT-FIX-F7-WORKER-INIT-TIMEOUT.md",
+        "tests/unit/f7/rpc_bridge_worker.test.ts"
+      ]
+    },
+    {
       "wp_id": "WP-V1-F9-ID-SISO-BROWSER-AUDIT",
       "front": "f9-integration-qa",
       "phase": "Vertical-Integration",
@@ -3406,7 +3443,8 @@
       ],
       "dependencies": [
         "WP-V1-F8-IDENTIFICATION-VERTICAL",
-        "WP-V1-F8-SISO-VERTICAL"
+        "WP-V1-F8-SISO-VERTICAL",
+        "WP-AUDIT-FIX-F7-WORKER-INIT-TIMEOUT"
       ],
       "requirement_ids": [
         "R-02",

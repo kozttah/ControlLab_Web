@@ -30,6 +30,7 @@ export interface EngineInitOptions {
   offlineOnly?: boolean;
   maxMemoryBytes?: number;
   maxEntries?: number;
+  initTimeoutMs?: number;
 }
 
 export interface ExecuteOptions {

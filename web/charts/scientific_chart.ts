@@ -628,15 +628,46 @@ export function renderResidualCorrelationSvg(
   ].join("");
 }
 
-export function renderBodeSvg(
+export interface BodeDatatipInspection {
+  sampleIndex: number;
+  omega: number;
+  mag_db: number;
+  phase_deg: number;
+  pxX: number;
+  pxMagY: number;
+  pxPhaseY: number;
+}
+
+export interface NyquistDatatipInspection {
+  sampleIndex: number;
+  omega: number;
+  re: number;
+  im: number;
+  pxX: number;
+  pxY: number;
+}
+
+export interface RootLocusFrozenPole {
+  branchIndex: number;
+  real: number;
+  imag: number;
+  pxX: number;
+  pxY: number;
+}
+
+export interface RootLocusDatatipInspection {
+  gainIndex: number;
+  branchIndex: number;
+  gain_K: number;
+  poles: RootLocusFrozenPole[];
+}
+
+function computeBodeGeometry(
   model: BodeChartModel,
-  options?: { widthPx?: number; heightPx?: number; decimals?: number },
-): string {
+  options?: { widthPx?: number; heightPx?: number },
+) {
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 480;
-  const decimals = options?.decimals ?? 2;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
-
   const padLeft = 64;
   const padRight = 24;
   const padTop = 36;
@@ -665,6 +696,103 @@ export function renderBodeSvg(
     magTop + ((magBounds.max - db) / Math.max(1e-4, magBounds.span)) * subH;
   const toPxPhaseY = (deg: number) =>
     phaseTop + ((phaseBounds.max - deg) / Math.max(1e-4, phaseBounds.span)) * subH;
+
+  return {
+    widthPx,
+    heightPx,
+    padLeft,
+    padRight,
+    padTop,
+    plotW,
+    subH,
+    gap,
+    magTop,
+    phaseTop,
+    minW,
+    maxW,
+    logMinW,
+    logMaxW,
+    logSpanW,
+    magBounds,
+    phaseBounds,
+    toPxX,
+    toPxMagY,
+    toPxPhaseY,
+  };
+}
+
+export function inspectBodeAtSvgPoint(
+  model: BodeChartModel,
+  svgX: number,
+  options?: { widthPx?: number; heightPx?: number },
+): BodeDatatipInspection | null {
+  if (!Number.isFinite(svgX)) return null;
+  const count = Math.min(model.omega.length, model.mag_db.length, model.phase_deg.length);
+  if (count === 0) return null;
+
+  const geom = computeBodeGeometry(model, options);
+  let bestIdx = -1;
+  let bestDist = Number.POSITIVE_INFINITY;
+  let bestPxX = 0;
+
+  for (let i = 0; i < count; i += 1) {
+    const w = model.omega[i];
+    const mag = model.mag_db[i];
+    const phase = model.phase_deg[i];
+    if (!Number.isFinite(w) || w <= 0 || !Number.isFinite(mag) || !Number.isFinite(phase)) {
+      continue;
+    }
+    const pxX = geom.toPxX(w);
+    const dist = Math.abs(pxX - svgX);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIdx = i;
+      bestPxX = pxX;
+    }
+  }
+
+  if (bestIdx < 0) return null;
+  return {
+    sampleIndex: bestIdx,
+    omega: model.omega[bestIdx],
+    mag_db: model.mag_db[bestIdx],
+    phase_deg: model.phase_deg[bestIdx],
+    pxX: bestPxX,
+    pxMagY: geom.toPxMagY(model.mag_db[bestIdx]),
+    pxPhaseY: geom.toPxPhaseY(model.phase_deg[bestIdx]),
+  };
+}
+
+export function renderBodeSvg(
+  model: BodeChartModel,
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    selectedSampleIndex?: number | null;
+  },
+): string {
+  const decimals = options?.decimals ?? 2;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const geom = computeBodeGeometry(model, options);
+  const {
+    widthPx,
+    heightPx,
+    padLeft,
+    plotW,
+    subH,
+    magTop,
+    phaseTop,
+    minW,
+    maxW,
+    logMinW,
+    logMaxW,
+    magBounds,
+    phaseBounds,
+    toPxX,
+    toPxMagY,
+    toPxPhaseY,
+  } = geom;
 
   const n = Math.min(model.omega.length, model.mag_db.length);
   const magPts: string[] = [];
@@ -706,6 +834,33 @@ export function renderBodeSvg(
     );
   }
 
+  let datatipSvg = "";
+  const selIdx = options?.selectedSampleIndex;
+  if (
+    typeof selIdx === "number" &&
+    Number.isInteger(selIdx) &&
+    selIdx >= 0 &&
+    selIdx < model.omega.length &&
+    selIdx < model.mag_db.length &&
+    selIdx < model.phase_deg.length
+  ) {
+    const w = model.omega[selIdx];
+    const mag = model.mag_db[selIdx];
+    const phase = model.phase_deg[selIdx];
+    if (Number.isFinite(w) && w > 0 && Number.isFinite(mag) && Number.isFinite(phase)) {
+      const dx = toPxX(w);
+      const dMagY = toPxMagY(mag);
+      const dPhaseY = toPxPhaseY(phase);
+      datatipSvg = [
+        `<g data-layer="datatip" data-sample-index="${selIdx}">`,
+        `<line x1="${dx.toFixed(1)}" y1="${magTop}" x2="${dx.toFixed(1)}" y2="${phaseTop + subH}" stroke="${theme.focusRing}" stroke-dasharray="3 2" stroke-width="1.5" />`,
+        `<circle cx="${dx.toFixed(1)}" cy="${dMagY.toFixed(1)}" r="5" fill="${theme.chartClosedLoop}" stroke="${theme.surface}" stroke-width="1.5"><title>ω=${formatNumericDisplay(w, decimals)} rad/s | Mag=${formatNumericDisplay(mag, decimals)} dB</title></circle>`,
+        `<circle cx="${dx.toFixed(1)}" cy="${dPhaseY.toFixed(1)}" r="5" fill="${theme.chartOpenLoop}" stroke="${theme.surface}" stroke-width="1.5"><title>ω=${formatNumericDisplay(w, decimals)} rad/s | Fase=${formatNumericDisplay(phase, decimals)}°</title></circle>`,
+        `</g>`,
+      ].join("");
+    }
+  }
+
   const minDecade = Math.floor(logMinW);
   const maxDecade = Math.ceil(logMaxW);
   const freqGridLines: string[] = [];
@@ -735,6 +890,7 @@ export function renderBodeSvg(
     `<polyline fill="none" stroke="${theme.chartClosedLoop}" stroke-width="2" points="${magPts.join(" ")}" data-layer="mag_db" />`,
     `<polyline fill="none" stroke="${theme.chartOpenLoop}" stroke-width="2" points="${phasePts.join(" ")}" data-layer="phase_deg" />`,
     ...markerSvgs,
+    datatipSvg,
     `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${model.series_semantics}]</text>`,
     `<text x="16" y="${magTop + subH / 2}" transform="rotate(-90 16 ${magTop + subH / 2})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Mag [dB]</text>`,
     `<text x="16" y="${phaseTop + subH / 2}" transform="rotate(-90 16 ${phaseTop + subH / 2})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Fase [°]</text>`,
@@ -743,15 +899,12 @@ export function renderBodeSvg(
   ].join("");
 }
 
-export function renderNyquistSvg(
+function computeNyquistGeometry(
   model: NyquistChartModel,
-  options?: { widthPx?: number; heightPx?: number; decimals?: number },
-): string {
+  options?: { widthPx?: number; heightPx?: number },
+) {
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 400;
-  const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
-
   const padLeft = 64;
   const padRight = 24;
   const padTop = 36;
@@ -769,6 +922,79 @@ export function renderNyquistSvg(
   const toPxY = (i: number) =>
     padTop + ((yBounds.max - i) / Math.max(1e-4, yBounds.span)) * plotH;
 
+  return {
+    widthPx,
+    heightPx,
+    padLeft,
+    padRight,
+    padTop,
+    padBottom,
+    plotW,
+    plotH,
+    xBounds,
+    yBounds,
+    toPxX,
+    toPxY,
+  };
+}
+
+export function inspectNyquistAtSvgPoint(
+  model: NyquistChartModel,
+  svgX: number,
+  svgY: number,
+  options?: { widthPx?: number; heightPx?: number },
+): NyquistDatatipInspection | null {
+  if (!Number.isFinite(svgX) || !Number.isFinite(svgY)) return null;
+  const count = Math.min(model.omega.length, model.re.length, model.im.length);
+  if (count === 0) return null;
+
+  const geom = computeNyquistGeometry(model, options);
+  let bestIdx = -1;
+  let bestDist2 = Number.POSITIVE_INFINITY;
+  let bestPxX = 0;
+  let bestPxY = 0;
+
+  for (let i = 0; i < count; i += 1) {
+    const r = model.re[i];
+    const im = model.im[i];
+    const w = model.omega[i];
+    if (!Number.isFinite(r) || !Number.isFinite(im) || !Number.isFinite(w)) continue;
+    const pxX = geom.toPxX(r);
+    const pxY = geom.toPxY(im);
+    const d2 = (pxX - svgX) ** 2 + (pxY - svgY) ** 2;
+    if (d2 < bestDist2) {
+      bestDist2 = d2;
+      bestIdx = i;
+      bestPxX = pxX;
+      bestPxY = pxY;
+    }
+  }
+
+  if (bestIdx < 0) return null;
+  return {
+    sampleIndex: bestIdx,
+    omega: model.omega[bestIdx],
+    re: model.re[bestIdx],
+    im: model.im[bestIdx],
+    pxX: bestPxX,
+    pxY: bestPxY,
+  };
+}
+
+export function renderNyquistSvg(
+  model: NyquistChartModel,
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    selectedSampleIndex?: number | null;
+  },
+): string {
+  const decimals = options?.decimals ?? 3;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const geom = computeNyquistGeometry(model, options);
+  const { widthPx, heightPx, padLeft, padTop, plotW, plotH, toPxX, toPxY } = geom;
+
   const pts: string[] = [];
   const n = Math.min(model.re.length, model.im.length);
   for (let i = 0; i < n; i += 1) {
@@ -781,6 +1007,29 @@ export function renderNyquistSvg(
   const critY = toPxY(0);
   const zeroX = toPxX(0);
   const zeroY = toPxY(0);
+
+  let datatipSvg = "";
+  const selIdx = options?.selectedSampleIndex;
+  if (
+    typeof selIdx === "number" &&
+    Number.isInteger(selIdx) &&
+    selIdx >= 0 &&
+    selIdx < model.re.length &&
+    selIdx < model.im.length
+  ) {
+    const r = model.re[selIdx];
+    const im = model.im[selIdx];
+    const w = model.omega[selIdx] ?? 0;
+    if (Number.isFinite(r) && Number.isFinite(im)) {
+      const dx = toPxX(r);
+      const dy = toPxY(im);
+      datatipSvg = [
+        `<g data-layer="datatip" data-sample-index="${selIdx}">`,
+        `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="5.5" fill="${theme.accent}" stroke="${theme.surface}" stroke-width="2"><title>ω=${formatNumericDisplay(w, decimals)} rad/s | L(jω)=${formatNumericDisplay(r, decimals)} ${im >= 0 ? "+" : "-"} j${formatNumericDisplay(Math.abs(im), decimals)}</title></circle>`,
+        `</g>`,
+      ].join("");
+    }
+  }
 
   const desc = `Diagrama de Nyquist de ${model.title}. Ponto crítico (-1, j0) destacado. Atraso: ${model.delay_representation}.`;
 
@@ -797,6 +1046,7 @@ export function renderNyquistSvg(
     `<circle cx="${critX.toFixed(1)}" cy="${critY.toFixed(1)}" r="5" fill="${theme.chartOverlayHeuristic}" stroke="#fff" stroke-width="1.5" />`,
     `<text x="${(critX - 6).toFixed(1)}" y="${(critY - 8).toFixed(1)}" font-size="11" font-weight="bold" fill="${theme.chartOverlayHeuristic}" text-anchor="end">(-1, j0)</text>`,
     `</g>`,
+    datatipSvg,
     `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${model.series_semantics}]</text>`,
     `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Im G(jω)</text>`,
     `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Re G(jω)</text>`,
@@ -804,15 +1054,12 @@ export function renderNyquistSvg(
   ].join("");
 }
 
-export function renderRootLocusSvg(
+function computeRootLocusGeometry(
   model: RootLocusChartModel,
-  options?: { widthPx?: number; heightPx?: number; decimals?: number },
-): string {
+  options?: { widthPx?: number; heightPx?: number },
+) {
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 420;
-  const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
-
   const padLeft = 64;
   const padRight = 24;
   const padTop = 36;
@@ -859,6 +1106,96 @@ export function renderRootLocusSvg(
     padLeft + ((r - xBounds.min) / Math.max(1e-4, xBounds.span)) * plotW;
   const toPxY = (i: number) =>
     padTop + ((yBounds.max - i) / Math.max(1e-4, yBounds.span)) * plotH;
+
+  return {
+    widthPx,
+    heightPx,
+    padLeft,
+    padRight,
+    padTop,
+    padBottom,
+    plotW,
+    plotH,
+    vp,
+    toPxX,
+    toPxY,
+  };
+}
+
+export function inspectRootLocusAtSvgPoint(
+  model: RootLocusChartModel,
+  svgX: number,
+  svgY: number,
+  options?: { widthPx?: number; heightPx?: number },
+): RootLocusDatatipInspection | null {
+  if (!Number.isFinite(svgX) || !Number.isFinite(svgY)) return null;
+  if (model.gains.length === 0 || model.branches.length === 0) return null;
+
+  const geom = computeRootLocusGeometry(model, options);
+  let bestBranchIdx = -1;
+  let bestGainIdx = -1;
+  let bestDist2 = Number.POSITIVE_INFINITY;
+
+  for (let bIdx = 0; bIdx < model.branches.length; bIdx += 1) {
+    const b = model.branches[bIdx];
+    const nSteps = Math.min(model.gains.length, b.real.length, b.imag.length);
+    for (let kIdx = 0; kIdx < nSteps; kIdx += 1) {
+      const re = b.real[kIdx];
+      const im = b.imag[kIdx];
+      const kVal = model.gains[kIdx];
+      if (!Number.isFinite(re) || !Number.isFinite(im) || !Number.isFinite(kVal)) continue;
+      const pxX = geom.toPxX(re);
+      const pxY = geom.toPxY(im);
+      const d2 = (pxX - svgX) ** 2 + (pxY - svgY) ** 2;
+      if (d2 < bestDist2) {
+        bestDist2 = d2;
+        bestBranchIdx = bIdx;
+        bestGainIdx = kIdx;
+      }
+    }
+  }
+
+  if (bestGainIdx < 0 || bestBranchIdx < 0) return null;
+
+  const poles: RootLocusFrozenPole[] = [];
+  for (let bIdx = 0; bIdx < model.branches.length; bIdx += 1) {
+    const b = model.branches[bIdx];
+    if (bestGainIdx < b.real.length && bestGainIdx < b.imag.length) {
+      const re = b.real[bestGainIdx];
+      const im = b.imag[bestGainIdx];
+      if (Number.isFinite(re) && Number.isFinite(im)) {
+        poles.push({
+          branchIndex: bIdx,
+          real: re,
+          imag: im,
+          pxX: geom.toPxX(re),
+          pxY: geom.toPxY(im),
+        });
+      }
+    }
+  }
+
+  return {
+    gainIndex: bestGainIdx,
+    branchIndex: bestBranchIdx,
+    gain_K: model.gains[bestGainIdx],
+    poles,
+  };
+}
+
+export function renderRootLocusSvg(
+  model: RootLocusChartModel,
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    frozenGainIndex?: number | null;
+  },
+): string {
+  const decimals = options?.decimals ?? 3;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const geom = computeRootLocusGeometry(model, options);
+  const { widthPx, heightPx, padLeft, padTop, plotW, plotH, vp, toPxX, toPxY } = geom;
 
   const branchPolylines = model.branches.map((b, idx) => {
     const pts: string[] = [];
@@ -908,6 +1245,40 @@ export function renderRootLocusSvg(
     })
     .join("");
 
+  let frozenDatatipSvg = "";
+  const frozenIdx = options?.frozenGainIndex;
+  if (
+    typeof frozenIdx === "number" &&
+    Number.isInteger(frozenIdx) &&
+    frozenIdx >= 0 &&
+    frozenIdx < model.gains.length
+  ) {
+    const kVal = model.gains[frozenIdx];
+    const frozenMarkers: string[] = [];
+    for (let bIdx = 0; bIdx < model.branches.length; bIdx += 1) {
+      const br = model.branches[bIdx];
+      if (frozenIdx < br.real.length && frozenIdx < br.imag.length) {
+        const re = br.real[frozenIdx];
+        const im = br.imag[frozenIdx];
+        if (Number.isFinite(re) && Number.isFinite(im)) {
+          const px = toPxX(re);
+          const py = toPxY(im);
+          const imAbs = formatNumericDisplay(Math.abs(im), decimals);
+          const imSign = im >= 0 ? "+" : "-";
+          frozenMarkers.push(
+            `<g data-frozen-pole-branch="${bIdx}">` +
+              `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="7" fill="none" stroke="${theme.focusRing}" stroke-width="1.5" stroke-dasharray="2 2" />` +
+              `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4.5" fill="${theme.chartPreview}" stroke="${theme.surface}" stroke-width="1.5"><title>K=${formatNumericDisplay(kVal, decimals)} | Ramo ${bIdx + 1}: ${formatNumericDisplay(re, decimals)} ${imSign} j${imAbs}</title></circle>` +
+              `</g>`,
+          );
+        }
+      }
+    }
+    if (frozenMarkers.length > 0) {
+      frozenDatatipSvg = `<g data-layer="datatip" data-frozen-gain-index="${frozenIdx}" data-gain-k="${escapeHtml(String(kVal))}"><g data-layer="frozen-poles-datatip">${frozenMarkers.join("")}</g></g>`;
+    }
+  }
+
   const zeroX = toPxX(0);
   const zeroY = toPxY(0);
 
@@ -925,6 +1296,7 @@ export function renderRootLocusSvg(
     ...branchPolylines,
     ...poleSvgs,
     ...zeroSvgs,
+    frozenDatatipSvg,
     `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${model.series_semantics}]</text>`,
     `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Im(s)</text>`,
     `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Re(s)</text>`,

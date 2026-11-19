@@ -855,6 +855,300 @@ textarea {
   margin-bottom: 0.5rem;
 }
 
+/* Aba 1: Pipeline 3 etapas, estimadores rápidos e quadro de modelos da sessão */
+.id-pipeline-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.pipeline-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.pipeline-step[data-step-state="active"] {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.pipeline-step[data-step-state="done"] {
+  background: var(--success-bg);
+  color: var(--success-fg);
+  border-color: var(--success-fg);
+}
+
+.pipeline-arrow {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.id-estimator-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.id-estimator-box {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.id-param-input {
+  width: 72px;
+  font-variant-numeric: tabular-nums;
+}
+
+.id-models-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.id-model-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.id-model-card-active {
+  border: 2px solid var(--accent);
+}
+
+.id-model-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.id-model-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.id-model-compare-checkbox {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+}
+
+.id-model-ref-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.id-model-metrics-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.id-compare-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Aba 2: Diagrama de blocos, MIMO guard, datatips interativos */
+.siso-loop-diagram-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.75rem;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.block-diagram-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.block-node {
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.block-comp {
+  border-color: var(--accent);
+}
+
+.block-arrow {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.loop-margins-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.mimo-guard-callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.75rem;
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  border: 1px solid var(--warning-fg);
+  border-radius: 8px;
+}
+
+.mimo-guard-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.warning-callout {
+  padding: 0.55rem 0.75rem;
+  margin: 0.4rem 0;
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  border: 1px solid var(--warning-fg);
+  border-radius: 7px;
+}
+
+.siso-tuner-status {
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.chart-interactive-slot svg {
+  cursor: crosshair;
+}
+
+.chart-datatip-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--info-bg);
+  color: var(--info-fg);
+  border: 1px solid var(--info-fg);
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Aba 3: KPIs LQR, badges PBH e filtros matriciais */
+.lqr-kpi-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.kpi-card {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kpi-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.kpi-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.lqr-pbh-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.lqr-matrix-editor-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.lqr-matrix-editor-header h3 {
+  margin: 0;
+}
+
+.lqr-matrix-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+}
+
 @media (max-width: 1400px) {
   .app-workbench-shell.inspector-open .workspace-two-col {
     grid-template-columns: minmax(0, 1fr);
@@ -895,7 +1189,8 @@ textarea {
   .controllab-main,
   .controllab-main.single-main-col,
   .controllab-main.tab-identification,
-  .workspace-two-col {
+  .workspace-two-col,
+  .lqr-kpi-cards {
     grid-template-columns: minmax(0, 1fr);
   }
 

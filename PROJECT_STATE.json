@@ -22,7 +22,7 @@
       "2026-11-17": 10,
       "2026-11-16": 1,
       "2026-11-18": 5,
-      "2026-11-19": 6
+      "2026-11-19": 7
     }
   },
   "audit_reference": {
@@ -3673,13 +3673,32 @@
         "T-FREQ-02"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "Extrair web/features/views/identification_view.ts (barra guiada 3 etapas, comparação multi-modelo com checkboxes, seletor Simulação Livre vs Previsão 1-Passo)",
         "Extrair web/features/views/siso_view.ts (diagrama de malha no cabeçalho, sintonizador C(s), grid 2x2 e datatips interativos ao clicar em Bode, Nyquist e Lugar das Raízes congelando todos os polos no ganho K selecionado)",
         "Extrair web/features/views/statespace_view.ts (editor matricial em abas A|B|C|D e Q|R|x0, modal JSON documentado, badges PBH, cards de KPI e comparador de experimentos)"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-REFACTOR-02-IDENT-SISO-LQR.md",
+      "assessed_commit": "02f5a0062b08fe8699ffe1f114adb3d8c6212751",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "c8d5dc0b2b72f6bbeefbd272fe3378fa4cdd632273e3c2c1523e78c2a3ab59fe",
+        "web/app/styles.css": "e3ab1b04783c36c300a5b5bf8b02058279c30d0143caac7bca7c6ed71a9cee99",
+        "web/charts/scientific_chart.ts": "70d95eb2f9203297bb6bd2dce5a1214c7ee60d501e5236c75e28fed4b21dff14",
+        "web/features/views/identification_view.ts": "3dc131e17f672221e52bdf07b8c8dc2bcbabb5b8b6c8c4273f8c060a2fabb18f",
+        "web/features/views/siso_view.ts": "d520985695cdb40e909066e9cca1b00ecbe58c8b00faf59cad565db1eaa9c98f",
+        "web/features/views/statespace_view.ts": "f5c4ff394b3c39af64449fb2ce645869bd5d187d9be924cb909370109287fb8a",
+        "tests/unit/f8/views_ident_siso_lqr.test.ts": "d46afaea9eaa0c55f7caf23e1b9e761e743228b331c9f8d215f3a315829ae96c"
+      },
+      "acceptance_scope": "modular_ident_siso_datatips_statespace_kpi_pbh_responsive_chromium_firefox",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-REFACTOR-02-IDENT-SISO-LQR.md",
+        "tests/unit/f8/views_ident_siso_lqr.test.ts",
+        "tests/e2e/test_gatecd_interactions.py",
+        "tests/e2e/test_id_siso_verticals.py"
       ]
     },
     {

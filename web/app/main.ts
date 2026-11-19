@@ -31,8 +31,11 @@ import {
 import {
   buildAccessibleChartTable,
   renderAccessibleTableHtml,
+  renderBodeSvg,
+  renderNyquistSvg,
   renderPoleZeroSvg,
   renderResidualCorrelationSvg,
+  renderRootLocusSvg,
   renderTimeResponseSvg,
 } from "../charts/scientific_chart.ts";
 import {
@@ -133,6 +136,7 @@ export function mountControlLabApp(
   const tabsCtrl = shell.getTabsController();
   const typedWorkspace = shell.getTypedWorkspace();
   const idWorkspace = shell.getIdentificationWorkspace();
+  const sisoWorkspace = shell.getSisoWorkspace();
   const doc = container.ownerDocument;
 
   let serviceWorkerStatus = "cache não verificado";
@@ -274,6 +278,62 @@ export function mountControlLabApp(
     `<details><summary>Tabela acessível de comparação temporal da identificação (WCAG 2.2 AA)</summary><div id="id-response-table-slot"></div></details>`,
     `<details><summary>Tabela acessível de correlação de resíduos R_ee / R_ue (WCAG 2.2 AA)</summary><div id="id-residuals-table-slot"></div></details>`,
     `</section>`,
+    `<section id="siso-workspace-panel" class="panel-card" aria-label="Fluxo Vertical SISO (Aba 2)">`,
+    `<h3>Fluxo Vertical SISO (Aba 2: Frequência, Margens e Lugar das Raízes)</h3>`,
+    `<div class="tool-field">`,
+    `<label>Parâmetros de Resposta em Frequência (Bode / Nyquist / Margens)</label>`,
+    `<div class="panel-actions">`,
+    `<label for="siso-w-min">ω_min (rad/s)</label>`,
+    `<input type="number" id="siso-w-min" class="touch-control" min="0.0001" max="1000" step="0.01" value="0.01" aria-label="Frequência mínima ω_min" />`,
+    `<label for="siso-w-max">ω_max (rad/s)</label>`,
+    `<input type="number" id="siso-w-max" class="touch-control" min="0.1" max="100000" step="10" value="100" aria-label="Frequência máxima ω_max" />`,
+    `<label for="siso-n-points">Pontos</label>`,
+    `<input type="number" id="siso-n-points" class="touch-control" min="16" max="5000" step="10" value="200" aria-label="Número de pontos na grade de frequência" />`,
+    `</div>`,
+    `<div class="panel-actions">`,
+    `<label for="siso-delay">Atraso puro τ (s)</label>`,
+    `<input type="number" id="siso-delay" class="touch-control" min="0" max="100" step="0.01" value="0" aria-label="Atraso de transporte em segundos" />`,
+    `<label for="siso-use-pade"><input type="checkbox" id="siso-use-pade" data-action="siso-toggle-pade" /> Aproximar via Padé (opção explícita)</label>`,
+    `<label for="siso-pade-order">Ordem Padé</label>`,
+    `<input type="number" id="siso-pade-order" class="touch-control" min="1" max="10" step="1" value="1" aria-label="Ordem da aproximação de Padé" />`,
+    `<button type="button" id="btn-siso-eval-bode" class="touch-control" data-action="siso-eval-bode">Avaliar Bode / Nyquist / Margens</button>`,
+    `</div>`,
+    `</div>`,
+    `<div class="tool-field">`,
+    `<label>Parâmetros do Lugar das Raízes &amp; Compensador (Root Locus)</label>`,
+    `<div class="panel-actions">`,
+    `<label for="siso-feedback-sign">Sinal da Realimentação</label>`,
+    `<select id="siso-feedback-sign" class="touch-control" data-action="siso-select-feedback-sign" aria-label="Sinal da realimentação">`,
+    `<option value="negative">Negativa (1 + K·G = 0)</option>`,
+    `<option value="positive">Positiva (1 - K·G = 0)</option>`,
+    `</select>`,
+    `<label for="siso-rl-kmax">K máx</label>`,
+    `<input type="number" id="siso-rl-kmax" class="touch-control" min="1" max="10000" step="10" value="100" aria-label="Ganho máximo K" />`,
+    `<label for="siso-rl-zeta">Amortecimento ζ (overlay heurístico)</label>`,
+    `<input type="number" id="siso-rl-zeta" class="touch-control" min="0.05" max="0.95" step="0.05" value="0.5" aria-label="Fator de amortecimento mínimo ζ" />`,
+    `<button type="button" id="btn-siso-eval-rl" class="touch-control" data-action="siso-eval-rl">Avaliar Lugar das Raízes</button>`,
+    `</div>`,
+    `</div>`,
+    `<div class="tool-field">`,
+    `<label>Resposta Temporal ao Degrau (frequency.step_response)</label>`,
+    `<div class="panel-actions">`,
+    `<label for="siso-step-amp">Amplitude</label>`,
+    `<input type="number" id="siso-step-amp" class="touch-control" min="-100" max="100" step="0.1" value="1" aria-label="Amplitude do degrau" />`,
+    `<label for="siso-step-tfinal">Tempo Final (s)</label>`,
+    `<input type="number" id="siso-step-tfinal" class="touch-control" min="0.1" max="1000" step="1" value="10" aria-label="Tempo final da simulação" />`,
+    `<button type="button" id="btn-siso-eval-step" class="touch-control" data-action="siso-eval-step">Avaliar Degrau SISO</button>`,
+    `</div>`,
+    `</div>`,
+    `<div id="siso-diagnostics-panel" class="diagnostics-panel" aria-live="polite"></div>`,
+    `<div id="siso-bode-chart-slot" class="chart-container"></div>`,
+    `<div id="siso-nyquist-chart-slot" class="chart-container"></div>`,
+    `<div id="siso-rl-chart-slot" class="chart-container"></div>`,
+    `<div id="siso-time-chart-slot" class="chart-container"></div>`,
+    `<details><summary>Tabela acessível do diagrama de Bode (WCAG 2.2 AA)</summary><div id="siso-bode-table-slot"></div></details>`,
+    `<details><summary>Tabela acessível do diagrama de Nyquist (WCAG 2.2 AA)</summary><div id="siso-nyquist-table-slot"></div></details>`,
+    `<details><summary>Tabela acessível do Lugar das Raízes (WCAG 2.2 AA)</summary><div id="siso-rl-table-slot"></div></details>`,
+    `<details><summary>Tabela acessível da resposta ao degrau SISO (WCAG 2.2 AA)</summary><div id="siso-time-table-slot"></div></details>`,
+    `</section>`,
     `<div id="lqr-k-display"></div>`,
     `<div id="lqr-diagnostics-panel" class="diagnostics-panel"></div>`,
     `<div id="controllab-tools-slot" class="declarative-tools"></div>`,
@@ -328,6 +388,27 @@ export function mountControlLabApp(
   const idResidualsChartSlotEl = container.querySelector<HTMLElement>("#id-residuals-chart-slot");
   const idResponseTableSlotEl = container.querySelector<HTMLElement>("#id-response-table-slot");
   const idResidualsTableSlotEl = container.querySelector<HTMLElement>("#id-residuals-table-slot");
+  const sisoWorkspacePanelEl = container.querySelector<HTMLElement>("#siso-workspace-panel");
+  const sisoWMinEl = container.querySelector<HTMLInputElement>("#siso-w-min");
+  const sisoWMaxEl = container.querySelector<HTMLInputElement>("#siso-w-max");
+  const sisoNPointsEl = container.querySelector<HTMLInputElement>("#siso-n-points");
+  const sisoDelayEl = container.querySelector<HTMLInputElement>("#siso-delay");
+  const sisoUsePadeEl = container.querySelector<HTMLInputElement>("#siso-use-pade");
+  const sisoPadeOrderEl = container.querySelector<HTMLInputElement>("#siso-pade-order");
+  const sisoFeedbackSignEl = container.querySelector<HTMLSelectElement>("#siso-feedback-sign");
+  const sisoRlKMaxEl = container.querySelector<HTMLInputElement>("#siso-rl-kmax");
+  const sisoRlZetaEl = container.querySelector<HTMLInputElement>("#siso-rl-zeta");
+  const sisoStepAmpEl = container.querySelector<HTMLInputElement>("#siso-step-amp");
+  const sisoStepTFinalEl = container.querySelector<HTMLInputElement>("#siso-step-tfinal");
+  const sisoDiagnosticsPanelEl = container.querySelector<HTMLElement>("#siso-diagnostics-panel");
+  const sisoBodeChartSlotEl = container.querySelector<HTMLElement>("#siso-bode-chart-slot");
+  const sisoNyquistChartSlotEl = container.querySelector<HTMLElement>("#siso-nyquist-chart-slot");
+  const sisoRlChartSlotEl = container.querySelector<HTMLElement>("#siso-rl-chart-slot");
+  const sisoTimeChartSlotEl = container.querySelector<HTMLElement>("#siso-time-chart-slot");
+  const sisoBodeTableSlotEl = container.querySelector<HTMLElement>("#siso-bode-table-slot");
+  const sisoNyquistTableSlotEl = container.querySelector<HTMLElement>("#siso-nyquist-table-slot");
+  const sisoRlTableSlotEl = container.querySelector<HTMLElement>("#siso-rl-table-slot");
+  const sisoTimeTableSlotEl = container.querySelector<HTMLElement>("#siso-time-table-slot");
   const kDisplaySlotEl = container.querySelector<HTMLElement>("#lqr-k-display");
   const diagnosticsPanelEl = container.querySelector<HTMLElement>("#lqr-diagnostics-panel");
   const toolsSlotEl = container.querySelector<HTMLElement>("#controllab-tools-slot");
@@ -782,6 +863,106 @@ export function mountControlLabApp(
       }
     }
 
+    if (sisoWorkspacePanelEl) {
+      if (activeTab === "siso_frequency") {
+        sisoWorkspacePanelEl.removeAttribute("hidden");
+      } else {
+        sisoWorkspacePanelEl.setAttribute("hidden", "true");
+      }
+    }
+
+    if (activeTab === "siso_frequency") {
+      const margins = sisoWorkspace.getMarginsView();
+      if (sisoDiagnosticsPanelEl) {
+        if (!margins) {
+          sisoDiagnosticsPanelEl.innerHTML = `<p>Aguardando avaliação de resposta em frequência (<code>frequency.eval_response</code> / <code>frequency.stability_margins</code>) ou Lugar das Raízes (<code>frequency.root_locus</code>).</p>`;
+        } else {
+          const fmtM = (v: number | null, unit: string) =>
+            v !== null ? `${formatNumericDisplay(v, decimals)} ${unit}` : "∞";
+          const pmStr = fmtM(margins.critical_phase_margin_deg, "°");
+          const gmStr = fmtM(margins.critical_gain_margin_db, "dB");
+          const wgcStr = fmtM(margins.critical_omega_gc, "rad/s");
+          const wpcStr = fmtM(margins.critical_omega_pc, "rad/s");
+          const dmStr = fmtM(margins.critical_delay_margin_sec, "s");
+          const clStableStr =
+            margins.closed_loop_stable === true
+              ? `<span data-cl-status="stable">Estável em Malha Fechada</span>`
+              : margins.closed_loop_stable === false
+                ? `<strong data-cl-status="unstable">INSTÁVEL em Malha Fechada</strong>`
+                : "Indeterminado";
+
+          const multipleCrossingWarn = margins.has_multiple_crossings
+            ? `<p class="warning-callout" data-warning-kind="multiple-crossings"><strong>Aviso:</strong> Múltiplas frequências de cruzamento detectadas (n_gc=${margins.gain_crossovers.length}, n_pc=${margins.phase_crossovers.length}). Todas as margens devem ser avaliadas antes de atestar robustez (T-FREQ-02).</p>`
+            : "";
+
+          sisoDiagnosticsPanelEl.innerHTML = [
+            `<p><strong>Margens de Estabilidade:</strong> MF=<code>${pmStr}</code> (em ω_gc=<code>${wgcStr}</code>) | MG=<code>${gmStr}</code> (em ω_pc=<code>${wpcStr}</code>) | Margem de atraso=<code>${dmStr}</code> | ${clStableStr}</p>`,
+            multipleCrossingWarn,
+          ].join("");
+        }
+      }
+
+      const bodeChart = sisoWorkspace.getBodeChartModel();
+      if (sisoBodeChartSlotEl) {
+        sisoBodeChartSlotEl.innerHTML = bodeChart
+          ? renderBodeSvg(bodeChart, { decimals })
+          : "";
+      }
+      if (sisoBodeTableSlotEl) {
+        if (bodeChart) {
+          const table = buildAccessibleChartTable(bodeChart, decimals);
+          sisoBodeTableSlotEl.innerHTML = renderAccessibleTableHtml(table);
+        } else {
+          sisoBodeTableSlotEl.innerHTML = `<p>Sem dados de Bode para exibir.</p>`;
+        }
+      }
+
+      const nyquistChart = sisoWorkspace.getNyquistChartModel();
+      if (sisoNyquistChartSlotEl) {
+        sisoNyquistChartSlotEl.innerHTML = nyquistChart
+          ? renderNyquistSvg(nyquistChart, { decimals })
+          : "";
+      }
+      if (sisoNyquistTableSlotEl) {
+        if (nyquistChart) {
+          const table = buildAccessibleChartTable(nyquistChart, decimals);
+          sisoNyquistTableSlotEl.innerHTML = renderAccessibleTableHtml(table);
+        } else {
+          sisoNyquistTableSlotEl.innerHTML = `<p>Sem dados de Nyquist para exibir.</p>`;
+        }
+      }
+
+      const rlChart = sisoWorkspace.getRootLocusChartModel();
+      if (sisoRlChartSlotEl) {
+        sisoRlChartSlotEl.innerHTML = rlChart
+          ? renderRootLocusSvg(rlChart, { decimals })
+          : "";
+      }
+      if (sisoRlTableSlotEl) {
+        if (rlChart) {
+          const table = buildAccessibleChartTable(rlChart, decimals);
+          sisoRlTableSlotEl.innerHTML = renderAccessibleTableHtml(table);
+        } else {
+          sisoRlTableSlotEl.innerHTML = `<p>Sem dados de Lugar das Raízes para exibir.</p>`;
+        }
+      }
+
+      const timeChart = sisoWorkspace.getTimeResponseChartModel();
+      if (sisoTimeChartSlotEl) {
+        sisoTimeChartSlotEl.innerHTML = timeChart
+          ? renderTimeResponseSvg(timeChart, { decimals })
+          : "";
+      }
+      if (sisoTimeTableSlotEl) {
+        if (timeChart) {
+          const table = buildAccessibleChartTable(timeChart, decimals);
+          sisoTimeTableSlotEl.innerHTML = renderAccessibleTableHtml(table);
+        } else {
+          sisoTimeTableSlotEl.innerHTML = `<p>Sem dados de resposta ao degrau para exibir.</p>`;
+        }
+      }
+    }
+
     if (toolsSlotEl) {
       const nextToolsHtml = tabVm.tools.map((t) => t.toHtml()).join("\n");
       if (nextToolsHtml !== lastToolsHtmlKey) {
@@ -1069,6 +1250,61 @@ export function mountControlLabApp(
       .catch((err: unknown) => {
         shell.presentError(err);
       });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="siso-eval-bode"]')?.addEventListener("click", () => {
+    const wMin = sisoWMinEl ? Number(sisoWMinEl.value) : 0.01;
+    const wMax = sisoWMaxEl ? Number(sisoWMaxEl.value) : 100;
+    const nPts = sisoNPointsEl ? Number(sisoNPointsEl.value) : 200;
+    const delay = sisoDelayEl ? Number(sisoDelayEl.value) : 0;
+    const usePade = sisoUsePadeEl ? sisoUsePadeEl.checked : false;
+    const padeOrder = sisoPadeOrderEl ? Number(sisoPadeOrderEl.value) : 1;
+
+    void sisoWorkspace
+      .evaluateBodeAndMargins({
+        customWMin: wMin,
+        customWMax: wMax,
+        customNPoints: nPts,
+        customDelay: delay,
+        customUsePade: usePade,
+        customPadeOrder: padeOrder,
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="siso-eval-rl"]')?.addEventListener("click", () => {
+    const kMax = sisoRlKMaxEl ? Number(sisoRlKMaxEl.value) : 100;
+    const zeta = sisoRlZetaEl ? Number(sisoRlZetaEl.value) : 0.5;
+
+    void sisoWorkspace
+      .evaluateRootLocus({
+        k_max: kMax,
+        damping_ratio: zeta,
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="siso-eval-step"]')?.addEventListener("click", () => {
+    const amp = sisoStepAmpEl ? Number(sisoStepAmpEl.value) : 1;
+    const tf = sisoStepTFinalEl ? Number(sisoStepTFinalEl.value) : 10;
+
+    void sisoWorkspace
+      .evaluateStepResponse({
+        amplitude: amp,
+        t_final: tf,
+      })
+      .catch((err: unknown) => {
+        shell.presentError(err);
+      });
+  });
+
+  sisoFeedbackSignEl?.addEventListener("change", () => {
+    const val = sisoFeedbackSignEl.value === "positive" ? "positive" : "negative";
+    sisoWorkspace.setFeedbackSign(val);
   });
 
   typedSelectorsSlotEl?.addEventListener("change", (ev: Event) => {

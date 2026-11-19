@@ -14,7 +14,8 @@
       "2026-11-15": 8,
       "2026-11-17": 10,
       "2026-11-16": 1,
-      "2026-11-18": 5
+      "2026-11-18": 5,
+      "2026-11-19": 1
     }
   },
   "audit_reference": {
@@ -3355,7 +3356,7 @@
         "T-UI-01"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md",
       "acceptance_requirements_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md#wp-v1-f8-siso-vertical",
       "acceptance_requirements": [
@@ -3363,7 +3364,32 @@
         "Adicionar os testes novos exigidos no plano; a suíte existente isolada não prova a entrega",
         "Handoff independente F9 com checklist completo e evidências do domínio anunciado"
       ],
-      "f9_review": "not_started"
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-V1-F8-SISO-VERTICAL.md",
+      "assessed_commit": "f09e3cbadf4588f813abc0dc37bff20c324695a2",
+      "reviewed_source_sha256": {
+        "web/features/siso_workspace.ts": "1f2e0e046dcf3b163cb5bae72a2b15c65c45c4c9986f7a4ca46681b12a679ce3",
+        "web/charts/scientific_chart.ts": "7db6f0bbdfdd2119e5a89cd5d4416c281f7e849a362f37ac3451a10ff05b57bb",
+        "web/features/tool_catalog.ts": "535f18092cf5a8d39129f5a5b1e019f8ac9eb8003f924a704fb2a8f076e5f240",
+        "web/features/project_tabs.ts": "913aeab864a9da7200f29d92226f926b6c01bac9314438c06156f99d4b6f8673",
+        "web/app/shell.ts": "63198df732416d18422245b5fce6831758662b7a299cab2aaa8c42eb091115f4",
+        "web/app/main.ts": "47bdec4295ca04936b689d6474adc101267cfd355dc503c24f4b17e899d98836",
+        "tests/unit/f8/siso_vertical.test.ts": "43836e6ad0f43ed6c8ed98d8f27e6375ba704de7410b13dfa3b772a447c0e118"
+      },
+      "completed_on": "2026-11-19",
+      "acceptance_scope": "siso_vertical_bode_nyquist_root_locus_margins_step_response_and_exact_delay_verified_node_and_cpython_rpc",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-V1-F8-SISO-VERTICAL.md",
+        "tests/unit/f8/siso_vertical.test.ts"
+      ],
+      "validation": {
+        "f8_unit_tests": 37,
+        "all_web_unit_tests": 100,
+        "f3_unit_tests": 12,
+        "wasm_and_e2e_browser_tests": 26,
+        "frozen_fixtures_verified": true,
+        "oracle_tolerances_unchanged": true
+      }
     },
     {
       "wp_id": "WP-V1-F9-ID-SISO-BROWSER-AUDIT",

@@ -10,6 +10,237 @@ import {
   type ToolDescriptor,
 } from "../app/tool_descriptor.ts";
 
+function buildSisoDescriptors(): ToolDescriptor[] {
+  const omegaParams: ToolDescriptor["parameter_schema"] = [
+    {
+      name: "w_min",
+      label: "Frequência mínima",
+      type: "number",
+      required: true,
+      default_value: 0.01,
+      min: 1e-6,
+      max: 1e6,
+      unit: "rad/s",
+    },
+    {
+      name: "w_max",
+      label: "Frequência máxima",
+      type: "number",
+      required: true,
+      default_value: 100,
+      min: 1e-4,
+      max: 1e8,
+      unit: "rad/s",
+    },
+    {
+      name: "n_points",
+      label: "Pontos na grade logarítmica",
+      type: "integer",
+      required: true,
+      default_value: 200,
+      min: 16,
+      max: 5000,
+    },
+  ];
+  const delayParams: ToolDescriptor["parameter_schema"] = [
+    {
+      name: "delay",
+      label: "Atraso de transporte (0 = sem atraso)",
+      type: "number",
+      required: false,
+      default_value: 0,
+      min: 0,
+      max: 1e6,
+      unit: "s",
+      description:
+        "Atraso exato e^{-sτ} na frequência; só vira Padé se 'use_pade' for escolhido explicitamente.",
+    },
+    {
+      name: "use_pade",
+      label: "Aproximar atraso por Padé (escolha explícita)",
+      type: "boolean",
+      required: false,
+      default_value: false,
+    },
+    {
+      name: "pade_order",
+      label: "Ordem de Padé",
+      type: "integer",
+      required: false,
+      default_value: 1,
+      min: 1,
+      max: 10,
+      step: 1,
+    },
+  ];
+  const common = {
+    tab: "siso_frequency" as const,
+    input_types: ["TransferFunction", "StateSpace"],
+    interaction_mode: "drag_preview_then_commit" as const,
+    maturity: "beta" as const,
+    default_indicator: "numeric_verified" as const,
+  };
+  return [
+    {
+      ...common,
+      id: "siso.bode_nyquist",
+      title: "Resposta em Frequência SISO (Bode / Nyquist)",
+      description:
+        "Avalia G(jω)/G(e^{jω·dt}) via frequency.eval_response (módulo, fase, Re/Im para Nyquist). NÃO calcula margens: use 'siso.stability_margins'.",
+      parameter_schema: [...omegaParams, ...delayParams],
+      operation: "frequency.eval_response",
+      output_types: ["FrequencyResponse"],
+      visualizations: ["bode_plot", "nyquist_plot"],
+      requirements: [
+        "Atraso puro não substituído silenciosamente por Padé sem seleção explícita",
+        "Margens de ganho/fase vêm de frequency.stability_margins, não desta operação",
+      ],
+      limits: {
+        max_samples: 5000,
+        hard_timeout_ms: 10000,
+        notes: "Resposta numérica; margens exigem a ferramenta de margens.",
+      },
+      examples: [
+        {
+          id: "ex-siso-1st",
+          title: "Planta 1ª ordem G(s)=1/(s+a)",
+          description: "Oráculo analítico de ganho, fase e degrau.",
+          parameters: { w_min: 0.01, w_max: 100, n_points: 200 },
+        },
+      ],
+    },
+    {
+      ...common,
+      id: "siso.bode",
+      title: "Diagrama de Bode SISO",
+      description:
+        "Módulo (dB) e fase (graus) via frequency.bode com atraso/Padé apenas por escolha explícita.",
+      parameter_schema: [...omegaParams, ...delayParams],
+      operation: "frequency.bode",
+      output_types: ["FrequencyResponse"],
+      visualizations: ["bode_plot"],
+      requirements: ["Atraso/Padé somente por seleção explícita"],
+      limits: { max_samples: 5000, hard_timeout_ms: 10000, notes: "Grade logarítmica." },
+      examples: [],
+    },
+    {
+      ...common,
+      id: "siso.stability_margins",
+      title: "Margens de Estabilidade SISO",
+      description:
+        "Todas as travessias de ganho e fase, margens de ganho/fase/atraso e estabilidade de malha fechada (realimentação negativa unitária) via frequency.stability_margins.",
+      parameter_schema: [...omegaParams, ...delayParams],
+      operation: "frequency.stability_margins",
+      output_types: ["StabilityMargins"],
+      visualizations: ["bode_plot"],
+      requirements: [
+        "Assume realimentação negativa unitária; para realimentação positiva use ganho de compensador negativo",
+      ],
+      limits: {
+        max_samples: 5000,
+        hard_timeout_ms: 10000,
+        notes: "Detecta múltiplas frequências de cruzamento de ganho e fase.",
+      },
+      examples: [],
+    },
+    {
+      ...common,
+      id: "siso.root_locus",
+      title: "Lugar das Raízes SISO",
+      description:
+        "Ramos do lugar das raízes via frequency.root_locus com sinal de realimentação explícito.",
+      parameter_schema: [
+        {
+          name: "n_gains",
+          label: "Número de ganhos K",
+          type: "integer",
+          required: false,
+          default_value: 60,
+          min: 5,
+          max: 2000,
+          step: 1,
+        },
+        {
+          name: "k_max",
+          label: "Ganho máximo K",
+          type: "number",
+          required: false,
+          default_value: 100,
+          min: 1e-6,
+          max: 1e9,
+        },
+        {
+          name: "feedback_sign",
+          label: "Sinal de realimentação",
+          type: "select",
+          required: true,
+          default_value: "negative",
+          options: [
+            { value: "negative", label: "Negativa (1 + K·G = 0)" },
+            { value: "positive", label: "Positiva (1 - K·G = 0)" },
+          ],
+        },
+      ],
+      operation: "frequency.root_locus",
+      output_types: ["RootLocus"],
+      visualizations: ["root_locus"],
+      requirements: ["Overlays de 2ª ordem rotulados como heurísticos"],
+      limits: { max_samples: 2000, hard_timeout_ms: 10000, notes: "Ramos casados pelo motor." },
+      examples: [],
+    },
+    {
+      ...common,
+      id: "siso.step_response",
+      title: "Resposta ao Degrau SISO",
+      description:
+        "Resposta ao degrau e métricas (Mp, tempo de subida, acomodação) via frequency.step_response.",
+      parameter_schema: [
+        {
+          name: "t_final",
+          label: "Tempo final",
+          type: "number",
+          required: false,
+          default_value: 10,
+          min: 1e-6,
+          max: 1e6,
+          unit: "s",
+        },
+        {
+          name: "n_points",
+          label: "Número de amostras",
+          type: "integer",
+          required: false,
+          default_value: 400,
+          min: 8,
+          max: 20000,
+          step: 1,
+        },
+        {
+          name: "amplitude",
+          label: "Amplitude do degrau",
+          type: "number",
+          required: false,
+          default_value: 1,
+          min: -1e6,
+          max: 1e6,
+        },
+      ],
+      operation: "frequency.step_response",
+      output_types: ["TimeResponse"],
+      visualizations: ["time_response"],
+      requirements: [
+        "Métricas de 2ª ordem (ζ, ω_n) NÃO são inferidas aqui; Mp/Ts são medidos na simulação",
+      ],
+      limits: {
+        max_samples: 20000,
+        hard_timeout_ms: 10000,
+        notes: "Planta em malha aberta (sem realimentação).",
+      },
+      examples: [],
+    },
+  ];
+}
+
 export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
   {
     id: "identification.fit_arx",
@@ -175,68 +406,7 @@ export const DEFAULT_TOOL_DESCRIPTORS: readonly ToolDescriptor[] = [
     examples: [],
     default_indicator: "numeric_verified",
   },
-  {
-    id: "siso.bode_nyquist",
-    title: "Bode, Nyquist e Margens SISO",
-    description:
-      "Calcula resposta em frequência G(s)/G(z), múltiplas frequências de cruzamento, margens de ganho/fase e overlays semânticos.",
-    tab: "siso_frequency",
-    input_types: ["TransferFunction", "StateSpace", "Controller"],
-    parameter_schema: [
-      {
-        name: "w_min",
-        label: "Frequência mínima",
-        type: "number",
-        required: true,
-        default_value: 0.01,
-        min: 1e-6,
-        max: 1e6,
-        unit: "rad/s",
-      },
-      {
-        name: "w_max",
-        label: "Frequência máxima",
-        type: "number",
-        required: true,
-        default_value: 100,
-        min: 1e-4,
-        max: 1e8,
-        unit: "rad/s",
-      },
-      {
-        name: "n_points",
-        label: "Pontos na grade logarítmica",
-        type: "integer",
-        required: true,
-        default_value: 200,
-        min: 16,
-        max: 5000,
-      },
-    ],
-    operation: "frequency.eval_response",
-    output_types: ["FrequencyResponse", "StabilityMargins"],
-    visualizations: ["bode_plot", "nyquist_plot", "pole_zero_map"],
-    requirements: [
-      "Overlays de 2ª ordem (ζ, ω_n, M_p, T_s) rotulados como heuristic/estimated",
-      "Atraso puro não substituído silenciosamente por Padé sem seleção explícita",
-    ],
-    interaction_mode: "drag_preview_then_commit",
-    maturity: "beta",
-    limits: {
-      max_samples: 5000,
-      hard_timeout_ms: 10000,
-      notes: "Detecta múltiplas frequências de cruzamento de ganho e fase.",
-    },
-    examples: [
-      {
-        id: "ex-siso-1st",
-        title: "Planta 1ª ordem G(s)=1/(s+a)",
-        description: "Oráculo analítico de ganho, fase e degrau.",
-        parameters: { w_min: 0.01, w_max: 100, n_points: 200 },
-      },
-    ],
-    default_indicator: "numeric_verified",
-  },
+  ...buildSisoDescriptors(),
   {
     id: "statespace.design_lqr",
     title: "Projeto LQR (CARE / DARE)",

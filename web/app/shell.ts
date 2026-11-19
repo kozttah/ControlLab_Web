@@ -62,6 +62,9 @@ import {
 import {
   IdentificationWorkspace,
 } from "../features/identification_workspace.ts";
+import {
+  SisoWorkspace,
+} from "../features/siso_workspace.ts";
 
 export interface PresentedError {
   code: ErrorCategory;
@@ -265,6 +268,7 @@ export interface ShellOptions {
   tabsController?: ProjectTabsController;
   typedWorkspace?: TypedObjectWorkspace;
   identificationWorkspace?: IdentificationWorkspace;
+  sisoWorkspace?: SisoWorkspace;
   initialTab?: ProjectTabId;
   displayDecimals?: number;
   themeMode?: AccessibilityThemeMode;
@@ -276,6 +280,7 @@ export class ControlLabShell {
   private readonly tabs: ProjectTabsController;
   private readonly typedWorkspace: TypedObjectWorkspace;
   private readonly identificationWorkspace: IdentificationWorkspace;
+  private readonly sisoWorkspace: SisoWorkspace;
   private readonly announcer: AriaLiveAnnouncer;
   private readonly focusRestorer: FocusRestorer;
 
@@ -352,6 +357,18 @@ export class ControlLabShell {
         onError: (err) => this.presentError(err),
       });
 
+    this.sisoWorkspace =
+      options.sisoWorkspace ??
+      new SisoWorkspace({
+        client: this.client,
+        typedWorkspace: this.typedWorkspace,
+        tabsController: this.tabs,
+        projectIdProvider: () => this.lqr.getProjectId(),
+        projectRevisionProvider: () => this.lqr.getProjectRevision(),
+        themeModeProvider: () => this.themeMode,
+        announcer: this.announcer,
+      });
+
     this.engineState = this.client.getLifecycleState();
     this.unsubscribeClient = this.client.subscribe((ev) => {
       this.eventsLog.push(ev);
@@ -395,6 +412,7 @@ export class ControlLabShell {
     this.tabs.subscribe(() => this.notify());
     this.typedWorkspace.subscribe(() => this.notify());
     this.identificationWorkspace.subscribe(() => this.notify());
+    this.sisoWorkspace.subscribe(() => this.notify());
   }
 
   private clampDecimals(decimals: number): number {
@@ -418,6 +436,10 @@ export class ControlLabShell {
 
   public getIdentificationWorkspace(): IdentificationWorkspace {
     return this.identificationWorkspace;
+  }
+
+  public getSisoWorkspace(): SisoWorkspace {
+    return this.sisoWorkspace;
   }
 
   public applySelectedPlantToLqr(): CanonicalStateSpaceModel {

@@ -180,6 +180,11 @@ export class ProjectTabsController {
       options?: Record<string, unknown>;
       commitOnSuccess?: boolean;
       feedbackSign?: FeedbackSign;
+      /**
+       * Quando `false`, a execução é transitória: não vira `lastExecutionByTool`
+       * da aba (ex.: preview SISO). O registro só ocorre via `recordCommittedExecution`.
+       */
+      recordExecution?: boolean;
     },
   ): Promise<TabToolExecutionRecord> {
     const desc = this.registry.get(toolId);
@@ -290,9 +295,30 @@ export class ProjectTabsController {
           : desc.default_indicator,
       executed_at: new Date().toISOString(),
     };
-    this.lastExecutions.set(desc.id, record);
+    if (context.recordExecution !== false) {
+      this.lastExecutions.set(desc.id, record);
+    }
     this.notify();
     return record;
+  }
+
+  /**
+   * Registra explicitamente uma execução já comitada de forma autoritativa
+   * (após `client.commitProject`), tornando-a visível em `lastExecutionByTool`.
+   */
+  public recordCommittedExecution(record: TabToolExecutionRecord): void {
+    if (!this.registry.get(record.toolId)) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        `ToolDescriptor não registrado: '${record.toolId}'.`,
+      );
+    }
+    this.lastExecutions.set(record.toolId, record);
+    this.notify();
+  }
+
+  public getLastExecution(toolId: string): TabToolExecutionRecord | undefined {
+    return this.lastExecutions.get(toolId);
   }
 
   public subscribe(listener: () => void): () => void {

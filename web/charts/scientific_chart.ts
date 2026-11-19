@@ -172,10 +172,54 @@ export interface ResidualCorrelationChartModel extends ChartCommonMetadata {
   uncorrelated_input_within_99_fraction: number | null;
 }
 
+export interface FrequencyCrossingMarker {
+  id: string;
+  kind: "gain_crossover" | "phase_crossover";
+  omega: number;
+  mag_db: number;
+  phase_deg: number;
+  label: string;
+}
+
+export interface BodeChartModel extends ChartCommonMetadata {
+  kind: "bode";
+  dt: number | null;
+  omega: readonly number[];
+  mag_db: readonly number[];
+  phase_deg: readonly number[];
+  markers: readonly FrequencyCrossingMarker[];
+  delay_representation: "none" | "exact" | "pade";
+}
+
+export interface NyquistChartModel extends ChartCommonMetadata {
+  kind: "nyquist";
+  dt: number | null;
+  omega: readonly number[];
+  re: readonly number[];
+  im: readonly number[];
+  delay_representation: "none" | "exact" | "pade";
+}
+
+export interface RootLocusChartModel extends ChartCommonMetadata {
+  kind: "root_locus";
+  dt: number | null;
+  gains: readonly number[];
+  /** branches[b].real[i] / imag[i] = raiz do ramo b no ganho gains[i]. */
+  branches: ReadonlyArray<{ real: readonly number[]; imag: readonly number[] }>;
+  open_loop_poles: ComplexVectorPair | null;
+  open_loop_zeros: ComplexVectorPair | null;
+  breakaway_points: readonly number[];
+  stability_crossings: readonly unknown[];
+  overlays: readonly RequirementOverlay[];
+}
+
 export type ScientificChartModel =
   | PoleZeroChartModel
   | TimeResponseChartModel
-  | ResidualCorrelationChartModel;
+  | ResidualCorrelationChartModel
+  | BodeChartModel
+  | NyquistChartModel
+  | RootLocusChartModel;
 
 export function buildIdentificationResponseChartModel(input: {
   chart_id?: string;
@@ -344,6 +388,120 @@ export function buildResidualCorrelationChartModel(input: {
   };
 }
 
+export function buildBodeChartModel(input: {
+  chart_id?: string;
+  title?: string;
+  model_revision: number | null;
+  project_revision: number | null;
+  provenance: Provenance | null;
+  series_semantics?: ResultVerificationIndicator;
+  theme_mode?: AccessibilityThemeMode;
+  dt: number | null;
+  omega: readonly number[];
+  mag_db: readonly number[];
+  phase_deg: readonly number[];
+  markers?: readonly FrequencyCrossingMarker[];
+  delay_representation?: "none" | "exact" | "pade";
+}): BodeChartModel {
+  return {
+    kind: "bode",
+    chart_id: input.chart_id ?? "siso-bode-chart",
+    title: input.title ?? "Diagrama de Bode SISO",
+    model_revision: input.model_revision,
+    project_revision: input.project_revision,
+    provenance: input.provenance,
+    series_semantics: input.series_semantics ?? "numeric_verified",
+    units: {
+      x_axis: "Frequência [rad/s]",
+      y_axis: "Magnitude [dB] / Fase [graus]",
+    },
+    theme_mode: input.theme_mode ?? "standard_aa",
+    dt: input.dt,
+    omega: [...input.omega],
+    mag_db: [...input.mag_db],
+    phase_deg: [...input.phase_deg],
+    markers: input.markers ? [...input.markers] : [],
+    delay_representation: input.delay_representation ?? "none",
+  };
+}
+
+export function buildNyquistChartModel(input: {
+  chart_id?: string;
+  title?: string;
+  model_revision: number | null;
+  project_revision: number | null;
+  provenance: Provenance | null;
+  series_semantics?: ResultVerificationIndicator;
+  theme_mode?: AccessibilityThemeMode;
+  dt: number | null;
+  omega: readonly number[];
+  re: readonly number[];
+  im: readonly number[];
+  delay_representation?: "none" | "exact" | "pade";
+}): NyquistChartModel {
+  return {
+    kind: "nyquist",
+    chart_id: input.chart_id ?? "siso-nyquist-chart",
+    title: input.title ?? "Diagrama de Nyquist SISO",
+    model_revision: input.model_revision,
+    project_revision: input.project_revision,
+    provenance: input.provenance,
+    series_semantics: input.series_semantics ?? "numeric_verified",
+    units: {
+      x_axis: "Parte Real Re G(jω)",
+      y_axis: "Parte Imaginária Im G(jω)",
+    },
+    theme_mode: input.theme_mode ?? "standard_aa",
+    dt: input.dt,
+    omega: [...input.omega],
+    re: [...input.re],
+    im: [...input.im],
+    delay_representation: input.delay_representation ?? "none",
+  };
+}
+
+export function buildRootLocusChartModel(input: {
+  chart_id?: string;
+  title?: string;
+  model_revision: number | null;
+  project_revision: number | null;
+  provenance: Provenance | null;
+  series_semantics?: ResultVerificationIndicator;
+  theme_mode?: AccessibilityThemeMode;
+  dt: number | null;
+  gains: readonly number[];
+  branches: ReadonlyArray<{ real: readonly number[]; imag: readonly number[] }>;
+  open_loop_poles?: ComplexVectorPair | null;
+  open_loop_zeros?: ComplexVectorPair | null;
+  breakaway_points?: readonly number[];
+  stability_crossings?: readonly unknown[];
+  overlays?: readonly RequirementOverlay[];
+}): RootLocusChartModel {
+  return {
+    kind: "root_locus",
+    chart_id: input.chart_id ?? "siso-root-locus-chart",
+    title: input.title ?? "Lugar das Raízes SISO (Root Locus)",
+    model_revision: input.model_revision,
+    project_revision: input.project_revision,
+    provenance: input.provenance,
+    series_semantics: input.series_semantics ?? "numeric_verified",
+    units: {
+      x_axis: "Eixo Real (Re)",
+      y_axis: "Eixo Imaginário (Im)",
+    },
+    theme_mode: input.theme_mode ?? "standard_aa",
+    dt: input.dt,
+    gains: [...input.gains],
+    branches: input.branches.map((b) => ({ real: [...b.real], imag: [...b.imag] })),
+    open_loop_poles: input.open_loop_poles ?? null,
+    open_loop_zeros: input.open_loop_zeros ?? null,
+    breakaway_points: input.breakaway_points ? [...input.breakaway_points] : [],
+    stability_crossings: input.stability_crossings ? [...input.stability_crossings] : [],
+    overlays: input.overlays ? [...input.overlays] : [],
+  };
+}
+
+
 export function renderResidualCorrelationSvg(
   model: ResidualCorrelationChartModel,
   options?: { widthPx?: number; heightPx?: number; decimals?: number },
@@ -469,6 +627,311 @@ export function renderResidualCorrelationSvg(
     `</svg>`,
   ].join("");
 }
+
+export function renderBodeSvg(
+  model: BodeChartModel,
+  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+): string {
+  const widthPx = options?.widthPx ?? 640;
+  const heightPx = options?.heightPx ?? 480;
+  const decimals = options?.decimals ?? 2;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+
+  const padLeft = 64;
+  const padRight = 24;
+  const padTop = 36;
+  const plotW = widthPx - padLeft - padRight;
+  const subH = Math.floor((heightPx - padTop - 70) / 2);
+  const gap = 24;
+  const magTop = padTop;
+  const phaseTop = magTop + subH + gap;
+
+  const omegas = model.omega.filter((w) => Number.isFinite(w) && w > 0);
+  const minW = omegas.length > 0 ? Math.min(...omegas) : 0.01;
+  const maxW = omegas.length > 0 ? Math.max(...omegas) : 100;
+  const logMinW = Math.log10(minW);
+  const logMaxW = Math.log10(maxW);
+  const logSpanW = Math.max(1e-4, logMaxW - logMinW);
+
+  const toPxX = (w: number) => {
+    const logW = Math.log10(Math.max(minW, w));
+    return padLeft + ((logW - logMinW) / logSpanW) * plotW;
+  };
+
+  const magBounds = computeSafeAxisBounds(model.mag_db, 0.1);
+  const phaseBounds = computeSafeAxisBounds(model.phase_deg, 0.1);
+
+  const toPxMagY = (db: number) =>
+    magTop + ((magBounds.max - db) / Math.max(1e-4, magBounds.span)) * subH;
+  const toPxPhaseY = (deg: number) =>
+    phaseTop + ((phaseBounds.max - deg) / Math.max(1e-4, phaseBounds.span)) * subH;
+
+  const n = Math.min(model.omega.length, model.mag_db.length);
+  const magPts: string[] = [];
+  for (let i = 0; i < n; i += 1) {
+    if (model.omega[i] > 0) {
+      magPts.push(`${toPxX(model.omega[i]).toFixed(1)},${toPxMagY(model.mag_db[i]).toFixed(1)}`);
+    }
+  }
+
+  const nPhase = Math.min(model.omega.length, model.phase_deg.length);
+  const phasePts: string[] = [];
+  for (let i = 0; i < nPhase; i += 1) {
+    if (model.omega[i] > 0) {
+      phasePts.push(`${toPxX(model.omega[i]).toFixed(1)},${toPxPhaseY(model.phase_deg[i]).toFixed(1)}`);
+    }
+  }
+
+  const zeroDbY = toPxMagY(0);
+  const minus180Y = toPxPhaseY(-180);
+
+  const zeroDbLine =
+    magBounds.min <= 0 && magBounds.max >= 0
+      ? `<line x1="${padLeft}" y1="${zeroDbY.toFixed(1)}" x2="${padLeft + plotW}" y2="${zeroDbY.toFixed(1)}" stroke="${theme.chartGrid}" stroke-dasharray="4 3" stroke-width="1.2" data-reference-line="0db"><title>0 dB</title></line>`
+      : "";
+
+  const minus180Line =
+    phaseBounds.min <= -180 && phaseBounds.max >= -180
+      ? `<line x1="${padLeft}" y1="${minus180Y.toFixed(1)}" x2="${padLeft + plotW}" y2="${minus180Y.toFixed(1)}" stroke="${theme.chartGrid}" stroke-dasharray="4 3" stroke-width="1.2" data-reference-line="-180deg"><title>-180°</title></line>`
+      : "";
+
+  const markerSvgs: string[] = [];
+  for (const m of model.markers) {
+    const mx = toPxX(m.omega);
+    const color = m.kind === "gain_crossover" ? theme.chartOverlayExact : theme.chartOpenLoop;
+    markerSvgs.push(
+      `<line x1="${mx.toFixed(1)}" y1="${magTop}" x2="${mx.toFixed(1)}" y2="${phaseTop + subH}" stroke="${color}" stroke-dasharray="2 2" stroke-width="1.2" data-marker-kind="${m.kind}"><title>${escapeHtml(m.label)}: ω=${formatNumericDisplay(m.omega, decimals)} rad/s</title></line>`,
+      `<circle cx="${mx.toFixed(1)}" cy="${toPxMagY(m.mag_db).toFixed(1)}" r="4" fill="${color}"><title>${escapeHtml(m.label)} (|G|=${formatNumericDisplay(m.mag_db, decimals)} dB)</title></circle>`,
+      `<circle cx="${mx.toFixed(1)}" cy="${toPxPhaseY(m.phase_deg).toFixed(1)}" r="4" fill="${color}"><title>${escapeHtml(m.label)} (∠G=${formatNumericDisplay(m.phase_deg, decimals)}°)</title></circle>`,
+    );
+  }
+
+  const minDecade = Math.floor(logMinW);
+  const maxDecade = Math.ceil(logMaxW);
+  const freqGridLines: string[] = [];
+  for (let d = minDecade; d <= maxDecade; d += 1) {
+    const wVal = 10 ** d;
+    if (wVal >= minW && wVal <= maxW) {
+      const gx = toPxX(wVal);
+      freqGridLines.push(
+        `<line x1="${gx.toFixed(1)}" y1="${magTop}" x2="${gx.toFixed(1)}" y2="${phaseTop + subH}" stroke="${theme.chartGrid}" stroke-dasharray="2 3" stroke-width="0.8" />`,
+        `<text x="${gx.toFixed(1)}" y="${phaseTop + subH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">10<tspan dy="-4" font-size="8">${d}</tspan></text>`,
+      );
+    }
+  }
+
+  const desc = `Diagrama de Bode de ${model.title}. Faixa de frequência: ${minW.toExponential(2)} a ${maxW.toExponential(2)} rad/s. ${model.markers.length} marcadores de cruzamento. Atraso: ${model.delay_representation}.`;
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeHtml(model.title)}" class="scientific-chart-svg bode-chart" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}" data-chart-id="${escapeHtml(model.chart_id)}">`,
+    `<title>${escapeHtml(model.title)}</title>`,
+    `<desc>${escapeHtml(desc)}</desc>`,
+    `<rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${theme.surface}" />`,
+    `<rect x="${padLeft}" y="${magTop}" width="${plotW}" height="${subH}" fill="none" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    `<rect x="${padLeft}" y="${phaseTop}" width="${plotW}" height="${subH}" fill="none" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    ...freqGridLines,
+    zeroDbLine,
+    minus180Line,
+    `<polyline fill="none" stroke="${theme.chartClosedLoop}" stroke-width="2" points="${magPts.join(" ")}" data-layer="mag_db" />`,
+    `<polyline fill="none" stroke="${theme.chartOpenLoop}" stroke-width="2" points="${phasePts.join(" ")}" data-layer="phase_deg" />`,
+    ...markerSvgs,
+    `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${model.series_semantics}]</text>`,
+    `<text x="16" y="${magTop + subH / 2}" transform="rotate(-90 16 ${magTop + subH / 2})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Mag [dB]</text>`,
+    `<text x="16" y="${phaseTop + subH / 2}" transform="rotate(-90 16 ${phaseTop + subH / 2})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Fase [°]</text>`,
+    `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Frequência ω [rad/s] (escala logarítmica)</text>`,
+    `</svg>`,
+  ].join("");
+}
+
+export function renderNyquistSvg(
+  model: NyquistChartModel,
+  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+): string {
+  const widthPx = options?.widthPx ?? 640;
+  const heightPx = options?.heightPx ?? 400;
+  const decimals = options?.decimals ?? 3;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+
+  const padLeft = 64;
+  const padRight = 24;
+  const padTop = 36;
+  const padBottom = 48;
+  const plotW = widthPx - padLeft - padRight;
+  const plotH = heightPx - padTop - padBottom;
+
+  const allRe = [-1, 0, ...model.re.filter(Number.isFinite)];
+  const allIm = [0, ...model.im.filter(Number.isFinite)];
+  const xBounds = computeSafeAxisBounds(allRe, 0.15);
+  const yBounds = computeSafeAxisBounds(allIm, 0.15);
+
+  const toPxX = (r: number) =>
+    padLeft + ((r - xBounds.min) / Math.max(1e-4, xBounds.span)) * plotW;
+  const toPxY = (i: number) =>
+    padTop + ((yBounds.max - i) / Math.max(1e-4, yBounds.span)) * plotH;
+
+  const pts: string[] = [];
+  const n = Math.min(model.re.length, model.im.length);
+  for (let i = 0; i < n; i += 1) {
+    if (Number.isFinite(model.re[i]) && Number.isFinite(model.im[i])) {
+      pts.push(`${toPxX(model.re[i]).toFixed(1)},${toPxY(model.im[i]).toFixed(1)}`);
+    }
+  }
+
+  const critX = toPxX(-1);
+  const critY = toPxY(0);
+  const zeroX = toPxX(0);
+  const zeroY = toPxY(0);
+
+  const desc = `Diagrama de Nyquist de ${model.title}. Ponto crítico (-1, j0) destacado. Atraso: ${model.delay_representation}.`;
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeHtml(model.title)}" class="scientific-chart-svg nyquist-chart" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}" data-chart-id="${escapeHtml(model.chart_id)}">`,
+    `<title>${escapeHtml(model.title)}</title>`,
+    `<desc>${escapeHtml(desc)}</desc>`,
+    `<rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${theme.surface}" />`,
+    `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="none" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    `<line x1="${padLeft}" y1="${zeroY.toFixed(1)}" x2="${padLeft + plotW}" y2="${zeroY.toFixed(1)}" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    `<line x1="${zeroX.toFixed(1)}" y1="${padTop}" x2="${zeroX.toFixed(1)}" y2="${padTop + plotH}" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    `<polyline fill="none" stroke="${theme.chartClosedLoop}" stroke-width="2" points="${pts.join(" ")}" data-layer="nyquist-curve" />`,
+    `<g data-critical-point="minus-one">`,
+    `<circle cx="${critX.toFixed(1)}" cy="${critY.toFixed(1)}" r="5" fill="${theme.chartOverlayHeuristic}" stroke="#fff" stroke-width="1.5" />`,
+    `<text x="${(critX - 6).toFixed(1)}" y="${(critY - 8).toFixed(1)}" font-size="11" font-weight="bold" fill="${theme.chartOverlayHeuristic}" text-anchor="end">(-1, j0)</text>`,
+    `</g>`,
+    `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${model.series_semantics}]</text>`,
+    `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Im G(jω)</text>`,
+    `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Re G(jω)</text>`,
+    `</svg>`,
+  ].join("");
+}
+
+export function renderRootLocusSvg(
+  model: RootLocusChartModel,
+  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+): string {
+  const widthPx = options?.widthPx ?? 640;
+  const heightPx = options?.heightPx ?? 420;
+  const decimals = options?.decimals ?? 3;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+
+  const padLeft = 64;
+  const padRight = 24;
+  const padTop = 36;
+  const padBottom = 48;
+  const plotW = widthPx - padLeft - padRight;
+  const plotH = heightPx - padTop - padBottom;
+
+  const allRe: number[] = [0];
+  const allIm: number[] = [0];
+  if (model.open_loop_poles) {
+    allRe.push(...model.open_loop_poles.real);
+    allIm.push(...model.open_loop_poles.imag);
+  }
+  if (model.open_loop_zeros) {
+    allRe.push(...model.open_loop_zeros.real);
+    allIm.push(...model.open_loop_zeros.imag);
+  }
+  for (const b of model.branches) {
+    allRe.push(...b.real.filter(Number.isFinite));
+    allIm.push(...b.imag.filter(Number.isFinite));
+  }
+  if (model.dt !== null) {
+    allRe.push(-1, 1);
+    allIm.push(-1, 1);
+  }
+
+  const xBounds = computeSafeAxisBounds(allRe, 0.15);
+  const yBounds = computeSafeAxisBounds(allIm, 0.15);
+
+  const vp: ChartViewport = {
+    widthPx,
+    heightPx,
+    padLeftPx: padLeft,
+    padRightPx: padRight,
+    padTopPx: padTop,
+    padBottomPx: padBottom,
+    xMin: xBounds.min,
+    xMax: xBounds.max,
+    yMin: yBounds.min,
+    yMax: yBounds.max,
+  };
+
+  const toPxX = (r: number) =>
+    padLeft + ((r - xBounds.min) / Math.max(1e-4, xBounds.span)) * plotW;
+  const toPxY = (i: number) =>
+    padTop + ((yBounds.max - i) / Math.max(1e-4, yBounds.span)) * plotH;
+
+  const branchPolylines = model.branches.map((b, idx) => {
+    const pts: string[] = [];
+    const bn = Math.min(b.real.length, b.imag.length);
+    for (let k = 0; k < bn; k += 1) {
+      if (Number.isFinite(b.real[k]) && Number.isFinite(b.imag[k])) {
+        pts.push(`${toPxX(b.real[k]).toFixed(1)},${toPxY(b.imag[k]).toFixed(1)}`);
+      }
+    }
+    return `<polyline fill="none" stroke="${theme.chartClosedLoop}" stroke-width="1.8" points="${pts.join(" ")}" data-branch-index="${idx}"><title>Ramo ${idx + 1}</title></polyline>`;
+  });
+
+  const poleSvgs: string[] = [];
+  if (model.open_loop_poles) {
+    const pn = Math.min(model.open_loop_poles.real.length, model.open_loop_poles.imag.length);
+    for (let i = 0; i < pn; i += 1) {
+      const px = toPxX(model.open_loop_poles.real[i]);
+      const py = toPxY(model.open_loop_poles.imag[i]);
+      poleSvgs.push(
+        `<g data-pole-index="${i}"><line x1="${(px - 5).toFixed(1)}" y1="${(py - 5).toFixed(1)}" x2="${(px + 5).toFixed(1)}" y2="${(py + 5).toFixed(1)}" stroke="${theme.chartOpenLoop}" stroke-width="2" /><line x1="${(px - 5).toFixed(1)}" y1="${(py + 5).toFixed(1)}" x2="${(px + 5).toFixed(1)}" y2="${(py - 5).toFixed(1)}" stroke="${theme.chartOpenLoop}" stroke-width="2" /><title>Polo malha aberta: ${formatNumericDisplay(model.open_loop_poles.real[i], decimals)} + j${formatNumericDisplay(model.open_loop_poles.imag[i], decimals)}</title></g>`,
+      );
+    }
+  }
+
+  const zeroSvgs: string[] = [];
+  if (model.open_loop_zeros) {
+    const zn = Math.min(model.open_loop_zeros.real.length, model.open_loop_zeros.imag.length);
+    for (let i = 0; i < zn; i += 1) {
+      const zx = toPxX(model.open_loop_zeros.real[i]);
+      const zy = toPxY(model.open_loop_zeros.imag[i]);
+      zeroSvgs.push(
+        `<circle cx="${zx.toFixed(1)}" cy="${zy.toFixed(1)}" r="5" fill="none" stroke="${theme.chartOpenLoop}" stroke-width="2"><title>Zero malha aberta: ${formatNumericDisplay(model.open_loop_zeros.real[i], decimals)} + j${formatNumericDisplay(model.open_loop_zeros.imag[i], decimals)}</title></circle>`,
+      );
+    }
+  }
+
+  const overlaysSvg = model.overlays
+    .map((ov) => {
+      const g = generateOverlaySvgPath(ov, vp);
+      const col =
+        ov.classification === "exact"
+          ? theme.chartOverlayExact
+          : ov.classification === "sufficient"
+            ? theme.chartOverlaySufficient
+            : theme.chartOverlayHeuristic;
+      return `<path d="${g.pathD}" fill="none" stroke="${col}" stroke-width="1.8" stroke-dasharray="${g.strokeDasharray}" data-overlay-id="${escapeHtml(ov.id)}" data-overlay-class="${escapeHtml(ov.classification)}"><title>${escapeHtml(g.ariaDescription)} [${escapeHtml(ov.classification)}]</title></path>`;
+    })
+    .join("");
+
+  const zeroX = toPxX(0);
+  const zeroY = toPxY(0);
+
+  const desc = `Lugar das Raízes (Root Locus) de ${model.title}. ${model.branches.length} ramos.`;
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeHtml(model.title)}" class="scientific-chart-svg root-locus-chart" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}" data-chart-id="${escapeHtml(model.chart_id)}">`,
+    `<title>${escapeHtml(model.title)}</title>`,
+    `<desc>${escapeHtml(desc)}</desc>`,
+    `<rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${theme.surface}" />`,
+    `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="none" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    `<line x1="${padLeft}" y1="${zeroY.toFixed(1)}" x2="${padLeft + plotW}" y2="${zeroY.toFixed(1)}" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    `<line x1="${zeroX.toFixed(1)}" y1="${padTop}" x2="${zeroX.toFixed(1)}" y2="${padTop + plotH}" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    overlaysSvg,
+    ...branchPolylines,
+    ...poleSvgs,
+    ...zeroSvgs,
+    `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${model.series_semantics}]</text>`,
+    `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Im(s)</text>`,
+    `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Re(s)</text>`,
+    `</svg>`,
+  ].join("");
+}
+
 
 export function buildPoleZeroChartModel(input: {
   chart_id?: string;
@@ -1091,6 +1554,48 @@ export function buildAccessibleChartTable(
 
     return {
       caption: `${chart.title} (Rev. Modelo ${String(chart.model_revision)}, Rev. Projeto ${String(chart.project_revision)})`,
+      headers,
+      rows,
+      rawNumericRowCount: rows.length,
+      decimals,
+      series_semantics: chart.series_semantics,
+      ariaAttributes: {
+        role: "table",
+        "aria-label": `Tabela acessível de ${chart.title}`,
+      },
+    };
+  }
+
+  if (chart.kind === "bode" || chart.kind === "nyquist" || chart.kind === "root_locus") {
+    const fmt = (v: number | undefined) =>
+      v === undefined ? "—" : formatNumericDisplay(v, decimals);
+    let headers: string[];
+    const rows: string[][] = [];
+    if (chart.kind === "bode") {
+      headers = ["ω [rad/s]", "|G| [dB]", "Fase [graus]"];
+      for (let i = 0; i < chart.omega.length; i += 1) {
+        rows.push([fmt(chart.omega[i]), fmt(chart.mag_db[i]), fmt(chart.phase_deg[i])]);
+      }
+    } else if (chart.kind === "nyquist") {
+      headers = ["ω [rad/s]", "Re G(jω)", "Im G(jω)"];
+      for (let i = 0; i < chart.omega.length; i += 1) {
+        rows.push([fmt(chart.omega[i]), fmt(chart.re[i]), fmt(chart.im[i])]);
+      }
+    } else {
+      headers = ["Ganho K"];
+      chart.branches.forEach((_, b) => {
+        headers.push(`Ramo ${b + 1} Re`, `Ramo ${b + 1} Im`);
+      });
+      for (let i = 0; i < chart.gains.length; i += 1) {
+        const row = [fmt(chart.gains[i])];
+        for (const br of chart.branches) {
+          row.push(fmt(br.real[i]), fmt(br.imag[i]));
+        }
+        rows.push(row);
+      }
+    }
+    return {
+      caption: `${chart.title} (Rev. Modelo ${String(chart.model_revision)}, Rev. Projeto ${String(chart.project_revision)}, ${chart.series_semantics})`,
       headers,
       rows,
       rawNumericRowCount: rows.length,

@@ -15,7 +15,7 @@
       "2026-11-17": 10,
       "2026-11-16": 1,
       "2026-11-18": 5,
-      "2026-11-19": 2
+      "2026-11-19": 3
     }
   },
   "audit_reference": {
@@ -3465,7 +3465,7 @@
         "T-SEC-01"
       ],
       "acceptance_cmd": "npm --prefix web run build && python3 -m pytest tests/wasm/ tests/e2e/ -v && CONTROLLAB_BROWSER=firefox python3 -m pytest tests/wasm/ tests/e2e/ -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md",
       "acceptance_requirements_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md#wp-v1-f9-id-siso-browser-audit",
       "acceptance_requirements": [
@@ -3473,7 +3473,26 @@
         "Adicionar os testes novos exigidos no plano; a suíte existente isolada não prova a entrega",
         "Handoff independente F9 com checklist completo e evidências do domínio anunciado"
       ],
-      "f9_review": "not_started"
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-V1-F9-ID-SISO-BROWSER-AUDIT.md",
+      "assessed_commit": "9b7c449bf351dfdd750bd3d97bc99b40ab0b93ba",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_id_siso_verticals.py": "d757015b9c6238226dd9933257570a696733e4e5ad10ec7b79705a61b3cd8e6c",
+        "scripts/build_web.mjs": "9d250015dcb1cf19246310a09ff64e7a1f1a98efc801de2139b041d94404588a"
+      },
+      "completed_on": "2026-11-19",
+      "acceptance_scope": "identification_and_siso_verticals_verified_on_real_chromium_and_firefox_browsers",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-V1-F9-ID-SISO-BROWSER-AUDIT.md",
+        "tests/e2e/test_id_siso_verticals.py"
+      ],
+      "validation": {
+        "e2e_id_siso_tests": 4,
+        "wasm_tests": 13,
+        "total_browser_e2e_tests": 30,
+        "frozen_fixtures_verified": true,
+        "oracle_tolerances_unchanged": true
+      }
     }
   ],
   "audit_history": [

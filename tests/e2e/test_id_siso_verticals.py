@@ -501,6 +501,10 @@ def test_siso_mimo_rejection_and_isolation(browser_harness):
     assert "Apenas sistemas SISO" in error_msg
 
     # 2. R-23: Fast-Preview vs Commit isolation (via LQR slider and SISO preview)
+    # Switch to Tab 3 (statespace) before interacting with LQR controls
+    page.locator('button[data-tab-id="statespace"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'statespace'")
+
     # First commit LQR baseline
     page.locator('[data-action="commit-lqr"]').click()
     wait_committed(page)
@@ -678,5 +682,52 @@ def test_accessibility_keyboard_and_mobile_responsive(browser_harness):
             "mobile_viewport": layout["viewport"],
             "mobile_scroll_width": layout["scrollWidth"],
             "single_column_layout": len(layout["columns"].split()) == 1,
+        },
+    )
+
+
+def test_tab_isolation_and_url_hash_persistence(browser_harness):
+    """WP-AUDIT-FIX-F8-TAB-ISOLATION-UX: Strict tab panel isolation & URL hash persistence."""
+    page = mount_ui(browser_harness, "e2e-tab-isolation-ux")
+
+    # 1. Tab 1 (identification): identification panel visible, statespace panel hidden, hash updated
+    page.locator('button[data-tab-id="identification"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'identification'")
+    assert page.evaluate("() => window.location.hash") == "#tab=identification"
+    assert page.locator("#identification-workspace-panel").is_visible()
+    assert not page.locator("#statespace-workspace-panel").is_visible()
+
+    # 2. Tab 2 (siso_frequency): siso panel visible, statespace panel hidden, hash updated
+    page.locator('button[data-tab-id="siso_frequency"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'siso_frequency'")
+    assert page.evaluate("() => window.location.hash") == "#tab=siso_frequency"
+    assert page.locator("#siso-workspace-panel").is_visible()
+    assert not page.locator("#statespace-workspace-panel").is_visible()
+
+    # 3. Reloading index.html with #tab=identification opens directly on Tab 1
+    try:
+        page.goto(browser_harness.origin + "/index.html#tab=identification")
+        page.locator("#identification-workspace-panel").wait_for(state="visible", timeout=20000)
+        page.reload()
+        page.locator("#identification-workspace-panel").wait_for(state="visible", timeout=20000)
+        assert page.locator('button[data-tab-id="identification"]').get_attribute("aria-selected") == "true"
+        assert page.locator("#identification-workspace-panel").is_visible()
+        assert not page.locator("#statespace-workspace-panel").is_visible()
+    finally:
+        # Restore probe.html + globalThis.app for browser_harness teardown / subsequent tests
+        page.goto(browser_harness.origin + "/probe.html")
+        page.evaluate("""async () => {
+            const {mountControlLabApp} = await import('/app/main.js');
+            const node = document.createElement('div'); document.body.append(node);
+            globalThis.app = mountControlLabApp(node, {project_id: 'f9-browser-project'});
+            await app.client.init();
+        }""")
+
+    browser_harness.record(
+        "e2e-tab-isolation-ux",
+        {
+            "identification_panel_isolated": True,
+            "siso_panel_isolated": True,
+            "hash_sync_and_reload_preserved": True,
         },
     )

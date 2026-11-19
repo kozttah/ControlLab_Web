@@ -15,7 +15,7 @@
       "2026-11-17": 10,
       "2026-11-16": 1,
       "2026-11-18": 5,
-      "2026-11-19": 3
+      "2026-11-19": 4
     }
   },
   "audit_reference": {
@@ -3493,6 +3493,52 @@
         "frozen_fixtures_verified": true,
         "oracle_tolerances_unchanged": true
       }
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F8-TAB-ISOLATION-UX",
+      "front": "f8-ui-charts",
+      "phase": "Vertical-Integration-UX",
+      "title": "Isolamento visual estrito por aba, persistência de aba em URL hash e editores matriciais/numéricos com ajuda de formato JSON",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-V1-F9-ID-SISO-BROWSER-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-06",
+        "R-23",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md",
+      "acceptance_requirements": [
+        "Ocultar controles, diagnósticos e gráficos exclusivos de Espaço de Estados/LQR (.lqr-interactive-bar, #pvm-export-options, #lqr-k-display, #lqr-diagnostics-panel, #time-chart-slot, #experiments-compare-panel) quando activeTab != statespace, mantendo apenas os painéis da aba ativa no topo da área principal",
+        "Manter #pz-chart-slot e #pz-table-slot visíveis apenas nas abas identification e statespace",
+        "Sincronizar activeTab com location.hash (#tab=<id>) ao trocar de aba e restaurar a aba na inicialização mantendo statespace como default quando não houver hash",
+        "Adicionar editor matricial numérico interativo (A, B, C, D, dt, Q, R, x0 + presets clássicos) na Aba 3 e formulário guiado para TransferFunction/StateSpace em #typed-workspace-panel, mantendo os campos JSON com anotações claras e exemplos do formato esperado"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F8-TAB-ISOLATION-UX.md",
+      "assessed_commit": "a6f2b086dc6805b4b6637e6d1967a1203edc8fbc",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "56d1be46e7f3b67d0eb20c74daab9d411563f46073696a15bdd7294590fb2bce",
+        "web/app/styles.css": "61065bd882aed5b8311a65e7c152bce77850e03f5dcecbe0fe3ae1086c8b736f",
+        "tests/unit/f8/tab_isolation_ux.test.ts": "96443937a4e5a8482b9cd3145713e9fcdff8be6901cfd0b823013622f82b0e57"
+      },
+      "acceptance_scope": "chromium_pyodide_real_dom_tab_isolation_hash_persistence_and_unit_suite",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-AUDIT-FIX-F8-TAB-ISOLATION-UX.md",
+        "tests/unit/f8/tab_isolation_ux.test.ts",
+        "tests/e2e/test_id_siso_verticals.py::test_siso_mimo_rejection_and_isolation",
+        "tests/e2e/test_id_siso_verticals.py::test_tab_isolation_and_url_hash_persistence"
+      ]
     }
   ],
   "audit_history": [

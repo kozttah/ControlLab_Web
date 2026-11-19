@@ -10,7 +10,7 @@
  */
 
 import type { ControlLabEngineClient } from "../bridge/client.ts";
-import { ControlLabBridgeError } from "../bridge/protocol.ts";
+import { ControlLabBridgeError, type RealTensor } from "../bridge/protocol.ts";
 import { MockWorkerAdapter } from "../bridge/mock_adapter.ts";
 import { PyodideEngineClient } from "../bridge/pyodide_client.ts";
 import {
@@ -44,6 +44,7 @@ import {
   TYPED_SELECTION_ROLES,
   type TypedSelectionRole,
 } from "../features/typed_workspace.ts";
+import type { CanonicalStateSpaceModel } from "../features/lqr_workspace.ts";
 
 export interface MountControlLabOptions {
   engineMode?: "pyodide" | "mock";
@@ -96,6 +97,256 @@ interface ExportModalPayload {
   pvmControllerKind?: "lqr" | "dynamic";
 }
 
+function setHidden(el: Element | null | undefined, hidden: boolean): void {
+  if (!el) return;
+  if (hidden) el.setAttribute("hidden", "true");
+  else el.removeAttribute("hidden");
+}
+
+function readTabFromLocationHash(): ProjectTabId | null {
+  try {
+    const hash = globalThis.location?.hash ?? "";
+    const match = /^#tab=([a-z0-9_]+)$/i.exec(hash.trim());
+    if (match && (PROJECT_TAB_IDS as readonly string[]).includes(match[1])) {
+      return match[1] as ProjectTabId;
+    }
+  } catch {
+    // ignore in non-browser environments
+  }
+  return null;
+}
+
+function writeTabToLocationHash(tabId: ProjectTabId): void {
+  try {
+    globalThis.history?.replaceState?.(null, "", `#tab=${tabId}`);
+  } catch {
+    // ignore in non-browser / restricted environments
+  }
+}
+
+interface LqrPresetSpec {
+  id: string;
+  label: string;
+  n: number;
+  m: number;
+  p: number;
+  dt: number | null;
+  A: number[];
+  B: number[];
+  C: number[];
+  D: number[];
+  Q: number[];
+  R: number[];
+  x0: number[];
+}
+
+const LQR_PRESETS: Record<string, LqrPresetSpec> = {
+  double_integrator: {
+    id: "double_integrator",
+    label: "Integrador Duplo (2x1)",
+    n: 2,
+    m: 1,
+    p: 1,
+    dt: null,
+    A: [0, 1, 0, 0],
+    B: [0, 1],
+    C: [1, 0],
+    D: [0],
+    Q: [1, 0, 0, 1],
+    R: [1],
+    x0: [1, 0],
+  },
+  mass_spring_damper: {
+    id: "mass_spring_damper",
+    label: "Massa-Mola-Amortecedor (2x1)",
+    n: 2,
+    m: 1,
+    p: 1,
+    dt: null,
+    A: [0, 1, -2, -0.5],
+    B: [0, 1],
+    C: [1, 0],
+    D: [0],
+    Q: [4, 0, 0, 1],
+    R: [1],
+    x0: [1, 0],
+  },
+  three_state_mimo: {
+    id: "three_state_mimo",
+    label: "Sistema 3 estados (3x2)",
+    n: 3,
+    m: 2,
+    p: 2,
+    dt: null,
+    A: [-1, 0.5, 0, 0, -2, 1, 0, 0, -0.5],
+    B: [1, 0, 0, 1, 1, 1],
+    C: [1, 0, 0, 0, 1, 0],
+    D: [0, 0, 0, 0],
+    Q: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    R: [1, 0, 0, 1],
+    x0: [1, 0, 0],
+  },
+};
+
+function makeFloat64Tensor(shape: number[], data: number[]): RealTensor {
+  return { shape, dtype: "float64", order: "C", data };
+}
+
+function isNumberMatrix2D(val: unknown): val is number[][] {
+  return (
+    Array.isArray(val) &&
+    val.length > 0 &&
+    val.every(
+      (row) =>
+        Array.isArray(row) &&
+        row.length === (val[0] as unknown[]).length &&
+        row.every((item) => typeof item === "number" && Number.isFinite(item)),
+    )
+  );
+}
+
+function matrix2DToTensor(mat: number[][]): RealTensor {
+  const rows = mat.length;
+  const cols = mat[0]?.length ?? 0;
+  return makeFloat64Tensor([rows, cols], mat.flat());
+}
+
+function normalizePlantJsonInput(
+  raw: unknown,
+  currentPlant: CanonicalStateSpaceModel,
+): CanonicalStateSpaceModel {
+  if (
+    raw &&
+    typeof raw === "object" &&
+    !("matrices" in raw) &&
+    "A" in raw &&
+    "B" in raw &&
+    "C" in raw &&
+    "D" in raw
+  ) {
+    const obj = raw as Record<string, unknown>;
+    if (
+      isNumberMatrix2D(obj.A) &&
+      isNumberMatrix2D(obj.B) &&
+      isNumberMatrix2D(obj.C) &&
+      isNumberMatrix2D(obj.D)
+    ) {
+      const n = obj.A.length;
+      const m = obj.B[0]?.length ?? 1;
+      const p = obj.C.length;
+      const dt = obj.dt === undefined ? currentPlant.dt : (obj.dt as number | null);
+      return {
+        schema_version: "1.0.0",
+        id: typeof obj.id === "string" && obj.id.trim() ? obj.id : currentPlant.id,
+        revision: currentPlant.revision + 1,
+        kind: "StateSpace",
+        dt,
+        state_names: Array.from({ length: n }, (_, i) => `x${i + 1}`),
+        input_names: Array.from({ length: m }, (_, i) => `u${i + 1}`),
+        output_names: Array.from({ length: p }, (_, i) => `y${i + 1}`),
+        matrices: {
+          A: matrix2DToTensor(obj.A),
+          B: matrix2DToTensor(obj.B),
+          C: matrix2DToTensor(obj.C),
+          D: matrix2DToTensor(obj.D),
+        },
+        units: {
+          time: currentPlant.units.time,
+          states: Array.from({ length: n }, () => ""),
+          inputs: Array.from({ length: m }, () => ""),
+          outputs: Array.from({ length: p }, () => ""),
+        },
+        provenance: { source: "ui_json_simple" },
+      };
+    }
+  }
+  return raw as CanonicalStateSpaceModel;
+}
+
+function normalizeWeightsJsonInput(
+  raw: unknown,
+): { Q?: RealTensor; R?: RealTensor; x0?: RealTensor; feedbackSign?: "negative" | "positive" } {
+  if (!raw || typeof raw !== "object") {
+    return raw as { Q?: RealTensor; R?: RealTensor; x0?: RealTensor };
+  }
+  const obj = raw as Record<string, unknown>;
+  const out: {
+    Q?: RealTensor;
+    R?: RealTensor;
+    x0?: RealTensor;
+    feedbackSign?: "negative" | "positive";
+  } = {};
+  if (obj.Q !== undefined) {
+    out.Q = isNumberMatrix2D(obj.Q) ? matrix2DToTensor(obj.Q) : (obj.Q as RealTensor);
+  }
+  if (obj.R !== undefined) {
+    out.R = isNumberMatrix2D(obj.R) ? matrix2DToTensor(obj.R) : (obj.R as RealTensor);
+  }
+  if (obj.x0 !== undefined) {
+    if (
+      Array.isArray(obj.x0) &&
+      obj.x0.length > 0 &&
+      obj.x0.every((v) => typeof v === "number" && Number.isFinite(v))
+    ) {
+      out.x0 = makeFloat64Tensor([obj.x0.length, 1], [...obj.x0]);
+    } else if (isNumberMatrix2D(obj.x0)) {
+      out.x0 = matrix2DToTensor(obj.x0);
+    } else {
+      out.x0 = obj.x0 as RealTensor;
+    }
+  }
+  if (obj.feedbackSign === "positive" || obj.feedbackSign === "negative") {
+    out.feedbackSign = obj.feedbackSign;
+  }
+  return out;
+}
+
+function parseCommaNumberList(raw: string, fieldName: string): number[] {
+  const parts = raw
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (parts.length === 0) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      `${fieldName} deve conter ao menos um coeficiente numérico.`,
+    );
+  }
+  const nums = parts.map((p) => Number(p));
+  if (nums.some((v) => !Number.isFinite(v))) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      `${fieldName} contém valor não numérico ou não finito.`,
+    );
+  }
+  return nums;
+}
+
+function renderMatrixGridBlockHtml(
+  matrixName: "A" | "B" | "C" | "D" | "Q" | "R" | "x0",
+  title: string,
+  rows: number,
+  cols: number,
+  data: number[],
+): string {
+  const cells: string[] = [];
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      const idx = r * cols + c;
+      const val = Number.isFinite(data[idx]) ? data[idx] : 0;
+      cells.push(
+        `<input type="number" step="any" class="lqr-matrix-cell" data-matrix="${matrixName}" data-row="${r}" data-col="${c}" value="${escapeHtml(String(val))}" aria-label="${escapeHtml(matrixName)}[${r}][${c}]" />`,
+      );
+    }
+  }
+  return [
+    `<div class="lqr-matrix-block" data-matrix-block="${matrixName}">`,
+    `<h5>${escapeHtml(title)} (${rows}×${cols})</h5>`,
+    `<div class="lqr-matrix-grid" style="grid-template-columns: repeat(${cols}, minmax(56px, 1fr));">${cells.join("")}</div>`,
+    `</div>`,
+  ].join("");
+}
+
 function triggerBrowserDownload(payload: ExportModalPayload, doc: Document): void {
   if (typeof Blob === "undefined" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
     return;
@@ -128,9 +379,11 @@ export function mountControlLabApp(
           },
         }));
 
+  const initialTabFromHash = readTabFromLocationHash();
   const shell = new ControlLabShell({
     client,
     project_id: options?.project_id ?? "proj-controllab-web",
+    ...(initialTabFromHash ? { initialTab: initialTabFromHash } : {}),
   });
   const lqr = shell.getLqrWorkspace();
   const tabsCtrl = shell.getTabsController();
@@ -145,6 +398,13 @@ export function mountControlLabApp(
   let lastToolsHtmlKey = "";
   let lastTypedWorkspaceHtmlKey = "";
   let renderedPvmExportRevision = -1;
+  let lastSyncedHashTab: ProjectTabId = shell.getActiveTab();
+  let lastSyncedLqrEditorKey = "";
+  let editorDims = {
+    n: lqr.getPlant().matrices.A.shape[0],
+    m: lqr.getPlant().matrices.B.shape[1],
+    p: lqr.getPlant().matrices.C.shape[0],
+  };
 
   const ROLE_LABELS: Record<TypedSelectionRole, string> = {
     statespacePlant: "Planta StateSpace (statespace.* / LMI LTI)",
@@ -170,6 +430,10 @@ export function mountControlLabApp(
     return `<button type="button" class="touch-control" data-tab-id="${escapeHtml(tabId)}" ${attrStr}>${escapeHtml(meta.label)}</button>`;
   }).join("");
 
+  const presetOptionsHtml = Object.values(LQR_PRESETS)
+    .map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}</option>`)
+    .join("");
+
   container.innerHTML = [
     `<header class="controllab-header">`,
     `<div><h1>ControlLab Web</h1><span id="engine-status-badge" class="badge"></span> <span id="revision-summary"></span></div>`,
@@ -184,71 +448,6 @@ export function mountControlLabApp(
     `<section class="panel-card">`,
     `<h2 id="controllab-tab-heading"></h2>`,
     `<div id="controllab-error-slot"></div>`,
-    `<div class="lqr-interactive-bar">`,
-    `<p>Status: <strong id="lqr-status-text"></strong></p>`,
-    `<div id="lqr-q-slider" class="touch-control lqr-slider" data-action="lqr-slider"></div>`,
-    `<div class="tool-field">`,
-    `<label for="lqr-feedback-sign">Convenção de realimentação</label>`,
-    `<select id="lqr-feedback-sign" class="touch-control" data-action="feedback-sign">`,
-    `<option value="negative">Negativa: u = u_ff - Kx (A - BK)</option>`,
-    `<option value="positive">Positiva: u = u_ff + Kx (A + BK)</option>`,
-    `</select>`,
-    `</div>`,
-    `<div class="tool-field">`,
-    `<label for="lqr-plant-json">Planta StateSpace (JSON)</label>`,
-    `<input id="lqr-plant-json" class="touch-control" type="text" data-field="plant-json" aria-label="Planta StateSpace JSON" />`,
-    `<button type="button" id="btn-apply-plant" class="touch-control" data-action="apply-plant">Aplicar Planta</button>`,
-    `</div>`,
-    `<div class="tool-field">`,
-    `<label for="lqr-weights-json">Pesos Q / R / x0 (JSON)</label>`,
-    `<input id="lqr-weights-json" class="touch-control" type="text" data-field="weights-json" aria-label="Pesos Q R x0 JSON" />`,
-    `<button type="button" id="btn-apply-weights" class="touch-control" data-action="apply-weights">Aplicar Pesos</button>`,
-    `</div>`,
-    `<div class="panel-actions">`,
-    `<button type="button" class="touch-control" data-action="commit-lqr">Calcular LQR Autoritativo</button>`,
-    `<button type="button" class="touch-control" data-action="analyze-open-loop">Analisar Malha Aberta (PBH)</button>`,
-    `<button type="button" class="touch-control" data-action="cancel-lqr">Cancelar</button>`,
-    `<button type="button" class="touch-control" data-action="undo-lqr">Desfazer</button>`,
-    `<button type="button" id="btn-reset-worker" class="touch-control" data-action="reset-worker">Reiniciar Worker</button>`,
-    `<button type="button" id="btn-save-experiment" class="touch-control" data-action="save-experiment">Salvar no Comparador</button>`,
-    `<button type="button" id="btn-export-pvm" class="touch-control" data-action="export-pvm">Exportar .pvm</button>`,
-    `<label for="ctrlab-file-input">Abrir .ctrlab</label><input id="ctrlab-file-input" type="file" accept=".ctrlab,application/zip" class="touch-control" aria-label="Abrir projeto .ctrlab" />`,
-    `<button type="button" id="btn-export-ctrlab" class="touch-control" data-action="export-ctrlab">Exportar .ctrlab</button>`,
-    `<button type="button" id="btn-export-gains" class="touch-control" data-action="export-gains">Exportar Ganhos JSON</button>`,
-    `<button type="button" id="btn-export-csv" class="touch-control" data-action="export-csv">Exportar CSV</button>`,
-    `<button type="button" id="btn-build-report" class="touch-control" data-action="build-report">Relatório R-27</button>`,
-    `</div>`,
-    `</div>`,
-    `<details id="pvm-export-options"><summary>Configuração da simulação PathView</summary>`,
-    `<div class="tool-field"><label for="pvm-controller-kind">Controlador exportado</label>`,
-    `<select id="pvm-controller-kind" class="touch-control"><option value="lqr">LQR confirmado</option><option value="dynamic">Controlador dinâmico (JSON)</option></select></div>`,
-    `<div class="tool-field"><label for="pvm-dynamic-controller-json">DynamicController canônico</label>`,
-    `<textarea id="pvm-dynamic-controller-json" rows="12" disabled aria-describedby="pvm-controller-help"></textarea>`,
-    `<p id="pvm-controller-help">Dimensões e boa-postura do controlador dinâmico são verificadas pelo motor Python antes do download. O estado inicial próprio deve constar de initial_state no JSON.</p></div>`,
-    `<label for="pvm-saturation-enabled"><input id="pvm-saturation-enabled" type="checkbox" /> Saturação do atuador após o controlador</label>`,
-    `<div class="tool-field"><label for="pvm-u-min">Limite inferior u_min (número ou vetor JSON)</label><input id="pvm-u-min" type="text" value="-1" disabled /></div>`,
-    `<div class="tool-field"><label for="pvm-u-max">Limite superior u_max (número ou vetor JSON)</label><input id="pvm-u-max" type="text" value="1" disabled /></div>`,
-    `</details>`,
-    `<section id="typed-workspace-panel" class="panel-card" aria-label="Insumos tipados da sessão">`,
-    `<h3>Insumos Tipados da Sessão (Dataset / Modelo / Sistema)</h3>`,
-    `<div class="tool-field">`,
-    `<label for="typed-object-json">Registrar Objeto Canônico (JSON: Dataset, TransferFunction, StateSpace, IdentifiedModel, FuzzySystem, TS)</label>`,
-    `<textarea id="typed-object-json" class="touch-control" rows="3" data-field="typed-object-json" aria-label="Registrar objeto canônico JSON"></textarea>`,
-    `<div class="panel-actions">`,
-    `<button type="button" id="btn-register-typed-object" class="touch-control" data-action="register-typed-object">Registrar Objeto Tipado</button>`,
-    `<select id="reuse-target-kind" class="touch-control" aria-label="Formato alvo de core.reuse_model">`,
-    `<option value="native">Formato nativo do modelo (native)</option>`,
-    `<option value="StateSpace">Converter para StateSpace (TF -> SS)</option>`,
-    `</select>`,
-    `<button type="button" id="btn-reuse-model" class="touch-control" data-action="reuse-model">Derivar via core.reuse_model</button>`,
-    `<button type="button" id="btn-register-pending-identified" class="touch-control" data-action="register-pending-identified" disabled aria-disabled="true">Registrar IdentifiedModel Pendente</button>`,
-    `<button type="button" id="btn-register-pending-derived" class="touch-control" data-action="register-pending-derived" disabled aria-disabled="true">Registrar Derivado Pendente</button>`,
-    `<button type="button" id="btn-apply-selected-to-lqr" class="touch-control" data-action="apply-selected-to-lqr">Aplicar StateSpace Selecionado ao LQR</button>`,
-    `</div>`,
-    `</div>`,
-    `<div id="typed-workspace-selectors-slot"></div>`,
-    `<div id="typed-workspace-status-slot"></div>`,
-    `</section>`,
     `<section id="identification-workspace-panel" class="panel-card" aria-label="Fluxo Vertical de Identificação (Aba 1)">`,
     `<h3>Fluxo Vertical de Identificação (Aba 1: Dataset Treino/Holdout, Estimação, Resíduos e Reutilização)</h3>`,
     `<div class="tool-field">`,
@@ -334,15 +533,116 @@ export function mountControlLabApp(
     `<details><summary>Tabela acessível do Lugar das Raízes (WCAG 2.2 AA)</summary><div id="siso-rl-table-slot"></div></details>`,
     `<details><summary>Tabela acessível da resposta ao degrau SISO (WCAG 2.2 AA)</summary><div id="siso-time-table-slot"></div></details>`,
     `</section>`,
+    `<section id="statespace-workspace-panel" aria-label="Espaço de Estados / LQR (Aba 3)">`,
+    `<div class="lqr-interactive-bar">`,
+    `<p>Status: <strong id="lqr-status-text"></strong></p>`,
+    `<div id="lqr-q-slider" class="touch-control lqr-slider" data-action="lqr-slider"></div>`,
+    `<div class="tool-field">`,
+    `<label for="lqr-feedback-sign">Convenção de realimentação</label>`,
+    `<select id="lqr-feedback-sign" class="touch-control" data-action="feedback-sign">`,
+    `<option value="negative">Negativa: u = u_ff - Kx (A - BK)</option>`,
+    `<option value="positive">Positiva: u = u_ff + Kx (A + BK)</option>`,
+    `</select>`,
+    `</div>`,
+    `<div class="panel-actions">`,
+    `<button type="button" class="touch-control" data-action="commit-lqr">Calcular LQR Autoritativo</button>`,
+    `<button type="button" class="touch-control" data-action="analyze-open-loop">Analisar Malha Aberta (PBH)</button>`,
+    `<button type="button" class="touch-control" data-action="cancel-lqr">Cancelar</button>`,
+    `<button type="button" class="touch-control" data-action="undo-lqr">Desfazer</button>`,
+    `<button type="button" id="btn-reset-worker" class="touch-control" data-action="reset-worker">Reiniciar Worker</button>`,
+    `<button type="button" id="btn-save-experiment" class="touch-control" data-action="save-experiment">Salvar no Comparador</button>`,
+    `<button type="button" id="btn-export-pvm" class="touch-control" data-action="export-pvm">Exportar .pvm</button>`,
+    `<label for="ctrlab-file-input">Abrir .ctrlab</label><input id="ctrlab-file-input" type="file" accept=".ctrlab,application/zip" class="touch-control" aria-label="Abrir projeto .ctrlab" />`,
+    `<button type="button" id="btn-export-ctrlab" class="touch-control" data-action="export-ctrlab">Exportar .ctrlab</button>`,
+    `<button type="button" id="btn-export-gains" class="touch-control" data-action="export-gains">Exportar Ganhos JSON</button>`,
+    `<button type="button" id="btn-export-csv" class="touch-control" data-action="export-csv">Exportar CSV</button>`,
+    `<button type="button" id="btn-build-report" class="touch-control" data-action="build-report">Relatório R-27</button>`,
+    `</div>`,
+    `</div>`,
+    `<section id="lqr-matrix-editor" class="lqr-matrix-editor" aria-label="Editor Matricial Interativo LQR">`,
+    `<h3>Editor Matricial Interativo (Planta StateSpace &amp; Pesos LQR)</h3>`,
+    `<div class="panel-actions">`,
+    `<label for="lqr-preset-select">Preset clássico:</label>`,
+    `<select id="lqr-preset-select" class="touch-control" aria-label="Preset clássico StateSpace">${presetOptionsHtml}</select>`,
+    `<button type="button" id="btn-lqr-apply-preset" class="touch-control" data-action="lqr-apply-preset">Aplicar Preset</button>`,
+    `</div>`,
+    `<div class="lqr-matrix-dims">`,
+    `<div class="tool-field"><label for="lqr-dim-n">Estados n (1–6)</label><input id="lqr-dim-n" type="number" min="1" max="6" step="1" class="touch-control" value="${editorDims.n}" aria-label="Dimensão n de estados" /></div>`,
+    `<div class="tool-field"><label for="lqr-dim-m">Entradas m (1–4)</label><input id="lqr-dim-m" type="number" min="1" max="4" step="1" class="touch-control" value="${editorDims.m}" aria-label="Dimensão m de entradas" /></div>`,
+    `<div class="tool-field"><label for="lqr-dim-p">Saídas p (1–4)</label><input id="lqr-dim-p" type="number" min="1" max="4" step="1" class="touch-control" value="${editorDims.p}" aria-label="Dimensão p de saídas" /></div>`,
+    `<div class="tool-field"><label for="lqr-dim-dt">dt (vazio = contínuo)</label><input id="lqr-dim-dt" type="number" min="0" step="any" placeholder="contínuo" class="touch-control" aria-label="Passo de amostragem dt" /></div>`,
+    `</div>`,
+    `<div id="lqr-matrix-grids" class="lqr-matrix-grids"></div>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-lqr-apply-matrices" class="touch-control" data-action="lqr-apply-matrices">Aplicar Matrizes ao Workspace</button>`,
+    `</div>`,
+    `</section>`,
+    `<div id="lqr-json-advanced" class="lqr-json-advanced">`,
+    `<h4>Entrada Avançada via JSON</h4>`,
+    `<div class="tool-field">`,
+    `<label for="lqr-plant-json">Planta StateSpace (JSON)</label>`,
+    `<input id="lqr-plant-json" class="touch-control" type="text" data-field="plant-json" aria-label="Planta StateSpace JSON" />`,
+    `<button type="button" id="btn-apply-plant" class="touch-control" data-action="apply-plant">Aplicar Planta</button>`,
+    `<p class="json-format-hint">Formato esperado: <code>{"A": [[0,1],[0,0]], "B": [[0],[1]], "C": [[1,0]], "D": [[0]], "dt": null}</code></p>`,
+    `</div>`,
+    `<div class="tool-field">`,
+    `<label for="lqr-weights-json">Pesos Q / R / x0 (JSON)</label>`,
+    `<input id="lqr-weights-json" class="touch-control" type="text" data-field="weights-json" aria-label="Pesos Q R x0 JSON" />`,
+    `<button type="button" id="btn-apply-weights" class="touch-control" data-action="apply-weights">Aplicar Pesos</button>`,
+    `<p class="json-format-hint">Formato esperado: <code>{"Q": [[4,0],[0,5]], "R": [[1]], "x0": [1,0]}</code></p>`,
+    `</div>`,
+    `</div>`,
+    `<details id="pvm-export-options"><summary>Configuração da simulação PathView</summary>`,
+    `<div class="tool-field"><label for="pvm-controller-kind">Controlador exportado</label>`,
+    `<select id="pvm-controller-kind" class="touch-control"><option value="lqr">LQR confirmado</option><option value="dynamic">Controlador dinâmico (JSON)</option></select></div>`,
+    `<div class="tool-field"><label for="pvm-dynamic-controller-json">DynamicController canônico</label>`,
+    `<textarea id="pvm-dynamic-controller-json" rows="12" disabled aria-describedby="pvm-controller-help"></textarea>`,
+    `<p id="pvm-controller-help">Dimensões e boa-postura do controlador dinâmico são verificadas pelo motor Python antes do download. O estado inicial próprio deve constar de initial_state no JSON.</p></div>`,
+    `<label for="pvm-saturation-enabled"><input id="pvm-saturation-enabled" type="checkbox" /> Saturação do atuador após o controlador</label>`,
+    `<div class="tool-field"><label for="pvm-u-min">Limite inferior u_min (número ou vetor JSON)</label><input id="pvm-u-min" type="text" value="-1" disabled /></div>`,
+    `<div class="tool-field"><label for="pvm-u-max">Limite superior u_max (número ou vetor JSON)</label><input id="pvm-u-max" type="text" value="1" disabled /></div>`,
+    `</details>`,
     `<div id="lqr-k-display"></div>`,
     `<div id="lqr-diagnostics-panel" class="diagnostics-panel"></div>`,
-    `<div id="controllab-tools-slot" class="declarative-tools"></div>`,
     `</section>`,
-    `<section class="panel-card">`,
+    `<div id="controllab-tools-slot" class="declarative-tools"></div>`,
+    `<section id="typed-workspace-panel" class="panel-card" aria-label="Insumos tipados da sessão">`,
+    `<h3>Insumos Tipados da Sessão (Dataset / Modelo / Sistema)</h3>`,
+    `<div id="typed-tf-builder" class="typed-tf-builder" aria-label="Construtor Guiado de TransferFunction">`,
+    `<h4>Construtor Guiado de TransferFunction</h4>`,
+    `<div class="typed-tf-builder-grid">`,
+    `<div class="tool-field"><label for="typed-tf-id">ID</label><input id="typed-tf-id" type="text" class="touch-control" value="tf-custom" aria-label="ID da TransferFunction" /></div>`,
+    `<div class="tool-field"><label for="typed-tf-num">Numerador (ex: 1)</label><input id="typed-tf-num" type="text" class="touch-control" value="1" aria-label="Numerador da TransferFunction" /></div>`,
+    `<div class="tool-field"><label for="typed-tf-den">Denominador (ex: 1, 1)</label><input id="typed-tf-den" type="text" class="touch-control" value="1, 1" aria-label="Denominador da TransferFunction" /></div>`,
+    `<div class="tool-field"><label for="typed-tf-dt">dt (vazio = contínuo)</label><input id="typed-tf-dt" type="number" min="0" step="any" placeholder="contínuo" class="touch-control" aria-label="Passo dt da TransferFunction" /></div>`,
+    `</div>`,
+    `<div class="panel-actions"><button type="button" id="btn-register-tf-builder" class="touch-control" data-action="register-tf-builder">Registrar TransferFunction</button></div>`,
+    `</div>`,
+    `<div class="tool-field">`,
+    `<label for="typed-object-json">Registrar Objeto Canônico (JSON: Dataset, TransferFunction, StateSpace, IdentifiedModel, FuzzySystem, TS)</label>`,
+    `<textarea id="typed-object-json" class="touch-control" rows="3" data-field="typed-object-json" aria-label="Registrar objeto canônico JSON"></textarea>`,
+    `<p class="json-format-hint">Exemplos de JSON canônico — <strong>TransferFunction:</strong> <code>{"schema_version":"1.0.0","id":"tf-1","revision":1,"kind":"TransferFunction","dt":null,"variable":"s","poly_order":"descending","num":[[{"shape":[1],"dtype":"float64","order":"C","data":[1]}]],"den":[[{"shape":[2],"dtype":"float64","order":"C","data":[1,1]}]],"units":{"time":"s","inputs":["u1"],"outputs":["y1"]}}</code> | <strong>Dataset:</strong> <code>{"schema_version":"1.0.0","id":"ds-1","revision":1,"kind":"Dataset","dt":0.05,"t":{"shape":[3],"dtype":"float64","order":"C","data":[0,0.05,0.1]},"u":{"shape":[3,1],"dtype":"float64","order":"C","data":[1,1,1]},"y":{"shape":[3,1],"dtype":"float64","order":"C","data":[0,0.05,0.1]}}</code></p>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-register-typed-object" class="touch-control" data-action="register-typed-object">Registrar Objeto Tipado</button>`,
+    `<select id="reuse-target-kind" class="touch-control" aria-label="Formato alvo de core.reuse_model">`,
+    `<option value="native">Formato nativo do modelo (native)</option>`,
+    `<option value="StateSpace">Converter para StateSpace (TF -> SS)</option>`,
+    `</select>`,
+    `<button type="button" id="btn-reuse-model" class="touch-control" data-action="reuse-model">Derivar via core.reuse_model</button>`,
+    `<button type="button" id="btn-register-pending-identified" class="touch-control" data-action="register-pending-identified" disabled aria-disabled="true">Registrar IdentifiedModel Pendente</button>`,
+    `<button type="button" id="btn-register-pending-derived" class="touch-control" data-action="register-pending-derived" disabled aria-disabled="true">Registrar Derivado Pendente</button>`,
+    `<button type="button" id="btn-apply-selected-to-lqr" class="touch-control" data-action="apply-selected-to-lqr">Aplicar StateSpace Selecionado ao LQR</button>`,
+    `</div>`,
+    `</div>`,
+    `<div id="typed-workspace-selectors-slot"></div>`,
+    `<div id="typed-workspace-status-slot"></div>`,
+    `</section>`,
+    `</section>`,
+    `<section id="controllab-charts-panel" class="panel-card">`,
     `<div id="pz-chart-slot" class="chart-container"></div>`,
     `<div id="time-chart-slot" class="chart-container"></div>`,
-    `<details><summary>Tabela acessível de polos e valores (WCAG 2.2 AA)</summary><div id="pz-table-slot"></div></details>`,
-    `<details><summary>Tabela acessível da resposta temporal (WCAG 2.2 AA)</summary><div id="time-table-slot"></div></details>`,
+    `<details id="pz-table-details"><summary>Tabela acessível de polos e valores (WCAG 2.2 AA)</summary><div id="pz-table-slot"></div></details>`,
+    `<details id="time-table-details"><summary>Tabela acessível da resposta temporal (WCAG 2.2 AA)</summary><div id="time-table-slot"></div></details>`,
     `<section id="experiments-compare-panel" aria-label="Comparador de experimentos confirmados"><h3>Comparador de Experimentos Confirmados</h3><div id="experiments-compare-slot"></div></section>`,
     `</section>`,
     `</main>`,
@@ -388,6 +688,25 @@ export function mountControlLabApp(
   const idResidualsChartSlotEl = container.querySelector<HTMLElement>("#id-residuals-chart-slot");
   const idResponseTableSlotEl = container.querySelector<HTMLElement>("#id-response-table-slot");
   const idResidualsTableSlotEl = container.querySelector<HTMLElement>("#id-residuals-table-slot");
+  const statespaceWorkspacePanelEl = container.querySelector<HTMLElement>("#statespace-workspace-panel");
+  const lqrInteractiveBarEl = container.querySelector<HTMLElement>(".lqr-interactive-bar");
+  const lqrMatrixEditorEl = container.querySelector<HTMLElement>("#lqr-matrix-editor");
+  const lqrPresetSelectEl = container.querySelector<HTMLSelectElement>("#lqr-preset-select");
+  const lqrDimNEl = container.querySelector<HTMLInputElement>("#lqr-dim-n");
+  const lqrDimMEl = container.querySelector<HTMLInputElement>("#lqr-dim-m");
+  const lqrDimPEl = container.querySelector<HTMLInputElement>("#lqr-dim-p");
+  const lqrDimDtEl = container.querySelector<HTMLInputElement>("#lqr-dim-dt");
+  const lqrMatrixGridsEl = container.querySelector<HTMLElement>("#lqr-matrix-grids");
+  const lqrJsonAdvancedEl = container.querySelector<HTMLElement>("#lqr-json-advanced");
+  const pvmExportOptionsEl = container.querySelector<HTMLElement>("#pvm-export-options");
+  const typedTfIdEl = container.querySelector<HTMLInputElement>("#typed-tf-id");
+  const typedTfNumEl = container.querySelector<HTMLInputElement>("#typed-tf-num");
+  const typedTfDenEl = container.querySelector<HTMLInputElement>("#typed-tf-den");
+  const typedTfDtEl = container.querySelector<HTMLInputElement>("#typed-tf-dt");
+  const chartsPanelEl = container.querySelector<HTMLElement>("#controllab-charts-panel");
+  const pzTableDetailsEl = container.querySelector<HTMLElement>("#pz-table-details");
+  const timeTableDetailsEl = container.querySelector<HTMLElement>("#time-table-details");
+  const experimentsComparePanelEl = container.querySelector<HTMLElement>("#experiments-compare-panel");
   const sisoWorkspacePanelEl = container.querySelector<HTMLElement>("#siso-workspace-panel");
   const sisoWMinEl = container.querySelector<HTMLInputElement>("#siso-w-min");
   const sisoWMaxEl = container.querySelector<HTMLInputElement>("#siso-w-max");
@@ -467,8 +786,130 @@ export function mountControlLabApp(
     }
   };
 
+  const renderMatrixEditorGrids = (
+    dims: { n: number; m: number; p: number },
+    values: {
+      A: number[];
+      B: number[];
+      C: number[];
+      D: number[];
+      Q: number[];
+      R: number[];
+      x0: number[];
+    },
+  ): void => {
+    if (!lqrMatrixGridsEl) return;
+    lqrMatrixGridsEl.innerHTML = [
+      renderMatrixGridBlockHtml("A", "Matriz A", dims.n, dims.n, values.A),
+      renderMatrixGridBlockHtml("B", "Matriz B", dims.n, dims.m, values.B),
+      renderMatrixGridBlockHtml("C", "Matriz C", dims.p, dims.n, values.C),
+      renderMatrixGridBlockHtml("D", "Matriz D", dims.p, dims.m, values.D),
+      renderMatrixGridBlockHtml("Q", "Peso Q", dims.n, dims.n, values.Q),
+      renderMatrixGridBlockHtml("R", "Peso R", dims.m, dims.m, values.R),
+      renderMatrixGridBlockHtml("x0", "Estado x0", dims.n, 1, values.x0),
+    ].join("");
+  };
+
+  const readMatrixFromEditor = (
+    matrixName: "A" | "B" | "C" | "D" | "Q" | "R" | "x0",
+    rows: number,
+    cols: number,
+  ): number[] => {
+    const out: number[] = [];
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        const cell = lqrMatrixGridsEl?.querySelector<HTMLInputElement>(
+          `input[data-matrix="${matrixName}"][data-row="${r}"][data-col="${c}"]`,
+        );
+        const val = cell ? Number(cell.value) : 0;
+        if (!Number.isFinite(val)) {
+          throw new ControlLabBridgeError(
+            "VALIDATION_ERROR",
+            `Valor inválido em ${matrixName}[${r}][${c}].`,
+          );
+        }
+        out.push(val);
+      }
+    }
+    return out;
+  };
+
+  const syncLqrInputsFromWorkspace = (): void => {
+    const plant = lqr.getPlant();
+    const weights = lqr.getWeights();
+    const syncKey = JSON.stringify({
+      rev: plant.revision,
+      A: plant.matrices.A.data,
+      B: plant.matrices.B.data,
+      C: plant.matrices.C.data,
+      D: plant.matrices.D.data,
+      dt: plant.dt,
+      Q: weights.Q.data,
+      R: weights.R.data,
+      x0: weights.x0.data,
+    });
+    if (syncKey === lastSyncedLqrEditorKey) return;
+    lastSyncedLqrEditorKey = syncKey;
+    editorDims = {
+      n: plant.matrices.A.shape[0],
+      m: plant.matrices.B.shape[1],
+      p: plant.matrices.C.shape[0],
+    };
+    if (lqrDimNEl && doc?.activeElement !== lqrDimNEl) lqrDimNEl.value = String(editorDims.n);
+    if (lqrDimMEl && doc?.activeElement !== lqrDimMEl) lqrDimMEl.value = String(editorDims.m);
+    if (lqrDimPEl && doc?.activeElement !== lqrDimPEl) lqrDimPEl.value = String(editorDims.p);
+    if (lqrDimDtEl && doc?.activeElement !== lqrDimDtEl) {
+      lqrDimDtEl.value = plant.dt === null ? "" : String(plant.dt);
+    }
+    renderMatrixEditorGrids(editorDims, {
+      A: plant.matrices.A.data,
+      B: plant.matrices.B.data,
+      C: plant.matrices.C.data,
+      D: plant.matrices.D.data,
+      Q: weights.Q.data,
+      R: weights.R.data,
+      x0: weights.x0.data,
+    });
+    if (plantJsonInputEl && doc?.activeElement !== plantJsonInputEl) {
+      plantJsonInputEl.value = JSON.stringify(plant);
+    }
+    if (weightsJsonInputEl && doc?.activeElement !== weightsJsonInputEl) {
+      weightsJsonInputEl.value = JSON.stringify({
+        Q: weights.Q,
+        R: weights.R,
+        x0: weights.x0,
+      });
+    }
+  };
+
   const render = (): void => {
     const activeTab = shell.getActiveTab();
+    if (activeTab !== lastSyncedHashTab) {
+      lastSyncedHashTab = activeTab;
+      writeTabToLocationHash(activeTab);
+    }
+    const isStatespace = activeTab === "statespace";
+    const isIdentification = activeTab === "identification";
+    const isSiso = activeTab === "siso_frequency";
+
+    setHidden(statespaceWorkspacePanelEl, !isStatespace);
+    setHidden(lqrInteractiveBarEl, !isStatespace);
+    setHidden(lqrMatrixEditorEl, !isStatespace);
+    setHidden(lqrJsonAdvancedEl, !isStatespace);
+    setHidden(pvmExportOptionsEl, !isStatespace);
+    setHidden(kDisplaySlotEl, !isStatespace);
+    setHidden(diagnosticsPanelEl, !isStatespace);
+    setHidden(idWorkspacePanelEl, !isIdentification);
+    setHidden(sisoWorkspacePanelEl, !isSiso);
+    setHidden(chartsPanelEl, !(isStatespace || isIdentification));
+    setHidden(pzChartSlotEl, !(isStatespace || isIdentification));
+    setHidden(pzTableDetailsEl, !(isStatespace || isIdentification));
+    setHidden(timeChartSlotEl, !isStatespace);
+    setHidden(timeTableDetailsEl, !isStatespace);
+    setHidden(experimentsComparePanelEl, !isStatespace);
+
+    syncLqrInputsFromWorkspace();
+
     const themeMode = shell.getThemeMode();
     const decimals = shell.getDisplayDecimals();
     const engineState = shell.getEngineState();
@@ -860,14 +1301,13 @@ export function mountControlLabApp(
           const idPzTable = buildAccessibleChartTable(idPzChart, decimals);
           pzTableSlotEl.innerHTML = renderAccessibleTableHtml(idPzTable);
         }
-      }
-    }
-
-    if (sisoWorkspacePanelEl) {
-      if (activeTab === "siso_frequency") {
-        sisoWorkspacePanelEl.removeAttribute("hidden");
       } else {
-        sisoWorkspacePanelEl.setAttribute("hidden", "true");
+        if (pzChartSlotEl) {
+          pzChartSlotEl.innerHTML = "";
+        }
+        if (pzTableSlotEl) {
+          pzTableSlotEl.innerHTML = `<p>Sem polos identificados ainda.</p>`;
+        }
       }
     }
 
@@ -1070,10 +1510,170 @@ export function mountControlLabApp(
     void lqr.commitCurrentDesign();
   });
 
+  container.querySelector<HTMLElement>('[data-action="lqr-apply-preset"]')?.addEventListener("click", () => {
+    try {
+      const presetId = lqrPresetSelectEl?.value ?? "double_integrator";
+      const preset = LQR_PRESETS[presetId];
+      if (!preset) return;
+      const basePlant = lqr.getPlant();
+      const nextPlant: CanonicalStateSpaceModel = {
+        schema_version: "1.0.0",
+        id: `plant-${preset.id}`,
+        revision: basePlant.revision + 1,
+        kind: "StateSpace",
+        dt: preset.dt,
+        state_names: Array.from({ length: preset.n }, (_, i) => `x${i + 1}`),
+        input_names: Array.from({ length: preset.m }, (_, i) => `u${i + 1}`),
+        output_names: Array.from({ length: preset.p }, (_, i) => `y${i + 1}`),
+        matrices: {
+          A: makeFloat64Tensor([preset.n, preset.n], [...preset.A]),
+          B: makeFloat64Tensor([preset.n, preset.m], [...preset.B]),
+          C: makeFloat64Tensor([preset.p, preset.n], [...preset.C]),
+          D: makeFloat64Tensor([preset.p, preset.m], [...preset.D]),
+        },
+        units: {
+          time: "s",
+          states: Array.from({ length: preset.n }, () => ""),
+          inputs: Array.from({ length: preset.m }, () => ""),
+          outputs: Array.from({ length: preset.p }, () => ""),
+        },
+        provenance: { source: `preset:${preset.id}` },
+      };
+      lqr.updatePlant(nextPlant);
+      lqr.updateWeights({
+        Q: makeFloat64Tensor([preset.n, preset.n], [...preset.Q]),
+        R: makeFloat64Tensor([preset.m, preset.m], [...preset.R]),
+        x0: makeFloat64Tensor([preset.n, 1], [...preset.x0]),
+      });
+    } catch (err: unknown) {
+      shell.presentError(err);
+    }
+  });
+
+  const handleDimChange = (): void => {
+    const clampDim = (val: number, min: number, max: number, fallback: number): number =>
+      Number.isInteger(val) ? Math.min(max, Math.max(min, val)) : fallback;
+    const nextN = clampDim(Number(lqrDimNEl?.value ?? editorDims.n), 1, 6, editorDims.n);
+    const nextM = clampDim(Number(lqrDimMEl?.value ?? editorDims.m), 1, 4, editorDims.m);
+    const nextP = clampDim(Number(lqrDimPEl?.value ?? editorDims.p), 1, 4, editorDims.p);
+    const prevN = editorDims.n;
+    const prevM = editorDims.m;
+    const prevP = editorDims.p;
+    const resize2D = (oldData: number[], oldR: number, oldC: number, newR: number, newC: number, diagDefault = 0): number[] => {
+      const res = new Array<number>(newR * newC).fill(0);
+      for (let r = 0; r < newR; r += 1) {
+        for (let c = 0; c < newC; c += 1) {
+          if (r < oldR && c < oldC) {
+            res[r * newC + c] = oldData[r * oldC + c] ?? 0;
+          } else if (r === c && diagDefault !== 0) {
+            res[r * newC + c] = diagDefault;
+          }
+        }
+      }
+      return res;
+    };
+    let oldA: number[] = [];
+    let oldB: number[] = [];
+    let oldC: number[] = [];
+    let oldD: number[] = [];
+    let oldQ: number[] = [];
+    let oldR: number[] = [];
+    let oldX0: number[] = [];
+    try {
+      oldA = readMatrixFromEditor("A", prevN, prevN);
+      oldB = readMatrixFromEditor("B", prevN, prevM);
+      oldC = readMatrixFromEditor("C", prevP, prevN);
+      oldD = readMatrixFromEditor("D", prevP, prevM);
+      oldQ = readMatrixFromEditor("Q", prevN, prevN);
+      oldR = readMatrixFromEditor("R", prevM, prevM);
+      oldX0 = readMatrixFromEditor("x0", prevN, 1);
+    } catch {
+      const plant = lqr.getPlant();
+      const weights = lqr.getWeights();
+      oldA = plant.matrices.A.data;
+      oldB = plant.matrices.B.data;
+      oldC = plant.matrices.C.data;
+      oldD = plant.matrices.D.data;
+      oldQ = weights.Q.data;
+      oldR = weights.R.data;
+      oldX0 = weights.x0.data;
+    }
+    editorDims = { n: nextN, m: nextM, p: nextP };
+    renderMatrixEditorGrids(editorDims, {
+      A: resize2D(oldA, prevN, prevN, nextN, nextN),
+      B: resize2D(oldB, prevN, prevM, nextN, nextM),
+      C: resize2D(oldC, prevP, prevN, nextP, nextN),
+      D: resize2D(oldD, prevP, prevM, nextP, nextM),
+      Q: resize2D(oldQ, prevN, prevN, nextN, nextN, 1),
+      R: resize2D(oldR, prevM, prevM, nextM, nextM, 1),
+      x0: resize2D(oldX0, prevN, 1, nextN, 1),
+    });
+  };
+  lqrDimNEl?.addEventListener("change", handleDimChange);
+  lqrDimMEl?.addEventListener("change", handleDimChange);
+  lqrDimPEl?.addEventListener("change", handleDimChange);
+
+  container.querySelector<HTMLElement>('[data-action="lqr-apply-matrices"]')?.addEventListener("click", () => {
+    try {
+      const { n, m, p } = editorDims;
+      const dtRaw = lqrDimDtEl?.value?.trim() ?? "";
+      const dtVal = dtRaw === "" ? null : Number(dtRaw);
+      if (dtVal !== null && (!Number.isFinite(dtVal) || dtVal <= 0)) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "dt deve ser vazio (contínuo) ou um número positivo > 0.",
+        );
+      }
+      const AData = readMatrixFromEditor("A", n, n);
+      const BData = readMatrixFromEditor("B", n, m);
+      const CData = readMatrixFromEditor("C", p, n);
+      const DData = readMatrixFromEditor("D", p, m);
+      const QData = readMatrixFromEditor("Q", n, n);
+      const RData = readMatrixFromEditor("R", m, m);
+      const x0Data = readMatrixFromEditor("x0", n, 1);
+
+      const basePlant = lqr.getPlant();
+      const nextPlant: CanonicalStateSpaceModel = {
+        schema_version: "1.0.0",
+        id: basePlant.id,
+        revision: basePlant.revision + 1,
+        kind: "StateSpace",
+        dt: dtVal,
+        state_names: Array.from({ length: n }, (_, i) => `x${i + 1}`),
+        input_names: Array.from({ length: m }, (_, i) => `u${i + 1}`),
+        output_names: Array.from({ length: p }, (_, i) => `y${i + 1}`),
+        matrices: {
+          A: makeFloat64Tensor([n, n], AData),
+          B: makeFloat64Tensor([n, m], BData),
+          C: makeFloat64Tensor([p, n], CData),
+          D: makeFloat64Tensor([p, m], DData),
+        },
+        units: {
+          time: basePlant.units.time,
+          states: Array.from({ length: n }, () => ""),
+          inputs: Array.from({ length: m }, () => ""),
+          outputs: Array.from({ length: p }, () => ""),
+        },
+        provenance: { source: "ui_matrix_editor" },
+      };
+      lqr.updatePlant(nextPlant);
+      lqr.updateWeights({
+        Q: makeFloat64Tensor([n, n], QData),
+        R: makeFloat64Tensor([m, m], RData),
+        x0: makeFloat64Tensor([n, 1], x0Data),
+      });
+    } catch (err: unknown) {
+      shell.presentError(err);
+    }
+  });
+
   container.querySelector<HTMLElement>('[data-action="apply-plant"]')?.addEventListener("click", () => {
     try {
       const raw = plantJsonInputEl?.value?.trim() ?? "";
-      const nextPlant = raw.length > 0 ? JSON.parse(raw) : lqr.getPlant();
+      const nextPlant =
+        raw.length > 0
+          ? normalizePlantJsonInput(JSON.parse(raw), lqr.getPlant())
+          : lqr.getPlant();
       lqr.updatePlant(nextPlant);
     } catch (err: unknown) {
       shell.presentError(err);
@@ -1085,7 +1685,7 @@ export function mountControlLabApp(
       const raw = weightsJsonInputEl?.value?.trim() ?? "";
       const nextWeights =
         raw.length > 0
-          ? JSON.parse(raw)
+          ? normalizeWeightsJsonInput(JSON.parse(raw))
           : {
               feedbackSign:
                 feedbackSelectEl?.value === "positive"
@@ -1093,6 +1693,49 @@ export function mountControlLabApp(
                   : lqr.getFeedbackSign(),
             };
       lqr.updateWeights(nextWeights);
+    } catch (err: unknown) {
+      shell.presentError(err);
+    }
+  });
+
+  container.querySelector<HTMLElement>('[data-action="register-tf-builder"]')?.addEventListener("click", () => {
+    try {
+      const tfId = (typedTfIdEl?.value?.trim() ?? "") || "tf-custom";
+      const numCoeffs = parseCommaNumberList(typedTfNumEl?.value ?? "", "Numerador");
+      const denCoeffs = parseCommaNumberList(typedTfDenEl?.value ?? "", "Denominador");
+      if (denCoeffs.every((v) => v === 0)) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Denominador da TransferFunction não pode ser identicamente nulo.",
+        );
+      }
+      const dtRaw = typedTfDtEl?.value?.trim() ?? "";
+      const dtVal = dtRaw === "" ? null : Number(dtRaw);
+      if (dtVal !== null && (!Number.isFinite(dtVal) || dtVal <= 0)) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "dt da TransferFunction deve ser vazio (contínuo) ou número positivo > 0.",
+        );
+      }
+      const dto = {
+        schema_version: "1.0.0",
+        id: tfId,
+        revision: 1,
+        kind: "TransferFunction",
+        dt: dtVal,
+        variable: dtVal === null ? "s" : "z",
+        poly_order: "descending",
+        num: [[makeFloat64Tensor([numCoeffs.length], numCoeffs)]],
+        den: [[makeFloat64Tensor([denCoeffs.length], denCoeffs)]],
+        units: { time: "s", inputs: ["u1"], outputs: ["y1"] },
+        provenance: { source: "ui_tf_builder" },
+      };
+      if (typedObjectJsonEl) {
+        typedObjectJsonEl.value = JSON.stringify(dto);
+      }
+      void typedWorkspace.registerTypedObject(dto).catch((err: unknown) => {
+        shell.presentError(err);
+      });
     } catch (err: unknown) {
       shell.presentError(err);
     }

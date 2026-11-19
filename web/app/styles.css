@@ -1149,8 +1149,267 @@ textarea {
   margin-bottom: 0.65rem;
 }
 
+/* Aba 4: Bancada MIMO */
+.mimo-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.35fr) minmax(260px, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.mimo-plant-pill {
+  font-size: 0.92rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.mimo-curve-toggles {
+  margin-bottom: 0.5rem;
+}
+
+.mimo-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.mimo-toggle-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+.mimo-rga-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+}
+
+.rga-cell strong {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+
+.rga-cell small {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.mimo-pairing-hint {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.85rem;
+}
+
+/* Aba 5: Bancada Fuzzy / TS */
+.fuzzy-main-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(300px, 1.1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.fuzzy-mf-params-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.fuzzy-param-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.fuzzy-term-name {
+  min-width: 44px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.fuzzy-param-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex: 1 1 200px;
+}
+
+.fuzzy-param-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.fuzzy-rules-matrix-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Aba 6: Bancada LMI / SDP (Editor estilo Monaco + Leitura Matemática + Certificado 5D) */
+.lmi-toolbar-row {
+  margin-bottom: 0.45rem;
+}
+
+.lmi-import-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.lmi-import-label input[type="file"] {
+  max-width: 180px;
+  min-height: 36px;
+}
+
+.lmi-editor-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.15fr) minmax(260px, 0.95fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.lmi-editor-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.lmi-editor-head h4 {
+  margin: 0;
+}
+
+.lmi-monaco-box {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.lmi-line-gutter {
+  margin: 0;
+  padding: 0.55rem 0.35rem;
+  background: var(--surface-alt);
+  color: var(--text-secondary);
+  border-right: 1px solid var(--border-subtle);
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  user-select: none;
+}
+
+.lmi-code-editor {
+  border: none;
+  border-radius: 0;
+  padding: 0.55rem 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  resize: vertical;
+  width: 100%;
+  min-width: 0;
+}
+
+.lmi-parsed-vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.lmi-parsed-math {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+}
+
+.lmi-math-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.lmi-math-idx {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.lmi-bmat-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.lmi-bmat-grid {
+  border-left: 2px solid var(--text-primary);
+  border-right: 2px solid var(--text-primary);
+  border-collapse: collapse;
+  padding: 0.15rem 0.35rem;
+}
+
+.lmi-bmat-grid td {
+  padding: 0.2rem 0.45rem;
+  text-align: center;
+  border: 1px dotted var(--border-subtle);
+}
+
+.lmi-cert-dims-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.lmi-cert-dim {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1400px) {
-  .app-workbench-shell.inspector-open .workspace-two-col {
+  .app-workbench-shell.inspector-open .workspace-two-col,
+  .app-workbench-shell.inspector-open .mimo-workbench-grid,
+  .app-workbench-shell.inspector-open .fuzzy-main-grid,
+  .app-workbench-shell.inspector-open .lmi-editor-split {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -1170,13 +1429,17 @@ textarea {
     grid-column: 1 / -1;
   }
 
-  .siso-charts-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .siso-charts-grid,
+  .lmi-cert-dims-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 1120px) {
-  .workspace-two-col {
+  .workspace-two-col,
+  .mimo-workbench-grid,
+  .fuzzy-main-grid,
+  .lmi-editor-split {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -1190,6 +1453,10 @@ textarea {
   .controllab-main.single-main-col,
   .controllab-main.tab-identification,
   .workspace-two-col,
+  .mimo-workbench-grid,
+  .fuzzy-main-grid,
+  .lmi-editor-split,
+  .lmi-cert-dims-grid,
   .lqr-kpi-cards {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -63,6 +63,9 @@ import {
   StatespaceView,
   type StatespaceExportModalRequest,
 } from "../features/views/statespace_view.ts";
+import { MimoView, renderMimoViewHtml } from "../features/views/mimo_view.ts";
+import { FuzzyView, renderFuzzyViewHtml } from "../features/views/fuzzy_view.ts";
+import { LmiView, renderLmiViewHtml } from "../features/views/lmi_view.ts";
 
 export interface MountControlLabOptions {
   engineMode?: "pyodide" | "mock";
@@ -308,6 +311,9 @@ export function mountControlLabApp(
     renderIdentificationViewHtml(),
     renderSisoViewHtml(),
     renderStatespaceViewHtml(initialDims),
+    renderMimoViewHtml(),
+    renderFuzzyViewHtml(),
+    renderLmiViewHtml(),
     `<div id="controllab-tools-slot" class="declarative-tools"></div>`,
     `<section id="typed-workspace-panel" class="panel-card" aria-label="Insumos tipados da sessão">`,
     `<h3>Insumos Tipados da Sessão (Dataset / Modelo / Sistema)</h3>`,
@@ -470,6 +476,27 @@ export function mountControlLabApp(
     container,
     onOpenExportModal: openExportModal,
   });
+  let requestAppRender: () => void = () => {};
+  const mimoView = new MimoView({
+    shell,
+    client,
+    container,
+    onRequestRender: () => requestAppRender(),
+  });
+  const fuzzyView = new FuzzyView({
+    shell,
+    client,
+    container,
+    onRequestRender: () => requestAppRender(),
+    onOpenExportModal: openExportModal,
+  });
+  const lmiView = new LmiView({
+    shell,
+    client,
+    container,
+    onRequestRender: () => requestAppRender(),
+    onOpenExportModal: openExportModal,
+  });
 
   const render = (): void => {
     const activeTab = shell.getActiveTab();
@@ -480,6 +507,9 @@ export function mountControlLabApp(
     const isStatespace = activeTab === "statespace";
     const isIdentification = activeTab === "identification";
     const isSiso = activeTab === "siso_frequency";
+    const isMimo = activeTab === "mimo_frequency";
+    const isFuzzy = activeTab === "fuzzy_ts";
+    const isLmi = activeTab === "optimization_lmi";
 
     setHidden(chartsPanelEl, !(isStatespace || isIdentification));
     setHidden(pzChartSlotEl, !(isStatespace || isIdentification));
@@ -548,6 +578,9 @@ export function mountControlLabApp(
     identificationView.render();
     sisoView.render();
     statespaceView.render();
+    mimoView.render();
+    fuzzyView.render();
+    lmiView.render();
 
     if (isStatespace) {
       const pzChart = lqr.buildPoleZeroChart();
@@ -682,6 +715,9 @@ export function mountControlLabApp(
       "siso-nyquist-chart-slot": isSiso,
       "siso-rl-chart-slot": isSiso,
       "siso-time-chart-slot": isSiso,
+      "mimo-sigma-chart-slot": isMimo,
+      "fuzzy-surface-chart-slot": isFuzzy,
+      "lmi-spectrum-chart-slot": isLmi,
       "pz-chart-slot": isStatespace || isIdentification,
       "time-chart-slot": isStatespace,
     };
@@ -1190,6 +1226,7 @@ export function mountControlLabApp(
     globalThis.addEventListener("blur", onWindowBlur);
   }
 
+  requestAppRender = render;
   const unsubShell = shell.subscribe(render);
   const unsubAnnouncer = shell.getAnnouncer().subscribe((entry) => {
     if (entry.politeness === "assertive" && liveAssertiveEl) {

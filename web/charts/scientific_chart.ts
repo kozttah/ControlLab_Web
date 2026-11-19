@@ -213,13 +213,52 @@ export interface RootLocusChartModel extends ChartCommonMetadata {
   overlays: readonly RequirementOverlay[];
 }
 
+export interface SingularValueCurve {
+  id: string;
+  label: string;
+  group: "G" | "S" | "T" | "KS";
+  omega: readonly number[];
+  values_db: readonly number[];
+  stroke_dasharray?: string;
+}
+
+export interface SingularValuesChartModel extends ChartCommonMetadata {
+  kind: "singular_values";
+  dt: number | null;
+  omega: readonly number[];
+  curves: readonly SingularValueCurve[];
+}
+
+export interface FuzzySurfaceChartModel extends ChartCommonMetadata {
+  kind: "fuzzy_surface";
+  axes: readonly string[];
+  output_name: string;
+  x0_grid: readonly number[];
+  x1_grid: readonly number[] | null;
+  /** 2D surface values z[i][j] when axes.length === 2, or null when 1D. */
+  z_matrix: ReadonlyArray<readonly number[]> | null;
+  /** 1D curve values z[i] when axes.length === 1, or null when 2D. */
+  z_line: readonly number[] | null;
+}
+
+export interface LmiSpectrumChartModel extends ChartCommonMetadata {
+  kind: "lmi_spectrum";
+  block_min_eigs: readonly number[];
+  block_labels: readonly string[];
+  closed_loop_poles: ComplexVectorPair | null;
+  alpha: number | null;
+}
+
 export type ScientificChartModel =
   | PoleZeroChartModel
   | TimeResponseChartModel
   | ResidualCorrelationChartModel
   | BodeChartModel
   | NyquistChartModel
-  | RootLocusChartModel;
+  | RootLocusChartModel
+  | SingularValuesChartModel
+  | FuzzySurfaceChartModel
+  | LmiSpectrumChartModel;
 
 export function buildIdentificationResponseChartModel(input: {
   chart_id?: string;
@@ -1872,6 +1911,442 @@ export function renderTimeResponseSvg(
   ].join("");
 }
 
+export function buildSingularValuesChartModel(input: {
+  chart_id?: string;
+  title?: string;
+  dt: number | null;
+  omega: readonly number[];
+  curves: readonly SingularValueCurve[];
+  model_revision: number | null;
+  project_revision: number | null;
+  provenance: Provenance | null;
+  series_semantics?: ResultVerificationIndicator;
+  theme_mode?: AccessibilityThemeMode;
+}): SingularValuesChartModel {
+  return {
+    kind: "singular_values",
+    chart_id: input.chart_id ?? "mimo-singular-values",
+    title: input.title ?? "Valores Singulares MIMO σ(G, S, T, KS)",
+    dt: input.dt,
+    omega: [...input.omega],
+    curves: input.curves.map((c) => ({ ...c, omega: [...c.omega], values_db: [...c.values_db] })),
+    model_revision: input.model_revision,
+    project_revision: input.project_revision,
+    provenance: input.provenance,
+    series_semantics: input.series_semantics ?? "numeric_verified",
+    units: {
+      x_axis: "Frequência ω [rad/s]",
+      y_axis: "Valor Singular [dB]",
+    },
+    theme_mode: input.theme_mode,
+  };
+}
+
+export function renderSingularValuesSvg(
+  model: SingularValuesChartModel,
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    visibleGroups?: ReadonlySet<string>;
+  },
+): string {
+  const widthPx = options?.widthPx ?? 640;
+  const heightPx = options?.heightPx ?? 380;
+  const decimals = options?.decimals ?? 3;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const visibleGroups = options?.visibleGroups;
+
+  const activeCurves = visibleGroups
+    ? model.curves.filter((c) => visibleGroups.has(c.group))
+    : model.curves;
+
+  const padLeft = 64;
+  const padRight = 24;
+  const padTop = 44;
+  const padBottom = 50;
+  const plotW = widthPx - padLeft - padRight;
+  const plotH = heightPx - padTop - padBottom;
+
+  const validW = model.omega.filter((w) => Number.isFinite(w) && w > 0);
+  const minW = validW.length > 0 ? Math.min(...validW) : 0.01;
+  const maxW = validW.length > 0 ? Math.max(...validW) : 100;
+  const logMinW = Math.log10(Math.max(1e-6, minW));
+  const logMaxW = Math.max(logMinW + 1e-3, Math.log10(Math.max(1e-5, maxW)));
+
+  const allDb: number[] = [];
+  for (const c of activeCurves) {
+    for (const v of c.values_db) {
+      if (Number.isFinite(v)) allDb.push(v);
+    }
+  }
+  const yBounds = computeSafeAxisBounds(allDb, 0.12);
+
+  const toPxX = (w: number) => {
+    const lw = Math.log10(Math.max(1e-6, w));
+    return padLeft + ((lw - logMinW) / (logMaxW - logMinW)) * plotW;
+  };
+  const toPxY = (db: number) => mapCoord(db, yBounds.min, yBounds.span, padTop, plotH, true);
+
+  const groupColor = (g: SingularValueCurve["group"]): string => {
+    if (g === "G") return theme.chartClosedLoop;
+    if (g === "S") return theme.chartOpenLoop;
+    if (g === "T") return theme.chartOverlayExact;
+    return theme.chartPreview;
+  };
+
+  const minDecade = Math.floor(logMinW);
+  const maxDecade = Math.ceil(logMaxW);
+  const freqGridLines: string[] = [];
+  for (let d = minDecade; d <= maxDecade; d += 1) {
+    const wVal = 10 ** d;
+    if (wVal >= minW && wVal <= maxW) {
+      const gx = toPxX(wVal);
+      freqGridLines.push(
+        `<line x1="${gx.toFixed(1)}" y1="${padTop}" x2="${gx.toFixed(1)}" y2="${padTop + plotH}" stroke="${theme.chartGrid}" stroke-dasharray="2 3" stroke-width="0.8" />`,
+        `<text x="${gx.toFixed(1)}" y="${padTop + plotH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">10<tspan dy="-4" font-size="8">${d}</tspan></text>`,
+      );
+    }
+  }
+
+  const zeroDbLine =
+    yBounds.min <= 0 && yBounds.max >= 0
+      ? `<line x1="${padLeft}" y1="${toPxY(0).toFixed(1)}" x2="${padLeft + plotW}" y2="${toPxY(0).toFixed(1)}" stroke="${theme.chartGrid}" stroke-dasharray="4 3" stroke-width="1.2" data-reference-line="0db" />`
+      : "";
+
+  const yTicks = [yBounds.min, (yBounds.min + yBounds.max) / 2, yBounds.max]
+    .map((v) => {
+      const py = toPxY(v).toFixed(1);
+      return `<line x1="${padLeft - 4}" y1="${py}" x2="${padLeft}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${padLeft - 7}" y="${(Number(py) + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+    })
+    .join("");
+
+  const polylines: string[] = [];
+  const legendItems: string[] = [];
+  activeCurves.forEach((curve, idx) => {
+    const n = Math.min(curve.omega.length, curve.values_db.length);
+    const pts: string[] = [];
+    for (let i = 0; i < n; i += 1) {
+      const w = curve.omega[i];
+      const v = curve.values_db[i];
+      if (Number.isFinite(w) && w > 0 && Number.isFinite(v)) {
+        pts.push(`${toPxX(w).toFixed(1)},${toPxY(v).toFixed(1)}`);
+      }
+    }
+    const color = groupColor(curve.group);
+    const dash = curve.stroke_dasharray ?? (idx % 2 === 1 ? "6 3" : "");
+    if (pts.length > 0) {
+      polylines.push(
+        `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="${dash}" points="${pts.join(" ")}" data-curve-id="${escapeHtml(curve.id)}" data-curve-group="${escapeHtml(curve.group)}"><title>${escapeHtml(curve.label)} [dB]</title></polyline>`,
+      );
+    }
+    const lx = padLeft + 8 + (idx % 3) * 180;
+    const ly = padTop + 14 + Math.floor(idx / 3) * 14;
+    legendItems.push(
+      `<text x="${lx}" y="${ly}" font-size="10" fill="${color}">${dash ? "--" : "—"} ${escapeHtml(curve.label)}</text>`,
+    );
+  });
+
+  const desc = `${model.title}: ${activeCurves.length} curvas ativas em [${minW.toExponential(2)}, ${maxW.toExponential(2)}] rad/s.`;
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeHtml(model.title)}" class="scientific-chart-svg singular-values-chart" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}" data-chart-kind="singular_values" data-chart-id="${escapeHtml(model.chart_id)}">`,
+    `<title>${escapeHtml(model.title)}</title>`,
+    `<desc>${escapeHtml(desc)}</desc>`,
+    `<rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${theme.surface}" />`,
+    `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="${theme.surfaceAlt}" stroke="${theme.border}" stroke-width="1" />`,
+    ...freqGridLines,
+    zeroDbLine,
+    `<g class="axis-ticks" data-layer="axis-ticks">${yTicks}</g>`,
+    `<g data-layer="curves">${polylines.join("")}</g>`,
+    `<g class="chart-legend" data-layer="legend">${legendItems.join("")}</g>`,
+    `<text x="${padLeft}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${escapeHtml(model.series_semantics)}]</text>`,
+    `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">${escapeHtml(model.units.x_axis)}</text>`,
+    `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">${escapeHtml(model.units.y_axis)}</text>`,
+    `</svg>`,
+  ].join("");
+}
+
+export function buildFuzzySurfaceChartModel(input: {
+  chart_id?: string;
+  title?: string;
+  axes: readonly string[];
+  output_name: string;
+  x0_grid: readonly number[];
+  x1_grid: readonly number[] | null;
+  z_matrix: ReadonlyArray<readonly number[]> | null;
+  z_line: readonly number[] | null;
+  model_revision: number | null;
+  project_revision: number | null;
+  provenance: Provenance | null;
+  series_semantics?: ResultVerificationIndicator;
+  theme_mode?: AccessibilityThemeMode;
+}): FuzzySurfaceChartModel {
+  return {
+    kind: "fuzzy_surface",
+    chart_id: input.chart_id ?? "fuzzy-control-surface",
+    title: input.title ?? `Superfície de Controle Fuzzy: ${input.output_name}`,
+    axes: [...input.axes],
+    output_name: input.output_name,
+    x0_grid: [...input.x0_grid],
+    x1_grid: input.x1_grid ? [...input.x1_grid] : null,
+    z_matrix: input.z_matrix ? input.z_matrix.map((row) => [...row]) : null,
+    z_line: input.z_line ? [...input.z_line] : null,
+    model_revision: input.model_revision,
+    project_revision: input.project_revision,
+    provenance: input.provenance,
+    series_semantics: input.series_semantics ?? "numeric_verified",
+    units: {
+      x_axis: input.axes[0] ?? "x0",
+      y_axis: input.axes[1] ?? input.output_name,
+    },
+    theme_mode: input.theme_mode,
+  };
+}
+
+function interpolateHeatmapColor(tNorm: number): string {
+  const t = Math.max(0, Math.min(1, tNorm));
+  // Perceptually clear blue (#1e3a8a) -> teal (#0d9488) -> amber (#f59e0b) -> coral (#dc2626)
+  const stops: ReadonlyArray<[number, number, number]> = [
+    [30, 58, 138],
+    [13, 148, 136],
+    [245, 158, 11],
+    [220, 38, 38],
+  ];
+  const scaled = t * (stops.length - 1);
+  const idx = Math.min(stops.length - 2, Math.floor(scaled));
+  const frac = scaled - idx;
+  const c0 = stops[idx];
+  const c1 = stops[idx + 1];
+  const r = Math.round(c0[0] + (c1[0] - c0[0]) * frac);
+  const g = Math.round(c0[1] + (c1[1] - c0[1]) * frac);
+  const b = Math.round(c0[2] + (c1[2] - c0[2]) * frac);
+  return `rgb(${r},${g},${b})`;
+}
+
+export function renderFuzzySurfaceSvg(
+  model: FuzzySurfaceChartModel,
+  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+): string {
+  const widthPx = options?.widthPx ?? 640;
+  const heightPx = options?.heightPx ?? 400;
+  const decimals = options?.decimals ?? 3;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+
+  const padLeft = 64;
+  const padRight = 84;
+  const padTop = 42;
+  const padBottom = 50;
+  const plotW = widthPx - padLeft - padRight;
+  const plotH = heightPx - padTop - padBottom;
+
+  if (model.axes.length === 1 || !model.z_matrix || !model.x1_grid) {
+    const xVals = model.x0_grid;
+    const zVals = model.z_line ?? [];
+    const xBounds = computeSafeAxisBounds(xVals, 0.02);
+    const yBounds = computeSafeAxisBounds(zVals, 0.12);
+    const toPxX = (v: number) => mapCoord(v, xBounds.min, xBounds.span, padLeft, plotW, false);
+    const toPxY = (v: number) => mapCoord(v, yBounds.min, yBounds.span, padTop, plotH, true);
+    const pts: string[] = [];
+    for (let i = 0; i < Math.min(xVals.length, zVals.length); i += 1) {
+      pts.push(`${toPxX(xVals[i]).toFixed(1)},${toPxY(zVals[i]).toFixed(1)}`);
+    }
+    return [
+      `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeHtml(model.title)}" class="scientific-chart-svg fuzzy-surface-chart" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}" data-chart-kind="fuzzy_surface" data-chart-id="${escapeHtml(model.chart_id)}">`,
+      `<title>${escapeHtml(model.title)}</title>`,
+      `<rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${theme.surface}" />`,
+      `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="${theme.surfaceAlt}" stroke="${theme.border}" stroke-width="1" />`,
+      `<polyline fill="none" stroke="${theme.chartClosedLoop}" stroke-width="2.4" points="${pts.join(" ")}" />`,
+      `<text x="${padLeft}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)}</text>`,
+      `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">${escapeHtml(model.axes[0] ?? "x0")}</text>`,
+      `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">${escapeHtml(model.output_name)}</text>`,
+      `</svg>`,
+    ].join("");
+  }
+
+  const nx = model.x0_grid.length;
+  const ny = model.x1_grid.length;
+  const flatZ: number[] = [];
+  for (const row of model.z_matrix) {
+    for (const val of row) {
+      if (Number.isFinite(val)) flatZ.push(val);
+    }
+  }
+  const zMin = flatZ.length > 0 ? Math.min(...flatZ) : -1;
+  const zMax = flatZ.length > 0 ? Math.max(...flatZ) : 1;
+  const zSpan = Math.abs(zMax - zMin) <= 1e-12 ? 1 : zMax - zMin;
+
+  const cellW = plotW / Math.max(1, nx);
+  const cellH = plotH / Math.max(1, ny);
+  const cellsSvg: string[] = [];
+  for (let i = 0; i < nx; i += 1) {
+    const row = model.z_matrix[i] ?? [];
+    for (let j = 0; j < ny; j += 1) {
+      const val = row[j] ?? 0;
+      const norm = Math.abs(zMax - zMin) <= 1e-12 ? 0.5 : (val - zMin) / zSpan;
+      const xPx = padLeft + i * cellW;
+      const yPx = padTop + (ny - 1 - j) * cellH;
+      cellsSvg.push(
+        `<rect x="${xPx.toFixed(2)}" y="${yPx.toFixed(2)}" width="${(cellW + 0.4).toFixed(2)}" height="${(cellH + 0.4).toFixed(2)}" fill="${interpolateHeatmapColor(norm)}"><title>${escapeHtml(model.axes[0])}=${formatNumericDisplay(model.x0_grid[i], decimals)}, ${escapeHtml(model.axes[1])}=${formatNumericDisplay(model.x1_grid[j], decimals)} → ${escapeHtml(model.output_name)}=${formatNumericDisplay(val, decimals)}</title></rect>`,
+      );
+    }
+  }
+
+  // Colorbar
+  const cbX = padLeft + plotW + 14;
+  const cbW = 16;
+  const cbSteps = 16;
+  const cbSegH = plotH / cbSteps;
+  const cbSvg: string[] = [];
+  for (let k = 0; k < cbSteps; k += 1) {
+    const norm = 1 - k / (cbSteps - 1);
+    cbSvg.push(
+      `<rect x="${cbX}" y="${(padTop + k * cbSegH).toFixed(1)}" width="${cbW}" height="${(cbSegH + 0.5).toFixed(1)}" fill="${interpolateHeatmapColor(norm)}" />`,
+    );
+  }
+  cbSvg.push(
+    `<rect x="${cbX}" y="${padTop}" width="${cbW}" height="${plotH}" fill="none" stroke="${theme.border}" stroke-width="1" />`,
+    `<text x="${cbX + cbW + 5}" y="${padTop + 10}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(zMax, decimals))}</text>`,
+    `<text x="${cbX + cbW + 5}" y="${(padTop + plotH / 2 + 3).toFixed(1)}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(0.5 * (zMin + zMax), decimals))}</text>`,
+    `<text x="${cbX + cbW + 5}" y="${padTop + plotH}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(zMin, decimals))}</text>`,
+  );
+
+  const xTicks =
+    nx > 0
+      ? [0, Math.floor((nx - 1) / 2), nx - 1].map((idx) => {
+          const px = padLeft + (idx + 0.5) * cellW;
+          return `<text x="${px.toFixed(1)}" y="${padTop + plotH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(model.x0_grid[idx], decimals))}</text>`;
+        })
+      : [];
+  const yTicks =
+    ny > 0
+      ? [0, Math.floor((ny - 1) / 2), ny - 1].map((idx) => {
+          const py = padTop + (ny - 1 - idx + 0.5) * cellH;
+          return `<text x="${padLeft - 6}" y="${(py + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(model.x1_grid![idx], decimals))}</text>`;
+        })
+      : [];
+
+  const desc = `Superfície de controle fuzzy 2D (${nx}×${ny}) para ${model.output_name} em [${formatNumericDisplay(zMin, decimals)}, ${formatNumericDisplay(zMax, decimals)}].`;
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeHtml(model.title)}" class="scientific-chart-svg fuzzy-surface-chart" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}" data-chart-kind="fuzzy_surface" data-chart-id="${escapeHtml(model.chart_id)}">`,
+    `<title>${escapeHtml(model.title)}</title>`,
+    `<desc>${escapeHtml(desc)}</desc>`,
+    `<rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${theme.surface}" />`,
+    `<g data-layer="heatmap">${cellsSvg.join("")}</g>`,
+    `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="none" stroke="${theme.border}" stroke-width="1" />`,
+    `<g data-layer="colorbar">${cbSvg.join("")}</g>`,
+    `<g class="axis-ticks" data-layer="axis-ticks">${xTicks.join("")}${yTicks.join("")}</g>`,
+    `<text x="${padLeft}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)}</text>`,
+    `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">${escapeHtml(model.axes[0] ?? "x0")}</text>`,
+    `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">${escapeHtml(model.axes[1] ?? "x1")}</text>`,
+    `</svg>`,
+  ].join("");
+}
+
+export function buildLmiSpectrumChartModel(input: {
+  chart_id?: string;
+  title?: string;
+  block_min_eigs: readonly number[];
+  block_labels?: readonly string[];
+  closed_loop_poles?: ComplexVectorPair | null;
+  alpha?: number | null;
+  model_revision: number | null;
+  project_revision: number | null;
+  provenance: Provenance | null;
+  series_semantics?: ResultVerificationIndicator;
+  theme_mode?: AccessibilityThemeMode;
+}): LmiSpectrumChartModel {
+  const labels =
+    input.block_labels && input.block_labels.length === input.block_min_eigs.length
+      ? [...input.block_labels]
+      : input.block_min_eigs.map((_, i) => `Bloco LMI F_${i + 1}(x*)`);
+  return {
+    kind: "lmi_spectrum",
+    chart_id: input.chart_id ?? "lmi-eigenvalue-spectrum",
+    title: input.title ?? "Espectro de Autovalores Mínimos dos Blocos LMI λ_min(F_b(x*))",
+    block_min_eigs: [...input.block_min_eigs],
+    block_labels: labels,
+    closed_loop_poles: input.closed_loop_poles ?? null,
+    alpha: input.alpha ?? null,
+    model_revision: input.model_revision,
+    project_revision: input.project_revision,
+    provenance: input.provenance,
+    series_semantics: input.series_semantics ?? "numeric_verified",
+    units: {
+      x_axis: "Autovalor mínimo λ_min(F_b(x*))",
+      y_axis: "Bloco cônico",
+    },
+    theme_mode: input.theme_mode,
+  };
+}
+
+export function renderLmiSpectrumSvg(
+  model: LmiSpectrumChartModel,
+  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+): string {
+  const widthPx = options?.widthPx ?? 640;
+  const heightPx = options?.heightPx ?? 280;
+  const decimals = options?.decimals ?? 4;
+  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+
+  const padLeft = 140;
+  const padRight = 32;
+  const padTop = 44;
+  const padBottom = 44;
+  const plotW = widthPx - padLeft - padRight;
+  const plotH = heightPx - padTop - padBottom;
+
+  const vals = [0, ...model.block_min_eigs.filter(Number.isFinite)];
+  const xBounds = computeSafeAxisBounds(vals, 0.15);
+  const toPxX = (v: number) => mapCoord(v, xBounds.min, xBounds.span, padLeft, plotW, false);
+  const zeroX = toPxX(0);
+
+  const count = Math.max(1, model.block_min_eigs.length);
+  const rowH = plotH / count;
+  const barsSvg: string[] = [];
+
+  for (let i = 0; i < model.block_min_eigs.length; i += 1) {
+    const lam = model.block_min_eigs[i];
+    const label = model.block_labels[i] ?? `Bloco ${i + 1}`;
+    const yCenter = padTop + (i + 0.5) * rowH;
+    const barH = Math.min(26, Math.max(10, rowH * 0.55));
+    const lamX = toPxX(lam);
+    const barX = Math.min(zeroX, lamX);
+    const barW = Math.max(2, Math.abs(lamX - zeroX));
+    const fillCol =
+      lam < -1e-9
+        ? theme.chartOpenLoop
+        : lam <= 1e-6
+          ? theme.chartPreview
+          : theme.chartOverlayExact;
+
+    barsSvg.push(
+      `<text x="${padLeft - 8}" y="${(yCenter + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="${theme.textPrimary}">${escapeHtml(label)}</text>`,
+      `<rect x="${barX.toFixed(1)}" y="${(yCenter - barH / 2).toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="3" fill="${fillCol}" data-lmi-block="${i}"><title>${escapeHtml(label)}: λ_min=${formatNumericDisplay(lam, decimals)}</title></rect>`,
+      `<text x="${(lam >= 0 ? lamX + 5 : lamX - 5).toFixed(1)}" y="${(yCenter + 4).toFixed(1)}" text-anchor="${lam >= 0 ? "start" : "end"}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(lam, decimals))}</text>`,
+    );
+  }
+
+  const xTicks = [xBounds.min, 0, xBounds.max].map((v) => {
+    const px = toPxX(v).toFixed(1);
+    return `<line x1="${px}" y1="${padTop + plotH}" x2="${px}" y2="${padTop + plotH + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${padTop + plotH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+  });
+
+  const desc = `Espectro LMI com ${model.block_min_eigs.length} blocos; limiar PSD λ_min >= 0 destacado.`;
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeHtml(model.title)}" class="scientific-chart-svg lmi-spectrum-chart" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}" data-chart-kind="lmi_spectrum" data-chart-id="${escapeHtml(model.chart_id)}">`,
+    `<title>${escapeHtml(model.title)}</title>`,
+    `<desc>${escapeHtml(desc)}</desc>`,
+    `<rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${theme.surface}" />`,
+    `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="${theme.surfaceAlt}" stroke="${theme.border}" stroke-width="1" />`,
+    `<line x1="${zeroX.toFixed(1)}" y1="${padTop}" x2="${zeroX.toFixed(1)}" y2="${padTop + plotH}" stroke="${theme.chartAxis}" stroke-dasharray="4 3" stroke-width="1.5" data-threshold="0" />`,
+    `<g data-layer="lmi-bars">${barsSvg.join("")}</g>`,
+    `<g class="axis-ticks" data-layer="axis-ticks">${xTicks.join("")}</g>`,
+    `<text x="${padLeft}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)}</text>`,
+    `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 8}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">${escapeHtml(model.units.x_axis)} (factível quando λ_min ≥ 0)</text>`,
+    `</svg>`,
+  ].join("");
+}
+
 export interface AccessibleChartTable {
   caption: string;
   headers: readonly string[];
@@ -2019,6 +2494,98 @@ export function buildAccessibleChartTable(
 
     return {
       caption: `${chart.title} (Partição: ${chart.partition}, N_eff=${chart.n_effective_samples}, Rev. Modelo ${String(chart.model_revision)}, Rev. Projeto ${String(chart.project_revision)})`,
+      headers,
+      rows,
+      rawNumericRowCount: rows.length,
+      decimals,
+      series_semantics: chart.series_semantics,
+      ariaAttributes: {
+        role: "table",
+        "aria-label": `Tabela acessível de ${chart.title}`,
+      },
+    };
+  }
+
+  if (chart.kind === "singular_values") {
+    const headers = [
+      "ω [rad/s]",
+      ...chart.curves.map((c) => `${c.label} [dB]`),
+    ];
+    const rows: string[][] = [];
+    for (let i = 0; i < chart.omega.length; i += 1) {
+      const row = [formatNumericDisplay(chart.omega[i], decimals)];
+      for (const c of chart.curves) {
+        row.push(
+          i < c.values_db.length ? formatNumericDisplay(c.values_db[i], decimals) : "—",
+        );
+      }
+      rows.push(row);
+    }
+    return {
+      caption: `${chart.title} (Rev. Modelo ${String(chart.model_revision)}, Rev. Projeto ${String(chart.project_revision)})`,
+      headers,
+      rows,
+      rawNumericRowCount: rows.length,
+      decimals,
+      series_semantics: chart.series_semantics,
+      ariaAttributes: {
+        role: "table",
+        "aria-label": `Tabela acessível de ${chart.title}`,
+      },
+    };
+  }
+
+  if (chart.kind === "fuzzy_surface") {
+    if (chart.axes.length === 1 || !chart.z_matrix || !chart.x1_grid) {
+      const headers = [chart.axes[0] ?? "x0", chart.output_name];
+      const rows = chart.x0_grid.map((x0, i) => [
+        formatNumericDisplay(x0, decimals),
+        formatNumericDisplay(chart.z_line?.[i] ?? 0, decimals),
+      ]);
+      return {
+        caption: `${chart.title}`,
+        headers,
+        rows,
+        rawNumericRowCount: rows.length,
+        decimals,
+        series_semantics: chart.series_semantics,
+        ariaAttributes: {
+          role: "table",
+          "aria-label": `Tabela acessível de ${chart.title}`,
+        },
+      };
+    }
+    const headers = [
+      `${chart.axes[0]} \\ ${chart.axes[1]}`,
+      ...chart.x1_grid.map((x1) => formatNumericDisplay(x1, decimals)),
+    ];
+    const rows = chart.x0_grid.map((x0, i) => [
+      formatNumericDisplay(x0, decimals),
+      ...(chart.z_matrix![i] ?? []).map((v) => formatNumericDisplay(v, decimals)),
+    ]);
+    return {
+      caption: `${chart.title}`,
+      headers,
+      rows,
+      rawNumericRowCount: rows.length,
+      decimals,
+      series_semantics: chart.series_semantics,
+      ariaAttributes: {
+        role: "table",
+        "aria-label": `Tabela acessível de ${chart.title}`,
+      },
+    };
+  }
+
+  if (chart.kind === "lmi_spectrum") {
+    const headers = ["Bloco LMI", "λ_min(F_b(x*))", "Factibilidade Cone"];
+    const rows = chart.block_min_eigs.map((lam, i) => [
+      chart.block_labels[i] ?? `Bloco ${i + 1}`,
+      formatNumericDisplay(lam, decimals),
+      lam < -1e-9 ? "Violado (< 0)" : lam <= 1e-6 ? "Na Fronteira (≈ 0)" : "Estritamente Factível (> 0)",
+    ]);
+    return {
+      caption: `${chart.title}`,
       headers,
       rows,
       rawNumericRowCount: rows.length,
@@ -2199,6 +2766,9 @@ export const CHART_EXPORT_BASENAMES: Record<string, string> = {
   "siso-nyquist-chart-slot": "controllab-nyquist",
   "siso-rl-chart-slot": "controllab-root-locus",
   "siso-time-chart-slot": "controllab-time-response",
+  "mimo-sigma-chart-slot": "controllab-mimo-singular-values",
+  "fuzzy-surface-chart-slot": "controllab-fuzzy-surface",
+  "lmi-spectrum-chart-slot": "controllab-lmi-eigenvalues",
   "pz-chart-slot": "controllab-pole-zero",
   "time-chart-slot": "controllab-lqr-time-response",
 };

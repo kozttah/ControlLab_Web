@@ -22,7 +22,7 @@
       "2026-11-17": 10,
       "2026-11-16": 1,
       "2026-11-18": 5,
-      "2026-11-19": 7
+      "2026-11-19": 8
     }
   },
   "audit_reference": {
@@ -3728,13 +3728,33 @@
         "T-FML-01"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "Extrair web/features/views/mimo_view.ts (valores singulares sigma e heatmap RGA interativo por slider de frequência)",
         "Extrair web/features/views/fuzzy_view.ts (editor visual de pertinências, matriz de regras 2D, import/export FML passivo)",
         "Extrair web/features/views/lmi_view.ts e lmi_dsl_parser.ts (editor estilo Monaco com template inicial, salvar/carregar .lmi, leitura matemática interpretada sem eval, detecção bilinear, certificado 5D e exportação CVXPY/YALMIP)"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-REFACTOR-03-MIMO-FUZZY-LMI.md",
+      "assessed_commit": "d84471f78e7d429ffc17f0bd0cca1af9b3bb511c",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "9d566d60278e722127cb3bd2c278f96ff91308278cf8861c1ebf76bc4991bf12",
+        "web/app/styles.css": "f7525da5db7bd892ed54e58c9c13f082eabb0cb60c211ba13205fb6888fd1e95",
+        "web/charts/scientific_chart.ts": "856cd9199b5af70823a25ef903ac46caf11779b662669a93164a78cbc003e3ed",
+        "web/features/views/mimo_view.ts": "1c7c4d54d8f1100ae1bbca1b66e236e26dd5790bff096eda50f9d8a77ab20985",
+        "web/features/views/fuzzy_view.ts": "488999594e681408faad8522ad6f54318bcff564cb21b7598cd783777d596eef",
+        "web/features/views/lmi_dsl_parser.ts": "d977100685aa12d9f6fb3bfa4d76aa4378d713c7381f55dfa83b235830ebd0e3",
+        "web/features/views/lmi_view.ts": "d178a08e7bc291c64f15f25c4a0aad9dc50da41c68dee14bcc31d33e4e8f9410",
+        "tests/unit/f8/views_mimo_fuzzy_lmi.test.ts": "5d8276a461aa34d011ec302052d553d97d0a9a9b694fd44be6e0f5beeb132785"
+      },
+      "acceptance_scope": "modular_mimo_fuzzy_lmi_dsl_parser_5d_certificate_responsive_chromium_firefox",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-REFACTOR-03-MIMO-FUZZY-LMI.md",
+        "tests/unit/f8/views_mimo_fuzzy_lmi.test.ts",
+        "tests/e2e/test_gatecd_interactions.py",
+        "tests/e2e/test_id_siso_verticals.py"
       ]
     },
     {

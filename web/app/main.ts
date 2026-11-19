@@ -30,13 +30,16 @@ import {
 } from "./tool_descriptor.ts";
 import {
   buildAccessibleChartTable,
+  getChartExportFilename,
   renderAccessibleTableHtml,
   renderBodeSvg,
   renderNyquistSvg,
   renderPoleZeroSvg,
   renderResidualCorrelationSvg,
   renderRootLocusSvg,
+  renderSvgMarkupToPngBlob,
   renderTimeResponseSvg,
+  serializeSvgForExport,
 } from "../charts/scientific_chart.ts";
 import {
   encodeObjectRefKey,
@@ -101,6 +104,18 @@ function setHidden(el: Element | null | undefined, hidden: boolean): void {
   if (!el) return;
   if (hidden) el.setAttribute("hidden", "true");
   else el.removeAttribute("hidden");
+}
+
+function toggleCssClass(el: Element | null | undefined, className: string, active: boolean): void {
+  if (!el) return;
+  const current = (el.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
+  const has = current.includes(className);
+  if (active && !has) {
+    current.push(className);
+    el.setAttribute("class", current.join(" "));
+  } else if (!active && has) {
+    el.setAttribute("class", current.filter((c) => c !== className).join(" "));
+  }
 }
 
 function readTabFromLocationHash(): ProjectTabId | null {
@@ -347,20 +362,39 @@ function renderMatrixGridBlockHtml(
   ].join("");
 }
 
-function triggerBrowserDownload(payload: ExportModalPayload, doc: Document): void {
-  if (typeof Blob === "undefined" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+function renderChartExportBarHtml(slotId: string, label: string): string {
+  return [
+    `<div class="chart-export-bar" data-export-bar-for="${escapeHtml(slotId)}" hidden>`,
+    `<span class="chart-export-label">${escapeHtml(label)}</span>`,
+    `<div class="chart-export-actions">`,
+    `<button type="button" class="touch-control btn-secondary btn-small" data-action="export-chart-svg" data-chart-slot="${escapeHtml(slotId)}" disabled aria-disabled="true">Exportar SVG</button>`,
+    `<button type="button" class="touch-control btn-secondary btn-small" data-action="export-chart-png" data-chart-slot="${escapeHtml(slotId)}" disabled aria-disabled="true">Exportar PNG</button>`,
+    `</div>`,
+    `</div>`,
+  ].join("");
+}
+
+function triggerBlobDownload(blob: Blob, filename: string, doc: Document): void {
+  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
     return;
   }
-  const blob = new Blob([payload.bytes ? new Uint8Array(payload.bytes).buffer : payload.content], { type: payload.mimeType });
   const objectUrl = URL.createObjectURL(blob);
   const anchor = doc.createElement("a");
   anchor.href = objectUrl;
-  anchor.download = payload.filename;
+  anchor.download = filename;
   anchor.style.display = "none";
   doc.body?.appendChild(anchor);
   anchor.click();
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+function triggerBrowserDownload(payload: ExportModalPayload, doc: Document): void {
+  if (typeof Blob === "undefined" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+    return;
+  }
+  const blob = new Blob([payload.bytes ? new Uint8Array(payload.bytes).buffer : payload.content], { type: payload.mimeType });
+  triggerBlobDownload(blob, payload.filename, doc);
 }
 
 export function mountControlLabApp(
@@ -436,11 +470,20 @@ export function mountControlLabApp(
 
   container.innerHTML = [
     `<header class="controllab-header">`,
-    `<div><h1>ControlLab Web</h1><span id="engine-status-badge" class="badge"></span> <span id="revision-summary"></span></div>`,
-    `<div class="panel-actions">`,
-    `<label for="decimals-select">Casas decimais: </label>`,
-    `<input id="decimals-select" class="touch-control" type="number" min="0" max="15" value="${shell.getDisplayDecimals()}" data-action="decimals" />`,
-    `<button type="button" id="theme-toggle-btn" class="touch-control" data-action="toggle-theme"></button>`,
+    `<div class="brand">`,
+    `<div class="brand-mark" aria-hidden="true">∿</div>`,
+    `<div class="brand-text">`,
+    `<h1>ControlLab Web</h1>`,
+    `<div class="header-meta">`,
+    `<span id="engine-status-badge" class="badge status-badge"></span>`,
+    `<span id="revision-summary" class="revision-summary"></span>`,
+    `</div>`,
+    `</div>`,
+    `</div>`,
+    `<div class="panel-actions header-controls">`,
+    `<label for="decimals-select" class="compact-label">Casas decimais</label>`,
+    `<input id="decimals-select" class="touch-control decimals-input" type="number" min="0" max="15" value="${shell.getDisplayDecimals()}" data-action="decimals" />`,
+    `<button type="button" id="theme-toggle-btn" class="touch-control btn-secondary" data-action="toggle-theme"></button>`,
     `</div>`,
     `</header>`,
     `<nav aria-label="Áreas de projeto" class="controllab-tablist" role="tablist">${tabsHtml}</nav>`,
@@ -448,38 +491,58 @@ export function mountControlLabApp(
     `<section class="panel-card">`,
     `<h2 id="controllab-tab-heading"></h2>`,
     `<div id="controllab-error-slot"></div>`,
-    `<section id="identification-workspace-panel" class="panel-card" aria-label="Fluxo Vertical de Identificação (Aba 1)">`,
+    `<section id="identification-workspace-panel" class="panel-card workspace-section" aria-label="Fluxo Vertical de Identificação (Aba 1)">`,
     `<h3>Fluxo Vertical de Identificação (Aba 1: Dataset Treino/Holdout, Estimação, Resíduos e Reutilização)</h3>`,
+    `<div class="workspace-two-col">`,
+    `<div class="workspace-controls-col">`,
+    `<div class="subcard">`,
     `<div class="tool-field">`,
     `<label for="id-csv-input">Importar Dataset CSV (t, u, y) ou Carregar Benchmark PRBS / Entrada Constante (T-ID-02)</label>`,
     `<textarea id="id-csv-input" class="touch-control" rows="2" data-field="id-csv-input" aria-label="Conteúdo CSV do Dataset (t, u, y)"></textarea>`,
     `<div class="panel-actions">`,
     `<label for="id-train-fraction">Fração Treino (0.1–0.9)</label>`,
     `<input type="number" id="id-train-fraction" class="touch-control" min="0.2" max="0.85" step="0.05" value="0.7" aria-label="Fração de treino para particionamento holdout" />`,
-    `<button type="button" id="btn-id-import-csv" class="touch-control" data-action="id-import-csv">Importar CSV + Particionar</button>`,
-    `<button type="button" id="btn-id-load-prbs" class="touch-control" data-action="id-load-prbs">Benchmark PRBS (Treino + Holdout)</button>`,
-    `<button type="button" id="btn-id-load-const-pe" class="touch-control" data-action="id-load-const-pe">Dataset Entrada Constante (T-ID-02)</button>`,
-    `<button type="button" id="btn-id-split-dataset" class="touch-control" data-action="id-split-dataset">Particionar Dataset Selecionado</button>`,
+    `<button type="button" id="btn-id-import-csv" class="touch-control btn-primary" data-action="id-import-csv">Importar CSV + Particionar</button>`,
+    `<button type="button" id="btn-id-load-prbs" class="touch-control btn-primary" data-action="id-load-prbs">Benchmark PRBS (Treino + Holdout)</button>`,
+    `<button type="button" id="btn-id-load-const-pe" class="touch-control btn-secondary" data-action="id-load-const-pe">Dataset Entrada Constante (T-ID-02)</button>`,
+    `<button type="button" id="btn-id-split-dataset" class="touch-control btn-secondary" data-action="id-split-dataset">Particionar Dataset Selecionado</button>`,
     `</div>`,
     `</div>`,
-    `<div class="panel-actions">`,
+    `</div>`,
+    `<div class="subcard">`,
+    `<div class="tool-field">`,
     `<label for="id-chart-partition-select">Partição Visualizada nos Gráficos de Identificação</label>`,
     `<select id="id-chart-partition-select" class="touch-control" data-action="id-select-partition" aria-label="Partição visualizada nos gráficos de identificação">`,
     `<option value="validation">Validação / Holdout</option>`,
     `<option value="train">Treino</option>`,
     `</select>`,
-    `<button type="button" id="btn-id-reuse-to-lqr" class="touch-control" data-action="id-reuse-to-lqr">Derivar StateSpace + Registrar + Aplicar ao LQR (Aba 3)</button>`,
-    `<button type="button" id="btn-id-reuse-to-siso" class="touch-control" data-action="id-reuse-to-siso">Derivar Modelo + Registrar + Selecionar em SISO (Aba 2)</button>`,
     `</div>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-id-reuse-to-lqr" class="touch-control btn-secondary" data-action="id-reuse-to-lqr">Derivar StateSpace + Registrar + Aplicar ao LQR (Aba 3)</button>`,
+    `<button type="button" id="btn-id-reuse-to-siso" class="touch-control btn-secondary" data-action="id-reuse-to-siso">Derivar Modelo + Registrar + Selecionar em SISO (Aba 2)</button>`,
+    `</div>`,
+    `</div>`,
+    `</div>`,
+    `<div class="workspace-results-col">`,
     `<div id="id-diagnostics-panel" class="diagnostics-panel" aria-live="polite"></div>`,
+    `<div class="chart-card">`,
     `<div id="id-response-chart-slot" class="chart-container"></div>`,
+    renderChartExportBarHtml("id-response-chart-slot", "Resposta Temporal"),
+    `</div>`,
+    `<div class="chart-card">`,
     `<div id="id-residuals-chart-slot" class="chart-container"></div>`,
+    renderChartExportBarHtml("id-residuals-chart-slot", "Correlação de Resíduos"),
+    `</div>`,
     `<details><summary>Tabela acessível de comparação temporal da identificação (WCAG 2.2 AA)</summary><div id="id-response-table-slot"></div></details>`,
     `<details><summary>Tabela acessível de correlação de resíduos R_ee / R_ue (WCAG 2.2 AA)</summary><div id="id-residuals-table-slot"></div></details>`,
+    `</div>`,
+    `</div>`,
     `</section>`,
-    `<section id="siso-workspace-panel" class="panel-card" aria-label="Fluxo Vertical SISO (Aba 2)">`,
+    `<section id="siso-workspace-panel" class="panel-card workspace-section" aria-label="Fluxo Vertical SISO (Aba 2)">`,
     `<h3>Fluxo Vertical SISO (Aba 2: Frequência, Margens e Lugar das Raízes)</h3>`,
-    `<div class="tool-field">`,
+    `<div class="workspace-two-col">`,
+    `<div class="workspace-controls-col">`,
+    `<div class="subcard tool-field">`,
     `<label>Parâmetros de Resposta em Frequência (Bode / Nyquist / Margens)</label>`,
     `<div class="panel-actions">`,
     `<label for="siso-w-min">ω_min (rad/s)</label>`,
@@ -495,10 +558,10 @@ export function mountControlLabApp(
     `<label for="siso-use-pade"><input type="checkbox" id="siso-use-pade" data-action="siso-toggle-pade" /> Aproximar via Padé (opção explícita)</label>`,
     `<label for="siso-pade-order">Ordem Padé</label>`,
     `<input type="number" id="siso-pade-order" class="touch-control" min="1" max="10" step="1" value="1" aria-label="Ordem da aproximação de Padé" />`,
-    `<button type="button" id="btn-siso-eval-bode" class="touch-control" data-action="siso-eval-bode">Avaliar Bode / Nyquist / Margens</button>`,
+    `<button type="button" id="btn-siso-eval-bode" class="touch-control btn-primary" data-action="siso-eval-bode">Avaliar Bode / Nyquist / Margens</button>`,
     `</div>`,
     `</div>`,
-    `<div class="tool-field">`,
+    `<div class="subcard tool-field">`,
     `<label>Parâmetros do Lugar das Raízes &amp; Compensador (Root Locus)</label>`,
     `<div class="panel-actions">`,
     `<label for="siso-feedback-sign">Sinal da Realimentação</label>`,
@@ -510,32 +573,50 @@ export function mountControlLabApp(
     `<input type="number" id="siso-rl-kmax" class="touch-control" min="1" max="10000" step="10" value="100" aria-label="Ganho máximo K" />`,
     `<label for="siso-rl-zeta">Amortecimento ζ (overlay heurístico)</label>`,
     `<input type="number" id="siso-rl-zeta" class="touch-control" min="0.05" max="0.95" step="0.05" value="0.5" aria-label="Fator de amortecimento mínimo ζ" />`,
-    `<button type="button" id="btn-siso-eval-rl" class="touch-control" data-action="siso-eval-rl">Avaliar Lugar das Raízes</button>`,
+    `<button type="button" id="btn-siso-eval-rl" class="touch-control btn-primary" data-action="siso-eval-rl">Avaliar Lugar das Raízes</button>`,
     `</div>`,
     `</div>`,
-    `<div class="tool-field">`,
+    `<div class="subcard tool-field">`,
     `<label>Resposta Temporal ao Degrau (frequency.step_response)</label>`,
     `<div class="panel-actions">`,
     `<label for="siso-step-amp">Amplitude</label>`,
     `<input type="number" id="siso-step-amp" class="touch-control" min="-100" max="100" step="0.1" value="1" aria-label="Amplitude do degrau" />`,
     `<label for="siso-step-tfinal">Tempo Final (s)</label>`,
     `<input type="number" id="siso-step-tfinal" class="touch-control" min="0.1" max="1000" step="1" value="10" aria-label="Tempo final da simulação" />`,
-    `<button type="button" id="btn-siso-eval-step" class="touch-control" data-action="siso-eval-step">Avaliar Degrau SISO</button>`,
+    `<button type="button" id="btn-siso-eval-step" class="touch-control btn-primary" data-action="siso-eval-step">Avaliar Degrau SISO</button>`,
     `</div>`,
     `</div>`,
+    `</div>`,
+    `<div class="workspace-results-col">`,
     `<div id="siso-diagnostics-panel" class="diagnostics-panel" aria-live="polite"></div>`,
+    `<div class="siso-charts-grid">`,
+    `<div class="chart-card">`,
     `<div id="siso-bode-chart-slot" class="chart-container"></div>`,
+    renderChartExportBarHtml("siso-bode-chart-slot", "Bode"),
+    `</div>`,
+    `<div class="chart-card">`,
     `<div id="siso-nyquist-chart-slot" class="chart-container"></div>`,
+    renderChartExportBarHtml("siso-nyquist-chart-slot", "Nyquist"),
+    `</div>`,
+    `<div class="chart-card">`,
     `<div id="siso-rl-chart-slot" class="chart-container"></div>`,
+    renderChartExportBarHtml("siso-rl-chart-slot", "Lugar das Raízes"),
+    `</div>`,
+    `<div class="chart-card">`,
     `<div id="siso-time-chart-slot" class="chart-container"></div>`,
+    renderChartExportBarHtml("siso-time-chart-slot", "Resposta ao Degrau"),
+    `</div>`,
+    `</div>`,
     `<details><summary>Tabela acessível do diagrama de Bode (WCAG 2.2 AA)</summary><div id="siso-bode-table-slot"></div></details>`,
     `<details><summary>Tabela acessível do diagrama de Nyquist (WCAG 2.2 AA)</summary><div id="siso-nyquist-table-slot"></div></details>`,
     `<details><summary>Tabela acessível do Lugar das Raízes (WCAG 2.2 AA)</summary><div id="siso-rl-table-slot"></div></details>`,
     `<details><summary>Tabela acessível da resposta ao degrau SISO (WCAG 2.2 AA)</summary><div id="siso-time-table-slot"></div></details>`,
+    `</div>`,
+    `</div>`,
     `</section>`,
     `<section id="statespace-workspace-panel" aria-label="Espaço de Estados / LQR (Aba 3)">`,
-    `<div class="lqr-interactive-bar">`,
-    `<p>Status: <strong id="lqr-status-text"></strong></p>`,
+    `<div class="lqr-interactive-bar lqr-action-card subcard">`,
+    `<div class="lqr-status-row"><p>Status: <strong id="lqr-status-text"></strong></p></div>`,
     `<div id="lqr-q-slider" class="touch-control lqr-slider" data-action="lqr-slider"></div>`,
     `<div class="tool-field">`,
     `<label for="lqr-feedback-sign">Convenção de realimentação</label>`,
@@ -545,52 +626,23 @@ export function mountControlLabApp(
     `</select>`,
     `</div>`,
     `<div class="panel-actions">`,
-    `<button type="button" class="touch-control" data-action="commit-lqr">Calcular LQR Autoritativo</button>`,
-    `<button type="button" class="touch-control" data-action="analyze-open-loop">Analisar Malha Aberta (PBH)</button>`,
-    `<button type="button" class="touch-control" data-action="cancel-lqr">Cancelar</button>`,
-    `<button type="button" class="touch-control" data-action="undo-lqr">Desfazer</button>`,
-    `<button type="button" id="btn-reset-worker" class="touch-control" data-action="reset-worker">Reiniciar Worker</button>`,
-    `<button type="button" id="btn-save-experiment" class="touch-control" data-action="save-experiment">Salvar no Comparador</button>`,
-    `<button type="button" id="btn-export-pvm" class="touch-control" data-action="export-pvm">Exportar .pvm</button>`,
-    `<label for="ctrlab-file-input">Abrir .ctrlab</label><input id="ctrlab-file-input" type="file" accept=".ctrlab,application/zip" class="touch-control" aria-label="Abrir projeto .ctrlab" />`,
-    `<button type="button" id="btn-export-ctrlab" class="touch-control" data-action="export-ctrlab">Exportar .ctrlab</button>`,
-    `<button type="button" id="btn-export-gains" class="touch-control" data-action="export-gains">Exportar Ganhos JSON</button>`,
-    `<button type="button" id="btn-export-csv" class="touch-control" data-action="export-csv">Exportar CSV</button>`,
-    `<button type="button" id="btn-build-report" class="touch-control" data-action="build-report">Relatório R-27</button>`,
+    `<button type="button" class="touch-control btn-primary" data-action="commit-lqr">Calcular LQR Autoritativo</button>`,
+    `<button type="button" class="touch-control btn-secondary" data-action="analyze-open-loop">Analisar Malha Aberta (PBH)</button>`,
+    `<button type="button" class="touch-control btn-danger" data-action="cancel-lqr">Cancelar</button>`,
+    `<button type="button" class="touch-control btn-secondary" data-action="undo-lqr">Desfazer</button>`,
+    `<button type="button" id="btn-reset-worker" class="touch-control btn-secondary" data-action="reset-worker">Reiniciar Worker</button>`,
+    `<button type="button" id="btn-save-experiment" class="touch-control btn-secondary" data-action="save-experiment">Salvar no Comparador</button>`,
     `</div>`,
     `</div>`,
-    `<section id="lqr-matrix-editor" class="lqr-matrix-editor" aria-label="Editor Matricial Interativo LQR">`,
-    `<h3>Editor Matricial Interativo (Planta StateSpace &amp; Pesos LQR)</h3>`,
+    `<section class="lqr-export-card subcard" aria-label="Exportações e Persistência de Projeto">`,
+    `<h4>Exportações &amp; Persistência de Projeto</h4>`,
     `<div class="panel-actions">`,
-    `<label for="lqr-preset-select">Preset clássico:</label>`,
-    `<select id="lqr-preset-select" class="touch-control" aria-label="Preset clássico StateSpace">${presetOptionsHtml}</select>`,
-    `<button type="button" id="btn-lqr-apply-preset" class="touch-control" data-action="lqr-apply-preset">Aplicar Preset</button>`,
-    `</div>`,
-    `<div class="lqr-matrix-dims">`,
-    `<div class="tool-field"><label for="lqr-dim-n">Estados n (1–6)</label><input id="lqr-dim-n" type="number" min="1" max="6" step="1" class="touch-control" value="${editorDims.n}" aria-label="Dimensão n de estados" /></div>`,
-    `<div class="tool-field"><label for="lqr-dim-m">Entradas m (1–4)</label><input id="lqr-dim-m" type="number" min="1" max="4" step="1" class="touch-control" value="${editorDims.m}" aria-label="Dimensão m de entradas" /></div>`,
-    `<div class="tool-field"><label for="lqr-dim-p">Saídas p (1–4)</label><input id="lqr-dim-p" type="number" min="1" max="4" step="1" class="touch-control" value="${editorDims.p}" aria-label="Dimensão p de saídas" /></div>`,
-    `<div class="tool-field"><label for="lqr-dim-dt">dt (vazio = contínuo)</label><input id="lqr-dim-dt" type="number" min="0" step="any" placeholder="contínuo" class="touch-control" aria-label="Passo de amostragem dt" /></div>`,
-    `</div>`,
-    `<div id="lqr-matrix-grids" class="lqr-matrix-grids"></div>`,
-    `<div class="panel-actions">`,
-    `<button type="button" id="btn-lqr-apply-matrices" class="touch-control" data-action="lqr-apply-matrices">Aplicar Matrizes ao Workspace</button>`,
-    `</div>`,
-    `</section>`,
-    `<div id="lqr-json-advanced" class="lqr-json-advanced">`,
-    `<h4>Entrada Avançada via JSON</h4>`,
-    `<div class="tool-field">`,
-    `<label for="lqr-plant-json">Planta StateSpace (JSON)</label>`,
-    `<input id="lqr-plant-json" class="touch-control" type="text" data-field="plant-json" aria-label="Planta StateSpace JSON" />`,
-    `<button type="button" id="btn-apply-plant" class="touch-control" data-action="apply-plant">Aplicar Planta</button>`,
-    `<p class="json-format-hint">Formato esperado: <code>{"A": [[0,1],[0,0]], "B": [[0],[1]], "C": [[1,0]], "D": [[0]], "dt": null}</code></p>`,
-    `</div>`,
-    `<div class="tool-field">`,
-    `<label for="lqr-weights-json">Pesos Q / R / x0 (JSON)</label>`,
-    `<input id="lqr-weights-json" class="touch-control" type="text" data-field="weights-json" aria-label="Pesos Q R x0 JSON" />`,
-    `<button type="button" id="btn-apply-weights" class="touch-control" data-action="apply-weights">Aplicar Pesos</button>`,
-    `<p class="json-format-hint">Formato esperado: <code>{"Q": [[4,0],[0,5]], "R": [[1]], "x0": [1,0]}</code></p>`,
-    `</div>`,
+    `<button type="button" id="btn-export-pvm" class="touch-control btn-secondary" data-action="export-pvm">Exportar .pvm</button>`,
+    `<label for="ctrlab-file-input" class="compact-label">Abrir .ctrlab</label><input id="ctrlab-file-input" type="file" accept=".ctrlab,application/zip" class="touch-control" aria-label="Abrir projeto .ctrlab" />`,
+    `<button type="button" id="btn-export-ctrlab" class="touch-control btn-secondary" data-action="export-ctrlab">Exportar .ctrlab</button>`,
+    `<button type="button" id="btn-export-gains" class="touch-control btn-secondary" data-action="export-gains">Exportar Ganhos JSON</button>`,
+    `<button type="button" id="btn-export-csv" class="touch-control btn-secondary" data-action="export-csv">Exportar CSV</button>`,
+    `<button type="button" id="btn-build-report" class="touch-control btn-secondary" data-action="build-report">Relatório R-27</button>`,
     `</div>`,
     `<details id="pvm-export-options"><summary>Configuração da simulação PathView</summary>`,
     `<div class="tool-field"><label for="pvm-controller-kind">Controlador exportado</label>`,
@@ -602,13 +654,47 @@ export function mountControlLabApp(
     `<div class="tool-field"><label for="pvm-u-min">Limite inferior u_min (número ou vetor JSON)</label><input id="pvm-u-min" type="text" value="-1" disabled /></div>`,
     `<div class="tool-field"><label for="pvm-u-max">Limite superior u_max (número ou vetor JSON)</label><input id="pvm-u-max" type="text" value="1" disabled /></div>`,
     `</details>`,
+    `</section>`,
+    `<section id="lqr-matrix-editor" class="lqr-matrix-editor subcard" aria-label="Editor Matricial Interativo LQR">`,
+    `<h3>Editor Matricial Interativo (Planta StateSpace &amp; Pesos LQR)</h3>`,
+    `<div class="panel-actions">`,
+    `<label for="lqr-preset-select">Preset clássico:</label>`,
+    `<select id="lqr-preset-select" class="touch-control" aria-label="Preset clássico StateSpace">${presetOptionsHtml}</select>`,
+    `<button type="button" id="btn-lqr-apply-preset" class="touch-control btn-secondary" data-action="lqr-apply-preset">Aplicar Preset</button>`,
+    `</div>`,
+    `<div class="lqr-matrix-dims">`,
+    `<div class="tool-field"><label for="lqr-dim-n">Estados n (1–6)</label><input id="lqr-dim-n" type="number" min="1" max="6" step="1" class="touch-control" value="${editorDims.n}" aria-label="Dimensão n de estados" /></div>`,
+    `<div class="tool-field"><label for="lqr-dim-m">Entradas m (1–4)</label><input id="lqr-dim-m" type="number" min="1" max="4" step="1" class="touch-control" value="${editorDims.m}" aria-label="Dimensão m de entradas" /></div>`,
+    `<div class="tool-field"><label for="lqr-dim-p">Saídas p (1–4)</label><input id="lqr-dim-p" type="number" min="1" max="4" step="1" class="touch-control" value="${editorDims.p}" aria-label="Dimensão p de saídas" /></div>`,
+    `<div class="tool-field"><label for="lqr-dim-dt">dt (vazio = contínuo)</label><input id="lqr-dim-dt" type="number" min="0" step="any" placeholder="contínuo" class="touch-control" aria-label="Passo de amostragem dt" /></div>`,
+    `</div>`,
+    `<div id="lqr-matrix-grids" class="lqr-matrix-grids"></div>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-lqr-apply-matrices" class="touch-control btn-primary" data-action="lqr-apply-matrices">Aplicar Matrizes ao Workspace</button>`,
+    `</div>`,
+    `</section>`,
+    `<div id="lqr-json-advanced" class="lqr-json-advanced subcard">`,
+    `<h4>Entrada Avançada via JSON</h4>`,
+    `<div class="tool-field">`,
+    `<label for="lqr-plant-json">Planta StateSpace (JSON)</label>`,
+    `<input id="lqr-plant-json" class="touch-control" type="text" data-field="plant-json" aria-label="Planta StateSpace JSON" />`,
+    `<button type="button" id="btn-apply-plant" class="touch-control btn-secondary" data-action="apply-plant">Aplicar Planta</button>`,
+    `<p class="json-format-hint">Formato esperado: <code>{"A": [[0,1],[0,0]], "B": [[0],[1]], "C": [[1,0]], "D": [[0]], "dt": null}</code></p>`,
+    `</div>`,
+    `<div class="tool-field">`,
+    `<label for="lqr-weights-json">Pesos Q / R / x0 (JSON)</label>`,
+    `<input id="lqr-weights-json" class="touch-control" type="text" data-field="weights-json" aria-label="Pesos Q R x0 JSON" />`,
+    `<button type="button" id="btn-apply-weights" class="touch-control btn-secondary" data-action="apply-weights">Aplicar Pesos</button>`,
+    `<p class="json-format-hint">Formato esperado: <code>{"Q": [[4,0],[0,5]], "R": [[1]], "x0": [1,0]}</code></p>`,
+    `</div>`,
+    `</div>`,
     `<div id="lqr-k-display"></div>`,
     `<div id="lqr-diagnostics-panel" class="diagnostics-panel"></div>`,
     `</section>`,
     `<div id="controllab-tools-slot" class="declarative-tools"></div>`,
     `<section id="typed-workspace-panel" class="panel-card" aria-label="Insumos tipados da sessão">`,
     `<h3>Insumos Tipados da Sessão (Dataset / Modelo / Sistema)</h3>`,
-    `<div id="typed-tf-builder" class="typed-tf-builder" aria-label="Construtor Guiado de TransferFunction">`,
+    `<div id="typed-tf-builder" class="typed-tf-builder typed-subcard" aria-label="Construtor Guiado de TransferFunction">`,
     `<h4>Construtor Guiado de TransferFunction</h4>`,
     `<div class="typed-tf-builder-grid">`,
     `<div class="tool-field"><label for="typed-tf-id">ID</label><input id="typed-tf-id" type="text" class="touch-control" value="tf-custom" aria-label="ID da TransferFunction" /></div>`,
@@ -616,31 +702,41 @@ export function mountControlLabApp(
     `<div class="tool-field"><label for="typed-tf-den">Denominador (ex: 1, 1)</label><input id="typed-tf-den" type="text" class="touch-control" value="1, 1" aria-label="Denominador da TransferFunction" /></div>`,
     `<div class="tool-field"><label for="typed-tf-dt">dt (vazio = contínuo)</label><input id="typed-tf-dt" type="number" min="0" step="any" placeholder="contínuo" class="touch-control" aria-label="Passo dt da TransferFunction" /></div>`,
     `</div>`,
-    `<div class="panel-actions"><button type="button" id="btn-register-tf-builder" class="touch-control" data-action="register-tf-builder">Registrar TransferFunction</button></div>`,
+    `<div class="panel-actions"><button type="button" id="btn-register-tf-builder" class="touch-control btn-primary" data-action="register-tf-builder">Registrar TransferFunction</button></div>`,
     `</div>`,
-    `<div class="tool-field">`,
+    `<div class="typed-subcard">`,
+    `<h4>Seletores da Sessão</h4>`,
+    `<div id="typed-workspace-selectors-slot"></div>`,
+    `<div id="typed-workspace-status-slot"></div>`,
+    `<div class="panel-actions"><button type="button" id="btn-apply-selected-to-lqr" class="touch-control btn-secondary" data-action="apply-selected-to-lqr">Aplicar StateSpace Selecionado ao LQR</button></div>`,
+    `</div>`,
+    `<div class="typed-subcard tool-field">`,
+    `<h4>Entrada JSON Avançada &amp; Reutilização Canônica</h4>`,
     `<label for="typed-object-json">Registrar Objeto Canônico (JSON: Dataset, TransferFunction, StateSpace, IdentifiedModel, FuzzySystem, TS)</label>`,
     `<textarea id="typed-object-json" class="touch-control" rows="3" data-field="typed-object-json" aria-label="Registrar objeto canônico JSON"></textarea>`,
     `<p class="json-format-hint">Exemplos de JSON canônico — <strong>TransferFunction:</strong> <code>{"schema_version":"1.0.0","id":"tf-1","revision":1,"kind":"TransferFunction","dt":null,"variable":"s","poly_order":"descending","num":[[{"shape":[1],"dtype":"float64","order":"C","data":[1]}]],"den":[[{"shape":[2],"dtype":"float64","order":"C","data":[1,1]}]],"units":{"time":"s","inputs":["u1"],"outputs":["y1"]}}</code> | <strong>Dataset:</strong> <code>{"schema_version":"1.0.0","id":"ds-1","revision":1,"kind":"Dataset","dt":0.05,"t":{"shape":[3],"dtype":"float64","order":"C","data":[0,0.05,0.1]},"u":{"shape":[3,1],"dtype":"float64","order":"C","data":[1,1,1]},"y":{"shape":[3,1],"dtype":"float64","order":"C","data":[0,0.05,0.1]}}</code></p>`,
     `<div class="panel-actions">`,
-    `<button type="button" id="btn-register-typed-object" class="touch-control" data-action="register-typed-object">Registrar Objeto Tipado</button>`,
+    `<button type="button" id="btn-register-typed-object" class="touch-control btn-primary" data-action="register-typed-object">Registrar Objeto Tipado</button>`,
     `<select id="reuse-target-kind" class="touch-control" aria-label="Formato alvo de core.reuse_model">`,
     `<option value="native">Formato nativo do modelo (native)</option>`,
     `<option value="StateSpace">Converter para StateSpace (TF -> SS)</option>`,
     `</select>`,
-    `<button type="button" id="btn-reuse-model" class="touch-control" data-action="reuse-model">Derivar via core.reuse_model</button>`,
-    `<button type="button" id="btn-register-pending-identified" class="touch-control" data-action="register-pending-identified" disabled aria-disabled="true">Registrar IdentifiedModel Pendente</button>`,
-    `<button type="button" id="btn-register-pending-derived" class="touch-control" data-action="register-pending-derived" disabled aria-disabled="true">Registrar Derivado Pendente</button>`,
-    `<button type="button" id="btn-apply-selected-to-lqr" class="touch-control" data-action="apply-selected-to-lqr">Aplicar StateSpace Selecionado ao LQR</button>`,
+    `<button type="button" id="btn-reuse-model" class="touch-control btn-secondary" data-action="reuse-model">Derivar via core.reuse_model</button>`,
+    `<button type="button" id="btn-register-pending-identified" class="touch-control btn-secondary" data-action="register-pending-identified" disabled aria-disabled="true">Registrar IdentifiedModel Pendente</button>`,
+    `<button type="button" id="btn-register-pending-derived" class="touch-control btn-secondary" data-action="register-pending-derived" disabled aria-disabled="true">Registrar Derivado Pendente</button>`,
     `</div>`,
     `</div>`,
-    `<div id="typed-workspace-selectors-slot"></div>`,
-    `<div id="typed-workspace-status-slot"></div>`,
     `</section>`,
     `</section>`,
     `<section id="controllab-charts-panel" class="panel-card">`,
+    `<div class="chart-card">`,
     `<div id="pz-chart-slot" class="chart-container"></div>`,
+    renderChartExportBarHtml("pz-chart-slot", "Mapa Polo-Zero"),
+    `</div>`,
+    `<div class="chart-card">`,
     `<div id="time-chart-slot" class="chart-container"></div>`,
+    renderChartExportBarHtml("time-chart-slot", "Resposta Temporal LQR"),
+    `</div>`,
     `<details id="pz-table-details"><summary>Tabela acessível de polos e valores (WCAG 2.2 AA)</summary><div id="pz-table-slot"></div></details>`,
     `<details id="time-table-details"><summary>Tabela acessível da resposta temporal (WCAG 2.2 AA)</summary><div id="time-table-slot"></div></details>`,
     `<section id="experiments-compare-panel" aria-label="Comparador de experimentos confirmados"><h3>Comparador de Experimentos Confirmados</h3><div id="experiments-compare-slot"></div></section>`,
@@ -650,9 +746,9 @@ export function mountControlLabApp(
     `<div class="modal-header">`,
     `<h2 id="export-modal-title">Artefato Exportado</h2>`,
     `<div class="panel-actions">`,
-    `<button type="button" id="export-modal-download" class="touch-control">Baixar arquivo</button>`,
-    `<button type="button" id="export-modal-copy" class="touch-control" hidden>Copiar script</button>`,
-    `<button type="button" id="export-modal-close" class="touch-control">Fechar</button>`,
+    `<button type="button" id="export-modal-download" class="touch-control btn-primary">Baixar arquivo</button>`,
+    `<button type="button" id="export-modal-copy" class="touch-control btn-secondary" hidden>Copiar script</button>`,
+    `<button type="button" id="export-modal-close" class="touch-control btn-secondary">Fechar</button>`,
     `</div>`,
     `</div>`,
     `<pre id="export-modal-content" class="modal-pre"></pre>`,
@@ -907,6 +1003,7 @@ export function mountControlLabApp(
     setHidden(timeChartSlotEl, !isStatespace);
     setHidden(timeTableDetailsEl, !isStatespace);
     setHidden(experimentsComparePanelEl, !isStatespace);
+    toggleCssClass(mainEl, "single-main-col", !(isStatespace || isIdentification));
 
     syncLqrInputsFromWorkspace();
 
@@ -924,7 +1021,8 @@ export function mountControlLabApp(
     if (engineBadgeEl) {
       engineBadgeEl.setAttribute("data-engine-state", engineState);
       const caps = client.getCapabilities();
-      engineBadgeEl.textContent = `Motor: ${engineState} | ${caps.engine_kind === "mock" ? "Mock de fixtures (beta)" : "Pyodide (beta)"} | offline não verificado (${serviceWorkerStatus})`;
+      const engineLabel = `Motor: ${engineState} | ${caps.engine_kind === "mock" ? "Mock de fixtures (beta)" : "Pyodide (beta)"} | offline não verificado (${serviceWorkerStatus})`;
+      engineBadgeEl.innerHTML = `<span class="status-dot" aria-hidden="true"></span>${escapeHtml(engineLabel)}`;
     }
     if (revSummaryEl) {
       revSummaryEl.textContent = `Rev. Projeto: ${lqr.getProjectRevision()} | Rev. Modelo: ${lqr.getPlant().revision}`;
@@ -933,7 +1031,7 @@ export function mountControlLabApp(
       decimalsInputEl.value = String(decimals);
     }
     if (themeBtnEl) {
-      themeBtnEl.textContent = `Tema: ${themeMode}`;
+      themeBtnEl.textContent = themeMode === "standard_aa" ? "Tema: Claro AA" : "Tema: Alto Contraste";
     }
 
     for (const btn of tabButtons) {
@@ -1400,6 +1498,35 @@ export function mountControlLabApp(
         } else {
           sisoTimeTableSlotEl.innerHTML = `<p>Sem dados de resposta ao degrau para exibir.</p>`;
         }
+      }
+    }
+
+    const chartVisibility: Record<string, boolean> = {
+      "id-response-chart-slot": isIdentification,
+      "id-residuals-chart-slot": isIdentification,
+      "siso-bode-chart-slot": isSiso,
+      "siso-nyquist-chart-slot": isSiso,
+      "siso-rl-chart-slot": isSiso,
+      "siso-time-chart-slot": isSiso,
+      "pz-chart-slot": isStatespace || isIdentification,
+      "time-chart-slot": isStatespace,
+    };
+    for (const [slotId, slotVisible] of Object.entries(chartVisibility)) {
+      const slotEl = container.querySelector<HTMLElement>(`#${slotId}`);
+      const barEl = container.querySelector<HTMLElement>(`[data-export-bar-for="${slotId}"]`);
+      if (!barEl) continue;
+      const hasSvg = serializeSvgForExport(slotEl) !== null;
+      const barVisible = slotVisible && hasSvg;
+      setHidden(barEl, !barVisible);
+      const isLqrBlocked =
+        isStatespace &&
+        (slotId === "pz-chart-slot" || slotId === "time-chart-slot") &&
+        !exportGuard.allowed;
+      const canExportChart = barVisible && !isLqrBlocked;
+      for (const btn of Array.from(barEl.querySelectorAll<HTMLButtonElement>("button"))) {
+        btn.disabled = !canExportChart;
+        if (canExportChart) btn.removeAttribute("aria-disabled");
+        else btn.setAttribute("aria-disabled", "true");
       }
     }
 
@@ -2121,6 +2248,66 @@ export function mountControlLabApp(
       shell.presentError(err);
     }
   });
+
+  const handleChartExport = (slotId: string, format: "svg" | "png"): void => {
+    try {
+      if (
+        shell.getActiveTab() === "statespace" &&
+        (slotId === "pz-chart-slot" || slotId === "time-chart-slot")
+      ) {
+        lqr.assertExportAllowed();
+      }
+      const slotEl = container.querySelector<HTMLElement>(`#${slotId}`);
+      const svgMarkup = serializeSvgForExport(slotEl);
+      if (!svgMarkup) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Nenhum gráfico SVG renderizado neste painel para exportar.",
+        );
+      }
+      const filename = getChartExportFilename(slotId, format);
+      if (format === "svg") {
+        triggerBrowserDownload(
+          {
+            title: `Exportação SVG (${slotId})`,
+            filename,
+            mimeType: "image/svg+xml;charset=utf-8",
+            content: svgMarkup,
+          },
+          doc,
+        );
+        if (livePoliteEl) livePoliteEl.textContent = `Gráfico exportado: ${filename}`;
+        return;
+      }
+      void renderSvgMarkupToPngBlob(svgMarkup, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        doc,
+      })
+        .then((blob) => {
+          triggerBlobDownload(blob, filename, doc);
+          if (livePoliteEl) livePoliteEl.textContent = `Gráfico exportado: ${filename}`;
+        })
+        .catch((err: unknown) => {
+          shell.presentError(err);
+        });
+    } catch (err: unknown) {
+      shell.presentError(err);
+    }
+  };
+
+  for (const btn of Array.from(container.querySelectorAll<HTMLButtonElement>('[data-action="export-chart-svg"]'))) {
+    btn.addEventListener("click", () => {
+      const slotId = btn.getAttribute("data-chart-slot");
+      if (slotId) handleChartExport(slotId, "svg");
+    });
+  }
+  for (const btn of Array.from(container.querySelectorAll<HTMLButtonElement>('[data-action="export-chart-png"]'))) {
+    btn.addEventListener("click", () => {
+      const slotId = btn.getAttribute("data-chart-slot");
+      if (slotId) handleChartExport(slotId, "png");
+    });
+  }
 
   container.querySelector<HTMLElement>('[data-action="build-report"]')?.addEventListener("click", (ev) => {
     try {

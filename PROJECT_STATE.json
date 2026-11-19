@@ -15,7 +15,7 @@
       "2026-11-17": 10,
       "2026-11-16": 1,
       "2026-11-18": 5,
-      "2026-11-19": 4
+      "2026-11-19": 5
     }
   },
   "audit_reference": {
@@ -3538,6 +3538,51 @@
         "tests/unit/f8/tab_isolation_ux.test.ts",
         "tests/e2e/test_id_siso_verticals.py::test_siso_mimo_rejection_and_isolation",
         "tests/e2e/test_id_siso_verticals.py::test_tab_isolation_and_url_hash_persistence"
+      ]
+    },
+    {
+      "wp_id": "WP-AUDIT-FIX-F8-MODERN-UI-CHART-EXPORT",
+      "front": "f8-ui-charts",
+      "phase": "Vertical-Integration-UX",
+      "title": "Modernização visual do layout, hierarquia de painéis por aba e exportação de gráficos em SVG e PNG",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F8-TAB-ISOLATION-UX"
+      ],
+      "requirement_ids": [
+        "R-23",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_2026-11-17.md",
+      "acceptance_requirements": [
+        "Modernizar o visual em web/app/styles.css e web/app/main.ts com hierarquia clara de botões (primário/secundário/sutil), cabeçalho sticky limpo, abas modernas, cards organizados com espaçamento e contraste WCAG 2.2 AA nos temas standard_aa e high_contrast",
+        "Organizar Abas 1 (Identificação) e 2 (SISO) em grid interno de 2 colunas no desktop (controles à esquerda, diagnósticos e gráficos à direita) e manter responsividade em 1 coluna no mobile (390px) sem overflow horizontal",
+        "Adicionar exportação individual de gráficos em SVG e PNG (2x alta resolução com fundo limpo, estilo relatório como no legacy_fuzzy_lab) em todos os slots de gráfico SVG, respeitando o bloqueio de exportação durante Fast-Preview/pending_commit"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-AUDIT-FIX-F8-MODERN-UI-CHART-EXPORT.md",
+      "assessed_commit": "dd43ed34437181ca8a3db959afa99c64a6af4df2",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "efcac3cfe43b73ebc8cabf7bca65fc1033ee1d59429a703a932433ce40ce5367",
+        "web/app/styles.css": "610230719713c20cbb9a53b9fb4ba9a85d2260a4deece9a9feb4dfb5c73a3646",
+        "web/charts/scientific_chart.ts": "a810def844cfa84852cd11d91bcbe0b8c86fe75422dd2567a62dd33c6e414af9",
+        "tests/unit/f8/modern_ui_chart_export.test.ts": "55807b3c88c3c8f754fbff14d0eb403b7c744c27492b70cfd3e10d7e4bd02295"
+      },
+      "acceptance_scope": "modern_ui_wcag_aa_two_col_responsive_and_svg_png_chart_export_with_r23_guard",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-AUDIT-FIX-F8-MODERN-UI-CHART-EXPORT.md",
+        "tests/unit/f8/modern_ui_chart_export.test.ts",
+        "tests/e2e/"
       ]
     }
   ],

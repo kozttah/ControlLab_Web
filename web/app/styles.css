@@ -1,4 +1,4 @@
-/* ControlLab Web — Estilos acessíveis WCAG 2.2 AA (Desktop e Tablet >= 44px) */
+/* ControlLab Web — Estilos modernos e acessíveis WCAG 2.2 AA (Desktop, Tablet e Mobile >= 44px) */
 
 :root,
 [data-theme="standard_aa"] {
@@ -8,8 +8,11 @@
   --text-primary: #0F172A;
   --text-secondary: #334155;
   --border: #64748B;
+  --border-subtle: #CBD5E1;
   --accent: #1D4ED8;
   --accent-text: #FFFFFF;
+  --danger: #B91C1C;
+  --danger-text: #FFFFFF;
   --focus-ring: #0F172A;
   --success-bg: #ECFDF5;
   --success-fg: #065F46;
@@ -19,6 +22,9 @@
   --error-fg: #991B1B;
   --info-bg: #EFF6FF;
   --info-fg: #1E40AF;
+  --dot-ready: #15803D;
+  --dot-busy: #B45309;
+  --dot-error: #B91C1C;
 }
 
 [data-theme="high_contrast"] {
@@ -28,8 +34,11 @@
   --text-primary: #FFFFFF;
   --text-secondary: #E2E8F0;
   --border: #E2E8F0;
+  --border-subtle: #94A3B8;
   --accent: #93C5FD;
   --accent-text: #000000;
+  --danger: #FCA5A5;
+  --danger-text: #000000;
   --focus-ring: #FACC15;
   --success-bg: #052E16;
   --success-fg: #86EFAC;
@@ -39,6 +48,9 @@
   --error-fg: #FCA5A5;
   --info-bg: #172554;
   --info-fg: #BAE6FD;
+  --dot-ready: #4ADE80;
+  --dot-busy: #FACC15;
+  --dot-error: #FCA5A5;
 }
 
 * {
@@ -83,65 +95,279 @@ select {
   font: inherit;
 }
 
+button {
+  border-radius: 7px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 2px solid var(--accent);
+  font-weight: 600;
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: var(--danger-text);
+  border: 2px solid var(--danger);
+  font-weight: 600;
+}
+
+.btn-small {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+input,
+select,
+textarea {
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
 :focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
+/* Cabeçalho compacto e sticky no desktop */
 .controllab-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 1.25rem;
   background: var(--surface);
   border-bottom: 2px solid var(--border);
 }
 
-.controllab-tablist {
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-text);
+  display: grid;
+  place-items: center;
+  font-size: 1.35rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  min-width: 0;
+}
+
+.brand-text h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.header-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot-ready);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+[data-engine-state="loading"] .status-dot,
+[data-engine-state="computing"] .status-dot {
+  background: var(--dot-busy);
+}
+
+[data-engine-state="error"] .status-dot {
+  background: var(--dot-error);
+}
+
+.revision-summary {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.header-controls {
+  align-items: center;
+}
+
+.compact-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.decimals-input {
+  width: 72px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Navegação por abas */
+.controllab-tablist {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  padding: 0.55rem 1.25rem;
   background: var(--surface-alt);
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  max-width: 100%;
 }
 
 .controllab-tablist [role="tab"] {
-  padding: 0.5rem 0.9rem;
+  padding: 0.45rem 0.95rem;
   background: var(--surface);
   color: var(--text-primary);
-  border: 2px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-bottom: 3px solid transparent;
+  border-radius: 8px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .controllab-tablist [role="tab"][aria-selected="true"] {
   background: var(--accent);
   color: var(--accent-text);
   border-color: var(--accent);
+  border-bottom-color: var(--focus-ring);
   font-weight: 600;
 }
 
+/* Layout principal */
 .controllab-main {
+  max-width: 1560px;
+  margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(280px, 1.1fr) minmax(320px, 1.4fr);
+  grid-template-columns: minmax(300px, 1.05fr) minmax(340px, 1.35fr);
   gap: 1rem;
   padding: 1rem;
+  align-items: start;
 }
 
-@media (max-width: 900px) {
-  .controllab-main {
-    grid-template-columns: 1fr;
-  }
+.controllab-main.single-main-col {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .panel-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1rem;
+  min-width: 0;
+}
+
+.panel-card h2 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.2rem;
+}
+
+.panel-card h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.05rem;
+}
+
+.panel-card h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+}
+
+.subcard,
+.typed-subcard {
+  margin: 0.75rem 0;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  min-width: 0;
+}
+
+/* Grid interno 2 colunas para Abas 1 e 2 */
+.workspace-two-col {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.3fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.workspace-controls-col,
+.workspace-results-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.siso-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  min-width: 0;
+  margin-bottom: 0.5rem;
 }
 
 .chart-container svg {
@@ -150,11 +376,34 @@ select {
   display: block;
 }
 
+.chart-export-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.chart-export-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.chart-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 .diagnostics-panel {
-  margin: 0.75rem 0;
+  margin: 0.5rem 0;
   padding: 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--surface-alt);
 }
 
@@ -223,7 +472,11 @@ select {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.lqr-status-row p {
+  margin: 0;
 }
 
 .lqr-slider {
@@ -233,7 +486,7 @@ select {
   padding: 0.5rem 0.85rem;
   border: 2px solid var(--accent);
   border-radius: 6px;
-  background: var(--surface-alt);
+  background: var(--surface);
   color: var(--text-primary);
   cursor: ew-resize;
   user-select: none;
@@ -244,6 +497,7 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  align-items: center;
 }
 
 .declarative-tools {
@@ -279,6 +533,7 @@ select {
   flex-direction: column;
   gap: 0.25rem;
   margin-bottom: 0.5rem;
+  min-width: 0;
 }
 
 .field-error,
@@ -334,13 +589,6 @@ select {
   max-height: 48vh;
 }
 
-
-/* Keep editable scientific data inside narrow tablet and phone viewports. */
-.panel-card,
-.tool-field {
-  min-width: 0;
-}
-
 .tool-field input,
 .tool-field select,
 .tool-field textarea {
@@ -357,27 +605,6 @@ select {
 .panel-card pre {
   max-width: 100%;
   overflow: auto;
-}
-
-@media (max-width: 900px) {
-  .controllab-main {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .accessible-data-table {
-    display: block;
-    overflow-x: auto;
-  }
-}
-
-.lqr-matrix-editor,
-.lqr-json-advanced,
-.typed-tf-builder {
-  margin: 0.75rem 0;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-alt);
 }
 
 .lqr-matrix-dims {
@@ -440,4 +667,38 @@ select {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+@media (max-width: 1100px) {
+  .siso-charts-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 960px) {
+  .controllab-main,
+  .controllab-main.single-main-col,
+  .workspace-two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .accessible-data-table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .controllab-header {
+    position: static;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .controllab-tablist {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .controllab-main {
+    padding: 0.65rem;
+  }
 }

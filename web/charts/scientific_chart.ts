@@ -1819,3 +1819,135 @@ export class FrameBudgetTracker {
     this.samples.length = 0;
   }
 }
+
+export const CHART_EXPORT_BASENAMES: Record<string, string> = {
+  "id-response-chart-slot": "controllab-id-response",
+  "id-residuals-chart-slot": "controllab-id-residuals",
+  "siso-bode-chart-slot": "controllab-bode",
+  "siso-nyquist-chart-slot": "controllab-nyquist",
+  "siso-rl-chart-slot": "controllab-root-locus",
+  "siso-time-chart-slot": "controllab-time-response",
+  "pz-chart-slot": "controllab-pole-zero",
+  "time-chart-slot": "controllab-lqr-time-response",
+};
+
+export function getChartExportFilename(slotId: string, ext: "svg" | "png"): string {
+  const base = CHART_EXPORT_BASENAMES[slotId] ?? `controllab-${slotId.replace(/[^a-z0-9_-]+/gi, "-")}`;
+  return `${base}.${ext}`;
+}
+
+export function ensureSvgXmlns(svgMarkup: string): string {
+  const trimmed = svgMarkup.trim();
+  if (!/^<svg\b/i.test(trimmed)) return trimmed;
+  if (/\bxmlns\s*=\s*["']http:\/\/www\.w3\.org\/2000\/svg["']/i.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed.replace(/^<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+}
+
+export function serializeSvgForExport(slotOrSvg: Element | string | null | undefined): string | null {
+  if (!slotOrSvg) return null;
+  if (typeof slotOrSvg === "string") {
+    const match = /<svg\b[\s\S]*<\/svg>/i.exec(slotOrSvg);
+    return match ? ensureSvgXmlns(match[0]) : null;
+  }
+
+  const svgEl =
+    slotOrSvg.tagName?.toLowerCase() === "svg"
+      ? slotOrSvg
+      : slotOrSvg.querySelector("svg");
+  if (!svgEl) return null;
+
+  if (typeof XMLSerializer !== "undefined" && typeof Node !== "undefined" && svgEl instanceof Node) {
+    const serialized = new XMLSerializer().serializeToString(svgEl);
+    return ensureSvgXmlns(serialized);
+  }
+
+  const outer = (svgEl as unknown as { outerHTML?: unknown }).outerHTML;
+  if (typeof outer === "string" && /<svg\b/i.test(outer)) {
+    return ensureSvgXmlns(outer);
+  }
+
+  const rawHtml = (slotOrSvg as unknown as { innerHTML?: unknown }).innerHTML;
+  if (typeof rawHtml === "string") {
+    const match = /<svg\b[\s\S]*<\/svg>/i.exec(rawHtml);
+    if (match) return ensureSvgXmlns(match[0]);
+  }
+  return null;
+}
+
+export function parseSvgDimensions(svgMarkup: string): { width: number; height: number } {
+  const viewBoxMatch = /\bviewBox\s*=\s*["']\s*[-+]?\d*\.?\d+\s+[-+]?\d*\.?\d+\s+(\d*\.?\d+)\s+(\d*\.?\d+)\s*["']/i.exec(
+    svgMarkup,
+  );
+  if (viewBoxMatch) {
+    const w = Number(viewBoxMatch[1]);
+    const h = Number(viewBoxMatch[2]);
+    if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) {
+      return { width: w, height: h };
+    }
+  }
+  const widthMatch = /\bwidth\s*=\s*["'](\d+(?:\.\d+)?)/i.exec(svgMarkup);
+  const heightMatch = /\bheight\s*=\s*["'](\d+(?:\.\d+)?)/i.exec(svgMarkup);
+  const w = widthMatch ? Number(widthMatch[1]) : 640;
+  const h = heightMatch ? Number(heightMatch[1]) : 400;
+  return {
+    width: Number.isFinite(w) && w > 0 ? w : 640,
+    height: Number.isFinite(h) && h > 0 ? h : 400,
+  };
+}
+
+export async function renderSvgMarkupToPngBlob(
+  svgMarkup: string,
+  options?: { scale?: number; backgroundColor?: string; doc?: Document },
+): Promise<Blob> {
+  const doc = options?.doc ?? globalThis.document;
+  if (
+    !doc ||
+    typeof Blob === "undefined" ||
+    typeof URL === "undefined" ||
+    typeof URL.createObjectURL !== "function" ||
+    typeof Image === "undefined"
+  ) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      "Exportação PNG indisponível neste ambiente sem suporte a Canvas/Image.",
+    );
+  }
+  const scale = options?.scale ?? 2;
+  const backgroundColor = options?.backgroundColor ?? "#ffffff";
+  const normalizedSvg = ensureSvgXmlns(svgMarkup);
+  const { width, height } = parseSvgDimensions(normalizedSvg);
+  const svgBlob = new Blob([normalizedSvg], { type: "image/svg+xml;charset=utf-8" });
+  const objectUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Falha ao decodificar SVG para renderização PNG."));
+      image.src = objectUrl;
+    });
+
+    const canvas = doc.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Contexto 2D de Canvas indisponível para exportação PNG.");
+    }
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const pngBlob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Canvas.toBlob retornou nulo ao gerar PNG."));
+      }, "image/png");
+    });
+    return pngBlob;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}

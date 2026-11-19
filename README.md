@@ -9,7 +9,7 @@
 
 O ControlLab Web reúne um motor científico em `NumPy`/`SciPy`, modelos canônicos, diagnósticos numéricos e arquivos portáteis para ensino, pesquisa e engenharia de controle. O cálculo no navegador é executado em um Web Worker Pyodide, sem backend científico remoto obrigatório. O mesmo pacote `control_lab` pode ser utilizado em CPython local.
 
-A especificação normativa é o [Documento Diretor CL-DIR-001](./ControlLab_Web_Documento_Diretor_v1.0.md), complementado pelas [decisões de arquitetura](./docs/architecture/). O [PROJECT_STATE.json](./PROJECT_STATE.json) registra os gates, os WorkPackages e seus escopos de aceite.
+A especificação normativa é o [Documento Diretor CL-DIR-001](./ControlLab_Web_Documento_Diretor_v1.0.md), complementado pelas [decisões de arquitetura](./docs/architecture/) e pelo [Documento Diretor de Design e UX (`CL-UX-DIR-001`)](./docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md). O [PROJECT_STATE.json](./PROJECT_STATE.json) registra os gates, os WorkPackages e seus escopos de aceite.
 
 ## Testar no navegador
 

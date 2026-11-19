@@ -1,6 +1,13 @@
 {
   "document_id": "CL-DIR-001",
   "spec_version": "1.0.0",
+  "ux_design_reference": {
+    "document_id": "CL-UX-DIR-001",
+    "version": "1.0.0",
+    "path": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+    "queue_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
+    "approved_by_user_utc": "2026-11-19"
+  },
   "budget_policy": {
     "weekly_reset_weekday": "Monday",
     "burn_day_weekday": "Sunday",
@@ -3583,6 +3590,159 @@
         "docs/audits/handoffs/WP-AUDIT-FIX-F8-MODERN-UI-CHART-EXPORT.md",
         "tests/unit/f8/modern_ui_chart_export.test.ts",
         "tests/e2e/"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-REFACTOR-01-SHELL-DOCK",
+      "front": "f8-ui-charts",
+      "phase": "UX-Refactor-CL-UX-DIR-001",
+      "title": "App Shell 3-zonas, Workspace Dock, Inspetor Técnico R-27 recolhível e Dicionário Semântico",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-AUDIT-FIX-F8-MODERN-UI-CHART-EXPORT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Extrair Workspace Dock persistente à esquerda (web/app/workspace_dock.ts) para Datasets, Plantas/Modelos e Controladores com modal unificado '+ Novo' (TF num/den, StateSpace matricial, Dataset CSV/Tabela) e botões de envio 1-clique entre abas",
+        "Extrair gaveta recolhível Inspetor Técnico R-27 / JSON (web/app/inspector_drawer.ts) fechada por padrão, removendo rCARE, hashes, revisões e payloads JSON brutos da área central de trabalho",
+        "Aplicar Dicionário de Tradução Semântica (Seção 2 de CL-UX-DIR-001) eliminando jargões internos (core.reuse_model, T-ID-*, Fast-Preview Transitório) dos rótulos primários sem violar R-23, R-26 ou R-27",
+        "Manter layout responsivo sem overflow horizontal em desktop (>=1200px) e mobile (390px) e preservar compatibilidade da suíte F8"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-REFACTOR-02-IDENT-SISO-LQR",
+      "front": "f8-ui-charts",
+      "phase": "UX-Refactor-CL-UX-DIR-001",
+      "title": "Modularização das Bancadas 1 (ident), 2 (sisotool com datatips) e 3 (Espaço de Estados & LQR)",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-UX-REFACTOR-01-SHELL-DOCK"
+      ],
+      "requirement_ids": [
+        "R-06",
+        "R-07",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-ID-02",
+        "T-ID-03",
+        "T-FREQ-01",
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Extrair web/features/views/identification_view.ts (barra guiada 3 etapas, comparação multi-modelo com checkboxes, seletor Simulação Livre vs Previsão 1-Passo)",
+        "Extrair web/features/views/siso_view.ts (diagrama de malha no cabeçalho, sintonizador C(s), grid 2x2 e datatips interativos ao clicar em Bode, Nyquist e Lugar das Raízes congelando todos os polos no ganho K selecionado)",
+        "Extrair web/features/views/statespace_view.ts (editor matricial em abas A|B|C|D e Q|R|x0, modal JSON documentado, badges PBH, cards de KPI e comparador de experimentos)"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-REFACTOR-03-MIMO-FUZZY-LMI",
+      "front": "f8-ui-charts",
+      "phase": "UX-Refactor-CL-UX-DIR-001",
+      "title": "Bancadas dedicadas 4 (MIMO), 5 (Fuzzy/TS legado) e 6 (Editor LMI estilo Monaco + Parser Matemático)",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-UX-REFACTOR-02-IDENT-SISO-LQR"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-FML-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Extrair web/features/views/mimo_view.ts (valores singulares sigma e heatmap RGA interativo por slider de frequência)",
+        "Extrair web/features/views/fuzzy_view.ts (editor visual de pertinências, matriz de regras 2D, import/export FML passivo)",
+        "Extrair web/features/views/lmi_view.ts e lmi_dsl_parser.ts (editor estilo Monaco com template inicial, salvar/carregar .lmi, leitura matemática interpretada sem eval, detecção bilinear, certificado 5D e exportação CVXPY/YALMIP)"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-REFACTOR-04-F9-BROWSER-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "UX-Refactor-CL-UX-DIR-001",
+      "title": "Auditoria independente F9 em navegador (Chromium + Firefox) para a nova UX modular CL-UX-DIR-001",
+      "allowed_paths": [
+        "tests/e2e/",
+        "tests/wasm/",
+        "tests/oracles/",
+        "tests/integration/",
+        "scripts/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-UX-REFACTOR-01-SHELL-DOCK",
+        "WP-UX-REFACTOR-02-IDENT-SISO-LQR",
+        "WP-UX-REFACTOR-03-MIMO-FUZZY-LMI"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-06",
+        "R-07",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-ID-02",
+        "T-ID-03",
+        "T-FREQ-01",
+        "T-FREQ-02",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && pytest tests/wasm/ tests/e2e/ -v && CONTROLLAB_BROWSER=firefox pytest tests/wasm/ tests/e2e/ -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Validar em Chromium e Firefox (desktop 1280x800 e mobile 390x844) os 5 critérios de usabilidade da Seção 8 de CL-UX-DIR-001 e toda a matriz normativa existente",
+        "Verificar datatips Bode/Nyquist/Root Locus, editor LMI estilo Monaco + leitura matemática segura e ausência de regressão nos gates R-23, R-26 e R-27"
       ]
     }
   ],

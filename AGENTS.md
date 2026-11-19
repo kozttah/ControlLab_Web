@@ -2,6 +2,7 @@
 
 ## 1. Fonte Normativa Única
 Toda implementação, contrato, estrutura de dados, teste e gate DEVE obedecer estritamente ao documento `@ControlLab_Web_Documento_Diretor_v1.0.md` (também espelhado em `@docs/ControlLab_Web_Documento_Diretor_v1.0.md`).
+Para arquitetura visual, ergonomia de bancada, dicionário de termos e modularização da camada de apresentação (`F8`), siga de forma complementar e subordinada o Documento Diretor de Design `@docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md` (`CL-UX-DIR-001 v1.0.0`).
 
 ## 2. Arquitetura Operacional: 8 Frentes Produtoras (F1–F8) + 1 Frente Independente (F9)
 Este repositório opera sob isolamento estrito de propriedade (Seção 13.1 e 13.2):

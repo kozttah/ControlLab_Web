@@ -22,7 +22,8 @@
       "2026-11-17": 10,
       "2026-11-16": 1,
       "2026-11-18": 5,
-      "2026-11-19": 8
+      "2026-11-19": 8,
+      "2026-11-20": 1
     }
   },
   "audit_reference": {
@@ -3793,12 +3794,23 @@
         "T-SDP-C1"
       ],
       "acceptance_cmd": "npm --prefix web run build && pytest tests/wasm/ tests/e2e/ -v && CONTROLLAB_BROWSER=firefox pytest tests/wasm/ tests/e2e/ -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "Validar em Chromium e Firefox (desktop 1280x800 e mobile 390x844) os 5 critérios de usabilidade da Seção 8 de CL-UX-DIR-001 e toda a matriz normativa existente",
         "Verificar datatips Bode/Nyquist/Root Locus, editor LMI estilo Monaco + leitura matemática segura e ausência de regressão nos gates R-23, R-26 e R-27"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-REFACTOR-04-F9-BROWSER-AUDIT.md",
+      "assessed_commit": "9513a6df03cc657712638eec3dc6f8888b1c1b34",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "e8ab14c1c8a5981bcc4977a1beec56b43800bef99ff6eed3480287e132033f4f"
+      },
+      "acceptance_scope": "browser_audit_ux_refactor_chromium_full_firefox_with_preexisting_env_caveat",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-REFACTOR-04-F9-BROWSER-AUDIT.md",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
       ]
     }
   ],

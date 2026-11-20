@@ -1,0 +1,399 @@
+"""E2E regression suite for CL-UX-DIR-001 modular workbench refactor (WP-UX-REFACTOR-04-F9-BROWSER-AUDIT).
+
+Verifies end-to-end UX and scientific invariants in real browsers (Chromium + Firefox):
+1. 3-zone App Shell, Workspace Dock, Guided '+ Novo' modal (TF without JSON),
+   1-click SISO routing, collapsible R-27 Inspector Drawer, and Section 2 Semantic Dictionary.
+2. SISO click datatips on Bode, Nyquist, and Root Locus (freezing all closed-loop poles on branches
+   and clearing via #btn-siso-rl-clear-tip) plus R-23 chart export and preview lock.
+3. Tab 4 (MIMO σ + RGA slider), Tab 5 (Fuzzy surface + IEEE 1855 FML export), Tab 6 (Monaco-style
+   LMI editor, bilinear BMI detection, bmat formatting, save/load, 5-dimension certificate,
+   spectrum SVG, CVXPY export), and zero horizontal overflow across all 6 tabs at 1280x800 & 390x844.
+"""
+
+import json
+
+from scripts.browser_harness import browser_harness
+from scripts.gatecd_browser import mount_ui, wait_committed
+
+ALL_TAB_IDS = [
+    "identification",
+    "siso_frequency",
+    "statespace",
+    "mimo_frequency",
+    "fuzzy_ts",
+    "optimization_lmi",
+]
+
+
+def test_ux_3zone_shell_dock_guided_modal_and_inspector_r27(browser_harness):
+    """Test 1: 3-zone shell, Workspace Dock, R-27 Inspector Drawer, Semantic Dictionary, and '+ Novo' modal."""
+    page = mount_ui(browser_harness, "e2e-ux-3zone-dock", {"width": 1280, "height": 800})
+
+    dock_aside = page.locator("#workspace-dock-aside")
+    inspector_drawer = page.locator("#inspector-drawer")
+    toggle_inspector = page.locator("#btn-toggle-inspector")
+
+    # 1. Dock visible, Inspector hidden by default
+    assert dock_aside.is_visible()
+    assert not inspector_drawer.is_visible()
+    assert toggle_inspector.get_attribute("aria-expanded") == "false"
+
+    # Commit LQR so R-27 telemetry is populated, then open Inspector Drawer
+    page.locator('[data-action="commit-lqr"]').click()
+    wait_committed(page)
+
+    toggle_inspector.click()
+    inspector_drawer.wait_for(state="visible")
+    assert toggle_inspector.get_attribute("aria-expanded") == "true"
+
+    telemetry_text = page.locator("#inspector-telemetry-slot").inner_text()
+    assert "rCARE=" in telemetry_text
+    assert "proj_rev=" in telemetry_text
+    assert "model_rev=" in telemetry_text
+    assert "SHA-256" in telemetry_text
+
+    canonical_json_text = page.locator("#inspector-json-pre").inner_text()
+    parsed_json = json.loads(canonical_json_text)
+    assert parsed_json["kind"] == "StateSpace"
+
+    page.locator("#btn-close-inspector").click()
+    inspector_drawer.wait_for(state="hidden")
+    assert toggle_inspector.get_attribute("aria-expanded") == "false"
+
+    # 2. Verify Section 2 Semantic Translation Dictionary labels on primary UI buttons
+    all_btn_texts = page.locator("button").all_inner_texts()
+    for btn_text in all_btn_texts:
+        assert "core.reuse_model" not in btn_text, f"Raw internal label leaked: {btn_text}"
+        assert "IdentifiedModel Pendente" not in btn_text, f"Raw internal label leaked: {btn_text}"
+
+    assert page.locator('[data-action="reuse-model"]').inner_text() == "Converter / Registrar Modelo"
+    assert page.locator('[data-action="register-pending-identified"]').inner_text() == "Validar Modelo na Sessão"
+    assert page.locator('[data-action="id-load-const-pe"]').inner_text() == "Dataset Entrada Constante (Sem Excitação)"
+    assert page.locator('[data-action="build-report"]').inner_text() == "Relatório Científico (R-27)"
+
+    # 3. Guided '+ Novo' modal -> TransferFunction num="2", den="1, 3, 2" without JSON
+    page.locator("#btn-open-new-object-modal").click()
+    new_modal = page.locator("#workspace-new-object-modal")
+    new_modal.wait_for(state="visible")
+
+    page.locator("#new-tf-id").fill("tf-ux-e2e")
+    page.locator("#new-tf-num").fill("2")
+    page.locator("#new-tf-den").fill("1, 3, 2")
+    page.locator("#new-tf-dt").fill("")
+    page.locator("#btn-new-tf-submit").click()
+    new_modal.wait_for(state="hidden")
+
+    # Confirm rendered in #workspace-dock-aside with human-readable summary
+    dock_text = dock_aside.inner_text()
+    assert "tf-ux-e2e" in dock_text
+    assert "G(s) = 2 / (s^2 + 3·s + 2)" in dock_text
+
+    # Route to SISO via 1-click dock button
+    dock_item = page.locator('[data-dock-item-key="tf-ux-e2e#1"]')
+    dock_item.wait_for(state="visible")
+    dock_item.locator('[data-dock-action="route-siso"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'siso_frequency'")
+    page.locator("#siso-workspace-panel").wait_for(state="visible")
+
+    selected_id = page.evaluate(
+        "() => app.shell.getTypedWorkspace().getEffectiveSelection('frequencyPlant')?.ref.id"
+    )
+    assert selected_id == "tf-ux-e2e"
+    assert "tf-ux-e2e" in page.locator("#siso-loop-diagram-bar").inner_text()
+
+    browser_harness.record(
+        "e2e-ux-3zone-dock",
+        {
+            "dock_visible": True,
+            "inspector_default_hidden": True,
+            "inspector_r27_telemetry_verified": True,
+            "semantic_dictionary_verified": True,
+            "guided_tf_created_and_routed": selected_id,
+        },
+    )
+
+
+def test_ux_siso_click_datatips_and_r23_chart_export(browser_harness):
+    """Test 2: SISO click datatips (Bode, Nyquist, Root Locus frozen poles) and R-23 chart export."""
+    page = mount_ui(browser_harness, "e2e-ux-siso-datatips", {"width": 1280, "height": 800})
+
+    page.locator('button[data-tab-id="siso_frequency"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'siso_frequency'")
+    page.locator("#siso-workspace-panel").wait_for(state="visible")
+
+    # Register a 2nd-order SISO plant G(s) = 1 / (s^2 + 2s + 2)
+    tf_2nd_order = {
+        "schema_version": "1.0.0",
+        "id": "tf-siso-datatip-2nd",
+        "revision": 1,
+        "kind": "TransferFunction",
+        "dt": None,
+        "variable": "s",
+        "poly_order": "descending",
+        "input_names": ["u1"],
+        "output_names": ["y1"],
+        "num": [[{"shape": [1], "dtype": "float64", "order": "C", "data": [1.0]}]],
+        "den": [[{"shape": [3], "dtype": "float64", "order": "C", "data": [1.0, 2.0, 2.0]}]],
+        "units": {"time": "s", "inputs": ["V"], "outputs": ["V"]},
+        "provenance": {"algorithm": "test", "library": "control_lab", "seed": None},
+    }
+    page.evaluate(
+        """async (dto) => {
+            await app.shell.getTypedWorkspace().registerTypedObject(dto, {
+                selectRole: "frequencyPlant",
+                persistToIndexedDB: true,
+            });
+        }""",
+        tf_2nd_order,
+    )
+
+    page.locator("#siso-w-min").fill("0.05")
+    page.locator("#siso-w-max").fill("50")
+    page.locator("#siso-n-points").fill("60")
+    page.locator('[data-action="siso-eval-bode"]').click()
+
+    bode_svg = page.locator("#siso-bode-chart-slot svg.bode-chart")
+    bode_svg.wait_for(state="visible", timeout=30000)
+    nyquist_svg = page.locator("#siso-nyquist-chart-slot svg.nyquist-chart")
+    nyquist_svg.wait_for(state="visible")
+
+    page.locator("#siso-rl-kmax").fill("50")
+    page.locator('[data-action="siso-eval-rl"]').click()
+    rl_svg = page.locator("#siso-rl-chart-slot svg.root-locus-chart")
+    rl_svg.wait_for(state="visible", timeout=30000)
+
+    # 1. Click on Bode SVG -> datatip shows ω, Mag (dB), Fase (°)
+    bode_svg.scroll_into_view_if_needed()
+    bode_box = bode_svg.bounding_box()
+    assert bode_box is not None and bode_box["width"] > 100
+    page.mouse.click(
+        bode_box["x"] + bode_box["width"] * 0.45,
+        bode_box["y"] + bode_box["height"] * 0.4,
+    )
+    bode_tip = page.locator("#siso-bode-datatip")
+    bode_tip.wait_for(state="visible")
+    bode_tip_text = bode_tip.inner_text()
+    assert "ω" in bode_tip_text
+    assert "Mag" in bode_tip_text and "dB" in bode_tip_text
+    assert "Fase" in bode_tip_text and "°" in bode_tip_text
+    assert bode_svg.locator('g[data-layer="datatip"]').count() == 1
+
+    # 2. Click on Nyquist SVG -> datatip shows ω and L(jω)
+    nyquist_svg.scroll_into_view_if_needed()
+    nyq_box = nyquist_svg.bounding_box()
+    assert nyq_box is not None and nyq_box["width"] > 100
+    page.mouse.click(
+        nyq_box["x"] + nyq_box["width"] * 0.55,
+        nyq_box["y"] + nyq_box["height"] * 0.55,
+    )
+    nyq_tip = page.locator("#siso-nyquist-datatip")
+    nyq_tip.wait_for(state="visible")
+    nyq_tip_text = nyq_tip.inner_text()
+    assert "ω" in nyq_tip_text
+    assert "L(jω)" in nyq_tip_text
+    assert nyquist_svg.locator('g[data-layer="datatip"]').count() == 1
+
+    # 3. Click on Root Locus SVG -> datatip shows K & freezes all closed-loop poles; clear button clears it
+    rl_svg.scroll_into_view_if_needed()
+    rl_box = rl_svg.bounding_box()
+    assert rl_box is not None and rl_box["width"] > 100
+    page.mouse.click(
+        rl_box["x"] + rl_box["width"] * 0.45,
+        rl_box["y"] + rl_box["height"] * 0.35,
+    )
+    rl_tip = page.locator("#siso-rl-datatip")
+    rl_tip.wait_for(state="visible")
+    rl_tip_text = rl_tip.inner_text()
+    assert "K =" in rl_tip_text
+    assert "Ramo 1" in rl_tip_text and "Ramo 2" in rl_tip_text
+    assert rl_svg.locator('g[data-layer="frozen-poles-datatip"]').count() == 1
+    assert rl_svg.locator("g[data-frozen-pole-branch]").count() == 2
+
+    page.locator("#btn-siso-rl-clear-tip").click()
+    rl_tip.wait_for(state="hidden")
+    assert rl_svg.locator('g[data-layer="frozen-poles-datatip"]').count() == 0
+
+    # 4. R-23 Chart Export (allowed when committed, blocked during slider drag Fast-Preview)
+    bode_export_bar = page.locator('[data-export-bar-for="siso-bode-chart-slot"]')
+    bode_export_bar.wait_for(state="visible")
+    svg_export_btn = bode_export_bar.locator('[data-action="export-chart-svg"]')
+    assert svg_export_btn.is_enabled()
+
+    with page.expect_download() as dl_info:
+        svg_export_btn.click()
+    download = dl_info.value
+    assert download.suggested_filename.endswith(".svg")
+    svg_path = download.path()
+    assert svg_path is not None and "<svg" in svg_path.read_text(encoding="utf-8")
+
+    # Drag #siso-gain-slider -> Fast-Preview disables SISO export bar buttons (R-23)
+    slider = page.locator("#siso-gain-slider")
+    slider.scroll_into_view_if_needed()
+    s_box = slider.bounding_box()
+    assert s_box is not None and s_box["width"] >= 44 and s_box["height"] >= 44
+    page.mouse.move(s_box["x"] + s_box["width"] * 0.2, s_box["y"] + s_box["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(s_box["x"] + s_box["width"] * 0.55, s_box["y"] + s_box["height"] / 2, steps=10)
+    page.wait_for_function(
+        "() => document.querySelector('#siso-tuner-status')?.textContent?.includes('Pré-visualizando')",
+        timeout=10000,
+    )
+    assert svg_export_btn.is_disabled()
+
+    page.mouse.up()
+    page.wait_for_function(
+        """() => {
+            const btn = document.querySelector('[data-export-bar-for="siso-bode-chart-slot"] [data-action="export-chart-svg"]');
+            const model = app.shell.getSisoWorkspace().getBodeChartModel();
+            return Boolean(btn && !btn.disabled && model?.series_semantics === 'numeric_verified');
+        }""",
+        timeout=20000,
+    )
+
+    browser_harness.record(
+        "e2e-ux-siso-datatips-r23",
+        {
+            "bode_tip": bode_tip_text,
+            "nyquist_tip": nyq_tip_text,
+            "rl_tip": rl_tip_text,
+            "r23_svg_download_filename": download.suggested_filename,
+            "r23_preview_export_blocked": True,
+        },
+    )
+
+
+def test_ux_mimo_fuzzy_lmi_monaco_and_viewport_responsiveness(browser_harness):
+    """Test 3: Tabs 4 (MIMO), 5 (Fuzzy), 6 (LMI Monaco DSL + 5D cert + CVXPY) and 6-tab viewport responsiveness."""
+    page = mount_ui(browser_harness, "e2e-ux-mimo-fuzzy-lmi", {"width": 1280, "height": 800})
+
+    # 1. Tab 4 (mimo_frequency)
+    page.locator('button[data-tab-id="mimo_frequency"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'mimo_frequency'")
+    page.locator("#mimo-workspace-panel").wait_for(state="visible")
+
+    page.locator('[data-action="mimo-load-example"]').click()
+    page.wait_for_function(
+        "() => document.querySelector('#mimo-active-plant-info')?.textContent?.includes('ss-mimo-distillation-2x2')"
+    )
+    page.locator("#mimo-n-points").fill("16")
+    page.locator('[data-action="mimo-analyze"]').click()
+
+    mimo_svg = page.locator("#mimo-sigma-chart-slot svg")
+    mimo_svg.wait_for(state="visible", timeout=30000)
+
+    rga_slider = page.locator("#mimo-rga-omega-slider")
+    assert rga_slider.is_enabled()
+    rga_slider.fill("0")
+    rga_slider.dispatch_event("input")
+    omega_label_0 = page.locator("#mimo-rga-omega-label").inner_text()
+    rga_html_0 = page.locator("#mimo-rga-heatmap-slot").inner_html()
+    assert "mimo-rga-table" in rga_html_0
+
+    max_idx = rga_slider.get_attribute("max") or "15"
+    rga_slider.fill(max_idx)
+    rga_slider.dispatch_event("input")
+    omega_label_max = page.locator("#mimo-rga-omega-label").inner_text()
+    rga_html_max = page.locator("#mimo-rga-heatmap-slot").inner_html()
+    assert omega_label_max != omega_label_0
+    assert rga_html_max != rga_html_0
+
+    # 2. Tab 5 (fuzzy_ts)
+    page.locator('button[data-tab-id="fuzzy_ts"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'fuzzy_ts'")
+    page.locator("#fuzzy-workspace-panel").wait_for(state="visible")
+
+    page.locator("#fuzzy-surface-n-points").fill("9")
+    page.locator('[data-action="fuzzy-eval-surface"]').click()
+    page.locator("#fuzzy-surface-chart-slot svg").wait_for(state="visible", timeout=30000)
+
+    page.locator('[data-action="fuzzy-export-fml"]').click()
+    export_modal = page.locator("#controllab-export-modal")
+    export_modal.wait_for(state="visible", timeout=20000)
+    assert "<fuzzySystem" in page.locator("#export-modal-content").inner_text()
+    page.locator("#export-modal-close").click()
+    export_modal.wait_for(state="hidden")
+
+    # 3. Tab 6 (optimization_lmi)
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
+
+    editor = page.locator("#lmi-code-editor")
+    starter_dsl = editor.input_value()
+    assert "param alpha = 0.5" in starter_dsl
+
+    # Enter bilinear expression A*Q + B*K*Q < 0 -> bilinear warning
+    editor.fill("var Q sym(n)\nQ > 0\nA*Q + B*K*Q < 0")
+    alert_text = page.locator("#lmi-parsed-alert").inner_text()
+    assert "K*Q" in alert_text or "BMI" in alert_text or "bilinear" in alert_text.lower()
+    assert page.locator("#lmi-syntax-badge").inner_text() == "Aviso Bilinear (BMI)"
+
+    # Select regional_pole_placement and hinf_brl -> bmat block matrix formatted
+    page.select_option("#lmi-template-select", "regional_pole_placement")
+    assert page.locator("#lmi-parsed-math table.lmi-bmat-grid").count() >= 1
+
+    page.select_option("#lmi-template-select", "hinf_brl")
+    assert page.locator("#lmi-parsed-math table.lmi-bmat-grid").count() >= 1
+
+    # Save/load condition
+    page.select_option("#lmi-template-select", "decay_rate")
+    assert "param alpha = 0.5" in editor.input_value()
+    page.locator("#lmi-preset-name").fill("Condicao Decay E2E")
+    page.locator("#btn-lmi-save-dsl").click()
+
+    page.select_option("#lmi-template-select", "quadratic_stabilization")
+    assert "param alpha = 0.5" not in editor.input_value()
+
+    page.select_option("#lmi-saved-select", "lmi-preset-1")
+    assert "param alpha = 0.5" in editor.input_value()
+
+    # Run Resolver LMI -> 5-dimension certificate + spectrum SVG
+    page.locator('[data-action="lmi-solve"]').click()
+    page.locator("#lmi-spectrum-chart-slot svg").wait_for(state="visible", timeout=45000)
+
+    cert_text = page.locator("#lmi-certificate-panel").inner_text()
+    cert_text_cf = cert_text.casefold()
+    for dim_label in (
+        "1. Solver Status",
+        "2. Auditoria Factibilidade",
+        "3. Certificado Dual",
+        "4. Condicionamento κ",
+        "5. Validade Controlador",
+    ):
+        assert dim_label.casefold() in cert_text_cf, f"Missing 5D cert dimension: {dim_label} in {cert_text!r}"
+
+    # CVXPY export modal
+    page.locator('[data-action="lmi-export-cvxpy"]').click()
+    export_modal.wait_for(state="visible", timeout=20000)
+    assert "import cvxpy" in page.locator("#export-modal-content").inner_text()
+    page.locator("#export-modal-close").click()
+    export_modal.wait_for(state="hidden")
+
+    # 4. Zero horizontal overflow across ALL 6 tabs in 1280x800 desktop and 390x844 mobile
+    overflow_report = {}
+    for width, height in ((1280, 800), (390, 844)):
+        page.set_viewport_size({"width": width, "height": height})
+        vp_key = f"{width}x{height}"
+        overflow_report[vp_key] = {}
+        for tab_id in ALL_TAB_IDS:
+            page.locator(f'button[data-tab-id="{tab_id}"]').click()
+            page.wait_for_function(f"() => app.shell.getActiveTab() === '{tab_id}'")
+            metrics = page.evaluate(
+                "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
+            )
+            overflow_report[vp_key][tab_id] = metrics
+            assert metrics["scrollWidth"] <= metrics["innerWidth"] + 1, (
+                f"Horizontal overflow at {vp_key} on tab '{tab_id}': "
+                f"scrollWidth={metrics['scrollWidth']} > innerWidth={metrics['innerWidth']}"
+            )
+
+    browser_harness.record(
+        "e2e-ux-mimo-fuzzy-lmi-responsive",
+        {
+            "mimo_rga_omega_0": omega_label_0,
+            "mimo_rga_omega_max": omega_label_max,
+            "fuzzy_surface_rendered": True,
+            "lmi_5d_certificate_verified": True,
+            "overflow_report": overflow_report,
+        },
+    )

@@ -62,6 +62,12 @@ function sources(operation: string, payload: Record<string, unknown>): readonly 
     }
     return [];
   }
+  if (operation === "mimo.sensitivity") {
+    return [
+      plant,
+      { target: "controller", inline: ["controller"], refs: ["controller_ref"], kinds: ["StateSpace", "TransferFunction", "DynamicController"] },
+    ];
+  }
   if (operation === "mimo.simulate_closed_loop") {
     return [
       plant,

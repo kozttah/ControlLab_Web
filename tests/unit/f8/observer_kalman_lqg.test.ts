@@ -421,6 +421,11 @@ test("WP-PHASE2-A1-F8-OBSERVER-KALMAN-LQG: Kalman/LQG, Luenberger, simulação x
   assert.ok(dockEl.textContent.includes("lqg-ctrl-1"), "Controlador LQG deve aparecer no Workspace Dock");
 
   // 4. Simular x(t) vs x_hat(t)
+  const chartsPanel = root.querySelector("#controllab-charts-panel")!;
+  const obsChartCard = chartsPanel.querySelector("#obs-sim-chart-card")!;
+  assert.ok(obsChartCard !== null, "#obs-sim-chart-card deve estar na coluna direita #controllab-charts-panel");
+  assert.equal(obsChartCard.hasAttribute("hidden"), true, "Deve ficar oculto antes de simular");
+
   btnSim.dispatchEvent("click");
   await new Promise((r) => setTimeout(r, 30));
 
@@ -430,13 +435,25 @@ test("WP-PHASE2-A1-F8-OBSERVER-KALMAN-LQG: Kalman/LQG, Luenberger, simulação x
   assert.deepEqual(simPlant.matrices.A.shape, [4, 4]);
   assert.deepEqual(simCall.payload.x0, [1, 0, 0, 0]);
 
-  const chartSlot = root.querySelector("#obs-sim-chart-slot")!;
+  assert.equal(obsChartCard.hasAttribute("hidden"), false, "Deve revelar #obs-sim-chart-card após simulação");
+  const chartSlot = chartsPanel.querySelector("#obs-sim-chart-slot")!;
   assert.ok(chartSlot.innerHTML.includes("<svg"), "Deve renderizar SVG de convergência");
-  assert.ok(chartSlot.innerHTML.includes('data-channel-id="x-true-1"'));
-  assert.ok(chartSlot.innerHTML.includes('data-channel-id="x-hat-1"'));
-  assert.ok(chartSlot.innerHTML.includes('stroke-dasharray="6 3"'));
+  assert.ok(chartSlot.innerHTML.includes('data-channel-id="obs-state-x-1"'));
+  assert.ok(chartSlot.innerHTML.includes('data-channel-id="obs-state-xhat-1"'));
+  assert.ok(chartSlot.innerHTML.includes('data-channel-id="obs-state-x-2"'));
+  assert.ok(chartSlot.innerHTML.includes('data-channel-id="obs-state-xhat-2"'));
+  assert.ok(chartSlot.innerHTML.includes('stroke-dasharray="3 3"'));
 
-  const tableSlot = root.querySelector("#obs-sim-table-slot")!;
+  const strokeByCh = new Map(
+    Array.from(
+      chartSlot.innerHTML.matchAll(/stroke="([^"]+)"[^>]*data-channel-id="(obs-state-[^"]+)"/g),
+    ).map((m) => [m[2], m[1]]),
+  );
+  assert.equal(strokeByCh.get("obs-state-x-1"), strokeByCh.get("obs-state-xhat-1"));
+  assert.equal(strokeByCh.get("obs-state-x-2"), strokeByCh.get("obs-state-xhat-2"));
+  assert.notEqual(strokeByCh.get("obs-state-x-1"), strokeByCh.get("obs-state-x-2"));
+
+  const tableSlot = chartsPanel.querySelector("#obs-sim-table-slot")!;
   assert.ok(tableSlot.innerHTML.includes("<table"), "Deve renderizar tabela acessível WCAG 2.2 AA");
 
   // 5. Trocar para modo Luenberger e sintetizar com polos complexos

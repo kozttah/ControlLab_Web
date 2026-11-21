@@ -657,10 +657,24 @@ test("WP-PHASE2-D3-F8-MULTIFREQ-UI: Desacoplador SVD multi-frequência suporta m
   const perFreqRows = perFreqTbody.querySelectorAll<FakeElement>("tr");
   assert.equal(perFreqRows.length, 3, "Tabela comparativa deve conter 3 linhas (0.1, 1.0, 10.0)");
 
-  const rgaAfterTable = summaryEl.querySelector<FakeElement>(
-    'table[aria-label="RGA pós-desacoplamento"]',
+  assert.ok(
+    autoHtml.includes("Pré-compensador à direita"),
+    "Resumo deve explicitar convenção G_des(s) = G(s) W1(s)",
   );
-  assert.ok(rgaAfterTable, "Tabela RGA pós-desacoplamento deve ser renderizada");
+  assert.ok(
+    autoHtml.includes("W<sub>1</sub>") || autoHtml.includes("W<sub>0</sub>"),
+    "Resumo deve exibir matriz de transferência/ganho do desacoplador",
+  );
+
+  const decSlider = summaryEl.querySelector<FakeElement>("#mimo-decoupler-rga-slider");
+  const decOmegaLabel = summaryEl.querySelector<FakeElement>("#mimo-decoupler-rga-label");
+  const decRgaSlot = summaryEl.querySelector<FakeElement>("#mimo-decoupler-rga-heatmap-slot");
+  assert.ok(decSlider && decOmegaLabel && decRgaSlot, "Slider e slot de RGA pós-desacoplamento devem existir");
+  assert.ok(decRgaSlot.querySelector("table"), "Tabela RGA pós-desacoplamento deve ser renderizada");
+  const initialOmegaLabel = decOmegaLabel.textContent;
+  decSlider.value = "0";
+  decSlider.dispatchEvent("input");
+  assert.notEqual(decOmegaLabel.textContent, initialOmegaLabel, "Slider deve atualizar frequência exibida");
 
   // 2) Modo manual com ordem explícita "2"
   modeEl.value = "2";
@@ -682,5 +696,56 @@ test("WP-PHASE2-D3-F8-MULTIFREQ-UI: Desacoplador SVD multi-frequência suporta m
     manualHtml.includes("Erro de ajuste em frequência:") && manualHtml.includes("%"),
     "Resumo em modo manual deve exibir erro de ajuste em frequência em %",
   );
+});
+
+test("WP-PHASE2-E1-F8-MIMO-POLISH: Importação de controlador K∞ na análise/simulação MIMO e grade p×m de resposta ao degrau", async () => {
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const client = new CpythonMimoBridgeClient();
+  const app = mountControlLabApp(root as unknown as HTMLElement, { client });
+
+  app.shell.switchTab("mimo_frequency");
+  root.querySelector<FakeElement>('[data-action="mimo-load-example"]')?.dispatchEvent("click");
+  await flushAsync();
+
+  // Sintetizar e registrar K∞
+  root.querySelector<FakeElement>('[data-action="mimo-design-hinf"]')?.dispatchEvent("click");
+  await flushAsync();
+  root.querySelector<FakeElement>('[data-action="mimo-register-hinf"]')?.dispatchEvent("click");
+  await flushAsync();
+
+  const ctrlSelect = root.querySelector<FakeElement>("#mimo-controller-select");
+  assert.ok(ctrlSelect, "#mimo-controller-select deve existir");
+  const options = ctrlSelect.querySelectorAll<FakeElement>("option");
+  const hinfOpt = options.find((o) => o.value !== "" && !o.value.includes("ss-mimo-distillation-2x2"));
+  assert.ok(hinfOpt, "Controlador K∞ registrado deve aparecer em #mimo-controller-select");
+
+  ctrlSelect.value = hinfOpt.value;
+  root.querySelector<FakeElement>('[data-action="mimo-analyze"]')?.dispatchEvent("click");
+  await flushAsync();
+
+  const sensReqs = client.executedRequests.filter((r) => r.operation === "mimo.sensitivity");
+  assert.ok(sensReqs.length >= 1);
+  assert.ok(sensReqs[sensReqs.length - 1].payload.controller_ref, "mimo.sensitivity deve receber controller_ref");
+
+  const useCtrlCb = root.querySelector<FakeElement>("#mimo-cl-use-selected-ctrl");
+  assert.ok(useCtrlCb, "#mimo-cl-use-selected-ctrl deve existir");
+  useCtrlCb.checked = true;
+  root.querySelector<FakeElement>('[data-action="mimo-simulate-cl"]')?.dispatchEvent("click");
+  await flushAsync();
+
+  const simReqs = client.executedRequests.filter((r) => r.operation === "mimo.simulate_closed_loop");
+  assert.ok(simReqs.length >= 1);
+  const lastSim = simReqs[simReqs.length - 1].payload;
+  assert.ok(lastSim.controller_ref, "mimo.simulate_closed_loop deve receber controller_ref");
+  assert.equal(lastSim.controller_gains, undefined, "Não deve enviar controller_gains quando controller_ref está ativo");
+
+  const clSlot = root.querySelector<FakeElement>("#mimo-cl-chart-slot")!;
+  assert.ok(clSlot.querySelector(".mimo-step-grid"), "Deve renderizar grade .mimo-step-grid");
+  const cells = clSlot.querySelectorAll(".mimo-step-cell");
+  assert.equal(cells.length, 4, "Planta 2×2 deve renderizar grade 2×2 com 4 células SVG");
+  for (const cell of cells) {
+    assert.ok(cell.querySelector("svg"), "Cada célula da grade deve conter seu próprio SVG");
+  }
 });
 

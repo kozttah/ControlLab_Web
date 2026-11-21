@@ -1427,6 +1427,27 @@ textarea {
   min-width: 0;
 }
 
+.mimo-step-grid {
+  display: grid;
+  gap: 0.65rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mimo-step-cell {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.35rem;
+  background: var(--surface);
+}
+
+.mimo-step-diag {
+  border-color: var(--accent);
+}
+
 /* Aba 5: Bancada Fuzzy / TS */
 .fuzzy-main-grid,
 .fuzzy-workbench-grid {
@@ -1732,6 +1753,10 @@ textarea {
   .id-params-grid,
   .siso-params-compact-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mimo-step-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   .app-workbench-shell {

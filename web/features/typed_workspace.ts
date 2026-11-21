@@ -1770,6 +1770,15 @@ export class TypedObjectWorkspace {
 
     // 4. Frequência / MIMO -> StateSpace ou TransferFunction
     if (operation.startsWith("frequency.") || operation.startsWith("mimo.")) {
+      const ctrlRef = extractRefFromField(provided.controller_ref, "controller_ref");
+      if (ctrlRef) {
+        const knownCtrl = this.assertKnownRefCompatible(
+          ctrlRef,
+          ["DynamicController", "StateSpace", "TransferFunction"],
+          operation,
+        );
+        await ensureAndTrack(knownCtrl);
+      }
       const explicitRef =
         extractRefFromField(provided.plant_ref, "plant_ref") ??
         extractRefFromField(provided.model_ref, "model_ref");

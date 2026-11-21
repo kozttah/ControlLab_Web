@@ -240,3 +240,27 @@ test("F7-REF MIMO design_decoupler, simulate_closed_loop, and design_hinf resolv
   }, store));
 });
 
+test("F7-REF MIMO sensitivity resolves plant_ref and optional controller_ref of kind DynamicController", () => {
+  const store = populated();
+  const controller = dto("controller", 0, "DynamicController");
+  store.put(project, "controller", 0, controller);
+
+  assert.deepEqual(
+    resolve("mimo.sensitivity", { plant_ref: { id: "model", revision: 0 }, omega: [0.1, 1, 10] }, store),
+    { plant: dto(), omega: [0.1, 1, 10] },
+  );
+  assert.deepEqual(
+    resolve("mimo.sensitivity", {
+      plant_ref: { id: "model", revision: 0 },
+      controller_ref: { id: "controller", revision: 0 },
+      omega: [0.1, 1, 10],
+    }, store),
+    { plant: dto(), controller, omega: [0.1, 1, 10] },
+  );
+  rejected(() => resolve("mimo.sensitivity", {
+    plant_ref: { id: "model", revision: 0 },
+    controller,
+    controller_ref: { id: "controller", revision: 0 },
+  }, store));
+});
+

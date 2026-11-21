@@ -937,6 +937,17 @@ def test_ux_phase2_lqg_observer_mimo_decoupler_and_hinf(browser_harness):
     btn_obs_sim.click()
     obs_svg = page.locator("#obs-sim-chart-slot svg")
     obs_svg.wait_for(state="visible", timeout=30000)
+    obs_slot_in_panel = page.evaluate(
+        "() => document.querySelector('#controllab-charts-panel #obs-sim-chart-slot') !== null"
+    )
+    assert obs_slot_in_panel is True, "#obs-sim-chart-slot must reside inside #controllab-charts-panel"
+    obs_legend_text = page.evaluate(
+        "() => Array.from(document.querySelectorAll('#obs-sim-chart-slot svg text')).map(t => (t.textContent || '').trim()).join(' | ')"
+    )
+    for expected_label in ("x1 (Real)", "x1̂ (Estimado)", "x2 (Real)", "x2̂ (Estimado)"):
+        assert expected_label in obs_legend_text, (
+            f"Expected '{expected_label}' in #obs-sim-chart-slot SVG legend, got: {obs_legend_text}"
+        )
 
     btn_obs_reg = page.locator("#btn-obs-register-ctrl")
     page.wait_for_function("() => !document.querySelector('#btn-obs-register-ctrl')?.disabled")
@@ -973,13 +984,13 @@ def test_ux_phase2_lqg_observer_mimo_decoupler_and_hinf(browser_harness):
                 txt.includes('Ordem do desacoplador')
                 && txt.includes('(automática)')
                 && summary.querySelector('table[aria-label="Comparação por frequência do desacoplador"]') !== null
-                && summary.querySelector('table[aria-label="RGA pós-desacoplamento"]') !== null
+                && summary.querySelector('table[aria-label^="RGA pós-desacoplamento"]') !== null
             );
         }""",
         timeout=30000,
     )
     per_freq_table = page.locator('#mimo-decoupler-summary table[aria-label="Comparação por frequência do desacoplador"]')
-    rga_post_table = page.locator('#mimo-decoupler-summary table[aria-label="RGA pós-desacoplamento"]')
+    rga_post_table = page.locator('#mimo-decoupler-summary table[aria-label^="RGA pós-desacoplamento"]')
     assert per_freq_table.is_visible()
     assert per_freq_table.locator("tbody tr").count() == 3
     assert rga_post_table.is_visible()
@@ -988,6 +999,9 @@ def test_ux_phase2_lqg_observer_mimo_decoupler_and_hinf(browser_harness):
     assert "Ordem do desacoplador" in decoupler_text_auto
     assert "(automática)" in decoupler_text_auto
     assert "κ(G)" in decoupler_text_auto
+    assert "Gdes(s)" in decoupler_text_auto
+    assert "W1(s)" in decoupler_text_auto
+    assert page.locator("#mimo-decoupler-rga-slider").is_visible()
 
     # Explicit order "2" (Ordem 2) -> verifies "2 (manual)"
     page.select_option("#mimo-decoupler-mode", "2")
@@ -1001,13 +1015,35 @@ def test_ux_phase2_lqg_observer_mimo_decoupler_and_hinf(browser_harness):
     )
     decoupler_text = page.locator("#mimo-decoupler-summary").inner_text()
     assert "2 (manual)" in decoupler_text
+    assert "Gdes(s)" in decoupler_text
+    assert "W1(s)" in decoupler_text
+    assert page.locator("#mimo-decoupler-rga-slider").is_visible()
     assert per_freq_table.is_visible()
     assert per_freq_table.locator("tbody tr").count() == 3
     assert rga_post_table.is_visible()
 
     page.locator("#btn-mimo-simulate-cl").click()
-    cl_svg = page.locator("#mimo-cl-chart-slot svg")
-    cl_svg.wait_for(state="visible", timeout=30000)
+    page.locator("#mimo-cl-chart-slot .mimo-step-grid svg").first.wait_for(state="visible", timeout=30000)
+    cl_step_svgs = page.locator("#mimo-cl-chart-slot .mimo-step-grid svg")
+    assert cl_step_svgs.count() == 4
+    cl_grid_text = page.locator("#mimo-cl-chart-slot .mimo-step-grid").inner_text()
+    for pair_label in ("r1→y1", "r1→y2", "r2→y1", "r2→y2"):
+        assert pair_label in cl_grid_text, f"Expected '{pair_label}' in .mimo-step-grid, got: {cl_grid_text}"
+
+    # Verify registered DynamicController (LQG) is listed in #mimo-controller-select and runs mimo-analyze cleanly
+    dyn_ctrl_option_value = page.evaluate(
+        """() => {
+            const sel = document.querySelector('#mimo-controller-select');
+            if (!sel) return null;
+            const opts = Array.from(sel.options);
+            const match = opts.find((o) => o.textContent && (o.textContent.includes('DynamicController') || o.textContent.toLowerCase().includes('lqg')));
+            return match ? match.value : null;
+        }"""
+    )
+    assert dyn_ctrl_option_value, "Expected registered DynamicController (LQG) option in #mimo-controller-select"
+    page.select_option("#mimo-controller-select", dyn_ctrl_option_value)
+    page.locator('[data-action="mimo-analyze"]').click()
+    page.locator("#mimo-sigma-chart-slot svg").wait_for(state="visible", timeout=30000)
 
     page.locator("#btn-mimo-design-hinf").click()
     page.wait_for_function(
@@ -1036,7 +1072,7 @@ def test_ux_phase2_lqg_observer_mimo_decoupler_and_hinf(browser_harness):
                 "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
             )
             overflow_phase2[vp_key][tab_id] = m
-            assert m["scrollWidth"] <= m["innerWidth"] + 1, (
+            assert m["scrollWidth"] <= m["innerWidth"], (
                 f"Horizontal overflow at {vp_key} on tab '{tab_id}': "
                 f"scrollWidth={m['scrollWidth']} > innerWidth={m['innerWidth']}"
             )

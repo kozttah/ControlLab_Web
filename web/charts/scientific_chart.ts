@@ -148,6 +148,7 @@ export interface TimeSeriesChannel {
   shape: PointMarkerShape;
   stroke_dasharray: string;
   series_semantics: ResultVerificationIndicator;
+  color?: string;
 }
 
 export interface TimeResponseChartModel extends ChartCommonMetadata {
@@ -309,7 +310,7 @@ export function buildIdentificationResponseChartModel(input: {
       unit: outUnit,
       values: [...input.y_one_step],
       shape: "square",
-      stroke_dasharray: "6 3",
+      stroke_dasharray: "2 2",
       series_semantics: semantics,
     });
   }
@@ -322,7 +323,7 @@ export function buildIdentificationResponseChartModel(input: {
       unit: outUnit,
       values: [...input.y_free_sim],
       shape: "triangle",
-      stroke_dasharray: "2 2",
+      stroke_dasharray: "6 3",
       series_semantics: semantics,
     });
   }
@@ -1830,7 +1831,8 @@ export function renderTimeResponseSvg(
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 360;
   const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
+  const effectiveThemeMode = options?.themeMode ?? model.theme_mode ?? "standard_aa";
+  const theme = getThemeTokens(effectiveThemeMode);
 
   const xBounds = computeSafeAxisBounds(model.t, 0.02);
   const allY: number[] = [];
@@ -1860,21 +1862,40 @@ export function renderTimeResponseSvg(
       pts.push(`${toPxX(model.t[i]).toFixed(2)},${toPxY(ch.values[i]).toFixed(2)}`);
     }
     const label = `${ch.label} [${ch.unit}] (${ch.series_semantics})`;
-    return `<polyline fill="none" stroke="${color}" stroke-width="${isPreview ? "2" : "2.2"}" stroke-dasharray="${ch.stroke_dasharray}" points="${pts.join(" ")}" data-channel-id="${escapeHtml(ch.id)}" data-series-semantics="${escapeHtml(ch.series_semantics)}"><title>${escapeHtml(label)}</title></polyline>`;
+    const strokeWidth = isPreview ? "2" : ch.id.includes("residual") ? "1.4" : "2.2";
+    return `<polyline fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${ch.stroke_dasharray}" points="${pts.join(" ")}" data-channel-id="${escapeHtml(ch.id)}" data-series-semantics="${escapeHtml(ch.series_semantics)}"><title>${escapeHtml(label)}</title></polyline>`;
   };
 
   const isIdentChart =
     model.chart_id.startsWith("id-response") ||
     model.channels.some((ch) => ch.id.startsWith("y-measured") || ch.id.startsWith("y-hat-"));
 
+  const isObserverChart =
+    model.chart_id === "observer-state-comparison" ||
+    model.channels.some((ch) => ch.id.startsWith("obs-state-"));
+
+  const STATE_COLORS_LIGHT = ["#1D4ED8", "#059669", "#9333EA", "#EA580C", "#0891B2", "#DC2626"];
+  const STATE_COLORS_HC = ["#38BDF8", "#4ADE80", "#F472B6", "#FB923C", "#22D3EE", "#FCA5A5"];
+
   const resolveChannelColor = (ch: TimeSeriesChannel): string => {
     if (isIdentChart) {
+      if (ch.id.includes("residual")) {
+        return effectiveThemeMode === "high_contrast" ? "#F472B6" : "#9333EA";
+      }
       if (ch.id.includes("y-measured")) return theme.textPrimary;
       if (ch.id.includes("free-sim")) return theme.chartClosedLoop;
       if (ch.id.includes("one-step")) return theme.chartOverlayExact;
-      if (ch.id.includes("residual")) return theme.chartOpenLoop;
       if (ch.group === "u") return theme.chartPreview;
     }
+    if (isObserverChart) {
+      const obsMatch = /^obs-state-(?:x|xhat)-(\d+)$/.exec(ch.id);
+      if (obsMatch) {
+        const stateIdx = Math.max(0, Number(obsMatch[1]) - 1);
+        const palette = effectiveThemeMode === "high_contrast" ? STATE_COLORS_HC : STATE_COLORS_LIGHT;
+        return palette[stateIdx % palette.length];
+      }
+    }
+    if (ch.color) return ch.color;
     if (ch.group === "u") return theme.chartOpenLoop;
     if (ch.group === "x") return theme.chartOverlayExact;
     return theme.chartClosedLoop;
@@ -1906,16 +1927,18 @@ export function renderTimeResponseSvg(
     })
     .join("");
 
-  const timeLegendItems: string[] = isIdentChart
+  const timeLegendItems: string[] = isIdentChart || isObserverChart
     ? model.channels.map((ch, idx) => {
         const col = resolveChannelColor(ch);
         const sym = !ch.stroke_dasharray
           ? "—"
-          : ch.stroke_dasharray.startsWith("2")
+          : ch.stroke_dasharray.startsWith("2") || ch.stroke_dasharray.startsWith("3")
             ? "··"
             : "--";
-        const lx = padLeft + 8 + (idx % 3) * 185;
-        const ly = padTop + 14 + Math.floor(idx / 3) * 14;
+        const colsPerRow = isObserverChart ? 4 : 3;
+        const colWidth = isObserverChart ? 135 : 185;
+        const lx = padLeft + 8 + (idx % colsPerRow) * colWidth;
+        const ly = padTop + 14 + Math.floor(idx / colsPerRow) * 14;
         return `<text x="${lx}" y="${ly}" font-size="10" fill="${col}" data-legend-channel="${escapeHtml(ch.id)}">${sym} ${escapeHtml(ch.label)}</text>`;
       })
     : [

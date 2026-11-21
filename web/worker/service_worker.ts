@@ -195,11 +195,11 @@ export class ServiceWorkerController {
     const cache = await storage.open(release.name);
     const missingUrls: string[] = [];
     const corruptUrls: string[] = [];
-    for (const asset of release.assets.values()) {
+    await Promise.all(Array.from(release.assets.values()).map(async (asset) => {
       const response = await cache.match(this.url(asset.path));
       if (!response) missingUrls.push(asset.path);
       else if (!await matches(response, asset)) corruptUrls.push(asset.path);
-    }
+    }));
     if (!missingUrls.includes(LOCK) && !corruptUrls.includes(LOCK)) {
       try {
         const response = await cache.match(this.url(LOCK));

@@ -370,6 +370,11 @@ export function mountControlLabApp(
     `<details id="pz-table-details"><summary>Tabela acessível de polos e valores (WCAG 2.2 AA)</summary><div id="pz-table-slot"></div></details>`,
     `<details id="time-table-details"><summary>Tabela acessível da resposta temporal (WCAG 2.2 AA)</summary><div id="time-table-slot"></div></details>`,
     `<section id="experiments-compare-panel" aria-label="Comparador de experimentos confirmados"><h3>Comparador de Experimentos Confirmados</h3><div id="experiments-compare-slot"></div></section>`,
+    `<div id="obs-sim-chart-card" class="chart-card" hidden>`,
+    `<div id="obs-sim-chart-slot" class="chart-container" role="region" aria-label="Gráfico de convergência x(t) vs x̂(t)"></div>`,
+    renderChartExportBarHtml("obs-sim-chart-slot", "Observador x(t) vs x̂(t)"),
+    `</div>`,
+    `<details id="obs-sim-table-details" hidden><summary>Tabela acessível do observador x(t) vs x̂(t) (WCAG 2.2 AA)</summary><div id="obs-sim-table-slot" class="accessible-table-container" role="region" aria-label="Tabela acessível de x(t) vs x̂(t)"></div></details>`,
     `</section>`,
     `</main>`,
     renderInspectorDrawerHtml(),
@@ -747,6 +752,7 @@ export function mountControlLabApp(
       "lmi-spectrum-chart-slot": isLmi,
       "pz-chart-slot": isStatespace || isIdentification,
       "time-chart-slot": isStatespace,
+      "obs-sim-chart-slot": isStatespace,
     };
     for (const [slotId, slotVisible] of Object.entries(chartVisibility)) {
       const slotEl = container.querySelector<HTMLElement>(`#${slotId}`);

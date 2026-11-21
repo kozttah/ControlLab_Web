@@ -11,6 +11,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -161,9 +162,11 @@ def calculate(page, expected):
     page.wait_for_function(
         "() => document.querySelector('#engine-status-badge')?.textContent.includes('Motor: ready')"
     )
+    prev_rev_text = page.locator("#revision-summary").inner_text()
     page.locator('[data-action="commit-lqr"]').click()
     page.wait_for_function(
-        "() => document.querySelector('#lqr-status-text')?.textContent === 'Confirmado'"
+        "(prevText) => document.querySelector('#lqr-status-text')?.textContent === 'Confirmado' && document.querySelector('#revision-summary')?.textContent !== prevText",
+        arg=prev_rev_text,
     )
     assert json.loads(
         page.locator('#lqr-k-display pre[aria-label="Matriz de ganho K"]').inner_text()
@@ -291,18 +294,38 @@ def test_provisioned_client_updates_python_atomically_and_preserves_projects(rel
                 projects_before_activation = old_new.evaluate(PROJECTS)
                 page.close()
                 old_new.close()
-                observer.wait_for_function(
-                    """async prefix => {
-                  const r = await navigator.serviceWorker.getRegistration(prefix);
-                  return r && !r.waiting && r.active?.state === 'activated';
-                }""",
-                    arg=origin + PREFIX,
-                    timeout=120000,
-                )
+                deadline = time.monotonic() + 120.0
+                while True:
+                    activated = observer.evaluate(
+                        """async (prefix) => {
+                      const r = await navigator.serviceWorker.getRegistration(prefix);
+                      return Boolean(r && !r.waiting && !r.activating && r.active?.state === 'activated');
+                    }""",
+                        origin + PREFIX,
+                    )
+                    if activated:
+                        break
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("Timed out waiting for SW B activation")
+                    time.sleep(0.2)
                 print("SW lifecycle: B activated", flush=True)
                 fresh = context.new_page()
                 fresh.set_default_timeout(120000)
                 fresh.goto(origin + PREFIX)
+                fresh_deadline = time.monotonic() + 120.0
+                while True:
+                    fresh_ready = fresh.evaluate(
+                        """async (prefix) => {
+                      const r = await navigator.serviceWorker.getRegistration(prefix);
+                      return Boolean(r && !r.waiting && !r.activating && r.active?.state === 'activated');
+                    }""",
+                        origin + PREFIX,
+                    )
+                    if fresh_ready:
+                        break
+                    if time.monotonic() >= fresh_deadline:
+                        raise TimeoutError("Timed out waiting for fresh page SW B readiness")
+                    time.sleep(0.2)
                 assert fresh.evaluate(PROJECTS) == projects_before_activation
                 calculate(fresh, "B")
                 ready_b = fresh.evaluate(READINESS)

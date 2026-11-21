@@ -28,6 +28,11 @@ import {
 import { escapeHtml, formatNumericDisplay } from "../../app/accessibility.ts";
 import type { ControlLabShell } from "../../app/shell.ts";
 import {
+  decodeObjectRefKey,
+  encodeObjectRefKey,
+  type CanonicalObjectRef,
+} from "../typed_workspace.ts";
+import {
   buildAccessibleChartTable,
   buildSingularValuesChartModel,
   buildTimeResponseChartModel,
@@ -61,6 +66,7 @@ interface ParsedRgaEntry {
 interface MimoAnalysisSnapshot {
   plantId: string;
   plantRevision: number;
+  controllerLabel: string | null;
   loopMode: "output" | "input";
   feedbackSign: "negative" | "positive";
   omega: number[];
@@ -101,6 +107,7 @@ interface MimoDecouplerSnapshot {
     rgaOffdiagAfter: number | null;
   }>;
   rgaAfterMatrix: number[][] | null;
+  rgaEntries: ParsedRgaEntry[];
   decoupler: Record<string, unknown> | null;
   decoupledPlant: Record<string, unknown> | null;
 }
@@ -110,6 +117,10 @@ interface MimoClosedLoopSnapshot {
   maxCrossCoupling: number | null;
   poles: Array<{ re: number; im: number }>;
   timeModel: TimeResponseChartModel;
+  p: number;
+  m: number;
+  tVec: number[];
+  cells: number[][][];
 }
 
 interface MimoHinfSnapshot {
@@ -229,7 +240,7 @@ function extractReal2DMatrix(raw: unknown): number[][] | null {
 function extractStepResponseMatrix(
   raw: unknown,
   nPointsFallback: number,
-): { matrix: number[][]; outputNames: string[] } {
+): { matrix: number[][]; outputNames: string[]; nIn: number; nOut: number; cells: number[][][] } {
   // Backend retorna tensor 3D (p, n_points, p): step_resp[j, k, i] = resposta de y_{i+1} ao degrau em r_{j+1}
   if (isPlainObject(raw) && Array.isArray(raw.shape) && Array.isArray(raw.data)) {
     const shape = raw.shape as number[];
@@ -244,6 +255,9 @@ function extractStepResponseMatrix(
           outputNames.push(`r${j + 1}→y${i + 1}`);
         }
       }
+      const cells: number[][][] = Array.from({ length: nOut }, () =>
+        Array.from({ length: nIn }, () => []),
+      );
       const matrix: number[][] = [];
       for (let k = 0; k < nPts; k += 1) {
         const row: number[] = [];
@@ -251,12 +265,14 @@ function extractStepResponseMatrix(
           for (let i = 0; i < nOut; i += 1) {
             const idx = j * (nPts * nOut) + k * nOut + i;
             const val = Number(data[idx] ?? 0);
-            row.push(Number.isFinite(val) ? val : 0);
+            const clean = Number.isFinite(val) ? val : 0;
+            row.push(clean);
+            cells[i][j].push(clean);
           }
         }
         matrix.push(row);
       }
-      return { matrix, outputNames };
+      return { matrix, outputNames, nIn, nOut, cells };
     }
   }
   if (Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0])) {
@@ -270,6 +286,9 @@ function extractStepResponseMatrix(
         outputNames.push(`r${j + 1}→y${i + 1}`);
       }
     }
+    const cells: number[][][] = Array.from({ length: nOut }, () =>
+      Array.from({ length: nIn }, () => []),
+    );
     const matrix: number[][] = [];
     for (let k = 0; k < nPts; k += 1) {
       const row: number[] = [];
@@ -279,18 +298,101 @@ function extractStepResponseMatrix(
         if (Array.isArray(pt)) {
           for (let i = 0; i < nOut; i += 1) {
             const val = Number(pt[i] ?? 0);
-            row.push(Number.isFinite(val) ? val : 0);
+            const clean = Number.isFinite(val) ? val : 0;
+            row.push(clean);
+            cells[i][j].push(clean);
           }
         } else {
           const val = Number(pt ?? 0);
-          row.push(Number.isFinite(val) ? val : 0);
+          const clean = Number.isFinite(val) ? val : 0;
+          row.push(clean);
+          cells[0][j].push(clean);
         }
       }
       matrix.push(row);
     }
-    return { matrix, outputNames };
+    return { matrix, outputNames, nIn, nOut, cells };
   }
-  return { matrix: [], outputNames: [] };
+  return { matrix: [], outputNames: [], nIn: 0, nOut: 0, cells: [] };
+}
+
+function formatPolyString(coeffs: readonly number[], variable: string, decimals: number): string {
+  const deg = coeffs.length - 1;
+  if (deg < 0) return "0";
+  const terms: string[] = [];
+  for (let i = 0; i < coeffs.length; i += 1) {
+    const c = coeffs[i];
+    if (!Number.isFinite(c) || Math.abs(c) < 1e-12) continue;
+    const power = deg - i;
+    const absStr = formatNumericDisplay(Math.abs(c), decimals);
+    const varPart = power === 0 ? "" : power === 1 ? variable : `${variable}^${power}`;
+    const coeffPart = power > 0 && Math.abs(Math.abs(c) - 1) < 1e-9 ? "" : absStr;
+    const body = coeffPart && varPart ? `${coeffPart}·${varPart}` : `${coeffPart}${varPart}`;
+    if (terms.length === 0) {
+      terms.push(c < 0 ? `-${body}` : body);
+    } else {
+      terms.push(c < 0 ? ` - ${body}` : ` + ${body}`);
+    }
+  }
+  return terms.length > 0 ? terms.join("") : "0";
+}
+
+function formatDecouplerTransferMatrixHtml(
+  decoupler: Record<string, unknown> | null,
+  decimals: number,
+): string {
+  if (!decoupler) return "";
+  const kind = decoupler.kind;
+  if (kind === "TransferFunction" && Array.isArray(decoupler.num) && Array.isArray(decoupler.den)) {
+    const varName = typeof decoupler.variable === "string" ? decoupler.variable : decoupler.dt !== null ? "z" : "s";
+    const numMat = decoupler.num as unknown[][];
+    const denMat = decoupler.den as unknown[][];
+    const rowsHtml = numMat
+      .map((numRow, i) => {
+        const colsHtml = numRow
+          .map((numCell, j) => {
+            const numVec = extractNumericVector(numCell);
+            const denVec = extractNumericVector(denMat[i]?.[j]);
+            const numStr = formatPolyString(numVec, varName, decimals);
+            const denStr = formatPolyString(denVec, varName, decimals);
+            return `<td><code>W<sub>${i + 1}${j + 1}</sub>(${escapeHtml(varName)}) = (${escapeHtml(numStr)}) / (${escapeHtml(denStr)})</code></td>`;
+          })
+          .join("");
+        return `<tr><th scope="row">u<sub>${i + 1}</sub></th>${colsHtml}</tr>`;
+      })
+      .join("");
+    const mCols = numMat[0]?.length ?? 0;
+    const headerCols = Array.from({ length: mCols }, (_, j) => `<th scope="col">v<sub>${j + 1}</sub></th>`).join("");
+    return [
+      `<table class="accessible-data-table mimo-rga-table" aria-label="Matriz de transferência do desacoplador W1(${escapeHtml(varName)})">`,
+      `<thead><tr><th scope="col">W<sub>1</sub>(${escapeHtml(varName)})</th>${headerCols}</tr></thead>`,
+      `<tbody>${rowsHtml}</tbody>`,
+      `</table>`,
+    ].join("");
+  }
+  if (kind === "StateSpace" && isPlainObject(decoupler.matrices)) {
+    const mats = decoupler.matrices as Record<string, unknown>;
+    const dMat = extractReal2DMatrix(mats.D);
+    if (dMat && dMat.length > 0) {
+      const mCols = dMat[0]?.length ?? 0;
+      const headerCols = Array.from({ length: mCols }, (_, j) => `<th scope="col">v<sub>${j + 1}</sub></th>`).join("");
+      const rowsHtml = dMat
+        .map((row, i) => {
+          const colsHtml = row
+            .map((val) => `<td><code>${escapeHtml(formatNumericDisplay(val, decimals))}</code></td>`)
+            .join("");
+          return `<tr><th scope="row">u<sub>${i + 1}</sub></th>${colsHtml}</tr>`;
+        })
+        .join("");
+      return [
+        `<table class="accessible-data-table mimo-rga-table" aria-label="Matriz de ganho estático do desacoplador W0">`,
+        `<thead><tr><th scope="col">W<sub>0</sub> (ganho estático)</th>${headerCols}</tr></thead>`,
+        `<tbody>${rowsHtml}</tbody>`,
+        `</table>`,
+      ].join("");
+    }
+  }
+  return "";
 }
 
 function extractComplexPoles(raw: unknown): Array<{ re: number; im: number }> {
@@ -371,6 +473,10 @@ export function renderMimoViewHtml(): string {
     `<option value="negative">Negativa (I + L)</option>`,
     `<option value="positive">Positiva (I - L)</option>`,
     `</select>`,
+    `<label for="mimo-controller-select">Controlador K(s)</label>`,
+    `<select id="mimo-controller-select" class="touch-control" aria-label="Controlador em malha fechada K(s)">`,
+    `<option value="">Realimentação unitária (K = I)</option>`,
+    `</select>`,
     `<button type="button" id="btn-mimo-analyze" class="touch-control btn-primary" data-action="mimo-analyze">Calcular Análise MIMO</button>`,
     `</div>`,
     `</div>`,
@@ -427,12 +533,13 @@ export function renderMimoViewHtml(): string {
     `<label for="mimo-cl-t-final">Tempo final (s)</label>`,
     `<input type="number" id="mimo-cl-t-final" class="touch-control id-param-input" min="0.1" step="1" value="10.0" aria-label="Tempo final da simulação MIMO" />`,
     `<label class="mimo-toggle-label"><input type="checkbox" id="mimo-cl-use-decoupler" /> Aplicar Desacoplador W₁(s) em série</label>`,
+    `<label class="mimo-toggle-label"><input type="checkbox" id="mimo-cl-use-selected-ctrl" /> Usar controlador K(s) selecionado no topo</label>`,
     `<button type="button" id="btn-mimo-simulate-cl" class="touch-control btn-primary" data-action="mimo-simulate-cl">Simular Malha Fechada (Degrau Canal-a-Canal)</button>`,
     `</div>`,
     `<div id="mimo-cl-summary" class="diagnostics-panel" aria-live="polite"><p>Execute a simulação canal-a-canal para verificar estabilidade, acoplamento cruzado e polos em malha fechada.</p></div>`,
+    `</div>`,
+    `</div>`,
     `<div id="mimo-cl-chart-slot" class="chart-container"></div>`,
-    `</div>`,
-    `</div>`,
     `</div>`,
     `<div id="mimo-hinf-card" class="subcard mimo-hinf-card">`,
     `<h4>Síntese Robusta ℋ∞ com Planta Generalizada P(s)</h4>`,
@@ -468,6 +575,7 @@ export class MimoView {
   private readonly nPointsEl: HTMLInputElement | null;
   private readonly loopSelectEl: HTMLSelectElement | null;
   private readonly feedbackSignEl: HTMLSelectElement | null;
+  private readonly controllerSelectEl: HTMLSelectElement | null;
   private readonly diagSummaryEl: HTMLElement | null;
   private readonly sigmaChartSlotEl: HTMLElement | null;
   private readonly sigmaTableSlotEl: HTMLElement | null;
@@ -482,6 +590,7 @@ export class MimoView {
 
   private readonly clGainsEl: HTMLInputElement | null;
   private readonly clUseDecouplerEl: HTMLInputElement | null;
+  private readonly clUseSelectedCtrlEl: HTMLInputElement | null;
   private readonly clTFinalEl: HTMLInputElement | null;
   private readonly clSummaryEl: HTMLElement | null;
   private readonly clChartSlotEl: HTMLElement | null;
@@ -502,6 +611,10 @@ export class MimoView {
   private clSnapshot: MimoClosedLoopSnapshot | null = null;
   private hinfSnapshot: MimoHinfSnapshot | null = null;
   private selectedRgaIndex = 0;
+  private selectedDecouplerRgaIndex = 0;
+  private lastDecouplerRenderedRef: MimoDecouplerSnapshot | null = null;
+  private lastDecouplerDecimals = -1;
+  private lastControllerOptionsKey = "";
 
   constructor(options: MimoViewOptions) {
     this.shell = options.shell;
@@ -516,6 +629,7 @@ export class MimoView {
     this.nPointsEl = this.container.querySelector<HTMLInputElement>("#mimo-n-points");
     this.loopSelectEl = this.container.querySelector<HTMLSelectElement>("#mimo-loop-select");
     this.feedbackSignEl = this.container.querySelector<HTMLSelectElement>("#mimo-feedback-sign");
+    this.controllerSelectEl = this.container.querySelector<HTMLSelectElement>("#mimo-controller-select");
     this.diagSummaryEl = this.container.querySelector<HTMLElement>("#mimo-diagnostics-summary");
     this.sigmaChartSlotEl = this.container.querySelector<HTMLElement>("#mimo-sigma-chart-slot");
     this.sigmaTableSlotEl = this.container.querySelector<HTMLElement>("#mimo-sigma-table-slot");
@@ -530,6 +644,7 @@ export class MimoView {
 
     this.clGainsEl = this.container.querySelector<HTMLInputElement>("#mimo-cl-gains");
     this.clUseDecouplerEl = this.container.querySelector<HTMLInputElement>("#mimo-cl-use-decoupler");
+    this.clUseSelectedCtrlEl = this.container.querySelector<HTMLInputElement>("#mimo-cl-use-selected-ctrl");
     this.clTFinalEl = this.container.querySelector<HTMLInputElement>("#mimo-cl-t-final");
     this.clSummaryEl = this.container.querySelector<HTMLElement>("#mimo-cl-summary");
     this.clChartSlotEl = this.container.querySelector<HTMLElement>("#mimo-cl-chart-slot");
@@ -787,9 +902,19 @@ export class MimoView {
       let msPeak: number | null = null;
       let mtPeak: number | null = null;
       let sensitivityNote: string | null = null;
+      const selectedCtrlRef = this.getSelectedControllerRef();
+      const controllerLabel = selectedCtrlRef
+        ? `${selectedCtrlRef.id}#r${selectedCtrlRef.revision}`
+        : null;
 
       try {
-        const sensParams = { omega: omegaTensor, feedback_sign: feedbackSign };
+        const sensParams: Record<string, unknown> = {
+          omega: omegaTensor,
+          feedback_sign: feedbackSign,
+        };
+        if (selectedCtrlRef) {
+          sensParams.controller_ref = selectedCtrlRef;
+        }
         const sensPlan = await typed.prepareToolExecution("mimo.sensitivity", sensParams, {
           extraPayload: sensParams,
         });
@@ -865,6 +990,7 @@ export class MimoView {
       this.snapshot = {
         plantId: eff.ref.id,
         plantRevision: eff.ref.revision,
+        controllerLabel,
         loopMode,
         feedbackSign,
         omega: omegaVec,
@@ -974,8 +1100,67 @@ export class MimoView {
           ? res.fit_relative_error
           : null;
 
+      const decoupledPlantObj = isPlainObject(res.decoupled_plant)
+        ? (res.decoupled_plant as Record<string, unknown>)
+        : null;
+      const decouplerRgaEntries: ParsedRgaEntry[] = [];
+      if (decoupledPlantObj) {
+        try {
+          const wMinVal = Number(this.wMinEl?.value ?? 0.01);
+          const wMaxVal = Number(this.wMaxEl?.value ?? 100);
+          const nPtsVal = Math.round(Number(this.nPointsEl?.value ?? 40));
+          const safeWMin = Number.isFinite(wMinVal) && wMinVal > 0 ? wMinVal : 0.01;
+          const safeWMax = Number.isFinite(wMaxVal) && wMaxVal > safeWMin ? wMaxVal : 100;
+          const safeNPts = Number.isInteger(nPtsVal) && nPtsVal >= 2 && nPtsVal <= 500 ? nPtsVal : 40;
+          const logMin = Math.log10(safeWMin);
+          const logMax = Math.log10(safeWMax);
+          const omegaGrid = Array.from(
+            { length: safeNPts },
+            (_, k) => 10 ** (logMin + (k / Math.max(1, safeNPts - 1)) * (logMax - logMin)),
+          );
+          const decRgaParams = {
+            plant: decoupledPlantObj,
+            omega: makeFloat64Tensor([omegaGrid.length], omegaGrid),
+          };
+          const decRgaPlan = await typed.prepareToolExecution("mimo.rga", decRgaParams, {
+            extraPayload: decRgaParams,
+          });
+          const decRgaResp = await this.executeRpc("mimo.rga", decRgaPlan.extraPayload);
+          if (decRgaResp.status !== "failure" && decRgaResp.result) {
+            const decRgaRes = decRgaResp.result as Record<string, unknown>;
+            const rawEntries = Array.isArray(decRgaRes.entries) ? decRgaRes.entries : [];
+            const rgaMatFallback = extractReal2DMatrix(res.rga_after);
+            const dimP = rgaMatFallback?.length ?? 2;
+            const dimM = rgaMatFallback?.[0]?.length ?? dimP;
+            for (const rawE of rawEntries) {
+              if (!isPlainObject(rawE)) continue;
+              const status = rawE.status === "defined" ? "defined" : "undefined";
+              const mat =
+                status === "defined" ? extract2DComplexMatrix(rawE.rga_matrix, dimP, dimM) : null;
+              decouplerRgaEntries.push({
+                omega: Number(rawE.omega ?? 0),
+                status,
+                reason: typeof rawE.reason === "string" ? rawE.reason : undefined,
+                sigmaMin: typeof rawE.sigma_min === "number" ? rawE.sigma_min : null,
+                sigmaMax: typeof rawE.sigma_max === "number" ? rawE.sigma_max : null,
+                conditionNumber:
+                  typeof rawE.condition_number === "number" ? rawE.condition_number : null,
+                realMatrix: mat?.real ?? null,
+                imagMatrix: mat?.imag ?? null,
+                magMatrix: mat?.mag ?? null,
+              });
+            }
+          }
+        } catch {
+          // fallback to static rga_after if frequency sweep fails
+        }
+      }
+
+      const resolvedOmegaTarget =
+        typeof res.omega_target === "number" ? res.omega_target : omegaTarget;
+
       this.decouplerSnapshot = {
-        omegaTarget: typeof res.omega_target === "number" ? res.omega_target : omegaTarget,
+        omegaTarget: resolvedOmegaTarget,
         omegaTargets: parsedOmegaTargets.length > 0 ? parsedOmegaTargets : omegaList,
         realizationMode,
         orderUsed,
@@ -989,11 +1174,17 @@ export class MimoView {
           typeof res.rga_offdiag_norm_after === "number" ? res.rga_offdiag_norm_after : null,
         perFrequency,
         rgaAfterMatrix: extractReal2DMatrix(res.rga_after),
+        rgaEntries: decouplerRgaEntries,
         decoupler: isPlainObject(res.decoupler) ? (res.decoupler as Record<string, unknown>) : null,
-        decoupledPlant: isPlainObject(res.decoupled_plant)
-          ? (res.decoupled_plant as Record<string, unknown>)
-          : null,
+        decoupledPlant: decoupledPlantObj,
       };
+      this.selectedDecouplerRgaIndex = decouplerRgaEntries.length > 0
+        ? decouplerRgaEntries.reduce((bestIdx, item, curIdx, arr) =>
+            Math.abs(item.omega - resolvedOmegaTarget) < Math.abs(arr[bestIdx].omega - resolvedOmegaTarget)
+              ? curIdx
+              : bestIdx,
+          0)
+        : 0;
 
       if (this.clUseDecouplerEl && this.decouplerSnapshot.decoupler) {
         this.clUseDecouplerEl.checked = true;
@@ -1040,18 +1231,6 @@ export class MimoView {
         );
       }
 
-      const rawGainsText = String(this.clGainsEl?.value ?? "1.0, 1.0").trim();
-      const parsedGains = rawGainsText
-        .split(/[\s,;]+/)
-        .filter((tok) => tok.length > 0)
-        .map((tok) => Number(tok));
-      if (parsedGains.length === 0 || parsedGains.some((g) => !Number.isFinite(g))) {
-        throw new ControlLabBridgeError(
-          "VALIDATION_ERROR",
-          "Ganhos diagonais K_diag inválidos. Informe números separados por vírgula (ex: 1.0, 1.0).",
-        );
-      }
-
       const tFinal = Number(this.clTFinalEl?.value ?? 10.0);
       if (!Number.isFinite(tFinal) || tFinal <= 0) {
         throw new ControlLabBridgeError("VALIDATION_ERROR", "Tempo final deve ser finito e > 0.");
@@ -1061,12 +1240,30 @@ export class MimoView {
         this.feedbackSignEl?.value === "positive" ? "positive" : "negative";
       const useDecoupler = Boolean(this.clUseDecouplerEl?.checked && this.decouplerSnapshot?.decoupler);
 
+      const selectedCtrlRef = this.getSelectedControllerRef();
+      const useSelectedCtrl = Boolean(this.clUseSelectedCtrlEl?.checked && selectedCtrlRef);
+
       const params: Record<string, unknown> = {
-        controller_gains: parsedGains,
         feedback_sign: feedbackSign,
         t_final: tFinal,
         n_points: 160,
       };
+      if (useSelectedCtrl && selectedCtrlRef) {
+        params.controller_ref = selectedCtrlRef;
+      } else {
+        const rawGainsText = String(this.clGainsEl?.value ?? "1.0, 1.0").trim();
+        const parsedGains = rawGainsText
+          .split(/[\s,;]+/)
+          .filter((tok) => tok.length > 0)
+          .map((tok) => Number(tok));
+        if (parsedGains.length === 0 || parsedGains.some((g) => !Number.isFinite(g))) {
+          throw new ControlLabBridgeError(
+            "VALIDATION_ERROR",
+            "Ganhos diagonais K_diag inválidos. Informe números separados por vírgula (ex: 1.0, 1.0).",
+          );
+        }
+        params.controller_gains = parsedGains;
+      }
       if (useDecoupler && this.decouplerSnapshot?.decoupler) {
         params.decoupler = this.decouplerSnapshot.decoupler;
       }
@@ -1084,7 +1281,10 @@ export class MimoView {
 
       const res = resp.result as Record<string, unknown>;
       const tVec = extractNumericVector(res.t);
-      const { matrix, outputNames } = extractStepResponseMatrix(res.step_responses, tVec.length);
+      const { matrix, outputNames, nIn, nOut, cells } = extractStepResponseMatrix(
+        res.step_responses,
+        tVec.length,
+      );
       const poles = extractComplexPoles(res.closed_loop_poles);
       const isStable = Boolean(res.is_stable);
       const maxCrossCoupling =
@@ -1092,9 +1292,11 @@ export class MimoView {
 
       const timeModel = buildTimeResponseChartModel({
         chart_id: "mimo-closed-loop-step",
-        title: useDecoupler
-          ? "Resposta ao Degrau MIMO (Com Desacoplador)"
-          : "Resposta ao Degrau MIMO (Controle Descentralizado)",
+        title: useSelectedCtrl && selectedCtrlRef
+          ? `Resposta ao Degrau MIMO (Controlador ${selectedCtrlRef.id}#r${selectedCtrlRef.revision})`
+          : useDecoupler
+            ? "Resposta ao Degrau MIMO (Com Desacoplador)"
+            : "Resposta ao Degrau MIMO (Controle Descentralizado)",
         dt: null,
         t: tVec,
         y: matrix,
@@ -1116,6 +1318,10 @@ export class MimoView {
         maxCrossCoupling,
         poles,
         timeModel,
+        p: nOut,
+        m: nIn,
+        tVec,
+        cells,
       };
 
       this.shell
@@ -1445,10 +1651,49 @@ export class MimoView {
     ].join("");
   }
 
+  private getSelectedControllerRef(): CanonicalObjectRef | null {
+    const raw = this.controllerSelectEl?.value ?? "";
+    if (!raw) return null;
+    return decodeObjectRefKey(raw);
+  }
+
+  private syncControllerSelector(): void {
+    if (!this.controllerSelectEl) return;
+    const registered = this.shell
+      .getTypedWorkspace()
+      .listRegisteredObjects()
+      .filter(
+        (obj) =>
+          obj.kind === "DynamicController" ||
+          obj.kind === "StateSpace" ||
+          obj.kind === "TransferFunction",
+      );
+    const prevValue = this.controllerSelectEl.value ?? "";
+    const optionsKey = registered.map((o) => `${o.id}#${o.revision}:${o.kind}`).join("|");
+    if (optionsKey === this.lastControllerOptionsKey) return;
+    this.lastControllerOptionsKey = optionsKey;
+
+    const optionsHtml = [
+      `<option value="">Realimentação unitária (K = I)</option>`,
+      ...registered.map((obj) => {
+        const key = encodeObjectRefKey({ id: obj.id, revision: obj.revision });
+        const sel = key === prevValue ? " selected" : "";
+        return `<option value="${escapeHtml(key)}"${sel}>${escapeHtml(obj.id)}#r${obj.revision} (${escapeHtml(obj.kind)}) — ${escapeHtml(obj.summary)}</option>`;
+      }),
+    ].join("");
+    this.controllerSelectEl.innerHTML = optionsHtml;
+    const stillExists = registered.some(
+      (obj) => encodeObjectRefKey({ id: obj.id, revision: obj.revision }) === prevValue,
+    );
+    this.controllerSelectEl.value = stillExists ? prevValue : "";
+  }
+
   public render(): void {
     const isMimo = this.shell.getActiveTab() === "mimo_frequency";
     setElHidden(this.panelEl, !isMimo);
     if (!isMimo) return;
+
+    this.syncControllerSelector();
 
     const eff = this.shell.getTypedWorkspace().getEffectiveSelection("frequencyPlant");
     if (this.activePlantInfoEl) {
@@ -1464,6 +1709,7 @@ export class MimoView {
       } else {
         const s = this.snapshot;
         const loopDesc = s.loopMode === "input" ? "L_i = K · G" : "L_o = G · K";
+        const ctrlStr = s.controllerLabel ? ` | <strong>K(s):</strong> <code>${escapeHtml(s.controllerLabel)}</code>` : "";
         const idStr =
           s.maxIdentityResidual !== null
             ? `||S + T − I|| = <code>${formatNumericDisplay(s.maxIdentityResidual, decimals)}</code> (${s.identityVerified ? "Verificado ✓" : "Aviso"})`
@@ -1473,7 +1719,7 @@ export class MimoView {
             ? `Pico σ̄(G) = <code>${formatNumericDisplay(s.hinfPeak, decimals)}</code> em ω = <code>${formatNumericDisplay(s.omegaPeak ?? 0, decimals)}</code> rad/s`
             : "N/D";
         this.diagSummaryEl.innerHTML = [
-          `<p><strong>Malha:</strong> <code>${escapeHtml(loopDesc)}</code> (${escapeHtml(s.feedbackSign)}) | ${hinfStr} | <strong>Identidade:</strong> ${idStr}</p>`,
+          `<p><strong>Malha:</strong> <code>${escapeHtml(loopDesc)}</code> (${escapeHtml(s.feedbackSign)})${ctrlStr} | ${hinfStr} | <strong>Identidade:</strong> ${idStr}</p>`,
           s.msPeak !== null
             ? `<p><strong>Picos de Sensibilidade:</strong> M_S = <code>${formatNumericDisplay(s.msPeak, decimals)}</code> | M_T = <code>${formatNumericDisplay(s.mtPeak ?? 0, decimals)}</code></p>`
             : "",
@@ -1488,6 +1734,69 @@ export class MimoView {
     this.renderHinfSection();
   }
 
+  private renderDecouplerRgaHeatmap(): void {
+    const d = this.decouplerSnapshot;
+    if (!d || d.rgaEntries.length === 0 || !this.decouplerSummaryEl) return;
+    const decimals = this.shell.getDisplayDecimals();
+    const idx = Math.max(0, Math.min(d.rgaEntries.length - 1, this.selectedDecouplerRgaIndex));
+    this.selectedDecouplerRgaIndex = idx;
+    const entry = d.rgaEntries[idx];
+
+    const sliderEl = this.decouplerSummaryEl.querySelector<HTMLInputElement>("#mimo-decoupler-rga-slider");
+    const labelEl = this.decouplerSummaryEl.querySelector<HTMLElement>("#mimo-decoupler-rga-label");
+    const slotEl = this.decouplerSummaryEl.querySelector<HTMLElement>("#mimo-decoupler-rga-heatmap-slot");
+
+    if (sliderEl) {
+      sliderEl.min = "0";
+      sliderEl.max = String(d.rgaEntries.length - 1);
+      sliderEl.value = String(idx);
+      sliderEl.disabled = false;
+    }
+    if (labelEl) {
+      labelEl.textContent = `${formatNumericDisplay(entry.omega, decimals)} rad/s`;
+    }
+    if (!slotEl) return;
+
+    const kappaStr =
+      entry.conditionNumber !== null
+        ? formatNumericDisplay(entry.conditionNumber, decimals)
+        : "∞ (singular)";
+    if (entry.status === "undefined" || !entry.realMatrix || !entry.magMatrix) {
+      slotEl.innerHTML = `<div class="warning-callout"><strong>RGA pós-desacoplamento indefinida</strong> em ω = ${escapeHtml(formatNumericDisplay(entry.omega, decimals))} rad/s (${escapeHtml(entry.reason ?? "matriz singular")}).</div>`;
+      return;
+    }
+    const m = entry.realMatrix[0]?.length ?? 0;
+    const headerCols = Array.from({ length: m }, (_, j) => `<th scope="col">v${j + 1}</th>`).join("");
+    const bodyRows = entry.realMatrix
+      .map((row, i) => {
+        const cells = row
+          .map((reVal, j) => {
+            const imVal = entry.imagMatrix?.[i]?.[j] ?? 0;
+            const magVal = entry.magMatrix?.[i]?.[j] ?? Math.abs(reVal);
+            const alpha = Math.min(0.65, Math.max(0.08, Math.min(1.5, magVal) * 0.42));
+            const bgTint =
+              reVal >= 0
+                ? `rgba(29, 78, 216, ${alpha.toFixed(2)})`
+                : `rgba(180, 83, 9, ${alpha.toFixed(2)})`;
+            const complexTxt =
+              Math.abs(imVal) > 1e-6
+                ? `${formatNumericDisplay(reVal, decimals)} ${imVal >= 0 ? "+" : "−"} j${formatNumericDisplay(Math.abs(imVal), decimals)}`
+                : formatNumericDisplay(reVal, decimals);
+            return `<td class="rga-cell" style="background:${bgTint}"><strong>${escapeHtml(complexTxt)}</strong><small>|Λ|=${escapeHtml(formatNumericDisplay(magVal, decimals))}</small></td>`;
+          })
+          .join("");
+        return `<tr><th scope="row">y${i + 1}</th>${cells}</tr>`;
+      })
+      .join("");
+    slotEl.innerHTML = [
+      `<p class="mimo-rga-meta"><span class="badge badge-stable">κ(G_des) = ${escapeHtml(kappaStr)}</span></p>`,
+      `<table class="accessible-data-table mimo-rga-table" aria-label="RGA pós-desacoplamento em ω=${formatNumericDisplay(entry.omega, decimals)} rad/s">`,
+      `<thead><tr><th scope="col">Saída \\ Canal</th>${headerCols}</tr></thead>`,
+      `<tbody>${bodyRows}</tbody>`,
+      `</table>`,
+    ].join("");
+  }
+
   private renderDecouplerSection(): void {
     const decimals = this.shell.getDisplayDecimals();
     const hasDec = Boolean(this.decouplerSnapshot?.decoupledPlant);
@@ -1499,9 +1808,17 @@ export class MimoView {
     if (!this.decouplerSummaryEl) return;
     const d = this.decouplerSnapshot;
     if (!d) {
+      this.lastDecouplerRenderedRef = null;
       this.decouplerSummaryEl.innerHTML = `<p>Projete o desacoplador SVD para comparar κ(G), norma off-diagonal e RGA pós-desacoplamento.</p>`;
       return;
     }
+
+    if (this.lastDecouplerRenderedRef === d && this.lastDecouplerDecimals === decimals) {
+      if (d.rgaEntries.length > 0) this.renderDecouplerRgaHeatmap();
+      return;
+    }
+    this.lastDecouplerRenderedRef = d;
+    this.lastDecouplerDecimals = decimals;
 
     const kBefore = d.kappaBefore !== null ? formatNumericDisplay(d.kappaBefore, decimals) : "N/D";
     const kAfter = d.kappaAfter !== null ? formatNumericDisplay(d.kappaAfter, decimals) : "N/D";
@@ -1511,9 +1828,17 @@ export class MimoView {
       d.rgaOffdiagAfter !== null ? formatNumericDisplay(d.rgaOffdiagAfter, decimals) : "N/D";
 
     let rgaTableHtml = "";
-    if (d.rgaAfterMatrix && d.rgaAfterMatrix.length > 0) {
+    if (d.rgaEntries.length > 0) {
+      rgaTableHtml = [
+        `<div class="tool-field">`,
+        `<label for="mimo-decoupler-rga-slider">Frequência RGA pós-desacoplamento ω: <strong id="mimo-decoupler-rga-label">—</strong></label>`,
+        `<input type="range" id="mimo-decoupler-rga-slider" class="touch-control" min="0" max="${d.rgaEntries.length - 1}" step="1" value="${this.selectedDecouplerRgaIndex}" aria-label="Frequência de inspeção RGA pós-desacoplamento" />`,
+        `</div>`,
+        `<div id="mimo-decoupler-rga-heatmap-slot" class="mimo-rga-heatmap-slot" aria-live="polite"></div>`,
+      ].join("");
+    } else if (d.rgaAfterMatrix && d.rgaAfterMatrix.length > 0) {
       const m = d.rgaAfterMatrix[0]?.length ?? 0;
-      const headerCols = Array.from({ length: m }, (_, j) => `<th scope="col">u${j + 1}</th>`).join("");
+      const headerCols = Array.from({ length: m }, (_, j) => `<th scope="col">v${j + 1}</th>`).join("");
       const bodyRows = d.rgaAfterMatrix
         .map((row, i) => {
           const cells = row
@@ -1531,7 +1856,7 @@ export class MimoView {
         .join("");
       rgaTableHtml = [
         `<table class="accessible-data-table mimo-rga-table" aria-label="RGA pós-desacoplamento">`,
-        `<thead><tr><th scope="col">Saída \\ Entrada</th>${headerCols}</tr></thead>`,
+        `<thead><tr><th scope="col">Saída \\ Canal</th>${headerCols}</tr></thead>`,
         `<tbody>${bodyRows}</tbody>`,
         `</table>`,
       ].join("");
@@ -1576,14 +1901,32 @@ export class MimoView {
       d.fitRelativeError !== null
         ? `${formatNumericDisplay(d.fitRelativeError * 100, decimals)}%`
         : "N/D";
+    const w1MatrixHtml = formatDecouplerTransferMatrixHtml(d.decoupler, decimals);
 
     this.decouplerSummaryEl.innerHTML = [
+      `<p><strong>Convenção:</strong> Pré-compensador à direita — <code>G<sub>des</sub>(s) = G(s) · W<sub>1</sub>(s)</code> (multiplica as entradas <code>u = W<sub>1</sub>(s) · v</code>).</p>`,
       `<p><strong>Ordem do desacoplador:</strong> <code>${escapeHtml(orderStr)}</code> (${escapeHtml(orderModeLabel)}) | <strong>Erro de ajuste em frequência:</strong> <code>${escapeHtml(fitErrStr)}</code></p>`,
       `<p><strong>Modo:</strong> <code>${escapeHtml(d.realizationMode)}</code> | <strong>ω alvo (rad/s):</strong> <code>[${escapeHtml(targetsStr)}]</code> (rep. ω₀ = <code>${formatNumericDisplay(d.omegaTarget, decimals)}</code> rad/s)</p>`,
       `<p><strong>Condicionamento κ(G):</strong> <code>${escapeHtml(kBefore)}</code> → <code>${escapeHtml(kAfter)}</code> | <strong>||Λ − I|| (off-diagonal):</strong> <code>${escapeHtml(offBefore)}</code> → <code>${escapeHtml(offAfter)}</code></p>`,
+      w1MatrixHtml,
       perFreqTableHtml,
       rgaTableHtml,
     ].join("");
+
+    if (d.rgaEntries.length > 0) {
+      const decSliderEl = this.decouplerSummaryEl.querySelector<HTMLInputElement>("#mimo-decoupler-rga-slider");
+      const onDecSlider = (): void => {
+        if (!decSliderEl) return;
+        this.selectedDecouplerRgaIndex = Math.max(
+          0,
+          Math.min(d.rgaEntries.length - 1, Math.round(Number(decSliderEl.value) || 0)),
+        );
+        this.renderDecouplerRgaHeatmap();
+      };
+      decSliderEl?.addEventListener("input", onDecSlider);
+      decSliderEl?.addEventListener("change", onDecSlider);
+      this.renderDecouplerRgaHeatmap();
+    }
   }
 
   private renderClosedLoopSection(): void {
@@ -1624,14 +1967,49 @@ export class MimoView {
 
     if (this.clChartSlotEl) {
       const themeMode = this.shell.getThemeMode();
-      const model: TimeResponseChartModel = {
-        ...cl.timeModel,
-        theme_mode: themeMode,
-      };
-      this.clChartSlotEl.innerHTML = renderTimeResponseSvg(model, {
-        decimals,
-        themeMode,
-      });
+      if (cl.p >= 1 && cl.m >= 1 && cl.p <= 4 && cl.m <= 4 && cl.cells.length === cl.p) {
+        const cellSvgs: string[] = [];
+        for (let i = 0; i < cl.p; i += 1) {
+          for (let j = 0; j < cl.m; j += 1) {
+            const isDiag = i === j;
+            const values = cl.cells[i]?.[j] ?? [];
+            const cellModel = buildTimeResponseChartModel({
+              chart_id: `mimo-step-y${i + 1}-r${j + 1}`,
+              title: `r${j + 1}→y${i + 1}${isDiag ? " (Direto)" : " (Acoplamento)"}`,
+              dt: null,
+              t: cl.tVec,
+              y: values.map((v) => [v]),
+              output_names: [`y${i + 1}`],
+              units: { time: "s", outputs: ["1"] },
+              model_revision: cl.timeModel.model_revision,
+              project_revision: cl.timeModel.project_revision,
+              provenance: cl.timeModel.provenance,
+              series_semantics: "numeric_verified",
+              feedback_sign: cl.timeModel.feedback_sign,
+              theme_mode: themeMode,
+            });
+            const svg = renderTimeResponseSvg(cellModel, {
+              widthPx: 320,
+              heightPx: 220,
+              decimals,
+              themeMode,
+            });
+            cellSvgs.push(
+              `<div class="mimo-step-cell ${isDiag ? "mimo-step-diag" : "mimo-step-offdiag"}" data-step-cell="r${j + 1}-y${i + 1}">${svg}</div>`,
+            );
+          }
+        }
+        this.clChartSlotEl.innerHTML = `<div class="mimo-step-grid" style="grid-template-columns: repeat(${cl.m}, minmax(0, 1fr))">${cellSvgs.join("")}</div>`;
+      } else {
+        const model: TimeResponseChartModel = {
+          ...cl.timeModel,
+          theme_mode: themeMode,
+        };
+        this.clChartSlotEl.innerHTML = renderTimeResponseSvg(model, {
+          decimals,
+          themeMode,
+        });
+      }
     }
   }
 

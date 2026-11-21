@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 8
+      "2026-11-21": 9
     }
   },
   "audit_reference": {
@@ -4612,6 +4612,174 @@
         "e2e_chromium": "14/14 passed in 150.28s",
         "verify_fixtures": "11 schemas + 7 golden fixtures OK",
         "governance_tests": "20 passed in 10.57s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-E2-F7-MIMO-SENSITIVITY-DYNCTRL",
+      "front": "f7-worker-bridge",
+      "phase": "Phase2-Polish-And-CI",
+      "title": "F7: Suportar controller/controller_ref (incluindo DynamicController LQG) em mimo.sensitivity no worker",
+      "allowed_paths": [
+        "web/worker/",
+        "web/bridge/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-D4-F9-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-01",
+        "R-02"
+      ],
+      "normative_tests": [
+        "T-BRG-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1629628446/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" node scripts/run_web_tests.mjs --scope f7 && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "sources(\"mimo.sensitivity\") em web/worker/payload_references.ts resolve controller/controller_ref de tipo StateSpace, TransferFunction e DynamicController"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-E2-F7-MIMO-SENSITIVITY-DYNCTRL.md",
+      "assessed_commit": "1c55039ae66a99a492f6ae57c2293921a92e3949",
+      "reviewed_source_sha256": {
+        "web/worker/payload_references.ts": "b53710e049b172fce1de61db6442b7174a945d3f21e9cfd5627299c75a2bcea5",
+        "web/worker/service_worker.ts": "77406c0d27a745dcf32a19bf64aae88ebe403e296af87afee40cbda3d7ed31a4",
+        "tests/unit/f7/model_references.test.ts": "9056c7f326c3add336a363b00b7c042cd4c8627272c8299d159ed12abced5ca7"
+      },
+      "acceptance_scope": [
+        "web/worker/payload_references.ts",
+        "web/worker/service_worker.ts",
+        "tests/unit/f7/model_references.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "49 TS files, 0 errors",
+        "web_tests_f7": "68/68 passed across 5 files in 10197ms",
+        "web_tests_all": "134/134 passed across 17 files in 107573ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20 passed in 6.60s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-E1-F8-IDENT-LQG-MIMO-POLISH",
+      "front": "f8-ui-charts",
+      "phase": "Phase2-Polish-And-CI",
+      "title": "F8: Cores distintas 1-passo vs residuo (Ident), LQG na coluna direita com todos estados x_i/xhat_i, MIMO controlador importado + slider RGA pos-desacoplador + matriz W1(s) + grid degrau pxm",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-E2-F7-MIMO-SENSITIVITY-DYNCTRL"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-SS-01",
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1629628446/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Identificacao: cores distintas entre y_1step e residuo em renderTimeResponseSvg",
+        "LQG Aba 3: grafico na coluna direita (#controllab-charts-panel) exibindo todos os estados x_i (solido) e xhat_i (pontilhado) com a mesma cor por estado e legenda exata",
+        "MIMO Aba 4: seletor de controlador registrado (LQG/Hinf), slider de frequencia na RGA pos-desacoplamento, exibicao explicita da matriz W1(s) e convencao a direita G(s)W1(s), e grid pxm (<=4x4) de respostas ao degrau"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-E1-F8-IDENT-LQG-MIMO-POLISH.md",
+      "assessed_commit": "1c55039ae66a99a492f6ae57c2293921a92e3949",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "d179d24fca139446161dfea38ce2766d1a2a3866f798c3c7487b3fe1a66af86b",
+        "web/app/styles.css": "bf28fc59ec8a501bf3a363b5d8d1f289b5810b2a69b77521ab14e28b4c6562f2",
+        "web/charts/scientific_chart.ts": "3584db020b21ab0eb04be1c3b2b487fd8e18a4ebcdff5bb76a70aa85bb57addc",
+        "web/features/typed_workspace.ts": "ab14963585ec739d5866ddb9a8f5f1d617de0876e8ef11eb1e8e72d35c8575e8",
+        "web/features/views/statespace_view.ts": "6d482b100f4b806854cbc9c46e1050888f3360f15dc1f80c3cf8e459b3678999",
+        "web/features/views/mimo_view.ts": "95e5678c88daa680a29c11b32c2ad0a6b1a5c09ec4d9eec9365de9068541a233",
+        "tests/unit/f8/observer_kalman_lqg.test.ts": "d9d676e781b88a6f9ba2e3f04a28e51385db2890110e91915480b485ea7d4d7a",
+        "tests/unit/f8/mimo_synthesis_hinf.test.ts": "c943c3a23b88067c36ebd7d386605e94cce712ab45f90198c078b047ff53d96a",
+        "tests/unit/f8/ux_phase1_workbench.test.ts": "fe60341d103aa90f4575bacb2eeef09dabac0213a894a8cee5a59bd9192261d4"
+      },
+      "acceptance_scope": [
+        "web/app/main.ts",
+        "web/app/styles.css",
+        "web/charts/scientific_chart.ts",
+        "web/features/typed_workspace.ts",
+        "web/features/views/statespace_view.ts",
+        "web/features/views/mimo_view.ts",
+        "tests/unit/f8/observer_kalman_lqg.test.ts",
+        "tests/unit/f8/mimo_synthesis_hinf.test.ts",
+        "tests/unit/f8/ux_phase1_workbench.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "49 TS files, 0 errors",
+        "web_tests_all": "134/134 passed across 17 files in 107573ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "e2e_chromium": "14/14 passed in 161.33s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20 passed in 6.60s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-E3-F9-SW-FIREFOX-FIX-AND-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase2-Polish-And-CI",
+      "title": "F9: Corrigir race condition de Service Worker (!r.activating) no Firefox CI e auditar E1+E2",
+      "allowed_paths": [
+        "tests/e2e/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-E1-F8-IDENT-LQG-MIMO-POLISH",
+        "WP-PHASE2-E2-F7-MIMO-SENSITIVITY-DYNCTRL"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-19",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1629628446/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/e2e/test_sw_release_update.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Corrigir !r.activating em tests/e2e/test_sw_release_update.py e validar E2E completo"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-E3-F9-SW-FIREFOX-FIX-AND-AUDIT.md",
+      "assessed_commit": "1c55039ae66a99a492f6ae57c2293921a92e3949",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_sw_release_update.py": "42e18d7408b94de49d338e6537b1ba39b8cc391a85475ff3274a5943506a73c3",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "c3b90a835be4f92f8753722bdd8ba7182a79c16f4c9cf4fff8d7a466fee3ef87"
+      },
+      "acceptance_scope": [
+        "tests/e2e/test_sw_release_update.py",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "49 TS files, 0 errors",
+        "web_tests_all": "134/134 passed across 17 files in 107573ms",
+        "web_tests_f7": "68/68 passed across 5 files in 10197ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "e2e_chromium": "14/14 passed in 161.33s",
+        "e2e_sw_chromium": "1/1 passed in 62.21s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20 passed in 6.60s"
       }
     }
   ],

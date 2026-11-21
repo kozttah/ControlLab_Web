@@ -664,8 +664,6 @@ export function renderStatespaceViewHtml(initialDims: { n: number; m: number; p:
     `<button type="button" id="btn-obs-register-ctrl" class="touch-control btn-secondary" data-action="obs-register-ctrl" disabled aria-disabled="true">Registrar Controlador LQG no Workspace</button>`,
     `</div>`,
     `<div id="obs-results-summary" class="obs-results-summary" role="region" aria-label="Resultados do Observador e LQG"></div>`,
-    `<div id="obs-sim-chart-slot" class="chart-container" role="region" aria-label="Gráfico de convergência x(t) vs x̂(t)"></div>`,
-    `<div id="obs-sim-table-slot" class="accessible-table-container" role="region" aria-label="Tabela acessível de x(t) vs x̂(t)"></div>`,
     `</section>`,
     `<div id="lqr-json-advanced" class="lqr-json-advanced subcard">`,
     `<h4>Entrada Avançada via JSON</h4>`,
@@ -750,7 +748,9 @@ export class StatespaceView {
   private readonly obsSimBtnEl: HTMLButtonElement | null;
   private readonly obsRegisterCtrlBtnEl: HTMLButtonElement | null;
   private readonly obsResultsSummaryEl: HTMLElement | null;
+  private readonly obsSimChartCardEl: HTMLElement | null;
   private readonly obsSimChartSlotEl: HTMLElement | null;
+  private readonly obsSimTableDetailsEl: HTMLElement | null;
   private readonly obsSimTableSlotEl: HTMLElement | null;
 
   private dragStartQScale = 1.0;
@@ -848,7 +848,9 @@ export class StatespaceView {
     this.obsSimBtnEl = this.container.querySelector<HTMLButtonElement>("#btn-obs-simulate");
     this.obsRegisterCtrlBtnEl = this.container.querySelector<HTMLButtonElement>("#btn-obs-register-ctrl");
     this.obsResultsSummaryEl = this.container.querySelector<HTMLElement>("#obs-results-summary");
+    this.obsSimChartCardEl = this.container.querySelector<HTMLElement>("#obs-sim-chart-card");
     this.obsSimChartSlotEl = this.container.querySelector<HTMLElement>("#obs-sim-chart-slot");
+    this.obsSimTableDetailsEl = this.container.querySelector<HTMLElement>("#obs-sim-table-details");
     this.obsSimTableSlotEl = this.container.querySelector<HTMLElement>("#obs-sim-table-slot");
 
     this.exportButtons = [
@@ -1846,33 +1848,64 @@ export class StatespaceView {
           ? (res.t as unknown[]).map((v) => Number(v))
           : [];
       const xTensor = extractRealTensorFromUnknown(res.x);
-      let x1True: number[] = [];
-      let x1Hat: number[] = [];
+      const xTrueByState: number[][] = Array.from({ length: n }, () => []);
+      const xHatByState: number[][] = Array.from({ length: n }, () => []);
       if (xTensor && xTensor.shape.length === 2) {
         const nRows = xTensor.shape[0];
         const nCols = xTensor.shape[1];
         for (let r = 0; r < nRows; r += 1) {
-          x1True.push(xTensor.data[r * nCols + 0] ?? 0);
-          x1Hat.push(xTensor.data[r * nCols + n] ?? 0);
+          for (let i = 0; i < n; i += 1) {
+            xTrueByState[i].push(xTensor.data[r * nCols + i] ?? 0);
+            xHatByState[i].push(xTensor.data[r * nCols + n + i] ?? 0);
+          }
         }
       } else if (Array.isArray(res.x)) {
         const rows = res.x as number[][];
-        x1True = rows.map((row) => Number(row[0] ?? 0));
-        x1Hat = rows.map((row) => Number(row[n] ?? 0));
+        for (const row of rows) {
+          for (let i = 0; i < n; i += 1) {
+            xTrueByState[i].push(Number(row[i] ?? 0));
+            xHatByState[i].push(Number(row[n + i] ?? 0));
+          }
+        }
       }
 
-      if (tArr.length === 0 || x1True.length === 0) {
+      if (tArr.length === 0 || (xTrueByState[0]?.length ?? 0) === 0) {
         throw new ControlLabBridgeError(
           "INTERNAL_ERROR",
           "Simulação não retornou trajetórias válidas de estado.",
         );
       }
 
-      const state1Name = plant.state_names[0] ?? "x1";
+      const channels: TimeResponseChartModel["channels"][number][] = [];
+      for (let i = 0; i < n; i += 1) {
+        const stateName = plant.state_names[i] ?? `x${i + 1}`;
+        const stateUnit = plant.units.states?.[i] || "st";
+        channels.push({
+          id: `obs-state-x-${i + 1}`,
+          group: "y",
+          label: `${stateName} (Real)`,
+          unit: stateUnit,
+          values: xTrueByState[i],
+          shape: "circle",
+          stroke_dasharray: "",
+          series_semantics: "numeric_verified",
+        });
+        channels.push({
+          id: `obs-state-xhat-${i + 1}`,
+          group: "x",
+          label: `${stateName}̂ (Estimado)`,
+          unit: stateUnit,
+          values: xHatByState[i],
+          shape: "square",
+          stroke_dasharray: "3 3",
+          series_semantics: "numeric_verified",
+        });
+      }
+
       this.lastObserverSimChart = {
         kind: "time_response",
-        chart_id: "obs-lqg-time-response",
-        title: `Convergência do Observador: ${state1Name}(t) vs ${state1Name}̂(t)`,
+        chart_id: "observer-state-comparison",
+        title: `Convergência do Observador: x(t) vs x̂(t) (${n} estados)`,
         model_revision: plant.revision,
         project_revision: lqr.getProjectRevision(),
         provenance: resp.provenance ?? this.lastObserverSynthesis.provenance,
@@ -1881,30 +1914,9 @@ export class StatespaceView {
         t: tArr,
         units: {
           x_axis: plant.units.time || "s",
-          y_axis: "estado",
+          y_axis: "estados",
         },
-        channels: [
-          {
-            id: "x-true-1",
-            group: "y",
-            label: `${state1Name} (Real)`,
-            unit: plant.units.states?.[0] || "st",
-            values: x1True,
-            shape: "circle",
-            stroke_dasharray: "",
-            series_semantics: "numeric_verified",
-          },
-          {
-            id: "x-hat-1",
-            group: "x",
-            label: `${state1Name}̂ (Estimado)`,
-            unit: plant.units.states?.[0] || "st",
-            values: x1Hat,
-            shape: "square",
-            stroke_dasharray: "6 3",
-            series_semantics: "numeric_verified",
-          },
-        ],
+        channels,
         preview_channels: [],
       };
       this.renderObserverSection();
@@ -1998,6 +2010,11 @@ export class StatespaceView {
         ].join("");
       }
     }
+
+    const showObsChart =
+      this.shell.getActiveTab() === "statespace" && this.lastObserverSimChart !== null;
+    setElHidden(this.obsSimChartCardEl, !showObsChart);
+    setElHidden(this.obsSimTableDetailsEl, !showObsChart);
 
     if (this.obsSimChartSlotEl) {
       this.obsSimChartSlotEl.innerHTML = this.lastObserverSimChart

@@ -529,6 +529,7 @@ test("Phase 1 Item 3: Gráfico de validação da Aba 1 com cores distintas e leg
     y_measured: [0, 0.2, 0.5, 0.8],
     y_one_step: [0, 0.19, 0.51, 0.79],
     y_free_sim: [0, 0.18, 0.48, 0.77],
+    residuals: [0, 0.01, -0.01, 0.01],
     provenance: null,
     model_revision: 1,
     project_revision: 1,
@@ -538,14 +539,22 @@ test("Phase 1 Item 3: Gráfico de validação da Aba 1 com cores distintas e leg
   assert.ok(idSvg.includes("y Medido (Holdout)"));
   assert.ok(idSvg.includes("ŷ Previsão 1-Passo (Holdout)"));
   assert.ok(idSvg.includes("ŷ Simulação Livre (Holdout)"));
+  assert.ok(idSvg.includes("Resíduo e(k)=y-ŷ (Holdout)"));
   assert.equal(idSvg.includes("Estado (x)"), false, "Não deve renderizar legenda hardcoded de StateSpace");
 
-  // Extrai cores dos polylines dos 3 canais
-  const colorMatches = Array.from(idSvg.matchAll(/stroke="([^"]+)"[^>]*data-channel-id="(y-[^"]+)"/g));
+  // Extrai cores dos polylines dos 4 canais
+  const colorMatches = Array.from(
+    idSvg.matchAll(/stroke="([^"]+)"[^>]*data-channel-id="((?:y|residuals)-[^"]+)"/g),
+  );
   const colorByChannel = new Map(colorMatches.map((m) => [m[2], m[1]]));
-  assert.equal(colorByChannel.size, 3);
+  assert.equal(colorByChannel.size, 4);
   const uniqueColors = new Set(colorByChannel.values());
-  assert.equal(uniqueColors.size, 3, "Os 3 canais de identificação devem possuir cores distintas");
+  assert.equal(uniqueColors.size, 4, "Os 4 canais de identificação (incluindo resíduo) devem possuir cores distintas");
+  assert.equal(colorByChannel.get("residuals-one-step-validation"), "#9333EA");
+  assert.ok(idSvg.includes('stroke="#9333EA" stroke-width="1.4"'));
+
+  const idSvgHc = renderTimeResponseSvg(idModel, { themeMode: "high_contrast" });
+  assert.ok(idSvgHc.includes('stroke="#F472B6" stroke-width="1.4"'));
 
   // Verifica que gráfico LQR padrão preserva legenda tradicional
   const lqrModel = buildTimeResponseChartModel({

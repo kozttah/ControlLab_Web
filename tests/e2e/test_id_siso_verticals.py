@@ -512,7 +512,7 @@ def test_siso_mimo_rejection_and_isolation(browser_harness):
 
     # Trigger transient Fast-Preview via pointer drag on slider
     slider = page.locator("#lqr-q-slider")
-    slider.scroll_into_view_if_needed()
+    slider.evaluate("el => el.scrollIntoView({ block: 'center', inline: 'nearest' })")
     box = slider.bounding_box()
     assert box and box["width"] >= 44 and box["height"] >= 44
     page.mouse.move(box["x"] + box["width"] * 0.2, box["y"] + box["height"] / 2)

@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 3
+      "2026-11-21": 4
     }
   },
   "audit_reference": {
@@ -4005,11 +4005,25 @@
         "T-SDP-C1"
       ],
       "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/e2e/test_gatecd_interactions.py tests/e2e/test_id_siso_verticals.py -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "Validar em navegador real (Playwright) os botões globais da Topbar, botões diretos de estimação ARX/Subespaços na Aba 1, auto-plot dos 4 gráficos SISO ao abrir a Aba 2, layout de 2 colunas nas Abas 3, 4, 5 e 6 e zero overflow horizontal em desktop e mobile"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-REFACTOR-08-F9-MOCKUP-FIDELITY-AUDIT.md",
+      "assessed_commit": "2d40b3a3ab90323e8a4f6d882a06c1912c74ee1b",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "976bd5daeeeb5f358c45ceef623373028b26c7538977896fe16f69627d262685",
+        "tests/e2e/test_id_siso_verticals.py": "363e0cf2fab29fbb703be99d3f8b9b3d7f4945161cee8285c92e9267082c0893"
+      },
+      "acceptance_scope": "real_browser_mockup_fidelity_topbar_r23_siso_2x2_mimo_fuzzy_lmi_2col_grids_zero_overflow_audit",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-REFACTOR-08-F9-MOCKUP-FIDELITY-AUDIT.md",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py",
+        "tests/e2e/test_gatecd_interactions.py",
+        "tests/e2e/test_id_siso_verticals.py"
       ]
     }
   ],

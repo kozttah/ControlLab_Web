@@ -568,3 +568,198 @@ def test_ux_high_contrast_aaa_and_compact_legacy_drawer(browser_harness):
         },
     )
 
+
+def test_ux_workbench_mockup_fidelity_topbar_and_2col_grids(browser_harness):
+    """Test 5: Topbar global buttons (.ctrlab/.pvm with R-23 lock), SISO 2x2 grid + advanced details, MIMO/Fuzzy/LMI 2-column desktop layouts, and zero horizontal overflow."""
+    page = mount_ui(browser_harness, "e2e-ux-workbench-mockup-fidelity", {"width": 1280, "height": 800})
+
+    # Ensure we start on Tab 3 (statespace) before any LQR commit
+    page.locator('button[data-tab-id="statespace"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'statespace'")
+
+    btn_open_ctrlab = page.locator("#btn-header-open-ctrlab")
+    btn_export_ctrlab = page.locator("#btn-header-export-ctrlab")
+    btn_export_pvm = page.locator("#btn-header-export-pvm")
+
+    # 1. Global Topbar buttons visible across tabs; #btn-header-export-pvm disabled before LQR commit (R-23) and enabled after LQR commit
+    assert btn_open_ctrlab.is_visible()
+    assert btn_export_ctrlab.is_visible()
+    assert btn_export_pvm.is_visible()
+    assert btn_export_pvm.is_disabled()
+    assert btn_export_ctrlab.is_disabled()
+
+    for tab_id in ALL_TAB_IDS:
+        page.locator(f'button[data-tab-id="{tab_id}"]').click()
+        page.wait_for_function(f"() => app.shell.getActiveTab() === '{tab_id}'")
+        assert btn_open_ctrlab.is_visible(), f"#btn-header-open-ctrlab not visible on {tab_id}"
+        assert btn_export_ctrlab.is_visible(), f"#btn-header-export-ctrlab not visible on {tab_id}"
+        assert btn_export_pvm.is_visible(), f"#btn-header-export-pvm not visible on {tab_id}"
+
+    page.locator('button[data-tab-id="statespace"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'statespace'")
+    page.locator('[data-action="commit-lqr"]').click()
+    wait_committed(page)
+
+    assert btn_export_pvm.is_enabled()
+    assert btn_export_ctrlab.is_enabled()
+
+    # 2. Tab 2 (siso_frequency): #siso-advanced-params-details is present and .siso-charts-grid renders a 2-column grid at 1280x800 after clicking #btn-siso-eval-all
+    page.locator('button[data-tab-id="siso_frequency"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'siso_frequency'")
+    page.locator("#siso-workspace-panel").wait_for(state="visible")
+
+    siso_details = page.locator("#siso-advanced-params-details")
+    assert siso_details.is_visible()
+    assert siso_details.get_attribute("open") is not None
+
+    tf_siso_fidelity = {
+        "schema_version": "1.0.0",
+        "id": "tf-siso-fidelity-e2e",
+        "revision": 1,
+        "kind": "TransferFunction",
+        "dt": None,
+        "variable": "s",
+        "poly_order": "descending",
+        "input_names": ["u1"],
+        "output_names": ["y1"],
+        "num": [[{"shape": [1], "dtype": "float64", "order": "C", "data": [2.0]}]],
+        "den": [[{"shape": [3], "dtype": "float64", "order": "C", "data": [1.0, 2.0, 2.0]}]],
+        "units": {"time": "s", "inputs": ["V"], "outputs": ["V"]},
+        "provenance": {"algorithm": "test", "library": "control_lab", "seed": None},
+    }
+    page.evaluate(
+        """async (dto) => {
+            await app.shell.getTypedWorkspace().registerTypedObject(dto, {
+                selectRole: "frequencyPlant",
+                persistToIndexedDB: true,
+            });
+        }""",
+        tf_siso_fidelity,
+    )
+
+    page.locator("#siso-n-points").fill("40")
+    page.locator("#btn-siso-eval-all").click()
+    page.locator("#siso-bode-chart-slot svg").wait_for(state="visible", timeout=30000)
+    page.locator("#siso-nyquist-chart-slot svg").wait_for(state="visible", timeout=30000)
+    page.locator("#siso-rl-chart-slot svg").wait_for(state="visible", timeout=30000)
+    page.locator("#siso-time-chart-slot svg").wait_for(state="visible", timeout=30000)
+
+    siso_grid_metrics = page.evaluate(
+        """() => {
+            const grid = document.querySelector('.siso-charts-grid');
+            const bode = document.querySelector('#siso-bode-chart-slot');
+            const nyquist = document.querySelector('#siso-nyquist-chart-slot');
+            const rl = document.querySelector('#siso-rl-chart-slot');
+            const step = document.querySelector('#siso-time-chart-slot');
+            const cs = grid ? getComputedStyle(grid) : null;
+            return {
+                display: cs?.display,
+                gridTemplateColumns: cs?.gridTemplateColumns,
+                bodeLeft: bode?.getBoundingClientRect().left ?? 0,
+                nyquistLeft: nyquist?.getBoundingClientRect().left ?? 0,
+                rlLeft: rl?.getBoundingClientRect().left ?? 0,
+                stepLeft: step?.getBoundingClientRect().left ?? 0,
+            };
+        }"""
+    )
+    assert siso_grid_metrics["display"] == "grid"
+    assert siso_grid_metrics["nyquistLeft"] > siso_grid_metrics["bodeLeft"]
+    assert siso_grid_metrics["stepLeft"] > siso_grid_metrics["rlLeft"]
+
+    # 3. Tab 4 (mimo_frequency): .mimo-workbench-grid renders Singular Values card and RGA heatmap card side-by-side at 1280x800
+    page.locator('button[data-tab-id="mimo_frequency"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'mimo_frequency'")
+    page.locator("#mimo-workspace-panel").wait_for(state="visible")
+
+    mimo_grid_metrics = page.evaluate(
+        """() => {
+            const grid = document.querySelector('.mimo-workbench-grid');
+            const sigmaSlot = document.querySelector('#mimo-sigma-chart-slot');
+            const rgaCard = document.querySelector('.mimo-rga-card');
+            return {
+                display: grid ? getComputedStyle(grid).display : null,
+                sigmaLeft: sigmaSlot?.getBoundingClientRect().left ?? 0,
+                rgaLeft: rgaCard?.getBoundingClientRect().left ?? 0,
+            };
+        }"""
+    )
+    assert mimo_grid_metrics["display"] == "grid"
+    assert mimo_grid_metrics["rgaLeft"] > mimo_grid_metrics["sigmaLeft"]
+
+    # 4. Tab 5 (fuzzy_ts): .fuzzy-workbench-grid renders Membership Function card and Surface card side-by-side at 1280x800
+    page.locator('button[data-tab-id="fuzzy_ts"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'fuzzy_ts'")
+    page.locator("#fuzzy-workspace-panel").wait_for(state="visible")
+
+    fuzzy_grid_metrics = page.evaluate(
+        """() => {
+            const grid = document.querySelector('.fuzzy-workbench-grid');
+            const mfCard = document.querySelector('.fuzzy-mf-panel');
+            const surfCard = document.querySelector('.fuzzy-surface-panel');
+            return {
+                display: grid ? getComputedStyle(grid).display : null,
+                mfLeft: mfCard?.getBoundingClientRect().left ?? 0,
+                surfLeft: surfCard?.getBoundingClientRect().left ?? 0,
+            };
+        }"""
+    )
+    assert fuzzy_grid_metrics["display"] == "grid"
+    assert fuzzy_grid_metrics["surfLeft"] > fuzzy_grid_metrics["mfLeft"]
+
+    # 5. Tab 6 (optimization_lmi): both .lmi-editor-split and .lmi-results-split render side-by-side in 2 columns at 1280x800
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
+
+    lmi_grid_metrics = page.evaluate(
+        """() => {
+            const editorSplit = document.querySelector('.lmi-editor-split');
+            const editorCard = document.querySelector('.lmi-editor-card');
+            const mathCard = document.querySelector('.lmi-math-card');
+            const resultsSplit = document.querySelector('.lmi-results-split');
+            const certPanel = document.querySelector('#lmi-certificate-panel');
+            const specSlot = document.querySelector('#lmi-spectrum-chart-slot');
+            return {
+                editorDisplay: editorSplit ? getComputedStyle(editorSplit).display : null,
+                editorLeft: editorCard?.getBoundingClientRect().left ?? 0,
+                mathLeft: mathCard?.getBoundingClientRect().left ?? 0,
+                resultsDisplay: resultsSplit ? getComputedStyle(resultsSplit).display : null,
+                certLeft: certPanel?.getBoundingClientRect().left ?? 0,
+                specLeft: specSlot?.getBoundingClientRect().left ?? 0,
+            };
+        }"""
+    )
+    assert lmi_grid_metrics["editorDisplay"] == "grid"
+    assert lmi_grid_metrics["mathLeft"] > lmi_grid_metrics["editorLeft"]
+    assert lmi_grid_metrics["resultsDisplay"] == "grid"
+    assert lmi_grid_metrics["specLeft"] > lmi_grid_metrics["certLeft"]
+
+    # 6. Zero horizontal overflow across all 6 tabs at 1280x800 and 390x844
+    overflow_metrics = {}
+    for width, height in ((1280, 800), (390, 844)):
+        page.set_viewport_size({"width": width, "height": height})
+        vp_key = f"{width}x{height}"
+        overflow_metrics[vp_key] = {}
+        for tab_id in ALL_TAB_IDS:
+            page.locator(f'button[data-tab-id="{tab_id}"]').click()
+            page.wait_for_function(f"() => app.shell.getActiveTab() === '{tab_id}'")
+            m = page.evaluate(
+                "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
+            )
+            overflow_metrics[vp_key][tab_id] = m
+            assert m["scrollWidth"] <= m["innerWidth"] + 1, (
+                f"Horizontal overflow at {vp_key} on tab '{tab_id}': "
+                f"scrollWidth={m['scrollWidth']} > innerWidth={m['innerWidth']}"
+            )
+
+    browser_harness.record(
+        "e2e-ux-workbench-mockup-fidelity",
+        {
+            "siso_grid_metrics": siso_grid_metrics,
+            "mimo_grid_metrics": mimo_grid_metrics,
+            "fuzzy_grid_metrics": fuzzy_grid_metrics,
+            "lmi_grid_metrics": lmi_grid_metrics,
+            "overflow_metrics": overflow_metrics,
+        },
+    )
+

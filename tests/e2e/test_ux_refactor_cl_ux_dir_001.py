@@ -763,3 +763,150 @@ def test_ux_workbench_mockup_fidelity_topbar_and_2col_grids(browser_harness):
         },
     )
 
+
+def test_ux_phase1_workspace_csv_legend_siso_comp_and_fuzzy_reset(browser_harness):
+    """Test 6: Phase 1 Ergonomics — Workspace Dock examples/clear, CSV upload, Ident legend, SISO C(s) modal, and Fuzzy clear/reset."""
+    page = mount_ui(browser_harness, "e2e-ux-phase1", {"width": 1280, "height": 800})
+
+    # 1. Workspace Dock: load mass_spring_damper, clear workspace, and restore double_integrator
+    dock_aside = page.locator("#workspace-dock-aside")
+    page.select_option("#dock-example-select", "mass_spring_damper")
+    page.locator("#btn-dock-load-example").click()
+    page.wait_for_function(
+        "() => document.querySelector('#workspace-dock-aside')?.textContent?.includes('mass-spring-damper')"
+    )
+    assert "mass-spring-damper" in dock_aside.inner_text()
+
+    page.locator("#btn-dock-clear-workspace").click()
+    page.wait_for_function(
+        "() => app.shell.getTypedWorkspace().listRegisteredObjects().length === 0"
+    )
+    assert "mass-spring-damper" not in dock_aside.inner_text()
+
+    page.select_option("#dock-example-select", "double_integrator")
+    page.locator("#btn-dock-load-example").click()
+    page.wait_for_function(
+        "() => document.querySelector('#workspace-dock-aside')?.textContent?.includes('double-integrator')"
+    )
+    assert "double-integrator" in dock_aside.inner_text()
+
+    # 2. CSV Upload: #new-obj-csv-file in '+ Novo' modal and #id-csv-file-input in Tab 1
+    page.locator("#btn-open-new-object-modal").click()
+    new_modal = page.locator("#workspace-new-object-modal")
+    new_modal.wait_for(state="visible")
+    page.locator("#btn-new-mode-csv").click()
+    modal_csv_input = page.locator("#new-obj-csv-file")
+    assert modal_csv_input.count() == 1
+    assert ".csv" in (modal_csv_input.get_attribute("accept") or "")
+    csv_payload = b"t,u,y\n0.0,1.0,0.0\n0.1,1.0,0.22\n0.2,1.0,0.48\n0.3,1.0,0.71\n"
+    modal_csv_input.set_input_files(
+        [{"name": "modal_ensaio.csv", "mimeType": "text/csv", "buffer": csv_payload}]
+    )
+    page.wait_for_function(
+        "() => document.querySelector('#new-csv-content')?.value?.includes('0.71')"
+    )
+    page.locator("#new-object-modal-close").click()
+    new_modal.wait_for(state="hidden")
+
+    page.locator('button[data-tab-id="identification"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'identification'")
+    page.locator("#identification-workspace-panel").wait_for(state="visible")
+
+    id_csv_file = page.locator("#id-csv-file-input")
+    assert id_csv_file.count() == 1
+    assert ".csv" in (id_csv_file.get_attribute("accept") or "")
+    id_csv_file.set_input_files(
+        [{"name": "id_bancada.csv", "mimeType": "text/csv", "buffer": csv_payload}]
+    )
+    page.wait_for_function(
+        "() => document.querySelector('#id-csv-input')?.value?.includes('0.71')"
+    )
+    assert "0.71" in page.locator("#id-csv-input").input_value()
+
+    # 3. Identification Legend: load PRBS benchmark and fit ARX -> distinct legend labels & colors
+    page.locator('[data-action="id-load-prbs"]').click()
+    page.wait_for_function(
+        """() => {
+            const tw = app.shell.getTypedWorkspace();
+            return tw.getSelectedRef('dataset')?.id === 'ds-b-arx-prbs-train'
+                && tw.getSelectedRef('valDataset')?.id === 'ds-b-arx-prbs-val';
+        }""",
+        timeout=25000,
+    )
+    page.locator("#btn-id-fit-arx").click()
+    id_svg = page.locator("#id-response-chart-slot svg")
+    id_svg.wait_for(state="visible", timeout=30000)
+
+    legend_info = page.evaluate(
+        """() => {
+            const texts = Array.from(document.querySelectorAll('#id-response-chart-slot svg text[data-legend-channel]'));
+            return texts.map((el) => ({
+                channel: el.getAttribute('data-legend-channel'),
+                label: (el.textContent || '').trim(),
+                fill: (el.getAttribute('fill') || '').toUpperCase(),
+            }));
+        }"""
+    )
+    labels_joined = " | ".join(item["label"] for item in legend_info)
+    assert "y Medido" in labels_joined, f"Expected 'y Medido' in legend: {legend_info}"
+    assert "ŷ" in labels_joined and (
+        "ŷ Simulação Livre" in labels_joined or "ŷ Previsão 1-Passo" in labels_joined
+    ), f"Expected ŷ prediction label in legend: {legend_info}"
+    distinct_colors = {item["fill"] for item in legend_info if item["fill"]}
+    assert len(distinct_colors) >= 2, f"Expected distinct legend colors, got {legend_info}"
+
+    # 4. SISO Dynamic Compensator C(s): load mass_spring_damper, open modal, apply TF (s+2)/(s+10), eval all 4 charts
+    page.select_option("#dock-example-select", "mass_spring_damper")
+    page.locator("#btn-dock-load-example").click()
+    page.wait_for_function(
+        "() => document.querySelector('#workspace-dock-aside')?.textContent?.includes('mass-spring-damper')"
+    )
+    page.locator('button[data-tab-id="siso_frequency"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'siso_frequency'")
+    page.locator("#siso-workspace-panel").wait_for(state="visible")
+
+    page.locator("#btn-siso-edit-compensator").click()
+    comp_modal = page.locator("#siso-compensator-modal")
+    comp_modal.wait_for(state="visible")
+    page.locator("#siso-comp-num").fill("1, 2")
+    page.locator("#siso-comp-den").fill("1, 10")
+    page.locator("#btn-siso-apply-comp").click()
+    comp_modal.wait_for(state="hidden")
+
+    loop_bar_text = page.locator("#siso-loop-diagram-bar").inner_text()
+    assert "s + 2" in loop_bar_text and "s + 10" in loop_bar_text, (
+        f"Expected dynamic compensator in #siso-loop-diagram-bar, got: {loop_bar_text}"
+    )
+
+    page.locator("#siso-n-points").fill("40")
+    page.locator("#btn-siso-eval-all").click()
+    page.locator("#siso-bode-chart-slot svg").wait_for(state="visible", timeout=30000)
+    page.locator("#siso-nyquist-chart-slot svg").wait_for(state="visible", timeout=30000)
+    page.locator("#siso-rl-chart-slot svg").wait_for(state="visible", timeout=30000)
+    page.locator("#siso-time-chart-slot svg").wait_for(state="visible", timeout=30000)
+
+    # 5. Fuzzy Clear & Reset: clear system -> minimal skeleton (1 term, 0 rules), reset -> 9-rule PD starter
+    page.locator('button[data-tab-id="fuzzy_ts"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'fuzzy_ts'")
+    page.locator("#fuzzy-workspace-panel").wait_for(state="visible")
+
+    page.locator("#btn-fuzzy-clear-system").click()
+    assert page.locator('[data-action="fuzzy-remove-term"]').count() == 1
+    assert "0 regras" in page.locator("#fuzzy-coverage-status").inner_text()
+
+    page.locator("#btn-fuzzy-reset-starter").click()
+    assert page.locator('[data-action="fuzzy-remove-term"]').count() == 3
+    assert "9 regras" in page.locator("#fuzzy-coverage-status").inner_text()
+
+    browser_harness.record(
+        "e2e-ux-phase1",
+        {
+            "dock_examples_and_clear": True,
+            "csv_upload_verified": True,
+            "ident_legend": legend_info,
+            "siso_compensator_bar": loop_bar_text,
+            "fuzzy_clear_and_reset_verified": True,
+        },
+    )
+
+

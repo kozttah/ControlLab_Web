@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 5
+      "2026-11-21": 6
     }
   },
   "audit_reference": {
@@ -4114,11 +4114,24 @@
         "T-FML-01"
       ],
       "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/e2e/test_gatecd_interactions.py tests/e2e/test_id_siso_verticals.py -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "Validar em Chromium real todas as 5 entregas da Fase 1 (Limpar Workspace + Carregar Exemplo, Upload CSV, Legenda distinta y Medido vs y Previsto, Editor C(s) com polos/zeros na Aba 2 e Reset/Exclusao na Aba 5) e ausencia de regressoes"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-PHASE1-02-F9-AUDIT.md",
+      "assessed_commit": "5492bf63fed1b52d9eb4c4f57c2cdeb9a05901d4",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "dde5859682df7f29e87f92bd50ad40f317c90db36c3f53582cf1d3cebe44a01a"
+      },
+      "acceptance_scope": "real_browser_phase1_workspace_csv_legend_siso_compensator_fuzzy_clear_reset_audit",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-PHASE1-02-F9-AUDIT.md",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py",
+        "tests/e2e/test_gatecd_interactions.py",
+        "tests/e2e/test_id_siso_verticals.py"
       ]
     }
   ],

@@ -90,6 +90,9 @@ def solve(
             if opt_key in raw_out and raw_out[opt_key] is not None:
                 data_out[opt_key] = raw_out[opt_key]
 
+        if "iteration_log" in raw_out and raw_out["iteration_log"] is not None:
+            data_out["iteration_log"] = list(raw_out["iteration_log"])
+
         if "x" in data_out:
             data_out["variables"] = problem.reconstruct_variables(np.asarray(data_out["x"], dtype=np.float64))
 
@@ -126,6 +129,8 @@ def solve(
                 "iterations": raw_out.get("iterations"),
                 "solve_time": raw_out.get("solve_time"),
             }
+            if "iteration_log" in raw_out and raw_out["iteration_log"] is not None:
+                diagnostics["iteration_log"] = list(raw_out["iteration_log"])
         else:
             raw_warnings.append(
                 WarningItem(
@@ -154,6 +159,8 @@ def solve(
                 "certificate_status": "not_available",
                 "backend": backend_obj.name,
             }
+            if "iteration_log" in raw_out and raw_out["iteration_log"] is not None:
+                diagnostics["iteration_log"] = list(raw_out["iteration_log"])
 
         from .native import within_browser_envelope
         conditioning = data_out.get("conditioning", {})

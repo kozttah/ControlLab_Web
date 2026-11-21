@@ -362,6 +362,18 @@ def test_ux_mimo_fuzzy_lmi_monaco_and_viewport_responsiveness(browser_harness):
     ):
         assert dim_label.casefold() in cert_text_cf, f"Missing 5D cert dimension: {dim_label} in {cert_text!r}"
 
+    progress_panel = page.locator("#lmi-solver-progress-panel")
+    progress_panel.wait_for(state="visible", timeout=15000)
+    progress_rows = page.locator("#lmi-solver-progress-tbody tr")
+    progress_row_count = progress_rows.count()
+    assert progress_row_count >= 1, f"Expected >= 1 iteration row in #lmi-solver-progress-tbody, got {progress_row_count}"
+    progress_table_text = page.locator("#lmi-solver-progress-table").inner_text()
+    progress_table_cf = progress_table_text.casefold()
+    assert "gap" in progress_table_cf, f"Expected 'Gap' column in #lmi-solver-progress-table: {progress_table_text!r}"
+    assert "λ_min" in progress_table_text, f"Expected 'λ_min' column in #lmi-solver-progress-table: {progress_table_text!r}"
+    assert "ms" in progress_table_cf, f"Expected 'ms' unit in #lmi-solver-progress-table: {progress_table_text!r}"
+    assert progress_rows.first.locator("td").count() == 6
+
     # CVXPY export modal
     page.locator('[data-action="lmi-export-cvxpy"]').click()
     export_modal.wait_for(state="visible", timeout=20000)
@@ -394,6 +406,7 @@ def test_ux_mimo_fuzzy_lmi_monaco_and_viewport_responsiveness(browser_harness):
             "mimo_rga_omega_max": omega_label_max,
             "fuzzy_surface_rendered": True,
             "lmi_5d_certificate_verified": True,
+            "lmi_progress_rows": progress_row_count,
             "overflow_report": overflow_report,
         },
     )

@@ -1653,6 +1653,90 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+#lmi-solver-progress-panel,
+.lmi-solver-progress-panel {
+  margin-top: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#lmi-solver-progress-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.lmi-solver-progress-status {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.4rem;
+  overflow-wrap: anywhere;
+}
+
+.lmi-progress-wrap {
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-x: auto;
+  max-width: 100%;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.lmi-progress-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.lmi-progress-table th,
+.lmi-progress-table td {
+  padding: 0.25rem 0.45rem;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lmi-progress-table th:first-child,
+.lmi-progress-table td:first-child {
+  text-align: center;
+}
+
+.lmi-progress-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+
+[data-theme="high_contrast"] #lmi-solver-progress-panel,
+[data-theme="high_contrast"] .lmi-progress-wrap {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+[data-theme="high_contrast"] .lmi-solver-progress-status {
+  color: var(--text-primary);
+}
+
+[data-theme="high_contrast"] .lmi-progress-table th,
+[data-theme="high_contrast"] .lmi-progress-table td {
+  border-color: var(--border);
+}
+
 .lmi-sys-card {
   margin-bottom: 0.85rem;
 }

@@ -8,7 +8,7 @@ from .base import SDPBackend
 from .native_core import NativeSolverConfig, solve_native_raw
 
 # Dense Schur systems and cone factorizations bound browser memory and latency.
-BROWSER_ENVELOPE = {"max_variables": 128, "max_block_dimension": 48, "max_cone_entries": 16384}
+BROWSER_ENVELOPE = {"max_variables": 256, "max_block_dimension": 64, "max_cone_entries": 32768}
 
 
 def within_browser_envelope(problem: CanonicalSDPProblem) -> bool:

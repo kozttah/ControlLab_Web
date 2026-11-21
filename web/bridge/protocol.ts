@@ -192,6 +192,22 @@ export interface ExecutionMetrics {
   warm_call_avg_ms: number | null;
 }
 
+export interface SolverProgress {
+  iter: number;
+  max_iters: number;
+  gap: number;
+  primal_res: number;
+  dual_res: number;
+  min_eig: number;
+  alpha: number;
+  elapsed_ms: number;
+}
+
+export interface SolverProgressEvent {
+  request_id: string;
+  progress: SolverProgress;
+}
+
 export interface WireBinaryBuffer {
   buffer_ref: string;
   shape: number[];

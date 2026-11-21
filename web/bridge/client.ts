@@ -16,6 +16,8 @@ import {
   type ExecutionMetrics,
   type RpcRequest,
   type RpcResponse,
+  type SolverProgress,
+  type SolverProgressEvent,
 } from "./protocol.ts";
 import type {
   CommitProjectRevisionOutput,
@@ -125,6 +127,7 @@ export type EngineClientEvent =
     };
 
 export type EngineEventListener = (event: EngineClientEvent) => void;
+export type SolverProgressListener = (ev: SolverProgressEvent) => void;
 
 export interface ControlLabEngineClient {
   init(options?: EngineInitOptions): Promise<CapabilityDescriptor>;
@@ -154,6 +157,7 @@ export interface ControlLabEngineClient {
   getCommittedRevision(projectId: string): number;
   getLifecycleState(): EngineLifecycleState;
   subscribe(listener: EngineEventListener): () => void;
+  subscribeProgress?(listener: SolverProgressListener): () => void;
   dispose(): void;
 }
 
@@ -409,6 +413,7 @@ export abstract class BaseEngineClient implements ControlLabEngineClient {
   protected readonly coordinator: RevisionCoordinator;
   protected readonly coalescer: DebouncedRequestCoalescer;
   private readonly listeners = new Set<EngineEventListener>();
+  private readonly progressListeners = new Set<SolverProgressListener>();
   private lifecycleState: EngineLifecycleState = "uninitialized";
   protected metrics: ExecutionMetrics = createInitialExecutionMetrics();
   private warmTotalMs = 0;
@@ -475,8 +480,25 @@ export abstract class BaseEngineClient implements ControlLabEngineClient {
     };
   }
 
+  public subscribeProgress(listener: SolverProgressListener): () => void {
+    this.progressListeners.add(listener);
+    return () => {
+      this.progressListeners.delete(listener);
+    };
+  }
+
   protected emitEvent(event: EngineClientEvent): void {
     for (const listener of this.listeners) {
+      try {
+        listener(event);
+      } catch {
+        // Não permitir que um assinante defeituoso quebre o cliente
+      }
+    }
+  }
+
+  protected emitProgressEvent(event: SolverProgressEvent): void {
+    for (const listener of this.progressListeners) {
       try {
         listener(event);
       } catch {
@@ -819,9 +841,10 @@ export abstract class BaseEngineClient implements ControlLabEngineClient {
 
   public dispose(): void {
     this.coalescer.cancelAll();
+    this.progressListeners.clear();
     this.store.close();
   }
 }
 
 export { RPC_API_VERSION };
-export type { ExecutionMetrics } from "./protocol.ts";
+export type { ExecutionMetrics, SolverProgress, SolverProgressEvent };

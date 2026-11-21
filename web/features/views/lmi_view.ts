@@ -26,6 +26,7 @@ import {
   type Provenance,
   type RealTensor,
   type RpcResponse,
+  type SolverProgress,
 } from "../../bridge/protocol.ts";
 import {
   escapeHtml,
@@ -124,7 +125,14 @@ interface LmiSolveSnapshot {
   recoveredK: { rows: number; cols: number; data: number[] } | null;
   warnings: string[];
   provenance: Provenance | null;
+  iterationLog: SolverProgress[];
 }
+
+export const BROWSER_ENVELOPE = {
+  max_variables: 256,
+  max_block_dimension: 64,
+  max_cone_entries: 32768,
+} as const;
 
 function setElHidden(el: Element | null | undefined, hidden: boolean): void {
   if (!el) return;
@@ -190,7 +198,7 @@ function formatGainFromQY(
 ): { rows: number; cols: number; data: number[] } | null {
   const n = qMat.rows;
   const m = yMat.rows;
-  if (n !== qMat.cols || yMat.cols !== n || n < 1 || n > 12) return null;
+  if (n !== qMat.cols || yMat.cols !== n || n < 1 || n > 16) return null;
 
   const aug: number[][] = Array.from({ length: n }, (_, i) => {
     const row: number[] = [];
@@ -370,6 +378,18 @@ export function renderLmiViewHtml(): string {
     `<div id="lmi-certificate-dims" class="lmi-cert-dims-grid"><p>Execute <strong>Resolver LMI</strong> para auditar o problema e gerar o certificado em 5 dimensões, ou exporte scripts CVXPY/YALMIP diretamente.</p></div>`,
     `<div id="lmi-certificate-alert"></div>`,
     `<div id="lmi-recovered-gain" class="lmi-recovered-gain"></div>`,
+    `<div id="lmi-solver-progress-panel" class="lmi-solver-progress-panel">`,
+    `<details id="lmi-solver-progress-details" open>`,
+    `<summary>Progresso do Solver Primal-Dual (Iterações)</summary>`,
+    `<div id="lmi-solver-progress-status" class="lmi-solver-progress-status" aria-live="polite">Aguardando execução.</div>`,
+    `<div class="lmi-progress-wrap">`,
+    `<table id="lmi-solver-progress-table" class="accessible-data-table lmi-progress-table">`,
+    `<thead><tr><th scope="col">Iter</th><th scope="col">Gap</th><th scope="col">Res. Primal</th><th scope="col">Res. Dual</th><th scope="col">λ_min</th><th scope="col">Tempo (ms)</th></tr></thead>`,
+    `<tbody id="lmi-solver-progress-tbody"></tbody>`,
+    `</table>`,
+    `</div>`,
+    `</details>`,
+    `</div>`,
     `</div>`,
     `<div class="chart-card">`,
     `<div id="lmi-spectrum-chart-slot" class="chart-container"></div>`,
@@ -406,6 +426,8 @@ export class LmiView {
   private readonly certDimsEl: HTMLElement | null;
   private readonly certAlertEl: HTMLElement | null;
   private readonly recoveredGainEl: HTMLElement | null;
+  private readonly progressStatusEl: HTMLElement | null;
+  private readonly progressTbodyEl: HTMLElement | null;
   private readonly spectrumChartSlotEl: HTMLElement | null;
   private readonly spectrumTableSlotEl: HTMLElement | null;
 
@@ -439,6 +461,7 @@ export class LmiView {
   private savedPresets: SavedLmiPreset[] = [];
   private lastSolve: LmiSolveSnapshot | null = null;
   private lastBuildPayload: Record<string, unknown> | null = null;
+  private liveIterations: SolverProgress[] = [];
   private sysState: LmiSystemCharacterizationState;
 
   constructor(options: LmiViewOptions) {
@@ -491,6 +514,8 @@ export class LmiView {
     this.certDimsEl = this.container.querySelector<HTMLElement>("#lmi-certificate-dims");
     this.certAlertEl = this.container.querySelector<HTMLElement>("#lmi-certificate-alert");
     this.recoveredGainEl = this.container.querySelector<HTMLElement>("#lmi-recovered-gain");
+    this.progressStatusEl = this.container.querySelector<HTMLElement>("#lmi-solver-progress-status");
+    this.progressTbodyEl = this.container.querySelector<HTMLElement>("#lmi-solver-progress-tbody");
     this.spectrumChartSlotEl = this.container.querySelector<HTMLElement>("#lmi-spectrum-chart-slot");
     this.spectrumTableSlotEl = this.container.querySelector<HTMLElement>("#lmi-spectrum-table-slot");
 
@@ -1013,14 +1038,18 @@ export class LmiView {
     return { ...rawParams, ...plan.extraPayload };
   }
 
-  private async executeRpc(operation: string, payload: Record<string, unknown>): Promise<RpcResponse> {
+  private async executeRpc(
+    operation: string,
+    payload: Record<string, unknown>,
+    requestIdOverride?: string,
+  ): Promise<RpcResponse> {
     const lqr = this.shell.getLqrWorkspace();
     const projectId = lqr.getProjectId();
     const rev = Math.max(lqr.getProjectRevision(), this.client.getCommittedRevision(projectId));
     return this.client.execute(
       {
         api_version: RPC_API_VERSION,
-        request_id: `lmi-${generateUuid()}`,
+        request_id: requestIdOverride ?? `lmi-${generateUuid()}`,
         project_id: projectId,
         project_revision: rev,
         operation,
@@ -1069,6 +1098,26 @@ export class LmiView {
       if (res[k] !== undefined) rawSol[k] = res[k];
     }
 
+    const rawLog = Array.isArray(res.iteration_log)
+      ? res.iteration_log
+      : Array.isArray(diag.iteration_log)
+        ? diag.iteration_log
+        : null;
+    const parsedLog: SolverProgress[] = rawLog
+      ? rawLog
+          .filter((entry): entry is Record<string, unknown> => isPlainObject(entry))
+          .map((entry, idx) => ({
+            iter: Number(entry.iter ?? idx + 1),
+            max_iters: Number(entry.max_iters ?? rawLog.length),
+            gap: Number(entry.gap ?? 0),
+            primal_res: Number(entry.primal_res ?? 0),
+            dual_res: Number(entry.dual_res ?? 0),
+            min_eig: Number(entry.min_eig ?? 0),
+            alpha: Number(entry.alpha ?? 1),
+            elapsed_ms: Number(entry.elapsed_ms ?? 0),
+          }))
+      : [...this.liveIterations];
+
     this.lastBuildPayload = payloadUsed;
     this.lastSolve = {
       operation,
@@ -1094,13 +1143,27 @@ export class LmiView {
       recoveredK,
       warnings: resp.warnings.map((w) => (typeof w === "string" ? w : w.message)),
       provenance: resp.provenance as Provenance,
+      iterationLog: parsedLog,
     };
   }
 
   public async solveLmi(): Promise<void> {
+    const requestId = `lmi-${generateUuid()}`;
+    this.liveIterations = [];
+    this.renderProgressRows([], "Resolvendo LMI no motor nativo...");
+    const unsubscribeProgress = this.client.subscribeProgress?.((ev) => {
+      if (ev.request_id !== requestId) return;
+      this.liveIterations.push(ev.progress);
+      const p = ev.progress;
+      this.renderProgressRows(
+        this.liveIterations,
+        `Em execução: iteração ${p.iter}/${p.max_iters} | gap=${p.gap.toExponential(2)} | λ_min=${p.min_eig.toExponential(2)} | ${p.elapsed_ms.toFixed(1)} ms`,
+      );
+    });
+
     try {
       const payload = await this.buildBackendPayload();
-      const resp = await this.executeRpc("optimization.solve", payload);
+      const resp = await this.executeRpc("optimization.solve", payload, requestId);
       if (resp.status === "failure") {
         throw new ControlLabBridgeError(
           resp.error?.code ?? "INTERNAL_ERROR",
@@ -1118,7 +1181,10 @@ export class LmiView {
       this.renderCertificateAndSpectrum();
       this.onRequestRender?.();
     } catch (err: unknown) {
+      this.renderProgressRows(this.liveIterations, "Execução interrompida ou com erro.");
       this.shell.presentError(err);
+    } finally {
+      unsubscribeProgress?.();
     }
   }
 
@@ -1320,12 +1386,51 @@ export class LmiView {
     }
   }
 
+  private estimateDslVariables(dims: { n: number; m: number; p: number }): number {
+    if (this.parsed.variables.length === 0) {
+      return Math.round((dims.n * (dims.n + 1)) / 2);
+    }
+    const resolveDimToken = (tok: string): number => {
+      const t = tok.trim();
+      if (t === "n") return dims.n;
+      if (t === "m") return dims.m;
+      if (t === "p") return dims.p;
+      const num = Number(t);
+      return Number.isFinite(num) && num > 0 ? Math.round(num) : dims.n;
+    };
+    let total = 0;
+    for (const v of this.parsed.variables) {
+      let base = 1;
+      if (v.kind === "sym") {
+        const d = resolveDimToken(v.rowsExpr);
+        base = Math.round((d * (d + 1)) / 2);
+      } else if (v.kind === "rect") {
+        const r = resolveDimToken(v.rowsExpr);
+        const c = resolveDimToken(v.colsExpr);
+        base = r * c;
+      } else {
+        base = 1;
+      }
+      const mult = (v.indexedBy?.length ?? 0) > 0 ? Math.max(1, this.parsed.effectiveSystemN) : 1;
+      total += base * mult;
+    }
+    return total;
+  }
+
   private renderEditorAndMath(): void {
     const dims = this.getActivePlantDims();
     if (this.envelopeBannerEl) {
-      if (dims.n > 12 || this.parsed.expandedBlockCount > 32) {
+      const tpl = this.parsed.inferredTemplate;
+      const isHinf = tpl === "hinf_brl" || tpl === "hinf_generalized_brl";
+      const nVars = this.estimateDslVariables(dims);
+      const maxNForMode = isHinf ? 12 : 16;
+      const exceedsEnvelope =
+        dims.n > maxNForMode ||
+        nVars > BROWSER_ENVELOPE.max_variables ||
+        this.parsed.expandedBlockCount > 32;
+      if (exceedsEnvelope) {
         setElHidden(this.envelopeBannerEl, false);
-        this.envelopeBannerEl.innerHTML = `<strong>Limite do motor navegador (ADR-010):</strong> Planta com n=${dims.n} estados e ${this.parsed.expandedBlockCount} bloco(s) LMI. Recomenda-se usar <strong>Exportar CVXPY / YALMIP</strong> para execução offline com MOSEK/SCS.`;
+        this.envelopeBannerEl.innerHTML = `<strong>Limite do motor navegador (ADR-010):</strong> Planta com n=${dims.n} estados, ~${nVars} variáveis (envelope validado: n ≤ 16 geral, n ≤ 12 H∞, max_variables=${BROWSER_ENVELOPE.max_variables}, max_block_dimension=${BROWSER_ENVELOPE.max_block_dimension}, max_cone_entries=${BROWSER_ENVELOPE.max_cone_entries}) e ${this.parsed.expandedBlockCount} bloco(s) LMI. Recomenda-se usar <strong>Exportar CVXPY / YALMIP</strong> para execução offline com MOSEK/SCS.`;
       } else {
         setElHidden(this.envelopeBannerEl, true);
         this.envelopeBannerEl.innerHTML = "";
@@ -1407,6 +1512,37 @@ export class LmiView {
     }
   }
 
+  private renderProgressRows(rows: readonly SolverProgress[], statusText: string): void {
+    if (this.progressStatusEl) {
+      this.progressStatusEl.textContent = statusText;
+    }
+    if (!this.progressTbodyEl) return;
+    if (rows.length === 0) {
+      this.progressTbodyEl.innerHTML = "";
+      return;
+    }
+    const maxDisplay = 60;
+    const displayEntries: Array<{ kind: "row"; row: SolverProgress } | { kind: "gap"; skipped: number }> = [];
+    if (rows.length <= maxDisplay) {
+      for (const r of rows) displayEntries.push({ kind: "row", row: r });
+    } else {
+      for (let i = 0; i < 15; i += 1) displayEntries.push({ kind: "row", row: rows[i] });
+      displayEntries.push({ kind: "gap", skipped: rows.length - 55 });
+      for (let i = rows.length - 40; i < rows.length; i += 1) {
+        displayEntries.push({ kind: "row", row: rows[i] });
+      }
+    }
+    this.progressTbodyEl.innerHTML = displayEntries
+      .map((entry) => {
+        if (entry.kind === "gap") {
+          return `<tr><td colspan="6">… ${entry.skipped} iterações intermediárias omitidas …</td></tr>`;
+        }
+        const r = entry.row;
+        return `<tr><td>${r.iter}</td><td>${escapeHtml(r.gap.toExponential(2))}</td><td>${escapeHtml(r.primal_res.toExponential(2))}</td><td>${escapeHtml(r.dual_res.toExponential(2))}</td><td>${escapeHtml(r.min_eig.toExponential(2))}</td><td>${escapeHtml(r.elapsed_ms.toFixed(1))}</td></tr>`;
+      })
+      .join("");
+  }
+
   private renderCertificateAndSpectrum(): void {
     const decimals = this.shell.getDisplayDecimals();
     if (!this.lastSolve) {
@@ -1415,6 +1551,7 @@ export class LmiView {
       }
       if (this.certAlertEl) this.certAlertEl.innerHTML = "";
       if (this.recoveredGainEl) this.recoveredGainEl.innerHTML = "";
+      this.renderProgressRows([], "Aguardando execução.");
       if (this.spectrumChartSlotEl) this.spectrumChartSlotEl.innerHTML = "";
       if (this.spectrumTableSlotEl) {
         this.spectrumTableSlotEl.innerHTML = `<p>Sem solução LMI auditada ainda.</p>`;
@@ -1499,6 +1636,16 @@ export class LmiView {
           ? ` | <strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code>`
           : "";
       this.recoveredGainEl.innerHTML = `<p>${kHtml}${objHtml}</p>`;
+    }
+
+    if (s.iterationLog.length > 0) {
+      const last = s.iterationLog[s.iterationLog.length - 1];
+      this.renderProgressRows(
+        s.iterationLog,
+        `Concluído em ${s.iterationLog.length} iteração(ões) | gap=${last.gap.toExponential(2)} | λ_min=${last.min_eig.toExponential(2)} | ${last.elapsed_ms.toFixed(1)} ms`,
+      );
+    } else {
+      this.renderProgressRows([], "Sem log de iterações nesta resposta.");
     }
 
     const themeMode = this.shell.getThemeMode();

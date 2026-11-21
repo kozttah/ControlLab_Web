@@ -15,6 +15,7 @@ import {
   type ExecutionMetrics,
   type RpcRequest,
   type RpcResponse,
+  type SolverProgressEvent,
 } from "../../../web/bridge/protocol.ts";
 import {
   createInitialExecutionMetrics,
@@ -26,6 +27,7 @@ import {
   type ExecuteOptions,
   type RegisteredObjectRef,
   type RegisterObjectOptions,
+  type SolverProgressListener,
 } from "../../../web/bridge/client.ts";
 import type { PortableProjectSnapshot } from "../../../web/storage/indexeddb_store.ts";
 import { mountControlLabApp } from "../../../web/app/main.ts";
@@ -542,6 +544,194 @@ test("WP-LMI-V2-02: Zona 2 Caracterização do Sistema (LTI generalizada, Polit�
   const toggleBtnAfter = root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!;
   assert.equal(toggleBtnAfter.textContent, "Não Medida (Estimada)");
   assert.ok(root.querySelector("#lmi-ts-premises-list")!.textContent.includes("ts_partially_observed"));
+
+  app.destroy();
+});
+
+test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelope n<=16 / n<=12 H∞", async () => {
+  class ProgressStubClient extends StubLmiClient {
+    public readonly progressListeners = new Set<SolverProgressListener>();
+    public emitLiveDuringSolve = true;
+    public responseIterationLog: Array<Record<string, number>> | null = null;
+    public liveStatusSeenDuringExecute = "";
+    public liveRowsSeenDuringExecute = 0;
+    public docRoot: FakeElement | null = null;
+
+    public subscribeProgress(listener: SolverProgressListener): () => void {
+      this.progressListeners.add(listener);
+      return () => {
+        this.progressListeners.delete(listener);
+      };
+    }
+
+    public override async execute(req: RpcRequest, opts?: ExecuteOptions): Promise<RpcResponse> {
+      if (req.operation === "optimization.solve" && this.emitLiveDuringSolve) {
+        // Unrelated request_id should be ignored by LmiView
+        for (const fn of this.progressListeners) {
+          fn({
+            request_id: "other-unrelated-request",
+            progress: {
+              iter: 99,
+              max_iters: 100,
+              gap: 0.99,
+              primal_res: 0.5,
+              dual_res: 0.5,
+              min_eig: -0.1,
+              alpha: 0.5,
+              elapsed_ms: 999.0,
+            },
+          });
+        }
+
+        const liveEvents: SolverProgressEvent[] = [
+          {
+            request_id: req.request_id,
+            progress: {
+              iter: 1,
+              max_iters: 50,
+              gap: 1.25e-1,
+              primal_res: 4.0e-3,
+              dual_res: 3.1e-3,
+              min_eig: -1.5e-2,
+              alpha: 0.8,
+              elapsed_ms: 4.2,
+            },
+          },
+          {
+            request_id: req.request_id,
+            progress: {
+              iter: 2,
+              max_iters: 50,
+              gap: 3.4e-4,
+              primal_res: 1.2e-6,
+              dual_res: 9.5e-7,
+              min_eig: 2.1e-3,
+              alpha: 1.0,
+              elapsed_ms: 8.7,
+            },
+          },
+        ];
+        for (const ev of liveEvents) {
+          for (const fn of this.progressListeners) fn(ev);
+        }
+
+        if (this.docRoot) {
+          this.liveStatusSeenDuringExecute =
+            this.docRoot.querySelector("#lmi-solver-progress-status")?.textContent ?? "";
+          this.liveRowsSeenDuringExecute =
+            this.docRoot.querySelector("#lmi-solver-progress-tbody")?.querySelectorAll("tr").length ?? 0;
+        }
+      }
+
+      const base = await super.execute(req, opts);
+      if (req.operation === "optimization.solve") {
+        return {
+          ...base,
+          result: {
+            solver_status: "optimal",
+            audit_feasibility: "strictly_feasible",
+            certificate_status: "validated_dual",
+            conditioning: { status: "well_conditioned", condition_number: 12.4 },
+            controller_validity: "verified_under_assumptions",
+            residuals: { primal_block_min_eigs: [0.0021, 0.15] },
+            ...(this.responseIterationLog ? { iteration_log: this.responseIterationLog } : {}),
+          },
+          diagnostics: {
+            ...(this.responseIterationLog ? { iteration_log: this.responseIterationLog } : {}),
+          },
+        };
+      }
+      return base;
+    }
+  }
+
+  const client = new ProgressStubClient();
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  client.docRoot = root;
+
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client,
+    project_id: "proj-lmi-progress",
+  });
+  await app.client.init();
+  app.shell.switchTab("optimization_lmi");
+
+  // 1. Live progress updates during solve() + unsubscribe in finally
+  assert.ok(root.querySelector("#lmi-solver-progress-panel") !== null);
+  assert.ok(root.querySelector("#lmi-solver-progress-table") !== null);
+
+  const solveBtn = root.querySelector<FakeElement>('[data-action="lmi-solve"]')!;
+  solveBtn.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 25));
+  assert.ok(client.liveStatusSeenDuringExecute.includes("iteração 2/50"));
+  assert.equal(client.liveRowsSeenDuringExecute, 2);
+  assert.equal(client.progressListeners.size, 0, "subscribeProgress deve ser cancelada no finally");
+
+  const tbodyAfterLive = root.querySelector("#lmi-solver-progress-tbody")!;
+  assert.equal(tbodyAfterLive.querySelectorAll("tr").length, 2);
+  assert.ok(!tbodyAfterLive.textContent.includes("999.0"), "Eventos de outro request_id devem ser ignorados");
+
+  // 2. Post-solve iteration_log (long run > 60 iterations compacts cleanly)
+  client.emitLiveDuringSolve = false;
+  client.responseIterationLog = Array.from({ length: 75 }, (_, idx) => ({
+    iter: idx + 1,
+    max_iters: 100,
+    gap: 1e-2 / (idx + 1),
+    primal_res: 1e-5 / (idx + 1),
+    dual_res: 1e-5 / (idx + 1),
+    min_eig: 0.001 + idx * 1e-5,
+    alpha: 1.0,
+    elapsed_ms: (idx + 1) * 1.5,
+  }));
+  solveBtn.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 25));
+  assert.equal(client.progressListeners.size, 0);
+  const statusAfterLog = root.querySelector("#lmi-solver-progress-status")!.textContent;
+  assert.ok(statusAfterLog.includes("75 iteração(ões)"));
+  const rowsAfterLog = root.querySelector("#lmi-solver-progress-tbody")!.querySelectorAll("tr");
+  assert.equal(rowsAfterLog.length, 56, "75 iterações devem compactar em 15 iniciais + 1 resumo + 40 finais");
+  assert.ok(root.querySelector("#lmi-solver-progress-tbody")!.textContent.includes("20 iterações intermediárias omitidas"));
+
+  // 3. Updated browser envelope checks: n=16 allowed for general feasibility, n=17 exceeds, n=13 exceeds for Hinf
+  const makePlant = (n: number) => {
+    const aData = Array.from({ length: n * n }, (_, k) => (Math.floor(k / n) === k % n ? -1 : 0));
+    const bData = Array.from({ length: n }, (_, i) => (i === n - 1 ? 1 : 0));
+    const cData = Array.from({ length: n }, (_, i) => (i === 0 ? 1 : 0));
+    return {
+      ...app.shell.getLqrWorkspace().getPlant(),
+      state_names: Array.from({ length: n }, (_, i) => `x${i + 1}`),
+      matrices: {
+        A: { shape: [n, n], dtype: "float64" as const, order: "C" as const, data: aData },
+        B: { shape: [n, 1], dtype: "float64" as const, order: "C" as const, data: bData },
+        C: { shape: [1, n], dtype: "float64" as const, order: "C" as const, data: cData },
+        D: { shape: [1, 1], dtype: "float64" as const, order: "C" as const, data: [0] },
+      },
+    };
+  };
+
+  const editorEl = root.querySelector<FakeElement>("#lmi-code-editor")!;
+
+  // General stabilization with n=16 (n_vars = 136 <= 256) -> hidden
+  app.shell.getLqrWorkspace().updatePlant(makePlant(16));
+  editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
+  editorEl.dispatchEvent("input");
+  const banner16 = root.querySelector<FakeElement>("#lmi-envelope-banner")!;
+  assert.equal(banner16.hasAttribute("hidden"), true, "n=16 em factibilidade geral deve ficar dentro do envelope");
+
+  // General stabilization with n=17 -> visible
+  app.shell.getLqrWorkspace().updatePlant(makePlant(17));
+  editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
+  editorEl.dispatchEvent("input");
+  assert.equal(banner16.hasAttribute("hidden"), false, "n=17 deve exibir aviso do envelope");
+  assert.ok(banner16.textContent.includes("max_variables=256"));
+
+  // Hinf norm minimization with n=13 (> 12) -> visible
+  app.shell.getLqrWorkspace().updatePlant(makePlant(13));
+  const hinfTpl = LMI_DSL_TEMPLATES.find((t) => t.id === "hinf_brl")!;
+  editorEl.value = hinfTpl.dsl;
+  editorEl.dispatchEvent("input");
+  assert.equal(banner16.hasAttribute("hidden"), false, "n=13 em H∞ (> 12) deve exibir aviso do envelope");
 
   app.destroy();
 });

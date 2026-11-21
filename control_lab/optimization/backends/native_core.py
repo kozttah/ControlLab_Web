@@ -4,15 +4,35 @@ Canonical primal/dual signs and certificates are checked by the separate verifie
 The educational API delegates to this same numerical kernel.
 """
 from __future__ import annotations
+import contextvars
 from dataclasses import dataclass
 import math
 import time
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 import numpy as np
 import scipy.linalg
 from control_lab.core.tensors import ensure_finite_float64
 from control_lab.diagnostics import ValidationError, WarningItem
 from ..modeling.canonical import CanonicalSDPProblem
+
+_ACTIVE_PROGRESS_CALLBACK: contextvars.ContextVar[Callable[[dict[str, Any]], Any] | None] = (
+    contextvars.ContextVar("_ACTIVE_PROGRESS_CALLBACK", default=None)
+)
+
+
+def set_progress_callback(cb: Callable[[dict[str, Any]], Any] | None) -> None:
+    """Registra callback de progresso por iteração no contexto atual."""
+    _ACTIVE_PROGRESS_CALLBACK.set(cb)
+
+
+def get_progress_callback() -> Callable[[dict[str, Any]], Any] | None:
+    """Retorna o callback de progresso ativo no contexto atual."""
+    return _ACTIVE_PROGRESS_CALLBACK.get()
+
+
+def clear_progress_callback() -> None:
+    """Remove o callback de progresso ativo no contexto atual."""
+    _ACTIVE_PROGRESS_CALLBACK.set(None)
 
 @dataclass(frozen=True)
 class IterationRecord:
@@ -91,6 +111,8 @@ class NativeSolverConfig:
         }
         kwargs: dict[str, Any] = {}
         for k, v in options.items():
+            if k == "progress_callback":
+                continue
             if k not in allowed:
                 raise ValidationError(f"Opção desconhecida para solver SDP educacional: {k!r}.")
             kwargs[k] = v
@@ -428,6 +450,9 @@ def _run_primal_dual_cone_loop(
     stop_on_negative_obj_margin: float | None = None,
     check_farkas_on_blocks: int | None = None,
     unbounded_norm_threshold: float = 1e7,
+    t_start: float | None = None,
+    iteration_log: list[dict[str, Any]] | None = None,
+    progress_callback: Callable[[dict[str, Any]], Any] | None = None,
 ) -> dict[str, Any]:
     """Executa Pontos Interiores Primal-Dual (Nesterov-Todd + Mehrotra Preditor-Corretor).
 
@@ -463,6 +488,8 @@ def _run_primal_dual_cone_loop(
         cho_Z_list.append(cho_z)
 
     history: list[IterationRecord] = []
+    iter_log: list[dict[str, Any]] = iteration_log if iteration_log is not None else []
+    t0 = t_start if t_start is not None else time.perf_counter()
     solver_status = "max_iterations"
     farkas_candidate: list[np.ndarray] | None = None
     recession_candidate: np.ndarray | None = None
@@ -476,6 +503,7 @@ def _run_primal_dual_cone_loop(
             cho_S_list = [c for c in cho_eval if c is not None]
 
         R_p_list = [S_b - S_ev for S_b, S_ev in zip(S_list, S_eval, strict=True)]
+        rp_norm = max(float(np.linalg.norm(rp, "fro")) for rp in R_p_list) if R_p_list else 0.0
         gap = sum(float(np.sum(S_b * Z_b)) for S_b, Z_b in zip(S_list, Z_list, strict=True))
         mu = gap / max(1, total_order)
 
@@ -501,6 +529,24 @@ def _run_primal_dual_cone_loop(
 
         min_eig_p = min(float(np.min(np.linalg.eigvalsh(S_ev))) for S_ev in S_eval)
         min_eig_d = min(float(np.min(np.linalg.eigvalsh(Z_b))) for Z_b in Z_list)
+
+        def _record_iter_log(alpha_step: float) -> None:
+            entry = {
+                "iter": int(it + 1),
+                "max_iters": int(max_iter),
+                "gap": float(gap),
+                "primal_res": float(rp_norm),
+                "dual_res": float(r_d_rel),
+                "min_eig": float(min_eig_p),
+                "alpha": float(alpha_step),
+                "elapsed_ms": float((time.perf_counter() - t0) * 1000.0),
+            }
+            iter_log.append(entry)
+            if callable(progress_callback):
+                try:
+                    progress_callback(entry)
+                except Exception:
+                    pass
 
         # Parada antecipada de Fase I assim que atingirmos ponto estritamente interior
         if stop_on_negative_obj_margin is not None and primal_obj < -stop_on_negative_obj_margin:
@@ -531,6 +577,7 @@ def _run_primal_dual_cone_loop(
                         step_norm=0.0,
                     )
                 )
+                _record_iter_log(0.0)
                 solver_status = "optimal"
                 break
 
@@ -580,11 +627,12 @@ def _run_primal_dual_cone_loop(
                                 step_norm=0.0,
                             )
                         )
+                        _record_iter_log(0.0)
                         solver_status = "primal_infeasible"
                         break
 
         # Critério de convergência primal-dual (alinhado ao verificador independente)
-        primal_slack_err = max(float(np.linalg.norm(rp, "fro")) for rp in R_p_list) if R_p_list else 0.0
+        primal_slack_err = rp_norm
         if (
             min_eig_p >= -1e-9
             and r_d_rel <= tol_feas
@@ -610,6 +658,7 @@ def _run_primal_dual_cone_loop(
                     step_norm=0.0,
                 )
             )
+            _record_iter_log(0.0)
             solver_status = "optimal"
             break
 
@@ -666,6 +715,7 @@ def _run_primal_dual_cone_loop(
                         step_norm=dz_norm,
                     )
                 )
+                _record_iter_log(1.0)
                 solver_status = "dual_infeasible"
                 break
 
@@ -787,6 +837,7 @@ def _run_primal_dual_cone_loop(
                 step_norm=step_norm,
             )
         )
+        _record_iter_log(alpha_p)
 
         # Detecção de divergência ilimitada ao longo de raio factível
         if check_farkas_on_blocks is None and float(np.linalg.norm(z - z0_initial)) > unbounded_norm_threshold:
@@ -858,6 +909,7 @@ def _run_primal_dual_cone_loop(
         "farkas_candidate": farkas_candidate,
         "recession_candidate": recession_candidate,
         "history": history,
+        "iteration_log": iter_log,
     }
 
 
@@ -876,6 +928,9 @@ def solve_native_raw(
         )
     cfg = NativeSolverConfig.from_options(options)
     t_start = time.perf_counter()
+    iteration_log: list[dict[str, Any]] = []
+    opt_cb = options.get("progress_callback") if isinstance(options, Mapping) else None
+    progress_cb = opt_cb if callable(opt_cb) else get_progress_callback()
 
     n_vars = problem.n_vars
     n_psd = problem.n_blocks
@@ -915,6 +970,7 @@ def solve_native_raw(
                 "farkas_eq": nu_farkas,
                 "farkas_ineq": np.zeros((n_ineq,), dtype=np.float64) if n_ineq > 0 else None,
                 "history": [],
+                "iteration_log": iteration_log,
                 "warnings": warnings_out,
             }
         N_eq = Vt_eq[rank_eq:, :].T  # (n_vars, n_vars - rank_eq)
@@ -1010,6 +1066,7 @@ def solve_native_raw(
                 "dual_eq": nu_opt,
                 "dual_ineq": None,
                 "history": [],
+                "iteration_log": iteration_log,
                 "warnings": warnings_out,
             }
         d_ray = -(N_eq @ (c_y / float(np.linalg.norm(c_y))))
@@ -1026,6 +1083,7 @@ def solve_native_raw(
             "feasible_x0": x_eq,
             "recession_direction": d_ray,
             "history": [],
+            "iteration_log": iteration_log,
             "warnings": warnings_out,
         }
 
@@ -1050,6 +1108,7 @@ def solve_native_raw(
                 "dual_eq": nu_opt,
                 "dual_ineq": d_ineq,
                 "history": [],
+                "iteration_log": iteration_log,
                 "warnings": warnings_out,
             }
         b_bad = int(np.argmin(min_eigs))
@@ -1074,6 +1133,7 @@ def solve_native_raw(
             "farkas_eq": f_eq,
             "farkas_ineq": f_ineq,
             "history": [],
+            "iteration_log": iteration_log,
             "warnings": warnings_out,
         }
 
@@ -1172,6 +1232,9 @@ def solve_native_raw(
             stop_on_negative_obj_margin=stop_margin,
             check_farkas_on_blocks=len(z_blocks),
             unbounded_norm_threshold=cfg.unbounded_norm_threshold,
+            t_start=t_start,
+            iteration_log=iteration_log,
+            progress_callback=progress_cb,
         )
         all_history.extend(p1_out["history"])
         phase1_summary = {
@@ -1219,6 +1282,7 @@ def solve_native_raw(
                     "farkas_eq": f_eq,
                     "farkas_ineq": f_ineq,
                     "history": [h.to_dict() for h in all_history] if cfg.record_history else [],
+                    "iteration_log": iteration_log,
                     "phase1_summary": phase1_summary,
                     "phase2_summary": phase2_summary,
                     "warnings": warnings_out,
@@ -1246,6 +1310,7 @@ def solve_native_raw(
                 "solve_time": float(time.perf_counter() - t_start),
                 "objective": float(problem.evaluate_objective(x_cand)) if cand_feasible_bound else None,
                 "history": [h.to_dict() for h in all_history] if cfg.record_history else [],
+                "iteration_log": iteration_log,
                 "phase1_summary": phase1_summary,
                 "phase2_summary": phase2_summary,
                 "warnings": warnings_out,
@@ -1275,6 +1340,7 @@ def solve_native_raw(
             "feasible_x0": x_feas0,
             "recession_direction": d_x,
             "history": [h.to_dict() for h in all_history] if cfg.record_history else [],
+            "iteration_log": iteration_log,
             "phase1_summary": phase1_summary,
             "phase2_summary": phase2_summary,
             "warnings": warnings_out,
@@ -1300,6 +1366,7 @@ def solve_native_raw(
             "dual_eq": nu_feas,
             "dual_ineq": d_ineq,
             "history": [h.to_dict() for h in all_history] if cfg.record_history else [],
+            "iteration_log": iteration_log,
             "phase1_summary": phase1_summary,
             "phase2_summary": phase2_summary,
             "warnings": warnings_out,
@@ -1323,6 +1390,9 @@ def solve_native_raw(
         stop_on_negative_obj_margin=None,
         check_farkas_on_blocks=None,
         unbounded_norm_threshold=cfg.unbounded_norm_threshold,
+        t_start=t_start,
+        iteration_log=iteration_log,
+        progress_callback=progress_cb,
     )
     all_history.extend(p2_out["history"])
     p2_status = str(p2_out["solver_status"])
@@ -1348,6 +1418,7 @@ def solve_native_raw(
             "feasible_x0": x_feas0,
             "recession_direction": d_x,
             "history": [h.to_dict() for h in all_history] if cfg.record_history else [],
+            "iteration_log": iteration_log,
             "phase1_summary": phase1_summary,
             "phase2_summary": phase2_summary,
             "warnings": warnings_out,
@@ -1384,6 +1455,7 @@ def solve_native_raw(
         "dual_eq": d_eq,
         "dual_ineq": d_ineq,
         "history": [h.to_dict() for h in all_history] if cfg.record_history else [],
+        "iteration_log": iteration_log,
         "phase1_summary": phase1_summary,
         "phase2_summary": phase2_summary,
         "warnings": warnings_out,

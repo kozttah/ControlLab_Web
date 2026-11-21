@@ -125,3 +125,56 @@ def test_export_rpc_uses_same_template_and_is_available_before_solve():
 def test_native_options_validation(options):
     result = solve(_build_gate_0b_suite()['SDP_3x3_C1']['problem'],backend='native_primal_dual',options=options)
     assert result.status == 'failure' and result.error.code == 'VALIDATION_ERROR'
+
+
+def test_browser_envelope_256_and_n16_stabilization():
+    assert BROWSER_ENVELOPE == {
+        'max_variables': 256,
+        'max_block_dimension': 64,
+        'max_cone_entries': 32768,
+    }
+    n = 16
+    A = np.diag([-1.0 - 0.1 * i for i in range(n - 1)] + [0.5])
+    B = np.zeros((n, 1))
+    B[-1, 0] = 1.0
+    problem = continuous_stabilization_lmi(A, B, alpha=0.2)
+    assert 128 < problem.n_vars <= BROWSER_ENVELOPE['max_variables']
+    result = solve(problem, backend='native_primal_dual')
+    assert result.status != 'failure', result.error
+    assert result.data['certificate_status'] == 'validated_dual'
+    assert recover_controller(problem, result).data['controller_validity'] == 'verified_under_assumptions'
+
+
+def test_native_iteration_log_and_progress_callback():
+    from control_lab.optimization.backends.native_core import (
+        clear_progress_callback,
+        set_progress_callback,
+    )
+
+    problem = _build_gate_0b_suite()['SDP_3x3_C1']['problem']
+    seen_entries = []
+
+    def _cb(entry):
+        seen_entries.append(entry)
+        if len(seen_entries) == 1:
+            raise RuntimeError("simulated UI callback failure")
+
+    set_progress_callback(_cb)
+    try:
+        result = solve(problem, backend='native_primal_dual')
+    finally:
+        clear_progress_callback()
+
+    assert result.status != 'failure', result.error
+    data_log = result.data['iteration_log']
+    diag_log = result.diagnostics['iteration_log']
+    assert isinstance(data_log, list) and len(data_log) > 0
+    assert data_log == diag_log
+    assert len(seen_entries) == len(data_log)
+    required_keys = {'iter', 'max_iters', 'gap', 'primal_res', 'dual_res', 'min_eig', 'alpha', 'elapsed_ms'}
+    for entry in data_log:
+        assert required_keys.issubset(entry.keys())
+        assert entry['iter'] >= 1
+        assert entry['max_iters'] >= 1
+        assert entry['elapsed_ms'] >= 0.0
+

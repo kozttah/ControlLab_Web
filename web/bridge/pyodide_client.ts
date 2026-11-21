@@ -853,7 +853,44 @@ export class PyodideEngineClient extends BaseEngineClient {
   }
 
   private handleWorkerMessage(rawData: unknown): void {
-    if (!isPlainObject(rawData) || typeof rawData.kind !== "string") {
+    if (!isPlainObject(rawData)) {
+      return;
+    }
+    if (rawData.type === "progress") {
+      if (
+        typeof rawData.request_id === "string" &&
+        rawData.request_id.length > 0 &&
+        isPlainObject(rawData.progress)
+      ) {
+        const p = rawData.progress;
+        if (
+          typeof p.iter === "number" &&
+          typeof p.max_iters === "number" &&
+          typeof p.gap === "number" &&
+          typeof p.primal_res === "number" &&
+          typeof p.dual_res === "number" &&
+          typeof p.min_eig === "number" &&
+          typeof p.alpha === "number" &&
+          typeof p.elapsed_ms === "number"
+        ) {
+          this.emitProgressEvent({
+            request_id: rawData.request_id,
+            progress: {
+              iter: p.iter,
+              max_iters: p.max_iters,
+              gap: p.gap,
+              primal_res: p.primal_res,
+              dual_res: p.dual_res,
+              min_eig: p.min_eig,
+              alpha: p.alpha,
+              elapsed_ms: p.elapsed_ms,
+            },
+          });
+        }
+      }
+      return;
+    }
+    if (typeof rawData.kind !== "string") {
       return;
     }
     const msg = rawData as WorkerOutboundMessage;

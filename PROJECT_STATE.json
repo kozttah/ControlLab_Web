@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 11
+      "2026-11-21": 12
     }
   },
   "audit_reference": {
@@ -5034,6 +5034,206 @@
         "e2e_chromium": "8/8 passed in 69.86s",
         "verify_fixtures": "11 schemas + 7 golden fixtures OK",
         "governance_tests": "20 passed in 4.46s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE3-S1-F6-ENVELOPE-AND-ITERLOG",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase3-LMI-Stress-And-Progress",
+      "title": "F6: Atualizar BROWSER_ENVELOPE com base no stress test (Wasm vs Clarabel) e emitir iteration_log + progress_callback por iteracao",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-LMI-V2-03-F9-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1401931590/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "BROWSER_ENVELOPE atualizado para {max_variables: 256, max_block_dimension: 64, max_cone_entries: 32768}",
+        "solve_native_raw registra iteration_log e invoca progress_callback por iteracao; solve.py inclui iteration_log em diagnostics/result"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE3-S1-F6-ENVELOPE-AND-ITERLOG.md",
+      "assessed_commit": "6de51c9677875b7fed8be36206ee9464595e53e2",
+      "reviewed_source_sha256": {
+        "control_lab/optimization/backends/native.py": "e2e03f631c8b2b2a04f17d5770c76b900374d9a029eef4a079d307180caa803b",
+        "control_lab/optimization/backends/native_core.py": "16fa8d825136dcd532e2ec0899ae70c5c19af2c63cff45de5386a70fa8e536db",
+        "control_lab/optimization/backends/solve.py": "b38177aa2e3e8fe803de84804f86ee23c39c7a54034d9f2059cd7e3b455963ad",
+        "tests/unit/f6/test_native_sdp_and_exports.py": "e0f4f78ce705dcdf79311c6610965bc881ec9d02b34888f73e41bf1524e089e2"
+      },
+      "acceptance_scope": [
+        "control_lab/optimization/backends/native.py",
+        "control_lab/optimization/backends/native_core.py",
+        "control_lab/optimization/backends/solve.py",
+        "tests/unit/f6/test_native_sdp_and_exports.py"
+      ],
+      "acceptance_evidence": {
+        "pytest_f6": "63/63 passed in 9.20s",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20/20 passed in 5.86s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE3-S2-F7-WORKER-PROGRESS",
+      "front": "f7-worker-bridge",
+      "phase": "Phase3-LMI-Stress-And-Progress",
+      "title": "F7: Transmitir progresso por iteracao do solver SDP via postMessage do Pyodide Worker para o cliente",
+      "allowed_paths": [
+        "web/worker/",
+        "web/bridge/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-PHASE3-S1-F6-ENVELOPE-AND-ITERLOG"
+      ],
+      "requirement_ids": [
+        "R-01",
+        "R-02"
+      ],
+      "normative_tests": [
+        "T-BRG-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1401931590/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" node scripts/run_web_tests.mjs --scope f7 && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "pyodide_worker.ts emite mensagens {type: \"progress\", request_id, progress} seguras (sem PyProxy) durante optimization.solve e client.ts notifica listeners"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE3-S2-F7-WORKER-PROGRESS.md",
+      "assessed_commit": "6de51c9677875b7fed8be36206ee9464595e53e2",
+      "reviewed_source_sha256": {
+        "web/bridge/protocol.ts": "dffdba816da19fb10fc00dedc6ff10113b3e855e71842e7a5724934ac7331e46",
+        "web/bridge/client.ts": "9ada4875491f4829b04ddd444ea8f33044a053f5c4aa4cc646f0fd8091b8c486",
+        "web/bridge/pyodide_client.ts": "3eeb26bb8bcb2e7364596e58fb7e9c334faaf97e1384d11908fcdd1602abb81b",
+        "web/worker/pyodide_worker.ts": "dbd37ad8d336970289fa4dcf2514fd92767e6c9097f2a6fe1fcca14de8346de",
+        "tests/unit/f7/solver_progress.test.ts": "cd31dbbdeb26b76b9007c2b371ba07d17bde59774b512f77c20aad345ed1ba17"
+      },
+      "acceptance_scope": [
+        "web/bridge/protocol.ts",
+        "web/bridge/client.ts",
+        "web/bridge/pyodide_client.ts",
+        "web/worker/pyodide_worker.ts",
+        "tests/unit/f7/solver_progress.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "0 errors",
+        "web_tests_all": "140/140 passed across 19 files in 99970.62ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20/20 passed in 5.86s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE3-S3-F8-LMI-PROGRESS-UI",
+      "front": "f8-ui-charts",
+      "phase": "Phase3-LMI-Stress-And-Progress",
+      "title": "F8: Exibir log de iteracoes do solver SDP ao vivo/concluido e atualizar limite do envelope na Aba 6",
+      "allowed_paths": [
+        "web/features/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE3-S2-F7-WORKER-PROGRESS"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1401931590/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Aba 6 exibe #lmi-solver-progress-panel com iteracoes em tempo real/pos-resolucao e aviso de envelope atualizado (n > 20)"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE3-S3-F8-LMI-PROGRESS-UI.md",
+      "assessed_commit": "6de51c9677875b7fed8be36206ee9464595e53e2",
+      "reviewed_source_sha256": {
+        "web/features/views/lmi_view.ts": "76a5af303a75ea1cd5d5372c3d84c2877261aaedf6554237e9c88d1b21a3d235",
+        "web/app/styles.css": "ab2ef1aedbc323a551022024a1d5bf037501d24d2da086a67c9eef3a",
+        "tests/unit/f8/lmi_dsl_v2.test.ts": "71ba205e2a93f127be86416cac71797c4b72b5a3ecbd42906db2ae988e536990"
+      },
+      "acceptance_scope": [
+        "web/features/views/lmi_view.ts",
+        "web/app/styles.css",
+        "tests/unit/f8/lmi_dsl_v2.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "0 errors",
+        "web_tests_all": "140/140 passed across 19 files in 99970.62ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "e2e_chromium": "8/8 passed in 79.85s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE3-S4-F9-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase3-LMI-Stress-And-Progress",
+      "title": "F9: Auditoria independente do novo envelope SDP, log por iteracao no browser e validacao E2E",
+      "allowed_paths": [
+        "tests/e2e/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-PHASE3-S1-F6-ENVELOPE-AND-ITERLOG",
+        "WP-PHASE3-S2-F7-WORKER-PROGRESS",
+        "WP-PHASE3-S3-F8-LMI-PROGRESS-UI"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1401931590/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" pytest tests/unit/f6/ tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Auditar F6, F7 e F8 e validar progresso por iteracao e limite atualizado em Chromium real"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE3-S4-F9-AUDIT.md",
+      "assessed_commit": "6de51c9677875b7fed8be36206ee9464595e53e2",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "e3edd6ea96329aad51ec756ed3e187c9b737412507f6821fbc3e74948a4bf4f4"
+      },
+      "acceptance_scope": [
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "0 errors",
+        "web_tests_all": "140/140 passed across 19 files in 99970.62ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "pytest_f6": "63/63 passed in 9.20s",
+        "e2e_chromium": "8/8 passed in 79.85s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20/20 passed in 5.86s"
       }
     }
   ],

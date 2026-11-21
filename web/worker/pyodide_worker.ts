@@ -20,6 +20,7 @@ import {
   type ErrorCategory,
   type RpcRequest,
   type RpcResponse,
+  type SolverProgress,
   type WireBinaryBuffer,
 } from "../bridge/protocol.ts";
 import { materializePayloadReferences } from "./payload_references.ts";
@@ -183,6 +184,12 @@ export type WorkerOutboundMessage =
       msg_id: string;
       error: NonNullable<ReturnType<typeof buildFailureRpcResponse>["error"]>;
     };
+
+export interface WorkerProgressMessage {
+  type: "progress";
+  request_id: string;
+  progress: SolverProgress;
+}
 
 export interface WorkerRuntimeOptions {
   origin?: string;
@@ -387,7 +394,7 @@ export class PyodideWorkerRuntime {
     };
   }
 
-  private emit(message: WorkerOutboundMessage, transfer?: ArrayBuffer[]): void {
+  private emit(message: WorkerOutboundMessage | WorkerProgressMessage, transfer?: ArrayBuffer[]): void {
     safeWorkerPostMessage(
       this.postFn,
       message,
@@ -1001,9 +1008,44 @@ export class PyodideWorkerRuntime {
               { parameters: { module: PY_RPC_ENTRYPOINT_MODULE } },
             );
           }
-          const mod = py.pyimport(PY_RPC_ENTRYPOINT_MODULE);
+          const installProgressCallback =
+            request.operation === "optimization.solve" &&
+            py.globals !== undefined &&
+            typeof py.runPythonAsync === "function";
+
           let outRaw: unknown;
+          let mod: PyRpcEntrypointModuleLike | undefined;
           try {
+            if (installProgressCallback) {
+              const emitProgress = (rawJson: string): void => {
+                if (typeof rawJson !== "string") {
+                  return;
+                }
+                try {
+                  const parsed: unknown = JSON.parse(rawJson);
+                  if (!isPlainObject(parsed)) {
+                    return;
+                  }
+                  const progress = ensureFiniteJson(parsed, "$.progress") as unknown as SolverProgress;
+                  this.emit({
+                    type: "progress",
+                    request_id: request.request_id,
+                    progress,
+                  });
+                } catch {
+                  // Ignora evento de progresso malformado sem interromper o solver
+                }
+              };
+              py.globals!.set("__controllab_emit_progress", emitProgress);
+              const setupRes = await py.runPythonAsync(
+                "import json\nfrom control_lab.optimization.backends.native_core import set_progress_callback as _cl_set_cb\n_cl_set_cb(lambda entry: __controllab_emit_progress(json.dumps(entry)))\ndel _cl_set_cb\n",
+              );
+              if (setupRes && typeof (setupRes as PyProxyLike).destroy === "function") {
+                (setupRes as PyProxyLike).destroy();
+              }
+            }
+
+            mod = py.pyimport(PY_RPC_ENTRYPOINT_MODULE);
             if (typeof mod?.[PY_RPC_ENTRYPOINT_FUNCTION] !== "function") {
               throw new ControlLabBridgeError(
                 "SOLVER_UNAVAILABLE",
@@ -1013,6 +1055,24 @@ export class PyodideWorkerRuntime {
             }
             outRaw = await mod[PY_RPC_ENTRYPOINT_FUNCTION](proxy);
           } finally {
+            if (installProgressCallback) {
+              try {
+                const clearRes = await py.runPythonAsync(
+                  "from control_lab.optimization.backends.native_core import clear_progress_callback as _cl_clear_cb\ntry:\n    _cl_clear_cb()\nfinally:\n    del _cl_clear_cb\n",
+                );
+                if (clearRes && typeof (clearRes as PyProxyLike).destroy === "function") {
+                  (clearRes as PyProxyLike).destroy();
+                }
+              } catch {
+                // ignore
+              } finally {
+                try {
+                  py.globals?.delete?.("__controllab_emit_progress");
+                } catch {
+                  // ignore
+                }
+              }
+            }
             try {
               mod?.destroy?.();
             } catch {

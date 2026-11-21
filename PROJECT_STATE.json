@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 6
+      "2026-11-21": 7
     }
   },
   "audit_reference": {
@@ -4133,6 +4133,307 @@
         "tests/e2e/test_gatecd_interactions.py",
         "tests/e2e/test_id_siso_verticals.py"
       ]
+    },
+    {
+      "wp_id": "WP-PHASE2-A1-F8-OBSERVER-KALMAN-LQG",
+      "front": "f8-ui-charts",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "Aba 3 (Espaço de Estados): Sintonia de Observador de Luenberger, Filtro de Kalman e Controle LQG (u = -K x_hat) com simulação x(t) vs x_hat(t)",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-UX-PHASE1-02-F9-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SS-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-3455655404/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Quadro Observador / Kalman / LQG na Aba 3 permitindo sintonizar ganho L por covariâncias Qn/Rn (statespace.design_kalman / statespace.design_lqg) ou alocação de polos de A-LC (statespace.design_observer)",
+        "Exibição dos ganhos K e L, polos de regulação e estimação no Mapa Polo-Zero, simulação temporal x(t) vs x_hat(t) com erro inicial de estimação configurável e exportação .pvm com DynamicController LQG"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-A1-F8-OBSERVER-KALMAN-LQG.md",
+      "assessed_commit": "8bfb994fab4a4e22a17531c714535dfb7bd93804",
+      "reviewed_source_sha256": {
+        "web/features/views/statespace_view.ts": "b13ff8d8beffaf0b8f689978b4d51d63f9bb07ffe98840c0d43b164726613548",
+        "web/app/shell.ts": "54779176db2bd6cf985b00740ee16fe1b893ab891dfb8f4b29adff54eac4a1ba",
+        "web/features/typed_workspace.ts": "d6dbdb874e29672c77d9dd3e2b577942fba3f4ac89642ce8ec0d7118eeda7113",
+        "web/app/workspace_dock.ts": "cddae04b61c9a8206b598f9a0ee323fb806d6704cdfb454f6bf78883192cbd66",
+        "tests/unit/f8/observer_kalman_lqg.test.ts": "1e5a69641f303f954b7aa6af36790824998ae47b170f1b0ca3a19416b5466f6b"
+      },
+      "acceptance_scope": [
+        "web/features/views/statespace_view.ts",
+        "web/app/shell.ts",
+        "web/features/typed_workspace.ts",
+        "web/app/workspace_dock.ts",
+        "tests/unit/f8/observer_kalman_lqg.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "49 TS files, 0 errors",
+        "web_tests": "130/130 passed across 17 files",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "e2e_tab3_lqg": "Real Chromium + Pyodide Wasm Tab 3 LQG/Observer flow verified"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-B1-F3-MIMO-SYNTHESIS-HINF",
+      "front": "f3-frequency",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "F3 Backend: Desacoplador SVD realizável, Malha Fechada MIMO Descentralizada/Distribuída e Síntese Hinf com Planta Generalizada P(s)",
+      "allowed_paths": [
+        "control_lab/frequency/mimo/",
+        "tests/unit/f3/"
+      ],
+      "dependencies": [
+        "WP-UX-PHASE1-02-F9-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-08",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-3455655404/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" pytest tests/unit/f3/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "design_svd_decoupler(plant, omega_target, realization_mode): calcula SVD em frequência(s) alvo e aproxima pré-compensador realizável W1(s) + planta desacoplada G(s)W1(s)",
+        "simulate_mimo_closed_loop(plant, controller, decoupler, feedback_sign, t_final, n_points): simula resposta ao degrau multivariável canal a canal e calcula S_o, T_o, KS_o",
+        "design_hinf_mixed_sensitivity(plant, w_s, w_u, w_t, omega): constrói planta generalizada P(s), sintetiza controlador Hinf subótimo e retorna gamma, K_inf, sigma(S), sigma(T) e gabaritos 1/|W_S|, 1/|W_T|"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-B1-F3-MIMO-SYNTHESIS-HINF.md",
+      "assessed_commit": "8bfb994fab4a4e22a17531c714535dfb7bd93804",
+      "reviewed_source_sha256": {
+        "control_lab/frequency/mimo/synthesis.py": "1d7a8a5067102408bea3303609cb6e336f71d549ff930116943899bd0cc18be3",
+        "control_lab/frequency/mimo/__init__.py": "5df71667e06ddb1592d02467f08d13a49b0dee3b11a9e2d7176dc2a1755bb4af",
+        "tests/unit/f3/test_mimo_synthesis_hinf.py": "d990bf8e39973e2c4af3b009d18d0656f9525620d57ccaecc441299ab4759797"
+      },
+      "acceptance_scope": [
+        "control_lab/frequency/mimo/synthesis.py",
+        "control_lab/frequency/mimo/__init__.py",
+        "tests/unit/f3/test_mimo_synthesis_hinf.py"
+      ],
+      "acceptance_evidence": {
+        "pytest_f3": "17 passed in 1.07s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-B2-F1-RPC-MIMO-SYNTHESIS",
+      "front": "f1-core-io",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "F1 RPC: Expor operações mimo.design_decoupler, mimo.simulate_closed_loop e mimo.design_hinf no contrato RPC v1.0",
+      "allowed_paths": [
+        "control_lab/core/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-B1-F3-MIMO-SYNTHESIS-HINF"
+      ],
+      "requirement_ids": [
+        "R-01",
+        "R-02"
+      ],
+      "normative_tests": [
+        "T-CORE-01"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-3455655404/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" pytest tests/unit/f1/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Registrar e testar mimo.design_decoupler, mimo.simulate_closed_loop e mimo.design_hinf em control_lab/core/rpc.py"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-B2-F1-RPC-MIMO-SYNTHESIS.md",
+      "assessed_commit": "8bfb994fab4a4e22a17531c714535dfb7bd93804",
+      "reviewed_source_sha256": {
+        "control_lab/core/rpc.py": "24f71afdf591f04605295669b126874f284c71988a0283af6116684b19b8a09d",
+        "tests/unit/f1/test_rpc_mimo_synthesis.py": "a2df660d765e2c0042d09550a8f0dabdcfc02f84b24f8ff2ee295ad44a520261"
+      },
+      "acceptance_scope": [
+        "control_lab/core/rpc.py",
+        "tests/unit/f1/test_rpc_mimo_synthesis.py"
+      ],
+      "acceptance_evidence": {
+        "pytest_f1": "123 passed in 2.71s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-B2B-F7-WORKER-ALLOWLIST",
+      "front": "f7-worker-bridge",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "F7 Worker: Incluir mimo.design_decoupler, mimo.simulate_closed_loop e mimo.design_hinf na allowlist de payload_references.ts",
+      "allowed_paths": [
+        "web/worker/",
+        "web/bridge/",
+        "web/storage/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-B2-F1-RPC-MIMO-SYNTHESIS"
+      ],
+      "requirement_ids": [
+        "R-01",
+        "R-02"
+      ],
+      "normative_tests": [
+        "T-BRG-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-3455655404/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" node scripts/run_web_tests.mjs --scope f7 && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Adicionar mimo.design_decoupler, mimo.simulate_closed_loop e mimo.design_hinf em PLANT_OPERATIONS de web/worker/payload_references.ts"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-B2B-F7-WORKER-ALLOWLIST.md",
+      "assessed_commit": "8bfb994fab4a4e22a17531c714535dfb7bd93804",
+      "reviewed_source_sha256": {
+        "web/worker/payload_references.ts": "374229c5595123ba3e9be3424091db89be60f804ddd6d6c7d337f49746c4d144",
+        "web/worker/MODEL_REFERENCES.md": "87caad8adbfd10969e95fb2ee0aa96498375476491202cdb735e423c7fcb3722",
+        "tests/unit/f7/model_references.test.ts": "e0bb1424eea21d1d9815ae9cb39a442b162b48b1fd38cb45251799b31f9a232b"
+      },
+      "acceptance_scope": [
+        "web/worker/payload_references.ts",
+        "web/worker/MODEL_REFERENCES.md",
+        "tests/unit/f7/model_references.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "49 TS files, 0 errors",
+        "web_tests": "131/131 passed across 17 files",
+        "e2e_mimo_wasm": "14/14 passed in real Chromium + Pyodide Wasm",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-B3-F8-MIMO-SYNTHESIS-HINF-UI",
+      "front": "f8-ui-charts",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "Aba 4 (MIMO): Quadro de Síntese (Desacoplador SVD + Malha Fechada Canal-a-Canal) e Quadro de Síntese Hinf com Planta Generalizada P(s)",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-B2-F1-RPC-MIMO-SYNTHESIS",
+        "WP-PHASE2-A1-F8-OBSERVER-KALMAN-LQG"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-3455655404/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Quadro de Síntese MIMO na Aba 4: Desacoplador SVD (frequência alvo + modo realizável + RGA pós-desacoplamento) e Teste em Malha Fechada Descentralizada/Distribuída (degrau canal a canal r1->y1,y2 e r2->y1,y2)",
+        "Quadro de Síntese Hinf na Aba 4: configuração de pesos W_S, W_U, W_T, construção da Planta Generalizada P(s), exibição de gamma e gráfico sigma(S)/sigma(T) vs 1/|W_S|, 1/|W_T|"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-B3-F8-MIMO-SYNTHESIS-HINF-UI.md",
+      "assessed_commit": "8bfb994fab4a4e22a17531c714535dfb7bd93804",
+      "reviewed_source_sha256": {
+        "web/features/views/mimo_view.ts": "a2b0eeef55555c46342ee41e8fb66af154c69f3616a2133eabfad1813eab2501",
+        "web/app/styles.css": "fdec92d4ac77d3d63754ca84391ecd66c42b44537530cdbbf2e9478577ed430d",
+        "tests/unit/f8/mimo_synthesis_hinf.test.ts": "587e89ed72a1305c6d549b0561880a7539a1efe5a07822fa212796dd5492cc0a"
+      },
+      "acceptance_scope": [
+        "web/features/views/mimo_view.ts",
+        "web/app/styles.css",
+        "tests/unit/f8/mimo_synthesis_hinf.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "49 TS files, 0 errors",
+        "web_tests": "131/131 passed across 17 files",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "e2e_chromium": "14/14 passed in real Chromium (1280x800 and 390x844, SVD decoupler, closed-loop, H-inf)"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-C1-F9-BROWSER-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "Auditoria independente F9 em navegador real para toda a Fase 2 (Observador/Kalman/LQG, Desacoplador SVD, Malha Fechada MIMO e Hinf)",
+      "allowed_paths": [
+        "tests/e2e/",
+        "tests/wasm/",
+        "tests/oracles/",
+        "tests/integration/",
+        "scripts/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-A1-F8-OBSERVER-KALMAN-LQG",
+        "WP-PHASE2-B1-F3-MIMO-SYNTHESIS-HINF",
+        "WP-PHASE2-B2-F1-RPC-MIMO-SYNTHESIS",
+        "WP-PHASE2-B3-F8-MIMO-SYNTHESIS-HINF-UI"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SS-01",
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-3455655404/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/unit/f1/ tests/unit/f3/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Auditar todos os WPs da Fase 2 (F8, F3, F1), gerar handoffs e validar em Chromium real com Pyodide Wasm as novas bancadas LQG/Observador, Desacoplador SVD, Malha Fechada MIMO e Síntese Hinf"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-C1-F9-BROWSER-AUDIT.md",
+      "assessed_commit": "8bfb994fab4a4e22a17531c714535dfb7bd93804",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "6d464a9276f103f13a28101dc78e029a5ab1e98f320bdbd0630b8301a0513b65"
+      },
+      "acceptance_scope": [
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "49 TS files, 0 errors",
+        "web_tests": "131/131 passed across 17 files",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "pytest_f1_f3": "140 passed in 4.83s",
+        "e2e_chromium": "14/14 passed in 154.96s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20 passed in 6.82s"
+      }
     }
   ],
   "audit_history": [

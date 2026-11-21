@@ -14,7 +14,15 @@
  * 100% compatível com erasableSyntaxOnly, verbatimModuleSyntax e FakeElement/FakeDocument.
  */
 
-import { ControlLabBridgeError, type RealTensor } from "../../bridge/protocol.ts";
+import {
+  ControlLabBridgeError,
+  generateUuid,
+  isPlainObject,
+  RPC_API_VERSION,
+  type ComplexVectorPair,
+  type Provenance,
+  type RealTensor,
+} from "../../bridge/protocol.ts";
 import {
   escapeHtml,
   formatMatrixDisplay,
@@ -23,6 +31,12 @@ import {
   type AccessibleSliderConfig,
 } from "../../app/accessibility.ts";
 import { DEFAULT_DYNAMIC_EXPORT_CONTROLLER, type ControlLabShell } from "../../app/shell.ts";
+import {
+  buildAccessibleChartTable,
+  renderAccessibleTableHtml,
+  renderTimeResponseSvg,
+  type TimeResponseChartModel,
+} from "../../charts/scientific_chart.ts";
 import type { CanonicalStateSpaceModel } from "../lqr_workspace.ts";
 
 export interface LqrPresetSpec {
@@ -249,6 +263,242 @@ export function normalizeWeightsJsonInput(
   return out;
 }
 
+export type ObserverMode = "kalman_lqg" | "luenberger";
+
+export function parseObserverPolesInput(
+  raw: string,
+): Array<{ real: number; imag: number }> {
+  const tokens = raw
+    .split(/[,;]+/)
+    .map((t) => t.replace(/\s+/g, ""))
+    .filter((t) => t.length > 0);
+  if (tokens.length === 0) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      "Informe os polos desejados do observador (ex: -4, -5).",
+    );
+  }
+  return tokens.map((tok) => {
+    const normalized = tok.replace(/i/gi, "j");
+    if (!normalized.includes("j")) {
+      const re = Number(normalized);
+      if (!Number.isFinite(re)) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          `Polo inválido para observador: '${tok}'.`,
+        );
+      }
+      return { real: re, imag: 0 };
+    }
+    // Match optional real part followed by signed imaginary part ending in 'j', or pure imaginary
+    const match = normalized.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)?([+-]?(?:\d+\.?\d*|\.\d+)?(?:[eE][+-]?\d+)?)j$/);
+    if (!match) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        `Polo complexo inválido para observador: '${tok}'. Use ex: -3+2j, -3-2j.`,
+      );
+    }
+    const rePart = match[1];
+    const imPart = match[2];
+    let real = 0;
+    let imagStr = imPart;
+    if (rePart && (imPart === "+" || imPart === "-")) {
+      imagStr = `${imPart}1`;
+      real = Number(rePart);
+    } else if (rePart && (imPart.startsWith("+") || imPart.startsWith("-"))) {
+      real = Number(rePart);
+    } else if (rePart && !imPart) {
+      // Pure imaginary like "2j" or "-2j" captured in group 1
+      imagStr = rePart;
+      real = 0;
+    } else if (rePart) {
+      real = Number(rePart);
+    }
+    if (imagStr === "" || imagStr === "+") imagStr = "1";
+    if (imagStr === "-") imagStr = "-1";
+    const imag = Number(imagStr);
+    if (!Number.isFinite(real) || !Number.isFinite(imag)) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        `Polo complexo inválido para observador: '${tok}'.`,
+      );
+    }
+    return { real, imag };
+  });
+}
+
+export function parseNumericVectorInput(
+  raw: string,
+  expectedLen: number,
+  label: string,
+): number[] {
+  const cleaned = raw.replace(/[\[\]]/g, "").trim();
+  if (cleaned.length === 0) {
+    return new Array<number>(expectedLen).fill(0);
+  }
+  const tokens = cleaned
+    .split(/[,;\s]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  const vals = tokens.map((tok) => {
+    const v = Number(tok);
+    if (!Number.isFinite(v)) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        `Valor numérico inválido em ${label}: '${tok}'.`,
+      );
+    }
+    return v;
+  });
+  if (expectedLen > 0 && vals.length !== expectedLen) {
+    throw new ControlLabBridgeError(
+      "DIMENSION_MISMATCH",
+      `${label} deve ter ${expectedLen} elemento(s), recebido ${vals.length}.`,
+    );
+  }
+  return vals;
+}
+
+function extractRealTensorFromUnknown(raw: unknown): RealTensor | null {
+  if (
+    isPlainObject(raw) &&
+    Array.isArray(raw.shape) &&
+    Array.isArray(raw.data)
+  ) {
+    return {
+      shape: (raw.shape as unknown[]).map((s) => Number(s)),
+      dtype: "float64",
+      order: "C",
+      data: (raw.data as unknown[]).map((v) => Number(v)),
+    };
+  }
+  if (isNumberMatrix2D(raw)) {
+    return matrix2DToTensor(raw);
+  }
+  return null;
+}
+
+function extractComplexPairFromUnknown(raw: unknown): ComplexVectorPair | null {
+  if (
+    isPlainObject(raw) &&
+    Array.isArray(raw.real) &&
+    Array.isArray(raw.imag)
+  ) {
+    return {
+      real: (raw.real as unknown[]).map((v) => Number(v)),
+      imag: (raw.imag as unknown[]).map((v) => Number(v)),
+    };
+  }
+  return null;
+}
+
+function formatComplexPairSummary(pair: ComplexVectorPair | null, decimals: number): string {
+  if (!pair || pair.real.length === 0) return "N/D";
+  return pair.real
+    .map((re, idx) => {
+      const im = pair.imag[idx] ?? 0;
+      const reStr = formatNumericDisplay(re, Math.min(decimals, 2));
+      if (Math.abs(im) <= 1e-9) return reStr;
+      return `${reStr} ${im >= 0 ? "+" : "-"} j${formatNumericDisplay(Math.abs(im), Math.min(decimals, 2))}`;
+    })
+    .join(", ");
+}
+
+function buildAugmentedObserverClosedLoop(
+  plant: CanonicalStateSpaceModel,
+  L: RealTensor,
+  K: RealTensor | null,
+  feedbackSign: "negative" | "positive",
+): CanonicalStateSpaceModel {
+  const n = plant.matrices.A.shape[0];
+  const m = plant.matrices.B.shape[1];
+  const p = plant.matrices.C.shape[0];
+  const A = plant.matrices.A.data;
+  const B = plant.matrices.B.data;
+  const C = plant.matrices.C.data;
+  const D = plant.matrices.D.data;
+  const Ldata = L.data;
+  const Kdata = K ? K.data : new Array<number>(m * n).fill(0);
+  const s = feedbackSign === "positive" ? -1 : 1;
+
+  // A_aug = [[A, -s * B * K], [L * C, A - L * C - s * (B - L * D) * K]]
+  const n2 = 2 * n;
+  const Aaug = new Array<number>(n2 * n2).fill(0);
+
+  const matMul = (
+    M1: number[],
+    r1: number,
+    c1: number,
+    M2: number[],
+    c2: number,
+  ): number[] => {
+    const out = new Array<number>(r1 * c2).fill(0);
+    for (let i = 0; i < r1; i += 1) {
+      for (let j = 0; j < c2; j += 1) {
+        let sum = 0;
+        for (let k = 0; k < c1; k += 1) {
+          sum += (M1[i * c1 + k] ?? 0) * (M2[k * c2 + j] ?? 0);
+        }
+        out[i * c2 + j] = sum;
+      }
+    }
+    return out;
+  };
+
+  const BK = matMul(B, n, m, Kdata, n);
+  const LC = matMul(Ldata, n, p, C, n);
+  const LD = matMul(Ldata, n, p, D, m);
+  const BminusLD = B.map((val, idx) => val - (LD[idx] ?? 0));
+  const BLDK = matMul(BminusLD, n, m, Kdata, n);
+
+  for (let i = 0; i < n; i += 1) {
+    for (let j = 0; j < n; j += 1) {
+      const idx = i * n + j;
+      // Top-left: A
+      Aaug[i * n2 + j] = A[idx] ?? 0;
+      // Top-right: -s * B * K
+      Aaug[i * n2 + (n + j)] = -s * (BK[idx] ?? 0);
+      // Bottom-left: L * C
+      Aaug[(n + i) * n2 + j] = LC[idx] ?? 0;
+      // Bottom-right: A - L * C - s * (B - L * D) * K
+      Aaug[(n + i) * n2 + (n + j)] = (A[idx] ?? 0) - (LC[idx] ?? 0) - s * (BLDK[idx] ?? 0);
+    }
+  }
+
+  const eye2n = new Array<number>(n2 * n2).fill(0);
+  for (let i = 0; i < n2; i += 1) eye2n[i * n2 + i] = 1;
+
+  return {
+    schema_version: "1.0.0",
+    id: `${plant.id}-obs-cl`,
+    revision: plant.revision,
+    kind: "StateSpace",
+    dt: plant.dt,
+    state_names: [
+      ...plant.state_names,
+      ...plant.state_names.map((sn) => `${sn}_hat`),
+    ],
+    input_names: plant.input_names,
+    output_names: [
+      ...plant.state_names,
+      ...plant.state_names.map((sn) => `${sn}_hat`),
+    ],
+    matrices: {
+      A: makeFloat64Tensor([n2, n2], Aaug),
+      B: makeFloat64Tensor([n2, m], new Array<number>(n2 * m).fill(0)),
+      C: makeFloat64Tensor([n2, n2], eye2n),
+      D: makeFloat64Tensor([n2, m], new Array<number>(n2 * m).fill(0)),
+    },
+    units: {
+      time: plant.units.time,
+      states: new Array<string>(n2).fill(""),
+      inputs: plant.units.inputs,
+      outputs: new Array<string>(n2).fill(""),
+    },
+    provenance: { source: "observer_augmented_closed_loop" },
+  };
+}
+
 function renderMatrixGridBlockHtml(
   matrixName: "A" | "B" | "C" | "D" | "Q" | "R" | "x0",
   title: string,
@@ -373,6 +623,50 @@ export function renderStatespaceViewHtml(initialDims: { n: number; m: number; p:
     `<button type="button" id="btn-lqr-apply-matrices" class="touch-control btn-primary" data-action="lqr-apply-matrices">Aplicar Matrizes ao Workspace</button>`,
     `</div>`,
     `</section>`,
+    `<section id="lqr-observer-lqg-card" class="subcard lqr-observer-card" aria-label="Observador de Estados, Kalman e Controle LQG">`,
+    `<div class="lqr-matrix-editor-header">`,
+    `<h3>Observador de Estados, Filtro de Kalman &amp; Controle LQG (u = -K x̂)</h3>`,
+    `</div>`,
+    `<div class="tool-field">`,
+    `<label for="obs-mode-select">Modo de síntese do observador</label>`,
+    `<select id="obs-mode-select" class="touch-control" aria-label="Modo de síntese do observador">`,
+    `<option value="kalman_lqg">Filtro de Kalman + LQG (u = -K x̂)</option>`,
+    `<option value="luenberger">Observador de Luenberger (Alocação de Polos)</option>`,
+    `</select>`,
+    `</div>`,
+    `<div id="obs-kalman-fields" class="lqr-matrix-dims">`,
+    `<div class="tool-field">`,
+    `<label for="obs-qn-scale">Escala Qn (Ruído de Processo)</label>`,
+    `<input id="obs-qn-scale" type="number" min="0" step="any" value="0.1" class="touch-control" aria-label="Escala Qn (Ruído de Processo)" />`,
+    `</div>`,
+    `<div class="tool-field">`,
+    `<label for="obs-rn-scale">Escala Rn (Ruído de Medição)</label>`,
+    `<input id="obs-rn-scale" type="number" min="0" step="any" value="0.05" class="touch-control" aria-label="Escala Rn (Ruído de Medição)" />`,
+    `</div>`,
+    `</div>`,
+    `<div id="obs-luenberger-fields" class="tool-field" hidden>`,
+    `<label for="obs-poles-input">Polos desejados de (A - LC), ex: -4, -5 ou -3+2j, -3-2j</label>`,
+    `<input id="obs-poles-input" type="text" value="-4, -5" class="touch-control" aria-label="Polos desejados de (A - LC)" />`,
+    `</div>`,
+    `<div class="lqr-matrix-dims">`,
+    `<div class="tool-field">`,
+    `<label for="obs-xhat0-input">Estado inicial estimado x̂(0) (compare com x0 para ver convergência de x̂ → x)</label>`,
+    `<input id="obs-xhat0-input" type="text" value="0, 0" class="touch-control" aria-label="Estado inicial estimado x̂(0)" />`,
+    `</div>`,
+    `<div class="tool-field">`,
+    `<label for="obs-t-final">Tempo de simulação (s)</label>`,
+    `<input id="obs-t-final" type="number" min="0.1" step="any" value="6" class="touch-control" aria-label="Tempo de simulação (s)" />`,
+    `</div>`,
+    `</div>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-obs-synthesize" class="touch-control btn-primary" data-action="obs-synthesize">Sintetizar Observador / LQG (u = -K x̂)</button>`,
+    `<button type="button" id="btn-obs-simulate" class="touch-control btn-secondary" data-action="obs-simulate" disabled aria-disabled="true">Simular x(t) vs x̂(t)</button>`,
+    `<button type="button" id="btn-obs-register-ctrl" class="touch-control btn-secondary" data-action="obs-register-ctrl" disabled aria-disabled="true">Registrar Controlador LQG no Workspace</button>`,
+    `</div>`,
+    `<div id="obs-results-summary" class="obs-results-summary" role="region" aria-label="Resultados do Observador e LQG"></div>`,
+    `<div id="obs-sim-chart-slot" class="chart-container" role="region" aria-label="Gráfico de convergência x(t) vs x̂(t)"></div>`,
+    `<div id="obs-sim-table-slot" class="accessible-table-container" role="region" aria-label="Tabela acessível de x(t) vs x̂(t)"></div>`,
+    `</section>`,
     `<div id="lqr-json-advanced" class="lqr-json-advanced subcard">`,
     `<h4>Entrada Avançada via JSON</h4>`,
     `<div class="tool-field">`,
@@ -443,6 +737,22 @@ export class StatespaceView {
   private readonly diagnosticsPanelEl: HTMLElement | null;
   private readonly exportButtons: HTMLButtonElement[];
 
+  private readonly observerCardEl: HTMLElement | null;
+  private readonly obsModeSelectEl: HTMLSelectElement | null;
+  private readonly obsKalmanFieldsEl: HTMLElement | null;
+  private readonly obsLuenbergerFieldsEl: HTMLElement | null;
+  private readonly obsQnScaleEl: HTMLInputElement | null;
+  private readonly obsRnScaleEl: HTMLInputElement | null;
+  private readonly obsPolesInputEl: HTMLInputElement | null;
+  private readonly obsXhat0InputEl: HTMLInputElement | null;
+  private readonly obsTFinalEl: HTMLInputElement | null;
+  private readonly obsSynthBtnEl: HTMLButtonElement | null;
+  private readonly obsSimBtnEl: HTMLButtonElement | null;
+  private readonly obsRegisterCtrlBtnEl: HTMLButtonElement | null;
+  private readonly obsResultsSummaryEl: HTMLElement | null;
+  private readonly obsSimChartSlotEl: HTMLElement | null;
+  private readonly obsSimTableSlotEl: HTMLElement | null;
+
   private dragStartQScale = 1.0;
   private lastSyncedLqrEditorKey = "";
   private renderedPvmExportRevision = -1;
@@ -455,6 +765,19 @@ export class StatespaceView {
     observable?: boolean;
     detectable?: boolean;
   } | null = null;
+  private lastObserverSynthesis: {
+    mode: ObserverMode;
+    modelRevision: number;
+    L: RealTensor;
+    K: RealTensor | null;
+    regulatorPoles: ComplexVectorPair | null;
+    observerPoles: ComplexVectorPair | null;
+    closedLoopPoles: ComplexVectorPair | null;
+    controller: Record<string, unknown> | null;
+    closedLoopPlant: CanonicalStateSpaceModel | null;
+    provenance: Provenance | null;
+  } | null = null;
+  private lastObserverSimChart: TimeResponseChartModel | null = null;
 
   constructor(options: StatespaceViewOptions) {
     this.shell = options.shell;
@@ -511,6 +834,22 @@ export class StatespaceView {
 
     this.kDisplaySlotEl = this.container.querySelector<HTMLElement>("#lqr-k-display");
     this.diagnosticsPanelEl = this.container.querySelector<HTMLElement>("#lqr-diagnostics-panel");
+
+    this.observerCardEl = this.container.querySelector<HTMLElement>("#lqr-observer-lqg-card");
+    this.obsModeSelectEl = this.container.querySelector<HTMLSelectElement>("#obs-mode-select");
+    this.obsKalmanFieldsEl = this.container.querySelector<HTMLElement>("#obs-kalman-fields");
+    this.obsLuenbergerFieldsEl = this.container.querySelector<HTMLElement>("#obs-luenberger-fields");
+    this.obsQnScaleEl = this.container.querySelector<HTMLInputElement>("#obs-qn-scale");
+    this.obsRnScaleEl = this.container.querySelector<HTMLInputElement>("#obs-rn-scale");
+    this.obsPolesInputEl = this.container.querySelector<HTMLInputElement>("#obs-poles-input");
+    this.obsXhat0InputEl = this.container.querySelector<HTMLInputElement>("#obs-xhat0-input");
+    this.obsTFinalEl = this.container.querySelector<HTMLInputElement>("#obs-t-final");
+    this.obsSynthBtnEl = this.container.querySelector<HTMLButtonElement>("#btn-obs-synthesize");
+    this.obsSimBtnEl = this.container.querySelector<HTMLButtonElement>("#btn-obs-simulate");
+    this.obsRegisterCtrlBtnEl = this.container.querySelector<HTMLButtonElement>("#btn-obs-register-ctrl");
+    this.obsResultsSummaryEl = this.container.querySelector<HTMLElement>("#obs-results-summary");
+    this.obsSimChartSlotEl = this.container.querySelector<HTMLElement>("#obs-sim-chart-slot");
+    this.obsSimTableSlotEl = this.container.querySelector<HTMLElement>("#obs-sim-table-slot");
 
     this.exportButtons = [
       this.container.querySelector<HTMLButtonElement>("#btn-save-experiment"),
@@ -1213,6 +1552,469 @@ export class StatespaceView {
           this.shell.presentError(err);
         }
       });
+
+    this.obsModeSelectEl?.addEventListener("change", () => {
+      const mode: ObserverMode =
+        this.obsModeSelectEl?.value === "luenberger" ? "luenberger" : "kalman_lqg";
+      setElHidden(this.obsKalmanFieldsEl, mode !== "kalman_lqg");
+      setElHidden(this.obsLuenbergerFieldsEl, mode !== "luenberger");
+    });
+
+    this.obsSynthBtnEl?.addEventListener("click", () => {
+      void this.synthesizeObserverOrLqg();
+    });
+
+    this.obsSimBtnEl?.addEventListener("click", () => {
+      void this.simulateObserverComparison();
+    });
+
+    this.obsRegisterCtrlBtnEl?.addEventListener("click", () => {
+      void this.registerLqgControllerInWorkspace();
+    });
+  }
+
+  private async synthesizeObserverOrLqg(): Promise<void> {
+    const lqr = this.shell.getLqrWorkspace();
+    const client = this.shell.getClient();
+    const plant = lqr.getPlant();
+    const weights = lqr.getWeights();
+    const n = plant.matrices.A.shape[0];
+    const p = plant.matrices.C.shape[0];
+    const mode: ObserverMode =
+      this.obsModeSelectEl?.value === "luenberger" ? "luenberger" : "kalman_lqg";
+
+    try {
+      const xhat0 = parseNumericVectorInput(
+        this.obsXhat0InputEl?.value ?? "",
+        n,
+        "x̂(0)",
+      );
+      const projectId = lqr.getProjectId();
+      const rev = Math.max(lqr.getProjectRevision(), client.getCommittedRevision(projectId));
+
+      if (mode === "kalman_lqg") {
+        const qnScale = Number(this.obsQnScaleEl?.value ?? "0.1");
+        const rnScale = Number(this.obsRnScaleEl?.value ?? "0.05");
+        if (!Number.isFinite(qnScale) || qnScale < 0) {
+          throw new ControlLabBridgeError(
+            "VALIDATION_ERROR",
+            "Escala Qn deve ser um número finito >= 0.",
+          );
+        }
+        if (!Number.isFinite(rnScale) || rnScale <= 0) {
+          throw new ControlLabBridgeError(
+            "VALIDATION_ERROR",
+            "Escala Rn deve ser um número finito > 0.",
+          );
+        }
+        const qnData = new Array<number>(n * n).fill(0);
+        for (let i = 0; i < n; i += 1) qnData[i * n + i] = qnScale;
+        const rnData = new Array<number>(p * p).fill(0);
+        for (let i = 0; i < p; i += 1) rnData[i * p + i] = rnScale;
+
+        const resp = await client.execute(
+          {
+            api_version: RPC_API_VERSION,
+            request_id: `lqg-${generateUuid()}`,
+            project_id: projectId,
+            project_revision: rev,
+            operation: "statespace.design_lqg",
+            payload: {
+              plant,
+              Q: weights.Q,
+              R: weights.R,
+              Qn: makeFloat64Tensor([n, n], qnData),
+              Rn: makeFloat64Tensor([p, p], rnData),
+              feedback_sign: lqr.getFeedbackSign(),
+              initial_state: xhat0,
+            },
+            options: {},
+            timeout_policy: { hard_timeout_ms: 15000 },
+          },
+          { commitOnSuccess: false },
+        );
+
+        if (resp.status === "failure" || !isPlainObject(resp.result)) {
+          throw new ControlLabBridgeError(
+            resp.error?.code ?? "INTERNAL_ERROR",
+            resp.error?.message ?? "Falha na síntese LQG.",
+          );
+        }
+        const res = resp.result as Record<string, unknown>;
+        const L = extractRealTensorFromUnknown(res.L_kalman ?? res.L);
+        const K = extractRealTensorFromUnknown(res.K_lqr ?? res.K);
+        if (!L) {
+          throw new ControlLabBridgeError(
+            "INTERNAL_ERROR",
+            "Resposta LQG não retornou matriz de ganho L.",
+          );
+        }
+        const controller = isPlainObject(res.controller)
+          ? (res.controller as Record<string, unknown>)
+          : null;
+
+        let closedLoopPlant: CanonicalStateSpaceModel | null = null;
+        if (isPlainObject(res.closed_loop) && isPlainObject((res.closed_loop as Record<string, unknown>).matrices)) {
+          closedLoopPlant = res.closed_loop as unknown as CanonicalStateSpaceModel;
+        } else if (res.closed_loop_matrix) {
+          const clMat = extractRealTensorFromUnknown(res.closed_loop_matrix);
+          if (clMat) {
+            const n2 = clMat.shape[0];
+            const m = plant.matrices.B.shape[1];
+            const eye2n = new Array<number>(n2 * n2).fill(0);
+            for (let i = 0; i < n2; i += 1) eye2n[i * n2 + i] = 1;
+            closedLoopPlant = {
+              schema_version: "1.0.0",
+              id: `${plant.id}-lqg-cl`,
+              revision: plant.revision,
+              kind: "StateSpace",
+              dt: plant.dt,
+              state_names: [
+                ...plant.state_names,
+                ...plant.state_names.map((sn) => `${sn}_hat`),
+              ],
+              input_names: plant.input_names,
+              output_names: [
+                ...plant.state_names,
+                ...plant.state_names.map((sn) => `${sn}_hat`),
+              ],
+              matrices: {
+                A: clMat,
+                B: makeFloat64Tensor([n2, m], new Array<number>(n2 * m).fill(0)),
+                C: makeFloat64Tensor([n2, n2], eye2n),
+                D: makeFloat64Tensor([n2, m], new Array<number>(n2 * m).fill(0)),
+              },
+              units: {
+                time: plant.units.time,
+                states: new Array<string>(n2).fill(""),
+                inputs: plant.units.inputs,
+                outputs: new Array<string>(n2).fill(""),
+              },
+              provenance: { source: "design_lqg_closed_loop_matrix" },
+            };
+          }
+        }
+
+        this.lastObserverSynthesis = {
+          mode,
+          modelRevision: plant.revision,
+          L,
+          K,
+          regulatorPoles: extractComplexPairFromUnknown(res.regulator_poles),
+          observerPoles: extractComplexPairFromUnknown(res.observer_poles),
+          closedLoopPoles: extractComplexPairFromUnknown(res.closed_loop_poles),
+          controller,
+          closedLoopPlant,
+          provenance: resp.provenance ?? null,
+        };
+      } else {
+        const poles = parseObserverPolesInput(this.obsPolesInputEl?.value ?? "");
+        if (poles.length !== n) {
+          throw new ControlLabBridgeError(
+            "DIMENSION_MISMATCH",
+            `Número de polos do observador (${poles.length}) deve ser igual à ordem n=${n}.`,
+          );
+        }
+        const resp = await client.execute(
+          {
+            api_version: RPC_API_VERSION,
+            request_id: `obs-${generateUuid()}`,
+            project_id: projectId,
+            project_revision: rev,
+            operation: "statespace.design_observer",
+            payload: {
+              plant,
+              poles,
+              method: "YT",
+            },
+            options: {},
+            timeout_policy: { hard_timeout_ms: 15000 },
+          },
+          { commitOnSuccess: false },
+        );
+
+        if (resp.status === "failure" || !isPlainObject(resp.result)) {
+          throw new ControlLabBridgeError(
+            resp.error?.code ?? "INTERNAL_ERROR",
+            resp.error?.message ?? "Falha na síntese do observador de Luenberger.",
+          );
+        }
+        const res = resp.result as Record<string, unknown>;
+        const L = extractRealTensorFromUnknown(res.L);
+        if (!L) {
+          throw new ControlLabBridgeError(
+            "INTERNAL_ERROR",
+            "Resposta de design_observer não retornou matriz L.",
+          );
+        }
+        const committed = lqr.getCommittedSnapshot();
+        this.lastObserverSynthesis = {
+          mode,
+          modelRevision: plant.revision,
+          L,
+          K: committed?.K ?? null,
+          regulatorPoles: committed?.closed_loop_poles ?? null,
+          observerPoles: extractComplexPairFromUnknown(res.observer_poles),
+          closedLoopPoles: null,
+          controller: null,
+          closedLoopPlant: null,
+          provenance: resp.provenance ?? null,
+        };
+      }
+
+      this.lastObserverSimChart = null;
+      this.renderObserverSection();
+      this.shell.getAnnouncer().announce(
+        mode === "kalman_lqg"
+          ? "Controlador LQG e Filtro de Kalman sintetizados com sucesso."
+          : "Observador de Luenberger sintetizado com sucesso.",
+        "polite",
+        "status",
+      );
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
+  private async simulateObserverComparison(): Promise<void> {
+    if (!this.lastObserverSynthesis) return;
+    const lqr = this.shell.getLqrWorkspace();
+    const client = this.shell.getClient();
+    const plant = lqr.getPlant();
+    const weights = lqr.getWeights();
+    const n = plant.matrices.A.shape[0];
+
+    try {
+      const xhat0 = parseNumericVectorInput(
+        this.obsXhat0InputEl?.value ?? "",
+        n,
+        "x̂(0)",
+      );
+      const tFinal = Number(this.obsTFinalEl?.value ?? "6");
+      if (!Number.isFinite(tFinal) || tFinal <= 0) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Tempo de simulação deve ser > 0.",
+        );
+      }
+
+      const x0Plant = weights.x0.data.slice(0, n);
+      while (x0Plant.length < n) x0Plant.push(0);
+      const x0Aug = [...x0Plant, ...xhat0];
+
+      const augPlant =
+        this.lastObserverSynthesis.closedLoopPlant ??
+        buildAugmentedObserverClosedLoop(
+          plant,
+          this.lastObserverSynthesis.L,
+          this.lastObserverSynthesis.K,
+          lqr.getFeedbackSign(),
+        );
+
+      const projectId = lqr.getProjectId();
+      const rev = Math.max(lqr.getProjectRevision(), client.getCommittedRevision(projectId));
+      const resp = await client.execute(
+        {
+          api_version: RPC_API_VERSION,
+          request_id: `obs-sim-${generateUuid()}`,
+          project_id: projectId,
+          project_revision: rev,
+          operation: "statespace.simulate_lti",
+          payload: {
+            plant: augPlant,
+            x0: x0Aug,
+            t_final: tFinal,
+            n_steps: 101,
+          },
+          options: {},
+          timeout_policy: { hard_timeout_ms: 15000 },
+        },
+        { commitOnSuccess: false },
+      );
+
+      if (resp.status === "failure" || !isPlainObject(resp.result)) {
+        throw new ControlLabBridgeError(
+          resp.error?.code ?? "INTERNAL_ERROR",
+          resp.error?.message ?? "Falha na simulação de x(t) vs x̂(t).",
+        );
+      }
+      const res = resp.result as Record<string, unknown>;
+      const tTensor = extractRealTensorFromUnknown(res.t);
+      const tArr = tTensor
+        ? tTensor.data
+        : Array.isArray(res.t)
+          ? (res.t as unknown[]).map((v) => Number(v))
+          : [];
+      const xTensor = extractRealTensorFromUnknown(res.x);
+      let x1True: number[] = [];
+      let x1Hat: number[] = [];
+      if (xTensor && xTensor.shape.length === 2) {
+        const nRows = xTensor.shape[0];
+        const nCols = xTensor.shape[1];
+        for (let r = 0; r < nRows; r += 1) {
+          x1True.push(xTensor.data[r * nCols + 0] ?? 0);
+          x1Hat.push(xTensor.data[r * nCols + n] ?? 0);
+        }
+      } else if (Array.isArray(res.x)) {
+        const rows = res.x as number[][];
+        x1True = rows.map((row) => Number(row[0] ?? 0));
+        x1Hat = rows.map((row) => Number(row[n] ?? 0));
+      }
+
+      if (tArr.length === 0 || x1True.length === 0) {
+        throw new ControlLabBridgeError(
+          "INTERNAL_ERROR",
+          "Simulação não retornou trajetórias válidas de estado.",
+        );
+      }
+
+      const state1Name = plant.state_names[0] ?? "x1";
+      this.lastObserverSimChart = {
+        kind: "time_response",
+        chart_id: "obs-lqg-time-response",
+        title: `Convergência do Observador: ${state1Name}(t) vs ${state1Name}̂(t)`,
+        model_revision: plant.revision,
+        project_revision: lqr.getProjectRevision(),
+        provenance: resp.provenance ?? this.lastObserverSynthesis.provenance,
+        series_semantics: "numeric_verified",
+        dt: plant.dt,
+        t: tArr,
+        units: {
+          x_axis: plant.units.time || "s",
+          y_axis: "estado",
+        },
+        channels: [
+          {
+            id: "x-true-1",
+            group: "y",
+            label: `${state1Name} (Real)`,
+            unit: plant.units.states?.[0] || "st",
+            values: x1True,
+            shape: "circle",
+            stroke_dasharray: "",
+            series_semantics: "numeric_verified",
+          },
+          {
+            id: "x-hat-1",
+            group: "x",
+            label: `${state1Name}̂ (Estimado)`,
+            unit: plant.units.states?.[0] || "st",
+            values: x1Hat,
+            shape: "square",
+            stroke_dasharray: "6 3",
+            series_semantics: "numeric_verified",
+          },
+        ],
+        preview_channels: [],
+      };
+      this.renderObserverSection();
+      this.shell.getAnnouncer().announce(
+        "Simulação de convergência x(t) vs x̂(t) concluída.",
+        "polite",
+        "status",
+      );
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
+  private async registerLqgControllerInWorkspace(): Promise<void> {
+    const ctrl = this.lastObserverSynthesis?.controller;
+    if (!ctrl) return;
+    try {
+      const reg = await this.shell.getTypedWorkspace().registerTypedObject(ctrl, {
+        source: "manual",
+      });
+      this.shell.setPvmExportOptions({
+        controller_kind: "dynamic",
+        dynamic_controller: ctrl,
+        saturation: this.shell.getPvmExportOptions()?.saturation ?? {
+          enabled: false,
+          u_min: -1,
+          u_max: 1,
+        },
+      });
+      this.shell.getAnnouncer().announce(
+        `Controlador LQG (${reg.id} #r${reg.revision}) registrado no Workspace e configurado para exportação .pvm.`,
+        "polite",
+        "status",
+      );
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
+  private renderObserverSection(): void {
+    const decimals = this.shell.getDisplayDecimals();
+    const synth = this.lastObserverSynthesis;
+
+    if (this.obsSimBtnEl) {
+      this.obsSimBtnEl.disabled = synth === null;
+      if (synth === null) this.obsSimBtnEl.setAttribute("aria-disabled", "true");
+      else this.obsSimBtnEl.removeAttribute("aria-disabled");
+    }
+    if (this.obsRegisterCtrlBtnEl) {
+      const canReg = synth !== null && synth.controller !== null;
+      this.obsRegisterCtrlBtnEl.disabled = !canReg;
+      if (!canReg) this.obsRegisterCtrlBtnEl.setAttribute("aria-disabled", "true");
+      else this.obsRegisterCtrlBtnEl.removeAttribute("aria-disabled");
+    }
+
+    if (this.obsResultsSummaryEl) {
+      if (!synth) {
+        this.obsResultsSummaryEl.innerHTML = `<p>Aguardando síntese do observador ou controlador LQG.</p>`;
+      } else {
+        const lStr = formatMatrixDisplay(
+          synth.L.data,
+          synth.L.shape[0] ?? 1,
+          synth.L.shape[1] ?? 1,
+          decimals,
+        )
+          .map((row) => `[${row.join(", ")}]`)
+          .join("; ");
+        const kStr = synth.K
+          ? formatMatrixDisplay(
+              synth.K.data,
+              synth.K.shape[0] ?? 1,
+              synth.K.shape[1] ?? 1,
+              decimals,
+            )
+              .map((row) => `[${row.join(", ")}]`)
+              .join("; ")
+          : "N/D (malha aberta)";
+        const regPolesStr = formatComplexPairSummary(synth.regulatorPoles, decimals);
+        const obsPolesStr = formatComplexPairSummary(synth.observerPoles, decimals);
+        const modeLabel =
+          synth.mode === "kalman_lqg"
+            ? "Filtro de Kalman + LQG (u = -K x̂)"
+            : "Observador de Luenberger";
+
+        this.obsResultsSummaryEl.innerHTML = [
+          `<p><strong>Modo:</strong> ${escapeHtml(modeLabel)}</p>`,
+          `<p><strong>Ganho do Observador L:</strong> <code>${escapeHtml(lStr)}</code></p>`,
+          `<p><strong>Ganho de Regulação K:</strong> <code>${escapeHtml(kStr)}</code></p>`,
+          `<p><strong>Polos de Regulação λ(A - BK):</strong> ${escapeHtml(regPolesStr)}</p>`,
+          `<p><strong>Polos do Observador λ(A - LC):</strong> ${escapeHtml(obsPolesStr)}</p>`,
+        ].join("");
+      }
+    }
+
+    if (this.obsSimChartSlotEl) {
+      this.obsSimChartSlotEl.innerHTML = this.lastObserverSimChart
+        ? renderTimeResponseSvg(this.lastObserverSimChart, {
+            decimals,
+            themeMode: this.shell.getThemeMode(),
+          })
+        : "";
+    }
+    if (this.obsSimTableSlotEl) {
+      if (this.lastObserverSimChart) {
+        const table = buildAccessibleChartTable(this.lastObserverSimChart, decimals);
+        this.obsSimTableSlotEl.innerHTML = renderAccessibleTableHtml(table);
+      } else {
+        this.obsSimTableSlotEl.innerHTML = "";
+      }
+    }
   }
 
   private renderKpiAndPbh(): void {
@@ -1330,12 +2132,14 @@ export class StatespaceView {
     setElHidden(this.panelEl, !isStatespace);
     setElHidden(this.interactiveBarEl, !isStatespace);
     setElHidden(this.matrixEditorEl, !isStatespace);
+    setElHidden(this.observerCardEl, !isStatespace);
     setElHidden(this.jsonAdvancedEl, !isStatespace);
     setElHidden(this.pvmExportOptionsEl, !isStatespace);
     setElHidden(this.kDisplaySlotEl, !isStatespace);
     setElHidden(this.diagnosticsPanelEl, !isStatespace);
 
     this.syncLqrInputsFromWorkspace();
+    this.renderObserverSection();
 
     const lqr = this.shell.getLqrWorkspace();
     const doc = this.container.ownerDocument;

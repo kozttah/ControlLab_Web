@@ -102,6 +102,9 @@ SUPPORTED_OPERATIONS: frozenset[str] = frozenset(
         "mimo.singular_values",
         "mimo.rga",
         "mimo.sensitivity",
+        "mimo.design_decoupler",
+        "mimo.simulate_closed_loop",
+        "mimo.design_hinf",
         "identification.fit_arx",
         "identification.fit_oe",
         "identification.fit_subspace",
@@ -1562,6 +1565,146 @@ def _handle_frequency(req: dict[str, Any], store: Any) -> dict[str, Any]:
     )
 
 
+def _resolve_optional_mimo_weight(raw_val: Any, *, field_name: str) -> Any:
+    if raw_val is None:
+        return None
+    val = _to_python_native(raw_val)
+    if isinstance(val, Mapping) and "kind" in val:
+        return _restore_canonical_object(val, field_name=field_name)
+    if isinstance(val, Mapping):
+        return dict(val)
+    return val
+
+
+def _handle_mimo_synthesis(req: dict[str, Any], store: Any) -> dict[str, Any]:
+    from control_lab.frequency.mimo import (
+        design_hinf_mixed_sensitivity,
+        design_svd_decoupler,
+        simulate_mimo_closed_loop,
+    )
+
+    payload = req["payload"]
+    options = req["options"]
+    op = req["operation"]
+
+    plant_obj = _resolve_from_store_or_inline(
+        payload,
+        inline_keys=("plant", "model"),
+        ref_keys=("plant_ref", "model_ref"),
+        store=store,
+        project_id=req["project_id"],
+    )
+    if plant_obj is None:
+        raise ValidationError(f"Operação {op} exige 'plant' ou 'plant_ref'.")
+
+    if op == "mimo.design_decoupler":
+        omega_target = _pick_param(payload, options, "omega_target", 1.0)
+        realization_mode = _pick_param(payload, options, "realization_mode", "static")
+        dt_val = _pick_param(payload, options, "dt", None)
+        res = design_svd_decoupler(
+            plant_obj,
+            omega_target=omega_target,
+            realization_mode=realization_mode,
+            dt=dt_val,
+            raise_on_error=False,
+        )
+    elif op == "mimo.simulate_closed_loop":
+        has_ctrl = (
+            ("controller" in payload and payload["controller"] is not None)
+            or ("controller_ref" in payload and payload["controller_ref"] is not None)
+        )
+        has_gains = "controller_gains" in payload and payload["controller_gains"] is not None
+        if has_ctrl and has_gains:
+            raise ValidationError(
+                "Forneça apenas um entre 'controller'/'controller_ref' e 'controller_gains'."
+            )
+
+        ctrl: Any = None
+        if has_gains:
+            raw_gains = _to_python_native(payload["controller_gains"])
+            if isinstance(raw_gains, (int, float)) and not isinstance(raw_gains, bool):
+                n_in = getattr(plant_obj, "n_inputs", None)
+                dim = int(n_in) if isinstance(n_in, int) and n_in >= 1 else 1
+                ctrl = np.full(dim, float(raw_gains), dtype=np.float64)
+            else:
+                ctrl = _coerce_array(raw_gains, name="controller_gains")
+        elif has_ctrl:
+            if "controller" in payload and payload["controller"] is not None:
+                raw_ctrl = _to_python_native(payload["controller"])
+                if isinstance(raw_ctrl, (int, float)) and not isinstance(raw_ctrl, bool):
+                    n_in = getattr(plant_obj, "n_inputs", None)
+                    dim = int(n_in) if isinstance(n_in, int) and n_in >= 1 else 1
+                    ctrl = np.full(dim, float(raw_ctrl), dtype=np.float64)
+                elif isinstance(raw_ctrl, (list, tuple, np.ndarray)) or (
+                    isinstance(raw_ctrl, Mapping) and "kind" not in raw_ctrl and "shape" in raw_ctrl
+                ):
+                    ctrl = _coerce_array(raw_ctrl, name="controller")
+                else:
+                    ctrl = _restore_canonical_object(raw_ctrl, field_name="controller")
+            else:
+                ctrl = _resolve_from_store_or_inline(
+                    payload,
+                    inline_keys=(),
+                    ref_keys=("controller_ref",),
+                    store=store,
+                    project_id=req["project_id"],
+                )
+
+        dec: Any = None
+        if "decoupler" in payload and payload["decoupler"] is not None:
+            raw_dec = _to_python_native(payload["decoupler"])
+            if isinstance(raw_dec, (list, tuple, np.ndarray)) or (
+                isinstance(raw_dec, Mapping) and "kind" not in raw_dec and "shape" in raw_dec
+            ):
+                dec = _coerce_array(raw_dec, name="decoupler")
+            else:
+                dec = _restore_canonical_object(raw_dec, field_name="decoupler")
+        elif "decoupler_ref" in payload and payload["decoupler_ref"] is not None:
+            dec = _resolve_from_store_or_inline(
+                payload,
+                inline_keys=(),
+                ref_keys=("decoupler_ref",),
+                store=store,
+                project_id=req["project_id"],
+            )
+
+        feedback_sign = _pick_param(payload, options, "feedback_sign", "negative")
+        t_final = _pick_param(payload, options, "t_final", 10.0)
+        n_points = _pick_param(payload, options, "n_points", 200)
+        res = simulate_mimo_closed_loop(
+            plant_obj,
+            controller=ctrl,
+            decoupler=dec,
+            feedback_sign=feedback_sign,
+            t_final=t_final,
+            n_points=n_points,
+            raise_on_error=False,
+        )
+    else:  # mimo.design_hinf
+        w_s = _resolve_optional_mimo_weight(payload.get("w_s"), field_name="w_s")
+        w_u = _resolve_optional_mimo_weight(payload.get("w_u"), field_name="w_u")
+        w_t = _resolve_optional_mimo_weight(payload.get("w_t"), field_name="w_t")
+        omega, _ = _resolve_omega_arg(payload, options)
+        gamma_tol = _pick_param(payload, options, "gamma_tol", 1e-2)
+        res = design_hinf_mixed_sensitivity(
+            plant_obj,
+            w_s=w_s,
+            w_u=w_u,
+            w_t=w_t,
+            omega=omega,
+            gamma_tol=gamma_tol,
+            raise_on_error=False,
+        )
+
+    return _result_to_rpc_response(
+        res,
+        request_id=req["request_id"],
+        project_id=req["project_id"],
+        project_revision=req["project_revision"],
+        fallback_algorithm=op,
+    )
+
+
 def _handle_identification(req: dict[str, Any], store: Any) -> dict[str, Any]:
     from control_lab.identification import fit_arx, fit_oe, fit_subspace, validate_model
 
@@ -1976,6 +2119,9 @@ _DISPATCH_TABLE = {
     "mimo.singular_values": _handle_frequency,
     "mimo.rga": _handle_frequency,
     "mimo.sensitivity": _handle_frequency,
+    "mimo.design_decoupler": _handle_mimo_synthesis,
+    "mimo.simulate_closed_loop": _handle_mimo_synthesis,
+    "mimo.design_hinf": _handle_mimo_synthesis,
     "identification.fit_arx": _handle_identification,
     "identification.fit_oe": _handle_identification,
     "identification.fit_subspace": _handle_identification,

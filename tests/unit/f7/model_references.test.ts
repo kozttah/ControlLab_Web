@@ -204,3 +204,39 @@ test("F7-REF Mock shares fail-closed aliases without fabricating model-reuse sci
     assert.equal(unsupported.result, null);
   } finally { mock.dispose(); }
 });
+
+test("F7-REF MIMO design_decoupler, simulate_closed_loop, and design_hinf resolve plant_ref/model_ref and optional decoupler_ref/controller_ref", () => {
+  const store = populated();
+  const decoupler = dto("decoupler", 0, "TransferFunction");
+  const controller = dto("controller", 0, "DynamicController");
+  store.put(project, "decoupler", 0, decoupler);
+  store.put(project, "controller", 0, controller);
+
+  assert.deepEqual(
+    resolve("mimo.design_decoupler", { plant_ref: { id: "model", revision: 0 }, method: "simplified" }, store),
+    { plant: dto(), method: "simplified" },
+  );
+  assert.deepEqual(
+    resolve("mimo.design_hinf", { model_ref: { id: "model", revision: 0 }, w1_num: [1], w1_den: [1, 1] }, store),
+    { plant: dto(), w1_num: [1], w1_den: [1, 1] },
+  );
+  assert.deepEqual(
+    resolve("mimo.simulate_closed_loop", { plant_ref: { id: "model", revision: 0 }, t: [0, 1] }, store),
+    { plant: dto(), t: [0, 1] },
+  );
+  assert.deepEqual(
+    resolve("mimo.simulate_closed_loop", {
+      plant_ref: { id: "model", revision: 0 },
+      decoupler_ref: { id: "decoupler", revision: 0 },
+      controller_ref: { id: "controller", revision: 0 },
+      t: [0, 1],
+    }, store),
+    { plant: dto(), decoupler, controller, t: [0, 1] },
+  );
+  rejected(() => resolve("mimo.simulate_closed_loop", {
+    plant_ref: { id: "model", revision: 0 },
+    decoupler,
+    decoupler_ref: { id: "decoupler", revision: 0 },
+  }, store));
+});
+

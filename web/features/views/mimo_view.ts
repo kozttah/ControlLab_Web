@@ -30,10 +30,13 @@ import type { ControlLabShell } from "../../app/shell.ts";
 import {
   buildAccessibleChartTable,
   buildSingularValuesChartModel,
+  buildTimeResponseChartModel,
   renderAccessibleTableHtml,
   renderSingularValuesSvg,
+  renderTimeResponseSvg,
   type SingularValueCurve,
   type SingularValuesChartModel,
+  type TimeResponseChartModel,
 } from "../../charts/scientific_chart.ts";
 
 export interface MimoViewOptions {
@@ -77,6 +80,40 @@ interface MimoAnalysisSnapshot {
   omegaPeak: number | null;
   sensitivityNote: string | null;
   rgaNote: string | null;
+}
+
+interface MimoDecouplerSnapshot {
+  omegaTarget: number;
+  realizationMode: "static" | "first_order";
+  kappaBefore: number | null;
+  kappaAfter: number | null;
+  rgaOffdiagBefore: number | null;
+  rgaOffdiagAfter: number | null;
+  rgaAfterMatrix: number[][] | null;
+  decoupler: Record<string, unknown> | null;
+  decoupledPlant: Record<string, unknown> | null;
+}
+
+interface MimoClosedLoopSnapshot {
+  isStable: boolean;
+  maxCrossCoupling: number | null;
+  poles: Array<{ re: number; im: number }>;
+  timeModel: TimeResponseChartModel;
+}
+
+interface MimoHinfSnapshot {
+  gammaAchieved: number | null;
+  hinfNormGrid: number | null;
+  isStable: boolean;
+  gpSummary: {
+    n_states: number;
+    n_w: number;
+    n_u: number;
+    n_z: number;
+    n_y: number;
+  } | null;
+  svModel: SingularValuesChartModel;
+  controller: Record<string, unknown> | null;
 }
 
 function setElHidden(el: Element | null | undefined, hidden: boolean): void {
@@ -146,6 +183,126 @@ function extract2DComplexMatrix(
     mag.push(mRow);
   }
   return { real, imag, mag };
+}
+
+function extractReal2DMatrix(raw: unknown): number[][] | null {
+  if (Array.isArray(raw)) {
+    const rows: number[][] = [];
+    for (const row of raw) {
+      if (!Array.isArray(row)) return null;
+      rows.push(row.map((v) => (typeof v === "number" && Number.isFinite(v) ? v : 0)));
+    }
+    return rows.length > 0 ? rows : null;
+  }
+  if (isPlainObject(raw) && Array.isArray(raw.shape) && Array.isArray(raw.data)) {
+    const shape = raw.shape as number[];
+    const data = raw.data as number[];
+    if (shape.length !== 2) return null;
+    const rows = Number(shape[0] ?? 0);
+    const cols = Number(shape[1] ?? 0);
+    if (rows <= 0 || cols <= 0 || data.length < rows * cols) return null;
+    const out: number[][] = [];
+    for (let i = 0; i < rows; i += 1) {
+      const r: number[] = [];
+      for (let j = 0; j < cols; j += 1) {
+        const val = Number(data[i * cols + j] ?? 0);
+        r.push(Number.isFinite(val) ? val : 0);
+      }
+      out.push(r);
+    }
+    return out;
+  }
+  return null;
+}
+
+function extractStepResponseMatrix(
+  raw: unknown,
+  nPointsFallback: number,
+): { matrix: number[][]; outputNames: string[] } {
+  // Backend retorna tensor 3D (p, n_points, p): step_resp[j, k, i] = resposta de y_{i+1} ao degrau em r_{j+1}
+  if (isPlainObject(raw) && Array.isArray(raw.shape) && Array.isArray(raw.data)) {
+    const shape = raw.shape as number[];
+    const data = raw.data as number[];
+    if (shape.length === 3) {
+      const nIn = Number(shape[0] ?? 1);
+      const nPts = Number(shape[1] ?? nPointsFallback);
+      const nOut = Number(shape[2] ?? 1);
+      const outputNames: string[] = [];
+      for (let j = 0; j < nIn; j += 1) {
+        for (let i = 0; i < nOut; i += 1) {
+          outputNames.push(`r${j + 1}→y${i + 1}`);
+        }
+      }
+      const matrix: number[][] = [];
+      for (let k = 0; k < nPts; k += 1) {
+        const row: number[] = [];
+        for (let j = 0; j < nIn; j += 1) {
+          for (let i = 0; i < nOut; i += 1) {
+            const idx = j * (nPts * nOut) + k * nOut + i;
+            const val = Number(data[idx] ?? 0);
+            row.push(Number.isFinite(val) ? val : 0);
+          }
+        }
+        matrix.push(row);
+      }
+      return { matrix, outputNames };
+    }
+  }
+  if (Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0])) {
+    const nIn = raw.length;
+    const firstChannel = raw[0] as unknown[];
+    const nPts = firstChannel.length;
+    const nOut = Array.isArray(firstChannel[0]) ? (firstChannel[0] as unknown[]).length : 1;
+    const outputNames: string[] = [];
+    for (let j = 0; j < nIn; j += 1) {
+      for (let i = 0; i < nOut; i += 1) {
+        outputNames.push(`r${j + 1}→y${i + 1}`);
+      }
+    }
+    const matrix: number[][] = [];
+    for (let k = 0; k < nPts; k += 1) {
+      const row: number[] = [];
+      for (let j = 0; j < nIn; j += 1) {
+        const ch = raw[j] as unknown[];
+        const pt = ch?.[k];
+        if (Array.isArray(pt)) {
+          for (let i = 0; i < nOut; i += 1) {
+            const val = Number(pt[i] ?? 0);
+            row.push(Number.isFinite(val) ? val : 0);
+          }
+        } else {
+          const val = Number(pt ?? 0);
+          row.push(Number.isFinite(val) ? val : 0);
+        }
+      }
+      matrix.push(row);
+    }
+    return { matrix, outputNames };
+  }
+  return { matrix: [], outputNames: [] };
+}
+
+function extractComplexPoles(raw: unknown): Array<{ re: number; im: number }> {
+  if (Array.isArray(raw)) {
+    const poles: Array<{ re: number; im: number }> = [];
+    for (const item of raw) {
+      if (Array.isArray(item) && item.length >= 2) {
+        poles.push({ re: Number(item[0] ?? 0), im: Number(item[1] ?? 0) });
+      } else if (isPlainObject(item)) {
+        poles.push({
+          re: Number(item.re ?? item.real ?? 0),
+          im: Number(item.im ?? item.imag ?? 0),
+        });
+      }
+    }
+    return poles;
+  }
+  if (isPlainObject(raw) && Array.isArray(raw.real)) {
+    const reArr = raw.real as number[];
+    const imArr = Array.isArray(raw.imag) ? (raw.imag as number[]) : [];
+    return reArr.map((re, idx) => ({ re: Number(re ?? 0), im: Number(imArr[idx] ?? 0) }));
+  }
+  return [];
 }
 
 export function buildCoupledMimo2x2ExampleDto(): Record<string, unknown> {
@@ -229,6 +386,56 @@ export function renderMimoViewHtml(): string {
     `<div id="mimo-rga-heatmap-slot" class="mimo-rga-heatmap-slot" aria-live="polite"><p>Aguardando cálculo da RGA para exibir pareamento e condicionamento κ(G).</p></div>`,
     `</div>`,
     `</div>`,
+    `<div id="mimo-synthesis-card" class="subcard mimo-synthesis-card">`,
+    `<h4>Síntese MIMO — Desacoplador SVD &amp; Malha Fechada Descentralizada</h4>`,
+    `<div class="mimo-synthesis-split">`,
+    `<div class="mimo-synthesis-col">`,
+    `<h5>1. Desacoplador SVD</h5>`,
+    `<div class="mimo-params-row panel-actions">`,
+    `<label for="mimo-decoupler-omega">Frequência alvo ω₀ (rad/s)</label>`,
+    `<input type="number" id="mimo-decoupler-omega" class="touch-control id-param-input" min="0.0001" step="0.1" value="1.0" aria-label="Frequência alvo ω₀ (rad/s)" />`,
+    `<label for="mimo-decoupler-mode">Modo</label>`,
+    `<select id="mimo-decoupler-mode" class="touch-control" aria-label="Modo de realização do desacoplador">`,
+    `<option value="static">Pré-compensador Estático W₀</option>`,
+    `<option value="first_order">Aproximação Realizável 1ª Ordem W₁(s)</option>`,
+    `</select>`,
+    `<button type="button" id="btn-mimo-design-decoupler" class="touch-control btn-primary" data-action="mimo-design-decoupler">Projetar Desacoplador SVD</button>`,
+    `<button type="button" id="btn-mimo-register-decoupler" class="touch-control btn-secondary" data-action="mimo-register-decoupler" disabled aria-disabled="true">Registrar Planta Desacoplada</button>`,
+    `</div>`,
+    `<div id="mimo-decoupler-summary" class="diagnostics-panel" aria-live="polite"><p>Projete o desacoplador SVD para comparar κ(G), norma off-diagonal e RGA pós-desacoplamento.</p></div>`,
+    `</div>`,
+    `<div class="mimo-synthesis-col">`,
+    `<h5>2. Simulação em Malha Fechada (Degrau Canal-a-Canal)</h5>`,
+    `<div class="mimo-params-row panel-actions">`,
+    `<label for="mimo-cl-gains">Ganhos diagonais K_diag (ex: 1.0, 1.0)</label>`,
+    `<input type="text" id="mimo-cl-gains" class="touch-control" value="1.0, 1.0" aria-label="Ganhos diagonais K_diag" />`,
+    `<label for="mimo-cl-t-final">Tempo final (s)</label>`,
+    `<input type="number" id="mimo-cl-t-final" class="touch-control id-param-input" min="0.1" step="1" value="10.0" aria-label="Tempo final da simulação MIMO" />`,
+    `<label class="mimo-toggle-label"><input type="checkbox" id="mimo-cl-use-decoupler" /> Aplicar Desacoplador W₁(s) em série</label>`,
+    `<button type="button" id="btn-mimo-simulate-cl" class="touch-control btn-primary" data-action="mimo-simulate-cl">Simular Malha Fechada (Degrau Canal-a-Canal)</button>`,
+    `</div>`,
+    `<div id="mimo-cl-summary" class="diagnostics-panel" aria-live="polite"><p>Execute a simulação canal-a-canal para verificar estabilidade, acoplamento cruzado e polos em malha fechada.</p></div>`,
+    `<div id="mimo-cl-chart-slot" class="chart-container"></div>`,
+    `</div>`,
+    `</div>`,
+    `</div>`,
+    `<div id="mimo-hinf-card" class="subcard mimo-hinf-card">`,
+    `<h4>Síntese Robusta ℋ∞ com Planta Generalizada P(s)</h4>`,
+    `<div class="mimo-hinf-weights-grid">`,
+    `<div class="tool-field"><label for="hinf-ws-dc">Ganho DC de W_S</label><input type="number" id="hinf-ws-dc" class="touch-control id-param-input" min="0.1" step="10" value="100" /></div>`,
+    `<div class="tool-field"><label for="hinf-ws-wb">Banda ω_B de W_S (rad/s)</label><input type="number" id="hinf-ws-wb" class="touch-control id-param-input" min="0.001" step="0.1" value="1.0" /></div>`,
+    `<div class="tool-field"><label for="hinf-ws-ms">Pico M_S de W_S</label><input type="number" id="hinf-ws-ms" class="touch-control id-param-input" min="0.1" step="0.1" value="2.0" /></div>`,
+    `<div class="tool-field"><label for="hinf-wu-gain">Peso de Controle W_U</label><input type="number" id="hinf-wu-gain" class="touch-control id-param-input" min="0.0001" step="0.01" value="0.05" /></div>`,
+    `<div class="tool-field"><label for="hinf-wt-wb">Corte ω_T de W_T (rad/s)</label><input type="number" id="hinf-wt-wb" class="touch-control id-param-input" min="0.01" step="1" value="10.0" /></div>`,
+    `<div class="tool-field"><label for="hinf-wt-mt">Pico M_T de W_T</label><input type="number" id="hinf-wt-mt" class="touch-control id-param-input" min="0.1" step="0.1" value="1.5" /></div>`,
+    `</div>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-mimo-design-hinf" class="touch-control btn-primary" data-action="mimo-design-hinf">Sintetizar Controlador H∞ (Planta Generalizada P)</button>`,
+    `<button type="button" id="btn-mimo-register-hinf" class="touch-control btn-secondary" data-action="mimo-register-hinf" disabled aria-disabled="true">Registrar Controlador K∞ no Workspace</button>`,
+    `</div>`,
+    `<div id="mimo-hinf-summary" class="diagnostics-panel" aria-live="polite"><p>Configure os filtros W_S, W_U e W_T e sintetize o controlador ótimo/subótimo K∞.</p></div>`,
+    `<div id="mimo-hinf-chart-slot" class="chart-container"></div>`,
+    `</div>`,
     `</section>`,
   ].join("\n");
 }
@@ -253,8 +460,32 @@ export class MimoView {
   private readonly rgaOmegaLabelEl: HTMLElement | null;
   private readonly rgaHeatmapSlotEl: HTMLElement | null;
 
+  private readonly decouplerOmegaEl: HTMLInputElement | null;
+  private readonly decouplerModeEl: HTMLSelectElement | null;
+  private readonly btnRegisterDecouplerEl: HTMLButtonElement | null;
+  private readonly decouplerSummaryEl: HTMLElement | null;
+
+  private readonly clGainsEl: HTMLInputElement | null;
+  private readonly clUseDecouplerEl: HTMLInputElement | null;
+  private readonly clTFinalEl: HTMLInputElement | null;
+  private readonly clSummaryEl: HTMLElement | null;
+  private readonly clChartSlotEl: HTMLElement | null;
+
+  private readonly hinfWsDcEl: HTMLInputElement | null;
+  private readonly hinfWsWbEl: HTMLInputElement | null;
+  private readonly hinfWsMsEl: HTMLInputElement | null;
+  private readonly hinfWuGainEl: HTMLInputElement | null;
+  private readonly hinfWtWbEl: HTMLInputElement | null;
+  private readonly hinfWtMtEl: HTMLInputElement | null;
+  private readonly btnRegisterHinfEl: HTMLButtonElement | null;
+  private readonly hinfSummaryEl: HTMLElement | null;
+  private readonly hinfChartSlotEl: HTMLElement | null;
+
   private readonly visibleGroups = new Set<string>(["G", "S", "T"]);
   private snapshot: MimoAnalysisSnapshot | null = null;
+  private decouplerSnapshot: MimoDecouplerSnapshot | null = null;
+  private clSnapshot: MimoClosedLoopSnapshot | null = null;
+  private hinfSnapshot: MimoHinfSnapshot | null = null;
   private selectedRgaIndex = 0;
 
   constructor(options: MimoViewOptions) {
@@ -276,6 +507,27 @@ export class MimoView {
     this.rgaSliderEl = this.container.querySelector<HTMLInputElement>("#mimo-rga-omega-slider");
     this.rgaOmegaLabelEl = this.container.querySelector<HTMLElement>("#mimo-rga-omega-label");
     this.rgaHeatmapSlotEl = this.container.querySelector<HTMLElement>("#mimo-rga-heatmap-slot");
+
+    this.decouplerOmegaEl = this.container.querySelector<HTMLInputElement>("#mimo-decoupler-omega");
+    this.decouplerModeEl = this.container.querySelector<HTMLSelectElement>("#mimo-decoupler-mode");
+    this.btnRegisterDecouplerEl = this.container.querySelector<HTMLButtonElement>("#btn-mimo-register-decoupler");
+    this.decouplerSummaryEl = this.container.querySelector<HTMLElement>("#mimo-decoupler-summary");
+
+    this.clGainsEl = this.container.querySelector<HTMLInputElement>("#mimo-cl-gains");
+    this.clUseDecouplerEl = this.container.querySelector<HTMLInputElement>("#mimo-cl-use-decoupler");
+    this.clTFinalEl = this.container.querySelector<HTMLInputElement>("#mimo-cl-t-final");
+    this.clSummaryEl = this.container.querySelector<HTMLElement>("#mimo-cl-summary");
+    this.clChartSlotEl = this.container.querySelector<HTMLElement>("#mimo-cl-chart-slot");
+
+    this.hinfWsDcEl = this.container.querySelector<HTMLInputElement>("#hinf-ws-dc");
+    this.hinfWsWbEl = this.container.querySelector<HTMLInputElement>("#hinf-ws-wb");
+    this.hinfWsMsEl = this.container.querySelector<HTMLInputElement>("#hinf-ws-ms");
+    this.hinfWuGainEl = this.container.querySelector<HTMLInputElement>("#hinf-wu-gain");
+    this.hinfWtWbEl = this.container.querySelector<HTMLInputElement>("#hinf-wt-wb");
+    this.hinfWtMtEl = this.container.querySelector<HTMLInputElement>("#hinf-wt-mt");
+    this.btnRegisterHinfEl = this.container.querySelector<HTMLButtonElement>("#btn-mimo-register-hinf");
+    this.hinfSummaryEl = this.container.querySelector<HTMLElement>("#mimo-hinf-summary");
+    this.hinfChartSlotEl = this.container.querySelector<HTMLElement>("#mimo-hinf-chart-slot");
 
     this.bindEvents();
   }
@@ -316,6 +568,36 @@ export class MimoView {
     };
     this.rgaSliderEl?.addEventListener("input", onSliderChange);
     this.rgaSliderEl?.addEventListener("change", onSliderChange);
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="mimo-design-decoupler"]')
+      ?.addEventListener("click", () => {
+        void this.runDesignDecoupler();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="mimo-register-decoupler"]')
+      ?.addEventListener("click", () => {
+        void this.registerDecoupledPlant();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="mimo-simulate-cl"]')
+      ?.addEventListener("click", () => {
+        void this.runSimulateClosedLoop();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="mimo-design-hinf"]')
+      ?.addEventListener("click", () => {
+        void this.runDesignHinf();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="mimo-register-hinf"]')
+      ?.addEventListener("click", () => {
+        void this.registerHinfController();
+      });
   }
 
   public async loadExample2x2(): Promise<void> {
@@ -599,6 +881,358 @@ export class MimoView {
     }
   }
 
+  public async runDesignDecoupler(): Promise<void> {
+    try {
+      const typed = this.shell.getTypedWorkspace();
+      const eff = typed.getEffectiveSelection("frequencyPlant");
+      if (!eff) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Selecione uma planta MIMO antes de projetar o desacoplador SVD.",
+        );
+      }
+
+      const omegaTarget = Number(this.decouplerOmegaEl?.value ?? 1.0);
+      if (!Number.isFinite(omegaTarget) || omegaTarget <= 0) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Frequência alvo ω₀ deve ser finita e > 0.",
+        );
+      }
+      const mode: "static" | "first_order" =
+        this.decouplerModeEl?.value === "first_order" ? "first_order" : "static";
+
+      const params = { omega_target: omegaTarget, realization_mode: mode };
+      const plan = await typed.prepareToolExecution("mimo.design_decoupler", params, {
+        extraPayload: params,
+      });
+      const resp = await this.executeRpc("mimo.design_decoupler", plan.extraPayload);
+      if (resp.status === "failure" || !resp.result) {
+        throw new ControlLabBridgeError(
+          resp.error?.code ?? "INTERNAL_ERROR",
+          resp.error?.message ?? "Falha ao projetar desacoplador SVD.",
+        );
+      }
+
+      const res = resp.result as Record<string, unknown>;
+      this.decouplerSnapshot = {
+        omegaTarget: typeof res.omega_target === "number" ? res.omega_target : omegaTarget,
+        realizationMode: res.realization_mode === "first_order" ? "first_order" : "static",
+        kappaBefore: typeof res.kappa_before === "number" ? res.kappa_before : null,
+        kappaAfter: typeof res.kappa_after === "number" ? res.kappa_after : null,
+        rgaOffdiagBefore:
+          typeof res.rga_offdiag_norm_before === "number" ? res.rga_offdiag_norm_before : null,
+        rgaOffdiagAfter:
+          typeof res.rga_offdiag_norm_after === "number" ? res.rga_offdiag_norm_after : null,
+        rgaAfterMatrix: extractReal2DMatrix(res.rga_after),
+        decoupler: isPlainObject(res.decoupler) ? (res.decoupler as Record<string, unknown>) : null,
+        decoupledPlant: isPlainObject(res.decoupled_plant)
+          ? (res.decoupled_plant as Record<string, unknown>)
+          : null,
+      };
+
+      if (this.clUseDecouplerEl && this.decouplerSnapshot.decoupler) {
+        this.clUseDecouplerEl.checked = true;
+      }
+
+      this.shell
+        .getAnnouncer()
+        .announce("Desacoplador SVD projetado com sucesso.", "polite", "status");
+      this.render();
+      this.onRequestRender?.();
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
+  public async registerDecoupledPlant(): Promise<void> {
+    if (!this.decouplerSnapshot?.decoupledPlant) return;
+    try {
+      const reg = await this.shell
+        .getTypedWorkspace()
+        .registerTypedObject(this.decouplerSnapshot.decoupledPlant, { source: "manual" });
+      this.shell
+        .getAnnouncer()
+        .announce(
+          `Planta desacoplada (${reg.id} #r${reg.revision}) registrada no Workspace.`,
+          "polite",
+          "status",
+        );
+      this.render();
+      this.onRequestRender?.();
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
+  public async runSimulateClosedLoop(): Promise<void> {
+    try {
+      const typed = this.shell.getTypedWorkspace();
+      const eff = typed.getEffectiveSelection("frequencyPlant");
+      if (!eff) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Selecione uma planta MIMO antes de simular a malha fechada.",
+        );
+      }
+
+      const rawGainsText = String(this.clGainsEl?.value ?? "1.0, 1.0").trim();
+      const parsedGains = rawGainsText
+        .split(/[\s,;]+/)
+        .filter((tok) => tok.length > 0)
+        .map((tok) => Number(tok));
+      if (parsedGains.length === 0 || parsedGains.some((g) => !Number.isFinite(g))) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Ganhos diagonais K_diag inválidos. Informe números separados por vírgula (ex: 1.0, 1.0).",
+        );
+      }
+
+      const tFinal = Number(this.clTFinalEl?.value ?? 10.0);
+      if (!Number.isFinite(tFinal) || tFinal <= 0) {
+        throw new ControlLabBridgeError("VALIDATION_ERROR", "Tempo final deve ser finito e > 0.");
+      }
+
+      const feedbackSign: "negative" | "positive" =
+        this.feedbackSignEl?.value === "positive" ? "positive" : "negative";
+      const useDecoupler = Boolean(this.clUseDecouplerEl?.checked && this.decouplerSnapshot?.decoupler);
+
+      const params: Record<string, unknown> = {
+        controller_gains: parsedGains,
+        feedback_sign: feedbackSign,
+        t_final: tFinal,
+        n_points: 160,
+      };
+      if (useDecoupler && this.decouplerSnapshot?.decoupler) {
+        params.decoupler = this.decouplerSnapshot.decoupler;
+      }
+
+      const plan = await typed.prepareToolExecution("mimo.simulate_closed_loop", params, {
+        extraPayload: params,
+      });
+      const resp = await this.executeRpc("mimo.simulate_closed_loop", plan.extraPayload);
+      if (resp.status === "failure" || !resp.result) {
+        throw new ControlLabBridgeError(
+          resp.error?.code ?? "INTERNAL_ERROR",
+          resp.error?.message ?? "Falha ao simular malha fechada MIMO.",
+        );
+      }
+
+      const res = resp.result as Record<string, unknown>;
+      const tVec = extractNumericVector(res.t);
+      const { matrix, outputNames } = extractStepResponseMatrix(res.step_responses, tVec.length);
+      const poles = extractComplexPoles(res.closed_loop_poles);
+      const isStable = Boolean(res.is_stable);
+      const maxCrossCoupling =
+        typeof res.max_cross_coupling === "number" ? res.max_cross_coupling : null;
+
+      const timeModel = buildTimeResponseChartModel({
+        chart_id: "mimo-closed-loop-step",
+        title: useDecoupler
+          ? "Resposta ao Degrau MIMO (Com Desacoplador)"
+          : "Resposta ao Degrau MIMO (Controle Descentralizado)",
+        dt: null,
+        t: tVec,
+        y: matrix,
+        output_names: outputNames,
+        units: {
+          time: "s",
+          outputs: outputNames.map(() => "1"),
+        },
+        model_revision: eff.ref.revision,
+        project_revision: this.shell.getLqrWorkspace().getProjectRevision(),
+        provenance: resp.provenance as Provenance,
+        series_semantics: "numeric_verified",
+        feedback_sign: feedbackSign,
+        theme_mode: this.shell.getThemeMode(),
+      });
+
+      this.clSnapshot = {
+        isStable,
+        maxCrossCoupling,
+        poles,
+        timeModel,
+      };
+
+      this.shell
+        .getAnnouncer()
+        .announce("Simulação em malha fechada MIMO concluída.", "polite", "status");
+      this.render();
+      this.onRequestRender?.();
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
+  public async runDesignHinf(): Promise<void> {
+    try {
+      const typed = this.shell.getTypedWorkspace();
+      const eff = typed.getEffectiveSelection("frequencyPlant");
+      if (!eff) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Selecione uma planta MIMO contínua antes de sintetizar o controlador H∞.",
+        );
+      }
+
+      const wsDc = Number(this.hinfWsDcEl?.value ?? 100);
+      const wsWb = Number(this.hinfWsWbEl?.value ?? 1.0);
+      const wsMs = Number(this.hinfWsMsEl?.value ?? 2.0);
+      const wuGain = Number(this.hinfWuGainEl?.value ?? 0.05);
+      const wtWb = Number(this.hinfWtWbEl?.value ?? 10.0);
+      const wtMt = Number(this.hinfWtMtEl?.value ?? 1.5);
+
+      if (
+        !Number.isFinite(wsDc) ||
+        wsDc <= 0 ||
+        !Number.isFinite(wsWb) ||
+        wsWb <= 0 ||
+        !Number.isFinite(wsMs) ||
+        wsMs <= 0 ||
+        !Number.isFinite(wuGain) ||
+        wuGain <= 0 ||
+        !Number.isFinite(wtWb) ||
+        wtWb <= 0 ||
+        !Number.isFinite(wtMt) ||
+        wtMt <= 0
+      ) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Todos os parâmetros dos filtros W_S, W_U e W_T devem ser finitos e > 0.",
+        );
+      }
+
+      const params = {
+        w_s: { dc_gain: wsDc, wb: wsWb, m_s: wsMs },
+        w_u: { gain: wuGain },
+        w_t: { wt: wtWb, m_t: wtMt },
+        n_points: 120,
+      };
+      const plan = await typed.prepareToolExecution("mimo.design_hinf", params, {
+        extraPayload: params,
+      });
+      const resp = await this.executeRpc("mimo.design_hinf", plan.extraPayload);
+      if (resp.status === "failure" || !resp.result) {
+        throw new ControlLabBridgeError(
+          resp.error?.code ?? "INTERNAL_ERROR",
+          resp.error?.message ?? "Falha na síntese H∞.",
+        );
+      }
+
+      const res = resp.result as Record<string, unknown>;
+      const omegaVec = extractNumericVector(res.omega);
+      const sigmaS = toDbArray(extractNumericVector(res.sigma_S));
+      const sigmaT = toDbArray(extractNumericVector(res.sigma_T));
+      const invWs = toDbArray(extractNumericVector(res.inv_ws_bound));
+      const invWt = toDbArray(extractNumericVector(res.inv_wt_bound));
+
+      const curves: SingularValueCurve[] = [];
+      if (sigmaS.length > 0) {
+        curves.push({
+          id: "hinf_sigma_S",
+          label: "σ̄(S)",
+          group: "S",
+          omega: omegaVec,
+          values_db: sigmaS,
+          stroke_dasharray: "",
+        });
+      }
+      if (sigmaT.length > 0) {
+        curves.push({
+          id: "hinf_sigma_T",
+          label: "σ̄(T)",
+          group: "T",
+          omega: omegaVec,
+          values_db: sigmaT,
+          stroke_dasharray: "6 3",
+        });
+      }
+      if (invWs.length > 0) {
+        curves.push({
+          id: "hinf_inv_ws",
+          label: "1/|W_S|",
+          group: "S",
+          omega: omegaVec,
+          values_db: invWs,
+          stroke_dasharray: "2 2",
+        });
+      }
+      if (invWt.length > 0) {
+        curves.push({
+          id: "hinf_inv_wt",
+          label: "1/|W_T|",
+          group: "T",
+          omega: omegaVec,
+          values_db: invWt,
+          stroke_dasharray: "8 3 2 3",
+        });
+      }
+
+      const svModel = buildSingularValuesChartModel({
+        chart_id: "mimo-hinf-mixed-sensitivity",
+        title: "Sensibilidade Mista H∞: σ̄(S), σ̄(T) vs 1/|W_S|, 1/|W_T|",
+        dt: null,
+        omega: omegaVec,
+        curves,
+        model_revision: eff.ref.revision,
+        project_revision: this.shell.getLqrWorkspace().getProjectRevision(),
+        provenance: resp.provenance as Provenance,
+        theme_mode: this.shell.getThemeMode(),
+      });
+
+      const rawGp = isPlainObject(res.generalized_plant_summary)
+        ? (res.generalized_plant_summary as Record<string, unknown>)
+        : null;
+
+      this.hinfSnapshot = {
+        gammaAchieved: typeof res.gamma_achieved === "number" ? res.gamma_achieved : null,
+        hinfNormGrid: typeof res.hinf_norm_grid === "number" ? res.hinf_norm_grid : null,
+        isStable: Boolean(res.is_stable),
+        gpSummary: rawGp
+          ? {
+              n_states: Number(rawGp.n_states ?? 0),
+              n_w: Number(rawGp.n_w ?? 0),
+              n_u: Number(rawGp.n_u ?? 0),
+              n_z: Number(rawGp.n_z ?? 0),
+              n_y: Number(rawGp.n_y ?? 0),
+            }
+          : null,
+        svModel,
+        controller: isPlainObject(res.controller)
+          ? (res.controller as Record<string, unknown>)
+          : null,
+      };
+
+      this.shell
+        .getAnnouncer()
+        .announce("Síntese robusta H∞ concluída.", "polite", "status");
+      this.render();
+      this.onRequestRender?.();
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
+  public async registerHinfController(): Promise<void> {
+    if (!this.hinfSnapshot?.controller) return;
+    try {
+      const reg = await this.shell
+        .getTypedWorkspace()
+        .registerTypedObject(this.hinfSnapshot.controller, { source: "manual" });
+      this.shell
+        .getAnnouncer()
+        .announce(
+          `Controlador K∞ (${reg.id} #r${reg.revision}) registrado no Workspace.`,
+          "polite",
+          "status",
+        );
+      this.render();
+      this.onRequestRender?.();
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
   private renderSigmaChart(): void {
     const decimals = this.shell.getDisplayDecimals();
     if (!this.snapshot) {
@@ -785,5 +1419,161 @@ export class MimoView {
 
     this.renderSigmaChart();
     this.renderRgaHeatmap();
+    this.renderDecouplerSection();
+    this.renderClosedLoopSection();
+    this.renderHinfSection();
+  }
+
+  private renderDecouplerSection(): void {
+    const decimals = this.shell.getDisplayDecimals();
+    const hasDec = Boolean(this.decouplerSnapshot?.decoupledPlant);
+    if (this.btnRegisterDecouplerEl) {
+      this.btnRegisterDecouplerEl.disabled = !hasDec;
+      if (hasDec) this.btnRegisterDecouplerEl.removeAttribute("aria-disabled");
+      else this.btnRegisterDecouplerEl.setAttribute("aria-disabled", "true");
+    }
+    if (!this.decouplerSummaryEl) return;
+    const d = this.decouplerSnapshot;
+    if (!d) {
+      this.decouplerSummaryEl.innerHTML = `<p>Projete o desacoplador SVD para comparar κ(G), norma off-diagonal e RGA pós-desacoplamento.</p>`;
+      return;
+    }
+
+    const kBefore = d.kappaBefore !== null ? formatNumericDisplay(d.kappaBefore, decimals) : "N/D";
+    const kAfter = d.kappaAfter !== null ? formatNumericDisplay(d.kappaAfter, decimals) : "N/D";
+    const offBefore =
+      d.rgaOffdiagBefore !== null ? formatNumericDisplay(d.rgaOffdiagBefore, decimals) : "N/D";
+    const offAfter =
+      d.rgaOffdiagAfter !== null ? formatNumericDisplay(d.rgaOffdiagAfter, decimals) : "N/D";
+
+    let rgaTableHtml = "";
+    if (d.rgaAfterMatrix && d.rgaAfterMatrix.length > 0) {
+      const m = d.rgaAfterMatrix[0]?.length ?? 0;
+      const headerCols = Array.from({ length: m }, (_, j) => `<th scope="col">u${j + 1}</th>`).join("");
+      const bodyRows = d.rgaAfterMatrix
+        .map((row, i) => {
+          const cells = row
+            .map((val) => {
+              const alpha = Math.min(0.65, Math.max(0.08, Math.min(1.5, Math.abs(val)) * 0.42));
+              const bgTint =
+                val >= 0
+                  ? `rgba(29, 78, 216, ${alpha.toFixed(2)})`
+                  : `rgba(180, 83, 9, ${alpha.toFixed(2)})`;
+              return `<td class="rga-cell" style="background:${bgTint}"><strong>${escapeHtml(formatNumericDisplay(val, decimals))}</strong></td>`;
+            })
+            .join("");
+          return `<tr><th scope="row">y${i + 1}</th>${cells}</tr>`;
+        })
+        .join("");
+      rgaTableHtml = [
+        `<table class="accessible-data-table mimo-rga-table" aria-label="RGA pós-desacoplamento">`,
+        `<thead><tr><th scope="col">Saída \\ Entrada</th>${headerCols}</tr></thead>`,
+        `<tbody>${bodyRows}</tbody>`,
+        `</table>`,
+      ].join("");
+    }
+
+    this.decouplerSummaryEl.innerHTML = [
+      `<p><strong>Modo:</strong> <code>${escapeHtml(d.realizationMode)}</code> em ω₀ = <code>${formatNumericDisplay(d.omegaTarget, decimals)}</code> rad/s</p>`,
+      `<p><strong>Condicionamento κ(G):</strong> <code>${escapeHtml(kBefore)}</code> → <code>${escapeHtml(kAfter)}</code> | <strong>||Λ − I|| (off-diagonal):</strong> <code>${escapeHtml(offBefore)}</code> → <code>${escapeHtml(offAfter)}</code></p>`,
+      rgaTableHtml,
+    ].join("");
+  }
+
+  private renderClosedLoopSection(): void {
+    const decimals = this.shell.getDisplayDecimals();
+    if (!this.clSnapshot) {
+      if (this.clSummaryEl) {
+        this.clSummaryEl.innerHTML = `<p>Execute a simulação canal-a-canal para verificar estabilidade, acoplamento cruzado e polos em malha fechada.</p>`;
+      }
+      if (this.clChartSlotEl) this.clChartSlotEl.innerHTML = "";
+      return;
+    }
+
+    const cl = this.clSnapshot;
+    if (this.clSummaryEl) {
+      const badge = cl.isStable
+        ? `<span class="badge badge-stable">Estável ✓</span>`
+        : `<span class="badge badge-experimental">Instável ⚠</span>`;
+      const ccStr =
+        cl.maxCrossCoupling !== null
+          ? formatNumericDisplay(cl.maxCrossCoupling, decimals)
+          : "N/D";
+      const polesStr =
+        cl.poles.length > 0
+          ? cl.poles
+              .slice(0, 8)
+              .map((p) =>
+                Math.abs(p.im) > 1e-6
+                  ? `${formatNumericDisplay(p.re, decimals)} ${p.im >= 0 ? "+" : "−"} j${formatNumericDisplay(Math.abs(p.im), decimals)}`
+                  : formatNumericDisplay(p.re, decimals),
+              )
+              .join(", ")
+          : "N/D";
+      this.clSummaryEl.innerHTML = [
+        `<p>${badge} <strong>Acoplamento cruzado máximo:</strong> <code>${escapeHtml(ccStr)}</code></p>`,
+        `<p><strong>Polos de malha fechada:</strong> <code>${escapeHtml(polesStr)}</code></p>`,
+      ].join("");
+    }
+
+    if (this.clChartSlotEl) {
+      const themeMode = this.shell.getThemeMode();
+      const model: TimeResponseChartModel = {
+        ...cl.timeModel,
+        theme_mode: themeMode,
+      };
+      this.clChartSlotEl.innerHTML = renderTimeResponseSvg(model, {
+        decimals,
+        themeMode,
+      });
+    }
+  }
+
+  private renderHinfSection(): void {
+    const decimals = this.shell.getDisplayDecimals();
+    const hasCtrl = Boolean(this.hinfSnapshot?.controller);
+    if (this.btnRegisterHinfEl) {
+      this.btnRegisterHinfEl.disabled = !hasCtrl;
+      if (hasCtrl) this.btnRegisterHinfEl.removeAttribute("aria-disabled");
+      else this.btnRegisterHinfEl.setAttribute("aria-disabled", "true");
+    }
+
+    if (!this.hinfSnapshot) {
+      if (this.hinfSummaryEl) {
+        this.hinfSummaryEl.innerHTML = `<p>Configure os filtros W_S, W_U e W_T e sintetize o controlador ótimo/subótimo K∞.</p>`;
+      }
+      if (this.hinfChartSlotEl) this.hinfChartSlotEl.innerHTML = "";
+      return;
+    }
+
+    const h = this.hinfSnapshot;
+    if (this.hinfSummaryEl) {
+      const badge = h.isStable
+        ? `<span class="badge badge-stable">Estável ✓</span>`
+        : `<span class="badge badge-experimental">Instável ⚠</span>`;
+      const gammaStr =
+        h.gammaAchieved !== null ? formatNumericDisplay(h.gammaAchieved, decimals) : "N/D";
+      const normStr =
+        h.hinfNormGrid !== null ? formatNumericDisplay(h.hinfNormGrid, decimals) : "N/D";
+      const gpStr = h.gpSummary
+        ? `n_states=${h.gpSummary.n_states}, n_w=${h.gpSummary.n_w}, n_u=${h.gpSummary.n_u}, n_z=${h.gpSummary.n_z}, n_y=${h.gpSummary.n_y}`
+        : "N/D";
+      this.hinfSummaryEl.innerHTML = [
+        `<p>${badge} <strong>γ atingido:</strong> <code>${escapeHtml(gammaStr)}</code> | <strong>||T_zw||∞ (grade):</strong> <code>${escapeHtml(normStr)}</code></p>`,
+        `<p><strong>Planta Generalizada P(s):</strong> <code>${escapeHtml(gpStr)}</code></p>`,
+      ].join("");
+    }
+
+    if (this.hinfChartSlotEl) {
+      const themeMode = this.shell.getThemeMode();
+      const model: SingularValuesChartModel = {
+        ...h.svModel,
+        theme_mode: themeMode,
+      };
+      this.hinfChartSlotEl.innerHTML = renderSingularValuesSvg(model, {
+        decimals,
+        themeMode,
+      });
+    }
   }
 }

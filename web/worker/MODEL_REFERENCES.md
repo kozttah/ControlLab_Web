@@ -25,6 +25,7 @@ null fields. Every group is checked for ambiguity before any store lookup.
 | `identification.validate_model` | `val_dataset` or `dataset` / `val_dataset_ref` or `dataset_ref`; independently `train_dataset` / `train_dataset_ref` | `val_dataset`, `train_dataset` | Dataset |
 | Declared state-space operations below | `plant` or `model` / `plant_ref` or `model_ref` | `plant` | StateSpace |
 | Declared frequency/MIMO operations below | `plant` or `model` / `plant_ref` or `model_ref` | `plant` | StateSpace, TransferFunction |
+| `mimo.simulate_closed_loop` (optional) | `decoupler` / `decoupler_ref`; `controller` / `controller_ref` | `decoupler`, `controller` | StateSpace, TransferFunction (and DynamicController for `controller`) |
 | `core.interconnect`, `core.validate_interconnection` | `plant` / `plant_ref` | `plant` | StateSpace, TransferFunction, TS discriminants |
 | `fuzzy.evaluate`, `fuzzy.evaluate_surface`, `fuzzy.export_fml` | `system`, `plant` or `model` / `system_ref`, `plant_ref` or `model_ref` | `system` | FuzzySystem |
 | `io.export_pvm` | `plant` or `model` / `plant_ref` or `model_ref` | `plant` | StateSpace, TransferFunction |
@@ -37,7 +38,8 @@ State-space operations are explicitly enumerated in the helper: `design_lqr`,
 `solve_lyapunov`, `discretize_zoh`, `simulate_lti`, all under `statespace.`.
 Frequency operations are `frequency.eval_response`, `bode`, `stability_margins`,
 `root_locus`, `step_response`, `singular_values`, plus `mimo.singular_values`,
-`mimo.rga`, `mimo.sensitivity`. This is an allowlist, not prefix matching.
+`mimo.rga`, `mimo.sensitivity`, `mimo.design_decoupler`, `mimo.simulate_closed_loop`,
+`mimo.design_hinf`. This is an allowlist, not prefix matching.
 State-space optimization templates are `quadratic_stabilization`,
 `continuous_stabilization`, `decay_rate`, `lqr_lmi`, `regional_pole_placement`.
 `hinf_brl` consumes its own raw matrix fields and does not receive plant aliases.
@@ -80,8 +82,8 @@ contract validation. No recursive `*_ref` resolution occurs: source provenance,
 lineage, nested user data and unrelated reference names remain data.
 
 The caller must explicitly register any returned derived/identified model before
-using its returned reference. `controller_ref` and arbitrary new reference names
-are outside this resolver's allowlist; no support is inferred from a suffix.
+using its returned reference. Arbitrary new reference names outside the operation-specific
+allowlist are not resolved; no support is inferred from a suffix.
 The preexisting project revision/cancellation checks, transfer ownership,
 snapshot/restart mechanism, LRU and PyProxy cleanup remain unchanged.
 

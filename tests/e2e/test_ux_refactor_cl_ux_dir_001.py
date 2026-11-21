@@ -910,3 +910,110 @@ def test_ux_phase1_workspace_csv_legend_siso_comp_and_fuzzy_reset(browser_harnes
     )
 
 
+def test_ux_phase2_lqg_observer_mimo_decoupler_and_hinf(browser_harness):
+    """Test 7: Phase 2 Advanced Synthesis — Tab 3 (Observer/Kalman/LQG) and Tab 4 (MIMO SVD Decoupler, Closed-Loop, H-inf)."""
+    page = mount_ui(browser_harness, "e2e-ux-phase2", {"width": 1280, "height": 800})
+
+    # 1. Tab 3 (statespace): Observer / Kalman / LQG
+    page.locator('button[data-tab-id="statespace"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'statespace'")
+    page.locator("#statespace-workspace-panel").wait_for(state="visible")
+
+    page.locator("#btn-obs-synthesize").click()
+    page.wait_for_function(
+        """() => {
+            const el = document.querySelector('#obs-results-summary');
+            const txt = el?.textContent || '';
+            return txt.includes('Ganho do Observador L:') && txt.includes('Ganho de Regulação K:');
+        }""",
+        timeout=30000,
+    )
+    obs_summary_text = page.locator("#obs-results-summary").inner_text()
+    assert "Ganho do Observador L:" in obs_summary_text
+    assert "Ganho de Regulação K:" in obs_summary_text
+
+    btn_obs_sim = page.locator("#btn-obs-simulate")
+    page.wait_for_function("() => !document.querySelector('#btn-obs-simulate')?.disabled")
+    btn_obs_sim.click()
+    obs_svg = page.locator("#obs-sim-chart-slot svg")
+    obs_svg.wait_for(state="visible", timeout=30000)
+
+    btn_obs_reg = page.locator("#btn-obs-register-ctrl")
+    page.wait_for_function("() => !document.querySelector('#btn-obs-register-ctrl')?.disabled")
+    dock_before = len(
+        page.evaluate("() => app.shell.getTypedWorkspace().listRegisteredObjects().map(o => o.id)")
+    )
+    btn_obs_reg.click()
+    page.wait_for_function(
+        f"() => app.shell.getTypedWorkspace().listRegisteredObjects().length > {dock_before}",
+        timeout=15000,
+    )
+    dock_text_after_lqg = page.locator("#workspace-dock-aside").inner_text()
+    assert "DynamicController" in dock_text_after_lqg or "lqg" in dock_text_after_lqg.lower()
+
+    # 2. Tab 4 (mimo_frequency): SVD Decoupler, Closed-Loop Step, H-inf Synthesis
+    page.locator('button[data-tab-id="mimo_frequency"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'mimo_frequency'")
+    page.locator("#mimo-workspace-panel").wait_for(state="visible")
+
+    page.locator('[data-action="mimo-load-example"]').click()
+    page.wait_for_function(
+        "() => document.querySelector('#mimo-active-plant-info')?.textContent?.includes('ss-mimo-distillation-2x2')"
+    )
+
+    page.locator("#btn-mimo-design-decoupler").click()
+    page.wait_for_function(
+        "() => document.querySelector('#mimo-decoupler-summary table') !== null",
+        timeout=30000,
+    )
+    decoupler_text = page.locator("#mimo-decoupler-summary").inner_text()
+    assert "κ(G)" in decoupler_text
+
+    page.locator("#btn-mimo-simulate-cl").click()
+    cl_svg = page.locator("#mimo-cl-chart-slot svg")
+    cl_svg.wait_for(state="visible", timeout=30000)
+
+    page.locator("#btn-mimo-design-hinf").click()
+    page.wait_for_function(
+        """() => {
+            const txt = document.querySelector('#mimo-hinf-summary')?.textContent || '';
+            return txt.includes('γ atingido:') && txt.includes('Planta Generalizada P(s):');
+        }""",
+        timeout=45000,
+    )
+    hinf_summary_text = page.locator("#mimo-hinf-summary").inner_text()
+    assert "γ atingido:" in hinf_summary_text
+    assert "n_states=" in hinf_summary_text
+    hinf_svg = page.locator("#mimo-hinf-chart-slot svg")
+    hinf_svg.wait_for(state="visible", timeout=30000)
+
+    # 3. Zero horizontal overflow at 1280x800 and 390x844 on Tab 3 and Tab 4
+    overflow_phase2 = {}
+    for width, height in ((1280, 800), (390, 844)):
+        page.set_viewport_size({"width": width, "height": height})
+        vp_key = f"{width}x{height}"
+        overflow_phase2[vp_key] = {}
+        for tab_id in ("statespace", "mimo_frequency"):
+            page.locator(f'button[data-tab-id="{tab_id}"]').click()
+            page.wait_for_function(f"() => app.shell.getActiveTab() === '{tab_id}'")
+            m = page.evaluate(
+                "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
+            )
+            overflow_phase2[vp_key][tab_id] = m
+            assert m["scrollWidth"] <= m["innerWidth"] + 1, (
+                f"Horizontal overflow at {vp_key} on tab '{tab_id}': "
+                f"scrollWidth={m['scrollWidth']} > innerWidth={m['innerWidth']}"
+            )
+
+    browser_harness.record(
+        "e2e-ux-phase2",
+        {
+            "obs_summary": obs_summary_text,
+            "decoupler_summary": decoupler_text,
+            "hinf_summary": hinf_summary_text,
+            "overflow_phase2": overflow_phase2,
+        },
+    )
+
+
+

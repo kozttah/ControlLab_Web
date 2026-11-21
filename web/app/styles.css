@@ -1295,6 +1295,8 @@ textarea {
   grid-template-columns: minmax(0, 1fr);
   gap: 0.85rem;
   align-items: start;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .mimo-plant-pill {
@@ -1346,6 +1348,83 @@ textarea {
 .mimo-pairing-hint {
   margin: 0.5rem 0 0 0;
   font-size: 0.85rem;
+}
+
+.mimo-rga-card,
+.mimo-rga-heatmap-slot,
+.mimo-params-row {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mimo-params-row .tool-field {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 140px;
+}
+
+.mimo-rga-table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.mimo-synthesis-card,
+.mimo-hinf-card {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mimo-synthesis-card h4,
+.mimo-hinf-card h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.mimo-synthesis-col h5 {
+  margin: 0 0 0.45rem 0;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+
+.mimo-synthesis-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mimo-synthesis-col {
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.mimo-hinf-weights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.65rem;
+  align-items: end;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mimo-synthesis-col select,
+.mimo-synthesis-col input[type="text"],
+.mimo-synthesis-col input[type="number"],
+.mimo-hinf-weights-grid select,
+.mimo-hinf-weights-grid input[type="text"],
+.mimo-hinf-weights-grid input[type="number"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Aba 5: Bancada Fuzzy / TS */
@@ -1567,6 +1646,13 @@ textarea {
     align-items: start;
   }
 
+  .mimo-synthesis-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: start;
+  }
+
   .fuzzy-main-grid,
   .fuzzy-workbench-grid {
     display: grid;
@@ -1587,6 +1673,7 @@ textarea {
 @media (max-width: 1400px) {
   .app-workbench-shell.inspector-open .workspace-two-col,
   .app-workbench-shell.inspector-open .mimo-workbench-grid,
+  .app-workbench-shell.inspector-open .mimo-synthesis-split,
   .app-workbench-shell.inspector-open .fuzzy-main-grid,
   .app-workbench-shell.inspector-open .fuzzy-workbench-grid,
   .app-workbench-shell.inspector-open .lmi-editor-split,
@@ -1614,6 +1701,7 @@ textarea {
 @media (max-width: 1023px) {
   .workspace-two-col,
   .mimo-workbench-grid,
+  .mimo-synthesis-split,
   .fuzzy-main-grid,
   .fuzzy-workbench-grid,
   .lmi-editor-split,
@@ -1633,6 +1721,8 @@ textarea {
   .workspace-two-col,
   .siso-charts-grid,
   .mimo-workbench-grid,
+  .mimo-synthesis-split,
+  .mimo-hinf-weights-grid,
   .fuzzy-main-grid,
   .fuzzy-workbench-grid,
   .lmi-editor-split,
@@ -1648,9 +1738,11 @@ textarea {
     padding: 0.65rem;
   }
 
-  .accessible-data-table {
+  .accessible-data-table,
+  .mimo-rga-table {
     display: block;
     overflow-x: auto;
+    max-width: 100%;
   }
 }
 

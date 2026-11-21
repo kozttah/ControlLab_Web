@@ -878,10 +878,13 @@ export class WorkspaceDockController {
     const sisoMargins = siso.getMarginsView();
     const sisoGain = siso.getCompensatorGain();
 
+    const dynamicCtrls = typed.listRegisteredObjects(["DynamicController"]);
+
     const renderKey = JSON.stringify({
       decimals,
       datasets: datasets.map((d) => [d.key, d.summary]),
       models: models.map((m) => [m.key, m.summary]),
+      dynamicCtrls: dynamicCtrls.map((c) => [c.key, c.summary]),
       pendingId: showPendingId ? pendingId?.model_ref : null,
       selDataset,
       selValDataset,
@@ -1033,6 +1036,23 @@ export class WorkspaceDockController {
           `<div class="dock-item-summary">Ganho K = ${escapeHtml(formatNumericDisplay(sisoGain, decimals))}</div>`,
           `<div class="dock-item-actions">`,
           `<button type="button" class="touch-control btn-secondary btn-small" data-dock-action="focus-siso-controller">→ SISO</button>`,
+          `</div>`,
+          `</div>`,
+        ].join(""),
+      );
+    }
+    for (const dynCtrl of dynamicCtrls) {
+      ctrlCards.push(
+        [
+          `<div class="dock-item" data-dock-item-key="${escapeHtml(dynCtrl.key)}">`,
+          `<div class="dock-item-head">`,
+          `<button type="button" class="dock-item-link" data-dock-action="inspect-object" data-object-key="${escapeHtml(dynCtrl.key)}">${escapeHtml(dynCtrl.id)} <small>#r${dynCtrl.revision}</small></button>`,
+          `<span class="badge badge-exact">LQG / Dinâmico</span>`,
+          `<button type="button" class="touch-control btn-secondary btn-small dock-remove-btn" data-action="dock-remove-item" data-obj-id="${escapeHtml(dynCtrl.id)}" data-obj-rev="${dynCtrl.revision}" aria-label="Remover ${escapeHtml(dynCtrl.id)} revisão ${dynCtrl.revision}" title="Remover item">×</button>`,
+          `</div>`,
+          `<div class="dock-item-summary">${escapeHtml(dynCtrl.summary)}</div>`,
+          `<div class="dock-item-actions">`,
+          `<button type="button" class="touch-control btn-secondary btn-small" data-dock-action="focus-lqr-controller">→ SS/LQR</button>`,
           `</div>`,
           `</div>`,
         ].join(""),

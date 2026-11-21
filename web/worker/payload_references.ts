@@ -27,7 +27,9 @@ const PLANT_OPERATIONS = new Set([
   "statespace.discretize_zoh", "statespace.simulate_lti",
   "frequency.eval_response", "frequency.bode", "frequency.stability_margins",
   "frequency.root_locus", "frequency.step_response", "frequency.singular_values",
-  "mimo.singular_values", "mimo.rga", "mimo.sensitivity", "io.export_pvm",
+  "mimo.singular_values", "mimo.rga", "mimo.sensitivity",
+  "mimo.design_decoupler", "mimo.simulate_closed_loop", "mimo.design_hinf",
+  "io.export_pvm",
 ]);
 
 function sources(operation: string, payload: Record<string, unknown>): readonly SourceGroup[] {
@@ -59,6 +61,13 @@ function sources(operation: string, payload: Record<string, unknown>): readonly 
       return [{ ...plant, kinds: ["StateSpace"], competingRaw: ["A", "B", "C", "D"] }];
     }
     return [];
+  }
+  if (operation === "mimo.simulate_closed_loop") {
+    return [
+      plant,
+      { target: "decoupler", inline: ["decoupler"], refs: ["decoupler_ref"], kinds: ["StateSpace", "TransferFunction"] },
+      { target: "controller", inline: ["controller"], refs: ["controller_ref"], kinds: ["StateSpace", "TransferFunction", "DynamicController"] },
+    ];
   }
   if (!PLANT_OPERATIONS.has(operation)) return [];
   return [operation.startsWith("statespace.")

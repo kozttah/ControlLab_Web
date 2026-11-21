@@ -422,6 +422,10 @@ export class ControlLabShell {
     return Math.min(15, Math.max(0, decimals));
   }
 
+  public getClient(): ControlLabEngineClient {
+    return this.client;
+  }
+
   public getLqrWorkspace(): LqrWorkspaceController {
     return this.lqr;
   }

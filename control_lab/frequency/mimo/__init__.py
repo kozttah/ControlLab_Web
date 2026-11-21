@@ -9,11 +9,20 @@ from .analysis import (
     singular_values,
 )
 
+from .synthesis import (
+    design_hinf_mixed_sensitivity,
+    design_svd_decoupler,
+    simulate_mimo_closed_loop,
+)
+
 __all__ = [
     "DEFAULT_RGA_COND_MAX",
+    "design_hinf_mixed_sensitivity",
+    "design_svd_decoupler",
     "eval_mimo_response",
     "nyquist_generalized",
     "rga",
     "sensitivity",
+    "simulate_mimo_closed_loop",
     "singular_values",
 ]

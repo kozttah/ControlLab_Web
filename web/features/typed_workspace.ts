@@ -49,6 +49,7 @@ export const TYPED_OBJECT_KINDS = [
   "Dataset",
   "IdentifiedModel",
   "FuzzySystem",
+  "DynamicController",
   ...TS_MODEL_KINDS,
 ] as const;
 export type TypedObjectKind = (typeof TYPED_OBJECT_KINDS)[number];
@@ -687,6 +688,17 @@ export function validateTypedCanonicalDto(raw: unknown): {
     summary = validateFuzzySystemDto(clean);
   } else if (rawKind === "IdentifiedModel") {
     summary = validateIdentifiedModelDto(clean);
+  } else if (rawKind === "DynamicController") {
+    const ac = validateTensorDescriptor(clean.Ac, "DynamicController.Ac");
+    validateTensorDescriptor(clean.Bc, "DynamicController.Bc");
+    validateTensorDescriptor(clean.Cc, "DynamicController.Cc");
+    validateTensorDescriptor(clean.Dc, "DynamicController.Dc");
+    const nStates = "shape" in ac ? (ac.shape[0] ?? 0) : 0;
+    const scheme =
+      typeof clean.interconnection_scheme === "string"
+        ? clean.interconnection_scheme
+        : "dynamic";
+    summary = `DynamicController (n=${nStates}, ${scheme})`;
   } else {
     summary = validateTsStateSpaceDto(clean, rawKind);
   }

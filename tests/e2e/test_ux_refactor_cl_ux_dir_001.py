@@ -961,13 +961,49 @@ def test_ux_phase2_lqg_observer_mimo_decoupler_and_hinf(browser_harness):
         "() => document.querySelector('#mimo-active-plant-info')?.textContent?.includes('ss-mimo-distillation-2x2')"
     )
 
+    page.locator("#mimo-decoupler-omega").fill("0.1, 1.0, 10.0")
+    assert page.locator("#mimo-decoupler-mode").input_value() == "auto"
     page.locator("#btn-mimo-design-decoupler").click()
     page.wait_for_function(
-        "() => document.querySelector('#mimo-decoupler-summary table') !== null",
+        """() => {
+            const summary = document.querySelector('#mimo-decoupler-summary');
+            if (!summary) return false;
+            const txt = summary.textContent || '';
+            return (
+                txt.includes('Ordem do desacoplador')
+                && txt.includes('(automática)')
+                && summary.querySelector('table[aria-label="Comparação por frequência do desacoplador"]') !== null
+                && summary.querySelector('table[aria-label="RGA pós-desacoplamento"]') !== null
+            );
+        }""",
+        timeout=30000,
+    )
+    per_freq_table = page.locator('#mimo-decoupler-summary table[aria-label="Comparação por frequência do desacoplador"]')
+    rga_post_table = page.locator('#mimo-decoupler-summary table[aria-label="RGA pós-desacoplamento"]')
+    assert per_freq_table.is_visible()
+    assert per_freq_table.locator("tbody tr").count() == 3
+    assert rga_post_table.is_visible()
+    assert rga_post_table.locator("tbody tr").count() >= 2
+    decoupler_text_auto = page.locator("#mimo-decoupler-summary").inner_text()
+    assert "Ordem do desacoplador" in decoupler_text_auto
+    assert "(automática)" in decoupler_text_auto
+    assert "κ(G)" in decoupler_text_auto
+
+    # Explicit order "2" (Ordem 2) -> verifies "2 (manual)"
+    page.select_option("#mimo-decoupler-mode", "2")
+    page.locator("#btn-mimo-design-decoupler").click()
+    page.wait_for_function(
+        """() => {
+            const txt = document.querySelector('#mimo-decoupler-summary')?.textContent || '';
+            return txt.includes('2 (manual)');
+        }""",
         timeout=30000,
     )
     decoupler_text = page.locator("#mimo-decoupler-summary").inner_text()
-    assert "κ(G)" in decoupler_text
+    assert "2 (manual)" in decoupler_text
+    assert per_freq_table.is_visible()
+    assert per_freq_table.locator("tbody tr").count() == 3
+    assert rga_post_table.is_visible()
 
     page.locator("#btn-mimo-simulate-cl").click()
     cl_svg = page.locator("#mimo-cl-chart-slot svg")

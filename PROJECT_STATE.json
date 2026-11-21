@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 7
+      "2026-11-21": 8
     }
   },
   "audit_reference": {
@@ -4433,6 +4433,185 @@
         "e2e_chromium": "14/14 passed in 154.96s",
         "verify_fixtures": "11 schemas + 7 golden fixtures OK",
         "governance_tests": "20 passed in 6.82s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-D1-F3-MULTIFREQ-DECOUPLER",
+      "front": "f3-frequency",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "F3: Estender design_svd_decoupler para aceitar conjunto de frequências alvo omega_targets e aproximação realizável multi-frequência",
+      "allowed_paths": [
+        "control_lab/frequency/mimo/",
+        "tests/unit/f3/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-C1-F9-BROWSER-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-08"
+      ],
+      "normative_tests": [
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1625083473/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" pytest tests/unit/f3/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "design_svd_decoupler aceita omega_targets (lista de frequências) ou omega_target escalar/lista, ajusta pré-compensador estático ou TFs próprias de 1ª ordem nos múltiplos pontos e retorna per_frequency com kappa e RGA antes/depois em cada ponto"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-D1-F3-MULTIFREQ-DECOUPLER.md",
+      "assessed_commit": "5bb4d7a07f45dbd24fd54cebccd45284e69e83e0",
+      "reviewed_source_sha256": {
+        "control_lab/frequency/mimo/synthesis.py": "5967029490f0d687f4093c5b23034aace8d0ec2d61c297adcb16f105f2d57ac8",
+        "tests/unit/f3/test_mimo_synthesis_hinf.py": "caae9cb96d6a38c3e968d884c95f52d604d641e30a4940820f7be64f88fd6ca8"
+      },
+      "acceptance_scope": [
+        "control_lab/frequency/mimo/synthesis.py",
+        "tests/unit/f3/test_mimo_synthesis_hinf.py"
+      ],
+      "acceptance_evidence": {
+        "pytest_f1_f3": "144 passed in 11.16s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "e2e_chromium": "14/14 passed in 150.28s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-D2-F1-RPC-MULTIFREQ",
+      "front": "f1-core-io",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "F1 RPC: Aceitar omega_targets em mimo.design_decoupler",
+      "allowed_paths": [
+        "control_lab/core/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-D1-F3-MULTIFREQ-DECOUPLER"
+      ],
+      "requirement_ids": [
+        "R-01",
+        "R-02"
+      ],
+      "normative_tests": [
+        "T-CORE-01"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1625083473/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" pytest tests/unit/f1/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "mimo.design_decoupler aceita omega_targets (lista de floats) e omega_target"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-D2-F1-RPC-MULTIFREQ.md",
+      "assessed_commit": "5bb4d7a07f45dbd24fd54cebccd45284e69e83e0",
+      "reviewed_source_sha256": {
+        "control_lab/core/rpc.py": "e1fbd4857906cd873d64f2d2f86e5a648738501c69e87b409c2963a623e6d699",
+        "tests/unit/f1/test_rpc_mimo_synthesis.py": "147d877258d638c954cc8def1f1c4304e4f213b6cae61931aa13c2b7236995e3"
+      },
+      "acceptance_scope": [
+        "control_lab/core/rpc.py",
+        "tests/unit/f1/test_rpc_mimo_synthesis.py"
+      ],
+      "acceptance_evidence": {
+        "pytest_f1_f3": "144 passed in 11.16s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20 passed in 10.57s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-D3-F8-MULTIFREQ-UI",
+      "front": "f8-ui-charts",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "F8 UI: Input de conjunto de frequências alvo no desacoplador SVD da Aba 4 e tabela comparativa por frequência",
+      "allowed_paths": [
+        "web/features/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-D2-F1-RPC-MULTIFREQ"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1625083473/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Campo #mimo-decoupler-omega aceita lista de frequências separadas por vírgula (ex: 0.1, 1.0, 10.0) e exibe comparação κ(G) e RGA por frequência"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-D3-F8-MULTIFREQ-UI.md",
+      "assessed_commit": "5bb4d7a07f45dbd24fd54cebccd45284e69e83e0",
+      "reviewed_source_sha256": {
+        "web/features/views/mimo_view.ts": "a5e797b286c7d2dcd39e2d343a2a1af03102d3a4b18c2aa6f13ca75e74176cf1",
+        "tests/unit/f8/mimo_synthesis_hinf.test.ts": "261d53775e12f5917dbbec888708073eedcf71a0bdbe01a73195214decb63531"
+      },
+      "acceptance_scope": [
+        "web/features/views/mimo_view.ts",
+        "tests/unit/f8/mimo_synthesis_hinf.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "49 TS files, 0 errors",
+        "web_tests": "132/132 passed across 17 files in 91884ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "e2e_chromium": "14/14 passed in 150.28s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-D4-F9-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase2-Advanced-Synthesis",
+      "title": "F9: Auditoria independente do desacoplador SVD multi-frequência",
+      "allowed_paths": [
+        "tests/e2e/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-D1-F3-MULTIFREQ-DECOUPLER",
+        "WP-PHASE2-D2-F1-RPC-MULTIFREQ",
+        "WP-PHASE2-D3-F8-MULTIFREQ-UI"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-FREQ-02"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:/tmp/exebox-escape-1625083473/exeboxtools:/opt/antigravity/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" pytest tests/unit/f1/ tests/unit/f3/ tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Auditar F3, F1 e F8 e validar multi-frequência no Chromium real"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-D4-F9-AUDIT.md",
+      "assessed_commit": "5bb4d7a07f45dbd24fd54cebccd45284e69e83e0",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "d285b5337654b74ef9460d574998347e7ecac95619f9483bbbfe53aa17a28d4e"
+      },
+      "acceptance_scope": [
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "49 TS files, 0 errors",
+        "web_tests": "132/132 passed across 17 files in 91884ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "pytest_f1_f3": "144 passed in 11.16s",
+        "e2e_chromium": "14/14 passed in 150.28s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20 passed in 10.57s"
       }
     }
   ],

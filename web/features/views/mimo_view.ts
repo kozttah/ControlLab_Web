@@ -84,11 +84,22 @@ interface MimoAnalysisSnapshot {
 
 interface MimoDecouplerSnapshot {
   omegaTarget: number;
-  realizationMode: "static" | "first_order";
+  omegaTargets: number[];
+  realizationMode: "auto" | "static" | "first_order" | "rational";
+  orderUsed: number | null;
+  orderMode: "auto" | "manual";
+  fitRelativeError: number | null;
   kappaBefore: number | null;
   kappaAfter: number | null;
   rgaOffdiagBefore: number | null;
   rgaOffdiagAfter: number | null;
+  perFrequency: Array<{
+    omega: number;
+    kappaBefore: number | null;
+    kappaAfter: number | null;
+    rgaOffdiagBefore: number | null;
+    rgaOffdiagAfter: number | null;
+  }>;
   rgaAfterMatrix: number[][] | null;
   decoupler: Record<string, unknown> | null;
   decoupledPlant: Record<string, unknown> | null;
@@ -392,12 +403,16 @@ export function renderMimoViewHtml(): string {
     `<div class="mimo-synthesis-col">`,
     `<h5>1. Desacoplador SVD</h5>`,
     `<div class="mimo-params-row panel-actions">`,
-    `<label for="mimo-decoupler-omega">Frequência alvo ω₀ (rad/s)</label>`,
-    `<input type="number" id="mimo-decoupler-omega" class="touch-control id-param-input" min="0.0001" step="0.1" value="1.0" aria-label="Frequência alvo ω₀ (rad/s)" />`,
-    `<label for="mimo-decoupler-mode">Modo</label>`,
-    `<select id="mimo-decoupler-mode" class="touch-control" aria-label="Modo de realização do desacoplador">`,
-    `<option value="static">Pré-compensador Estático W₀</option>`,
-    `<option value="first_order">Aproximação Realizável 1ª Ordem W₁(s)</option>`,
+    `<label for="mimo-decoupler-omega">Frequências alvo ω (rad/s, separadas por vírgula)</label>`,
+    `<input type="text" id="mimo-decoupler-omega" class="touch-control" value="0.1, 1.0, 10.0" placeholder="ex: 0.1, 1.0, 10.0" aria-label="Frequências alvo ω (rad/s, separadas por vírgula)" />`,
+    `<label for="mimo-decoupler-mode">Ordem do Desacoplador</label>`,
+    `<select id="mimo-decoupler-mode" class="touch-control" aria-label="Ordem de realização do desacoplador">`,
+    `<option value="auto" selected>Automática (menor ordem própria)</option>`,
+    `<option value="0">Ordem 0 (Ganho estático W₀)</option>`,
+    `<option value="1">Ordem 1 (1ª ordem própria)</option>`,
+    `<option value="2">Ordem 2 (2ª ordem própria)</option>`,
+    `<option value="3">Ordem 3 (3ª ordem própria)</option>`,
+    `<option value="4">Ordem 4 (4ª ordem própria)</option>`,
     `</select>`,
     `<button type="button" id="btn-mimo-design-decoupler" class="touch-control btn-primary" data-action="mimo-design-decoupler">Projetar Desacoplador SVD</button>`,
     `<button type="button" id="btn-mimo-register-decoupler" class="touch-control btn-secondary" data-action="mimo-register-decoupler" disabled aria-disabled="true">Registrar Planta Desacoplada</button>`,
@@ -892,17 +907,35 @@ export class MimoView {
         );
       }
 
-      const omegaTarget = Number(this.decouplerOmegaEl?.value ?? 1.0);
-      if (!Number.isFinite(omegaTarget) || omegaTarget <= 0) {
+      const rawOmegaText = String(this.decouplerOmegaEl?.value ?? "0.1, 1.0, 10.0").trim();
+      const omegaTokens = rawOmegaText.split(/[\s,;]+/).filter((tok) => tok.length > 0);
+      const omegaList = omegaTokens.map((tok) => Number(tok));
+      if (
+        omegaList.length === 0 ||
+        omegaList.some((w) => !Number.isFinite(w) || w < 0)
+      ) {
         throw new ControlLabBridgeError(
           "VALIDATION_ERROR",
-          "Frequência alvo ω₀ deve ser finita e > 0.",
+          "Frequências alvo ω inválidas. Informe números finitos >= 0 separados por vírgula (ex: 0.1, 1.0, 10.0).",
         );
       }
-      const mode: "static" | "first_order" =
-        this.decouplerModeEl?.value === "first_order" ? "first_order" : "static";
+      const omegaTarget = omegaList[Math.floor(omegaList.length / 2)];
+      const rawModeVal = String(this.decouplerModeEl?.value ?? "auto").trim();
+      const isExplicitOrder = ["0", "1", "2", "3", "4"].includes(rawModeVal);
 
-      const params = { omega_target: omegaTarget, realization_mode: mode };
+      const params: Record<string, unknown> = {
+        omega_target: omegaTarget,
+        omega_targets: omegaList,
+        realization_mode: isExplicitOrder
+          ? rawModeVal === "0"
+            ? "static"
+            : "rational"
+          : "auto",
+      };
+      if (isExplicitOrder) {
+        params.order = Number(rawModeVal);
+      }
+
       const plan = await typed.prepareToolExecution("mimo.design_decoupler", params, {
         extraPayload: params,
       });
@@ -915,15 +948,46 @@ export class MimoView {
       }
 
       const res = resp.result as Record<string, unknown>;
+      const parsedOmegaTargets = extractNumericVector(res.omega_targets);
+      const rawPerFreq = Array.isArray(res.per_frequency) ? res.per_frequency : [];
+      const perFrequency = rawPerFreq
+        .filter(isPlainObject)
+        .map((item) => ({
+          omega: typeof item.omega === "number" ? item.omega : 0,
+          kappaBefore: typeof item.kappa_before === "number" ? item.kappa_before : null,
+          kappaAfter: typeof item.kappa_after === "number" ? item.kappa_after : null,
+          rgaOffdiagBefore:
+            typeof item.rga_offdiag_norm_before === "number" ? item.rga_offdiag_norm_before : null,
+          rgaOffdiagAfter:
+            typeof item.rga_offdiag_norm_after === "number" ? item.rga_offdiag_norm_after : null,
+        }));
+
+      const rawResMode = res.realization_mode;
+      const realizationMode: MimoDecouplerSnapshot["realizationMode"] =
+        rawResMode === "static" || rawResMode === "first_order" || rawResMode === "rational"
+          ? rawResMode
+          : "auto";
+      const orderUsed = typeof res.order_used === "number" ? res.order_used : null;
+      const orderMode: "auto" | "manual" = res.order_mode === "manual" ? "manual" : "auto";
+      const fitRelativeError =
+        typeof res.fit_relative_error === "number" && Number.isFinite(res.fit_relative_error)
+          ? res.fit_relative_error
+          : null;
+
       this.decouplerSnapshot = {
         omegaTarget: typeof res.omega_target === "number" ? res.omega_target : omegaTarget,
-        realizationMode: res.realization_mode === "first_order" ? "first_order" : "static",
+        omegaTargets: parsedOmegaTargets.length > 0 ? parsedOmegaTargets : omegaList,
+        realizationMode,
+        orderUsed,
+        orderMode,
+        fitRelativeError,
         kappaBefore: typeof res.kappa_before === "number" ? res.kappa_before : null,
         kappaAfter: typeof res.kappa_after === "number" ? res.kappa_after : null,
         rgaOffdiagBefore:
           typeof res.rga_offdiag_norm_before === "number" ? res.rga_offdiag_norm_before : null,
         rgaOffdiagAfter:
           typeof res.rga_offdiag_norm_after === "number" ? res.rga_offdiag_norm_after : null,
+        perFrequency,
         rgaAfterMatrix: extractReal2DMatrix(res.rga_after),
         decoupler: isPlainObject(res.decoupler) ? (res.decoupler as Record<string, unknown>) : null,
         decoupledPlant: isPlainObject(res.decoupled_plant)
@@ -1473,9 +1537,51 @@ export class MimoView {
       ].join("");
     }
 
+    const targetsStr =
+      d.omegaTargets.length > 0
+        ? d.omegaTargets.map((w) => formatNumericDisplay(w, decimals)).join(", ")
+        : formatNumericDisplay(d.omegaTarget, decimals);
+
+    let perFreqTableHtml = "";
+    if (d.perFrequency.length > 1) {
+      const pfRows = d.perFrequency
+        .map((pf) => {
+          const wStr = formatNumericDisplay(pf.omega, decimals);
+          const kb =
+            pf.kappaBefore !== null ? formatNumericDisplay(pf.kappaBefore, decimals) : "N/D";
+          const ka =
+            pf.kappaAfter !== null ? formatNumericDisplay(pf.kappaAfter, decimals) : "N/D";
+          const ob =
+            pf.rgaOffdiagBefore !== null
+              ? formatNumericDisplay(pf.rgaOffdiagBefore, decimals)
+              : "N/D";
+          const oa =
+            pf.rgaOffdiagAfter !== null
+              ? formatNumericDisplay(pf.rgaOffdiagAfter, decimals)
+              : "N/D";
+          return `<tr><th scope="row">${escapeHtml(wStr)}</th><td><code>${escapeHtml(kb)}</code> → <code>${escapeHtml(ka)}</code></td><td><code>${escapeHtml(ob)}</code> → <code>${escapeHtml(oa)}</code></td></tr>`;
+        })
+        .join("");
+      perFreqTableHtml = [
+        `<table class="accessible-data-table mimo-rga-table" aria-label="Comparação por frequência do desacoplador">`,
+        `<thead><tr><th scope="col">ω (rad/s)</th><th scope="col">κ(G) antes → depois</th><th scope="col">||Λ − I|| antes → depois</th></tr></thead>`,
+        `<tbody>${pfRows}</tbody>`,
+        `</table>`,
+      ].join("");
+    }
+
+    const orderStr = d.orderUsed !== null ? String(d.orderUsed) : "N/D";
+    const orderModeLabel = d.orderMode === "manual" ? "manual" : "automática";
+    const fitErrStr =
+      d.fitRelativeError !== null
+        ? `${formatNumericDisplay(d.fitRelativeError * 100, decimals)}%`
+        : "N/D";
+
     this.decouplerSummaryEl.innerHTML = [
-      `<p><strong>Modo:</strong> <code>${escapeHtml(d.realizationMode)}</code> em ω₀ = <code>${formatNumericDisplay(d.omegaTarget, decimals)}</code> rad/s</p>`,
+      `<p><strong>Ordem do desacoplador:</strong> <code>${escapeHtml(orderStr)}</code> (${escapeHtml(orderModeLabel)}) | <strong>Erro de ajuste em frequência:</strong> <code>${escapeHtml(fitErrStr)}</code></p>`,
+      `<p><strong>Modo:</strong> <code>${escapeHtml(d.realizationMode)}</code> | <strong>ω alvo (rad/s):</strong> <code>[${escapeHtml(targetsStr)}]</code> (rep. ω₀ = <code>${formatNumericDisplay(d.omegaTarget, decimals)}</code> rad/s)</p>`,
       `<p><strong>Condicionamento κ(G):</strong> <code>${escapeHtml(kBefore)}</code> → <code>${escapeHtml(kAfter)}</code> | <strong>||Λ − I|| (off-diagonal):</strong> <code>${escapeHtml(offBefore)}</code> → <code>${escapeHtml(offAfter)}</code></p>`,
+      perFreqTableHtml,
       rgaTableHtml,
     ].join("");
   }

@@ -1598,16 +1598,62 @@ def _handle_mimo_synthesis(req: dict[str, Any], store: Any) -> dict[str, Any]:
         raise ValidationError(f"Operação {op} exige 'plant' ou 'plant_ref'.")
 
     if op == "mimo.design_decoupler":
-        omega_target = _pick_param(payload, options, "omega_target", 1.0)
-        realization_mode = _pick_param(payload, options, "realization_mode", "static")
+        omega_targets_raw = _pick_param(payload, options, "omega_targets", None)
+        omega_targets: list[float] | None = None
+        if omega_targets_raw is not None:
+            raw_ot = _to_python_native(omega_targets_raw)
+            if not isinstance(raw_ot, (list, tuple, np.ndarray)) and not (
+                isinstance(raw_ot, Mapping) and "shape" in raw_ot and "data" in raw_ot
+            ):
+                raise ValidationError("omega_targets deve ser uma lista não vazia de números finitos.")
+            if isinstance(raw_ot, (list, tuple)) and any(isinstance(x, bool) for x in raw_ot):
+                raise ValidationError("omega_targets não pode conter booleanos.")
+            ot_arr = _coerce_array(raw_ot, name="omega_targets", ndim=1)
+            if ot_arr.size == 0:
+                raise ValidationError("omega_targets deve ser uma lista não vazia.")
+            omega_targets = [float(x) for x in ot_arr.tolist()]
+
+        omega_target_raw = _pick_param(payload, options, "omega_target", 1.0)
+        raw_o = _to_python_native(omega_target_raw)
+        omega_target: float | list[float]
+        if isinstance(raw_o, (list, tuple, np.ndarray)) or (
+            isinstance(raw_o, Mapping) and "shape" in raw_o and "data" in raw_o
+        ):
+            if isinstance(raw_o, (list, tuple)) and any(isinstance(x, bool) for x in raw_o):
+                raise ValidationError("omega_target não pode conter booleanos.")
+            o_arr = _coerce_array(raw_o, name="omega_target", ndim=1)
+            if o_arr.size == 0:
+                raise ValidationError("omega_target como lista não pode ser vazio.")
+            omega_target = [float(x) for x in o_arr.tolist()]
+        elif isinstance(raw_o, (int, float)) and not isinstance(raw_o, bool):
+            if not np.isfinite(float(raw_o)):
+                raise ValidationError("omega_target deve ser um número finito.")
+            omega_target = float(raw_o)
+        else:
+            raise ValidationError(
+                "omega_target deve ser um escalar numérico finito ou uma lista não vazia de números finitos."
+            )
+
+        realization_mode = _pick_param(payload, options, "realization_mode", "auto")
+        order = payload.get("order")
+        if order is not None:
+            if not _is_non_bool_int(order) or order < 0 or order > 6:
+                raise ValidationError(
+                    "order deve ser inteiro entre 0 e 6.",
+                    parameters={"order": order},
+                )
+            order = int(order)
         dt_val = _pick_param(payload, options, "dt", None)
-        res = design_svd_decoupler(
-            plant_obj,
-            omega_target=omega_target,
-            realization_mode=realization_mode,
-            dt=dt_val,
-            raise_on_error=False,
-        )
+        decoupler_kwargs: dict[str, Any] = {
+            "omega_target": omega_target,
+            "realization_mode": realization_mode,
+            "order": order,
+            "dt": dt_val,
+            "raise_on_error": False,
+        }
+        if omega_targets is not None:
+            decoupler_kwargs["omega_targets"] = omega_targets
+        res = design_svd_decoupler(plant_obj, **decoupler_kwargs)
     elif op == "mimo.simulate_closed_loop":
         has_ctrl = (
             ("controller" in payload and payload["controller"] is not None)

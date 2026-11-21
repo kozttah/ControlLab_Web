@@ -254,3 +254,80 @@ def test_rpc_mimo_synthesis_validation_errors():
     _validate_rpc_response_schema(conflict_ctrl)
     assert conflict_ctrl["status"] == "failure"
     assert conflict_ctrl["error"]["code"] == "VALIDATION_ERROR"
+
+    empty_omega_targets = dispatch_rpc(
+        _rpc_request(
+            "mimo.design_decoupler",
+            {
+                "plant": plant.to_dict(),
+                "omega_targets": [],
+            },
+        )
+    )
+    _validate_rpc_response_schema(empty_omega_targets)
+    assert empty_omega_targets["status"] == "failure"
+    assert empty_omega_targets["error"]["code"] == "VALIDATION_ERROR"
+
+    for bad_order in (True, -1, 7, 1.5):
+        invalid_order = dispatch_rpc(
+            _rpc_request(
+                "mimo.design_decoupler",
+                {
+                    "plant": plant.to_dict(),
+                    "omega_targets": [0.1, 1.0, 10.0],
+                    "realization_mode": "auto",
+                    "order": bad_order,
+                },
+            )
+        )
+        _validate_rpc_response_schema(invalid_order)
+        assert invalid_order["status"] == "failure"
+        assert invalid_order["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_rpc_mimo_design_decoupler_multifrequency():
+    plant = _make_2x2_mimo_plant()
+    req = _rpc_request(
+        "mimo.design_decoupler",
+        {
+            "plant": plant.to_dict(),
+            "omega_targets": [0.1, 1.0, 10.0],
+            "realization_mode": "first_order",
+        },
+    )
+    resp = dispatch_rpc(req)
+    _validate_rpc_response_schema(resp)
+
+    assert resp["status"] == "success"
+    assert resp["api_version"] == "1.0"
+    assert "provenance" in resp and resp["provenance"]["algorithm"]
+    assert resp["provenance"]["lib_versions"]
+
+    result = resp["result"]
+    assert result["realization_mode"] == "first_order"
+    assert len(result["per_frequency"]) == 3
+    assert json.dumps(resp)
+
+
+def test_rpc_mimo_design_decoupler_multifrequency_auto_order():
+    plant = _make_2x2_mimo_plant()
+    req = _rpc_request(
+        "mimo.design_decoupler",
+        {
+            "plant": plant.to_dict(),
+            "omega_targets": [0.1, 1.0, 10.0],
+            "realization_mode": "auto",
+            "order": 2,
+        },
+    )
+    resp = dispatch_rpc(req)
+    _validate_rpc_response_schema(resp)
+
+    assert resp["status"] == "success"
+    assert resp["api_version"] == "1.0"
+    assert "provenance" in resp and resp["provenance"]["algorithm"]
+    assert resp["provenance"]["lib_versions"]
+
+    result = resp["result"]
+    assert len(result["per_frequency"]) == 3
+    assert json.dumps(resp)

@@ -187,29 +187,384 @@ def _align_real_precompensator(G0: np.ndarray) -> np.ndarray:
     return W0
 
 
+def _normalize_omega_targets(
+    omega_target: float | Sequence[float],
+    omega_targets: Sequence[float] | None,
+) -> list[float]:
+    """Valida, converte e ordena/deduplica frequências alvo >= 0."""
+    raw_source: Any = omega_targets if omega_targets is not None else omega_target
+    if isinstance(raw_source, (int, float, np.number)) and not isinstance(raw_source, bool):
+        val = float(raw_source)
+        if not math.isfinite(val) or val < 0.0:
+            raise ValidationError("omega_target deve ser um escalar real finito >= 0.")
+        return [val]
+
+    if isinstance(raw_source, (str, bytes)):
+        raise ValidationError("omega_target / omega_targets deve ser um escalar ou sequência de floats >= 0.")
+
+    if isinstance(raw_source, np.ndarray):
+        if raw_source.ndim != 1:
+            raise ValidationError("omega_targets como array deve ser 1D.")
+        items = list(raw_source.tolist())
+    elif isinstance(raw_source, Sequence):
+        items = list(raw_source)
+    else:
+        raise ValidationError("omega_target / omega_targets deve ser um escalar ou sequência de floats >= 0.")
+
+    if len(items) == 0:
+        raise ValidationError("omega_targets não pode ser vazio.")
+
+    parsed: list[float] = []
+    for item in items:
+        if not isinstance(item, (int, float, np.number)) or isinstance(item, bool):
+            raise ValidationError("Todos os elementos de omega_targets devem ser números reais finitos >= 0.")
+        val = float(item)
+        if not math.isfinite(val) or val < 0.0:
+            raise ValidationError("Todos os elementos de omega_targets devem ser números reais finitos >= 0.")
+        parsed.append(val)
+
+    omega_list = sorted(set(parsed))
+    if not omega_list:
+        raise ValidationError("omega_targets não pode ser vazio.")
+    return omega_list
+
+
+def _stabilize_denominator(
+    den_coeffs: np.ndarray,
+    *,
+    is_discrete: bool,
+) -> np.ndarray:
+    """Reflete polos instáveis ou na fronteira para garantir denominador estritamente estável e mônico."""
+    den = np.asarray(den_coeffs, dtype=np.float64)
+    if den.size <= 1:
+        return np.array([1.0], dtype=np.float64)
+    if abs(den[0]) < 1e-15:
+        den = den.copy()
+        den[0] = 1.0
+    else:
+        den = den / den[0]
+
+    roots = np.roots(den)
+    stabilized = np.empty_like(roots, dtype=np.complex128)
+    for idx, r in enumerate(roots):
+        if is_discrete:
+            mag = abs(r)
+            if mag >= 0.999:
+                stabilized[idx] = (0.98 * r / mag) if mag > 0.0 else 0.0 + 0.0j
+            else:
+                stabilized[idx] = r
+        else:
+            if r.real >= -1e-4:
+                stabilized[idx] = complex(-abs(r.real) - 1e-3, r.imag)
+            else:
+                stabilized[idx] = r
+
+    den_stable = np.real(np.poly(stabilized)).astype(np.float64)
+    den_stable[0] = 1.0
+    return den_stable
+
+
+def _solve_numerator_for_denominator(
+    s_arr: np.ndarray,
+    h_arr: np.ndarray,
+    den_coeffs: np.ndarray,
+    order: int,
+    *,
+    reg: float = 1e-12,
+) -> tuple[np.ndarray, float]:
+    """Dado D(s) fixo e estável, resolve os coeficientes reais b_d..b_0 por mínimos quadrados."""
+    n_w = s_arr.size
+    n_num = order + 1
+    d_vals = np.polyval(den_coeffs, s_arr)
+
+    A_c = np.zeros((n_w, n_num), dtype=np.complex128)
+    for col, pwr in enumerate(range(order, -1, -1)):
+        A_c[:, col] = (s_arr**pwr) / d_vals
+
+    A_r = np.vstack([np.real(A_c), np.imag(A_c)])
+    y_r = np.concatenate([np.real(h_arr), np.imag(h_arr)])
+
+    A_aug = np.vstack([A_r, math.sqrt(reg) * np.eye(n_num, dtype=np.float64)])
+    y_aug = np.concatenate([y_r, np.zeros(n_num, dtype=np.float64)])
+    b_coeffs, _, _, _ = np.linalg.lstsq(A_aug, y_aug, rcond=None)
+
+    approx = np.polyval(b_coeffs, s_arr) / d_vals
+    err = float(np.sum(np.abs(approx - h_arr) ** 2))
+    return b_coeffs.astype(np.float64), err
+
+
+def _fit_rational_entry_sk(
+    s_arr: np.ndarray,
+    h_arr: np.ndarray,
+    den_init: np.ndarray,
+    order: int,
+    *,
+    is_discrete: bool,
+    n_iter: int = 8,
+    reg: float = 1e-10,
+) -> tuple[list[float], list[float]]:
+    """Ajuste racional próprio estável via Sanathanan-Koerner iterativo."""
+    if order == 0:
+        b0 = float(np.mean(np.real(h_arr)))
+        return [b0], [1.0]
+
+    n_w = s_arr.size
+    n_num = order + 1
+    n_den = order
+    n_params = n_num + n_den
+
+    den_curr = _stabilize_denominator(den_init, is_discrete=is_discrete)
+    best_num, best_err = _solve_numerator_for_denominator(s_arr, h_arr, den_curr, order)
+    best_den = den_curr.copy()
+
+    for _ in range(n_iter):
+        d_prev = np.polyval(den_curr, s_arr)
+        weights = 1.0 / np.maximum(np.abs(d_prev), 1e-12)
+
+        A_c = np.zeros((n_w, n_params), dtype=np.complex128)
+        for col, pwr in enumerate(range(order, -1, -1)):
+            A_c[:, col] = weights * (s_arr**pwr)
+        for col, pwr in enumerate(range(order - 1, -1, -1)):
+            A_c[:, n_num + col] = -weights * h_arr * (s_arr**pwr)
+        y_c = weights * h_arr * (s_arr**order)
+
+        A_r = np.vstack([np.real(A_c), np.imag(A_c)])
+        y_r = np.concatenate([np.real(y_c), np.imag(y_c)])
+
+        A_aug = np.vstack([A_r, math.sqrt(reg) * np.eye(n_params, dtype=np.float64)])
+        y_aug = np.concatenate([y_r, np.zeros(n_params, dtype=np.float64)])
+        theta, _, _, _ = np.linalg.lstsq(A_aug, y_aug, rcond=None)
+
+        if not np.all(np.isfinite(theta)):
+            break
+
+        den_cand = np.concatenate([[1.0], theta[n_num:]])
+        den_stable = _stabilize_denominator(den_cand, is_discrete=is_discrete)
+        num_cand, err_cand = _solve_numerator_for_denominator(s_arr, h_arr, den_stable, order)
+
+        if math.isfinite(err_cand) and err_cand < best_err:
+            best_err = err_cand
+            best_num = num_cand
+            best_den = den_stable
+
+        den_curr = den_stable
+
+    return [float(x) for x in best_num], [float(x) for x in best_den]
+
+
+def _fit_rational_entry_continuous(
+    w_arr: np.ndarray,
+    w_ideal_ij: np.ndarray,
+    order: int,
+) -> tuple[list[float], list[float]]:
+    """Ajusta W_ij(s) racional própria e estritamente estável de ordem `order`."""
+    if order == 0:
+        b0 = float(np.mean(np.real(w_ideal_ij)))
+        return [b0], [1.0]
+
+    w_min = float(np.min(w_arr))
+    w_max = float(np.max(w_arr))
+    a_low = max(0.05, 0.2 * w_min)
+    a_high = max(1.0, 5.0 * w_max)
+    if a_high <= a_low:
+        a_high = a_low * 10.0
+    poles_0 = -np.geomspace(a_low, a_high, order)
+    den_init = np.real(np.poly(poles_0)).astype(np.float64)
+    s_arr = 1j * w_arr
+    return _fit_rational_entry_sk(
+        s_arr,
+        w_ideal_ij.astype(np.complex128),
+        den_init,
+        order,
+        is_discrete=False,
+    )
+
+
+def _fit_rational_entry_discrete(
+    w_arr: np.ndarray,
+    dt: float,
+    w_ideal_ij: np.ndarray,
+    order: int,
+) -> tuple[list[float], list[float]]:
+    """Ajusta W_ij(z) racional própria e estritamente estável de ordem `order`."""
+    if order == 0:
+        b0 = float(np.mean(np.real(w_ideal_ij)))
+        return [b0], [1.0]
+
+    poles_0 = np.linspace(0.1, 0.85, order) if order > 1 else np.array([0.5])
+    den_init = np.real(np.poly(poles_0)).astype(np.float64)
+    z_arr = np.exp(1j * w_arr * dt)
+    return _fit_rational_entry_sk(
+        z_arr,
+        w_ideal_ij.astype(np.complex128),
+        den_init,
+        order,
+        is_discrete=True,
+    )
+
+
+def _build_static_w0(
+    G_mats: list[np.ndarray],
+    W0_list: list[np.ndarray],
+    D_targets: list[np.ndarray],
+    m: int,
+) -> np.ndarray:
+    """Calcula pré-compensador estático real W0 por mínimos quadrados multi-frequência."""
+    if len(G_mats) == 1:
+        return W0_list[0]
+
+    A_blocks: list[np.ndarray] = []
+    B_blocks: list[np.ndarray] = []
+    for k in range(len(G_mats)):
+        G_k = G_mats[k]
+        D_k = D_targets[k]
+        A_blocks.append(np.real(G_k))
+        A_blocks.append(np.imag(G_k))
+        B_blocks.append(np.real(D_k))
+        B_blocks.append(np.imag(D_k))
+    A_ls = np.vstack(A_blocks)
+    B_ls = np.vstack(B_blocks)
+    W0_ls, _, _, s_ls = np.linalg.lstsq(A_ls, B_ls, rcond=None)
+    s_w = np.linalg.svd(W0_ls, compute_uv=False) if np.all(np.isfinite(W0_ls)) else np.array([0.0])
+    if (
+        s_ls.size < m
+        or float(s_ls[-1]) <= 1e-12 * max(1.0, float(s_ls[0]))
+        or float(s_w[-1]) <= 1e-12 * max(1.0, float(s_w[0]))
+        or not np.all(np.isfinite(W0_ls))
+    ):
+        return np.mean(np.stack(W0_list, axis=0), axis=0)
+    return W0_ls
+
+
+def _build_decoupler_candidate(
+    order: int,
+    *,
+    m: int,
+    eff_dt: float | None,
+    w_arr: np.ndarray,
+    w_rep: float,
+    G_mats: list[np.ndarray],
+    W0_list: list[np.ndarray],
+    D_targets: list[np.ndarray],
+    W_ideal: np.ndarray,
+    prefer_single_freq_fo: bool = False,
+) -> tuple[StateSpace | TransferFunction, StateSpace, float]:
+    """Constrói candidato W1 de ordem `order` e calcula seu erro relativo de ajuste em W_ideal."""
+    n_w = w_arr.size
+    if order == 0:
+        W0 = _build_static_w0(G_mats, W0_list, D_targets, m)
+        W1_model: StateSpace | TransferFunction = StateSpace(
+            A=np.zeros((0, 0), dtype=np.float64),
+            B=np.zeros((0, m), dtype=np.float64),
+            C=np.zeros((m, 0), dtype=np.float64),
+            D=W0,
+            dt=eff_dt,
+        )
+        W1_ss = W1_model
+    elif n_w == 1 and order == 1 and prefer_single_freq_fo:
+        W0 = W0_list[0]
+        omega_c = 5.0 * max(w_rep, 1.0)
+        num_mat: list[list[list[float]]] = []
+        den_mat: list[list[list[float]]] = []
+        if eff_dt is None:
+            gain_comp = math.sqrt(omega_c**2 + w_rep**2) / omega_c
+            for i in range(m):
+                row_n: list[list[float]] = []
+                row_d: list[list[float]] = []
+                for j in range(m):
+                    row_n.append([float(W0[i, j] * omega_c * gain_comp)])
+                    row_d.append([1.0, omega_c])
+                num_mat.append(row_n)
+                den_mat.append(row_d)
+        else:
+            alpha = math.exp(-omega_c * eff_dt)
+            for i in range(m):
+                row_n = []
+                row_d = []
+                for j in range(m):
+                    row_n.append([float(W0[i, j] * (1.0 - alpha))])
+                    row_d.append([1.0, -alpha])
+                num_mat.append(row_n)
+                den_mat.append(row_d)
+        W1_model = TransferFunction(num=num_mat, den=den_mat, dt=eff_dt)
+        W1_ss = W1_model.to_state_space()
+    else:
+        num_mat = []
+        den_mat = []
+        for i in range(m):
+            row_n = []
+            row_d = []
+            for j in range(m):
+                w_ij = W_ideal[:, i, j]
+                if eff_dt is None:
+                    n_ij, d_ij = _fit_rational_entry_continuous(w_arr, w_ij, order)
+                else:
+                    n_ij, d_ij = _fit_rational_entry_discrete(w_arr, eff_dt, w_ij, order)
+                row_n.append(n_ij)
+                row_d.append(d_ij)
+            num_mat.append(row_n)
+            den_mat.append(row_d)
+        W1_model = TransferFunction(num=num_mat, den=den_mat, dt=eff_dt)
+        W1_ss = W1_model.to_state_space()
+
+    W1_mats = _eval_model_matrix_at_omega(W1_ss, w_arr)["G"]
+    num_err = 0.0
+    den_norm = 0.0
+    for k in range(n_w):
+        diff = W1_mats[k] - W_ideal[k]
+        num_err += float(np.sum(np.abs(diff) ** 2))
+        den_norm += float(np.sum(np.abs(W_ideal[k]) ** 2))
+    fit_rel_err = math.sqrt(num_err / max(den_norm, 1e-24))
+    return W1_model, W1_ss, fit_rel_err
+
+
 def design_svd_decoupler(
     plant: Any,
-    omega_target: float = 1.0,
-    realization_mode: str = "static",
+    omega_target: float | Sequence[float] = 1.0,
+    realization_mode: str = "auto",
     *,
+    omega_targets: Sequence[float] | None = None,
+    order: int | None = None,
     dt: float | None = None,
     raise_on_error: bool = True,
 ) -> Result:
-    """Projeta pré-compensador desacoplador real W1(s) via SVD / Maciejowski ALIGN em omega_target."""
+    """Projeta pré-compensador desacoplador W1(s) via SVD / Maciejowski ALIGN em uma ou múltiplas frequências."""
     prov = build_provenance("frequency.mimo.design_svd_decoupler", model_revision=getattr(plant, "revision", None))
     assumptions: dict[str, Any] = {}
     diagnostics: dict[str, Any] = {}
     warnings_out: list[WarningItem] = []
 
     try:
-        if not isinstance(omega_target, (int, float)) or isinstance(omega_target, bool) or not math.isfinite(float(omega_target)) or float(omega_target) < 0.0:
-            raise ValidationError("omega_target deve ser um escalar real finito >= 0.")
-        w0 = float(omega_target)
+        omega_list = _normalize_omega_targets(omega_target, omega_targets)
+        n_w = len(omega_list)
+        rep_idx = n_w // 2
+        w_rep = omega_list[rep_idx]
 
-        if realization_mode not in ("static", "first_order"):
+        if realization_mode not in ("auto", "static", "first_order", "rational"):
             raise ValidationError(
-                f"realization_mode inválido '{realization_mode}'. Use 'static' ou 'first_order'."
+                f"realization_mode inválido '{realization_mode}'. Use 'auto', 'static', 'first_order' ou 'rational'."
             )
+
+        if order is not None:
+            if not isinstance(order, int) or isinstance(order, bool) or order < 0 or order > 6:
+                raise ValidationError("order deve ser None ou inteiro no intervalo [0, 6].")
+
+        if realization_mode == "static":
+            if order is not None and order != 0:
+                raise ValidationError("realization_mode='static' é incompatível com order != 0.")
+            eff_order: int | None = 0
+            order_mode = "manual"
+        elif realization_mode == "first_order":
+            if order is not None and order != 1:
+                raise ValidationError("realization_mode='first_order' é incompatível com order != 1.")
+            eff_order = 1
+            order_mode = "manual"
+        elif order is not None:
+            eff_order = int(order)
+            order_mode = "manual"
+        else:
+            eff_order = None
+            order_mode = "auto"
 
         plant_dt = getattr(plant, "dt", None)
         if dt is not None:
@@ -229,67 +584,33 @@ def design_svd_decoupler(
                 f"Desacoplamento MIMO exige planta quadrada com p == m >= 2; recebido ({p}x{m})."
             )
 
-        w_arr = np.array([w0], dtype=np.float64)
+        w_arr = np.asarray(omega_list, dtype=np.float64)
         eval_info = _eval_model_matrix_at_omega(G_ss, w_arr)
         warnings_out.extend(eval_info["warnings"])
-        G0 = eval_info["G"][0]
+        G_mats = eval_info["G"]
 
-        s_before = np.linalg.svd(G0, compute_uv=False)
-        kappa_before = float(s_before[0] / s_before[-1]) if float(s_before[-1]) > 0.0 else float("inf")
+        W0_list: list[np.ndarray] = []
+        for k in range(n_w):
+            W0_k = _align_real_precompensator(G_mats[k])
+            if k > 0:
+                for j in range(m):
+                    if float(np.dot(W0_k[:, j], W0_list[0][:, j])) < 0.0:
+                        W0_k[:, j] = -W0_k[:, j]
+            W0_list.append(W0_k)
 
-        W0 = _align_real_precompensator(G0)
+        D_targets: list[np.ndarray] = []
+        W_ideal = np.zeros((n_w, m, m), dtype=np.complex128)
+        for k in range(n_w):
+            diag_gw = np.diag(G_mats[k] @ W0_list[k]).copy()
+            for j in range(m):
+                if abs(diag_gw[j]) < 1e-12:
+                    diag_gw[j] = 1.0 + 0.0j
+            D_k = np.diag(diag_gw)
+            D_targets.append(D_k)
+            W_ideal[k] = np.linalg.solve(G_mats[k].astype(np.complex128), D_k.astype(np.complex128))
 
-        if realization_mode == "static":
-            W1_model: StateSpace | TransferFunction = StateSpace(
-                A=np.zeros((0, 0), dtype=np.float64),
-                B=np.zeros((0, m), dtype=np.float64),
-                C=np.zeros((m, 0), dtype=np.float64),
-                D=W0,
-                dt=eff_dt,
-            )
-            W1_ss = W1_model
-        else:
-            # Realização própria de 1ª ordem com frequência de corte além de omega_target
-            omega_c = 5.0 * max(w0, 1.0)
-            num_mat: list[list[list[float]]] = []
-            den_mat: list[list[list[float]]] = []
-            if eff_dt is None:
-                gain_comp = math.sqrt(omega_c**2 + w0**2) / omega_c
-                for i in range(m):
-                    row_n: list[list[float]] = []
-                    row_d: list[list[float]] = []
-                    for j in range(m):
-                        row_n.append([float(W0[i, j] * omega_c * gain_comp)])
-                        row_d.append([1.0, omega_c])
-                    num_mat.append(row_n)
-                    den_mat.append(row_d)
-            else:
-                alpha = math.exp(-omega_c * eff_dt)
-                for i in range(m):
-                    row_n = []
-                    row_d = []
-                    for j in range(m):
-                        row_n.append([float(W0[i, j] * (1.0 - alpha))])
-                        row_d.append([1.0, -alpha])
-                    num_mat.append(row_n)
-                    den_mat.append(row_d)
-            W1_model = TransferFunction(num=num_mat, den=den_mat, dt=eff_dt)
-            W1_ss = W1_model.to_state_space()
-
-        G_des_ss = _series_ss(G_ss, W1_ss)
-
-        # Avaliar G_des(jw0) e RGA antes/depois
-        eval_after = _eval_model_matrix_at_omega(G_des_ss, w_arr)
-        G_des0 = eval_after["G"][0]
-        s_after = np.linalg.svd(G_des0, compute_uv=False)
-        kappa_after = float(s_after[0] / s_after[-1]) if float(s_after[-1]) > 0.0 else float("inf")
-
-        rga_before_res = rga(G_ss, [w0], raise_on_error=True)
-        rga_after_res = rga(G_des_ss, [w0], raise_on_error=True)
-        assert rga_before_res.data is not None and rga_after_res.data is not None
-
-        def _extract_rga_matrix(rga_res_data: dict[str, Any]) -> np.ndarray:
-            entry = rga_res_data["entries"][0]
+        def _extract_rga_matrix_at(rga_res_data: dict[str, Any], idx: int) -> np.ndarray:
+            entry = rga_res_data["entries"][idx]
             if entry["status"] != "defined" or entry["rga_matrix"] is None:
                 raise NumericalInconclusiveError("RGA indefinida na frequência alvo.")
             rm = entry["rga_matrix"]
@@ -297,19 +618,118 @@ def design_svd_decoupler(
             arr_im = np.asarray(rm["imag"], dtype=np.float64)
             return (arr_re + 1j * arr_im).reshape((m, m))
 
-        rga_before_c = _extract_rga_matrix(rga_before_res.data)
-        rga_after_c = _extract_rga_matrix(rga_after_res.data)
-        rga_before = np.real(rga_before_c)
-        rga_after = np.real(rga_after_c)
+        if eff_order is not None:
+            order_used = eff_order
+            W1_model, W1_ss, fit_relative_error = _build_decoupler_candidate(
+                order_used,
+                m=m,
+                eff_dt=eff_dt,
+                w_arr=w_arr,
+                w_rep=w_rep,
+                G_mats=G_mats,
+                W0_list=W0_list,
+                D_targets=D_targets,
+                W_ideal=W_ideal,
+                prefer_single_freq_fo=(realization_mode == "first_order"),
+            )
+            G_des_ss = _series_ss(G_ss, W1_ss)
+        else:
+            # Seleção automática da menor ordem própria em 0..4
+            has_freq_variation = False
+            if n_w > 1:
+                base_norm = max(float(np.linalg.norm(W_ideal[0])), 1e-12)
+                max_var = max(float(np.linalg.norm(W_ideal[k] - W_ideal[0])) / base_norm for k in range(1, n_w))
+                has_freq_variation = max_var > 0.05
 
-        offdiag_before = float(np.linalg.norm(rga_before_c - np.eye(m, dtype=np.complex128)))
-        offdiag_after = float(np.linalg.norm(rga_after_c - np.eye(m, dtype=np.complex128)))
+            candidates: list[tuple[int, StateSpace | TransferFunction, StateSpace, StateSpace, float, float]] = []
+            chosen: tuple[int, StateSpace | TransferFunction, StateSpace, StateSpace, float] | None = None
+
+            for d_cand in range(0, 5):
+                W1_m_c, W1_ss_c, fit_err_c = _build_decoupler_candidate(
+                    d_cand,
+                    m=m,
+                    eff_dt=eff_dt,
+                    w_arr=w_arr,
+                    w_rep=w_rep,
+                    G_mats=G_mats,
+                    W0_list=W0_list,
+                    D_targets=D_targets,
+                    W_ideal=W_ideal,
+                    prefer_single_freq_fo=False,
+                )
+                G_des_c = _series_ss(G_ss, W1_ss_c)
+                rga_cand_res = rga(G_des_c, omega_list, raise_on_error=True)
+                assert rga_cand_res.data is not None
+                max_offdiag_c = max(
+                    float(np.linalg.norm(_extract_rga_matrix_at(rga_cand_res.data, k) - np.eye(m, dtype=np.complex128)))
+                    for k in range(n_w)
+                )
+                score_c = fit_err_c + 0.5 * max_offdiag_c
+                candidates.append((d_cand, W1_m_c, W1_ss_c, G_des_c, fit_err_c, score_c))
+
+                if d_cand == 0 and has_freq_variation and fit_err_c > 0.05:
+                    continue
+                if fit_err_c <= 0.05 or max_offdiag_c <= 0.15:
+                    chosen = (d_cand, W1_m_c, W1_ss_c, G_des_c, fit_err_c)
+                    break
+
+            if chosen is None:
+                best_cand = min(candidates, key=lambda item: item[5])
+                chosen = (best_cand[0], best_cand[1], best_cand[2], best_cand[3], best_cand[4])
+
+            order_used, W1_model, W1_ss, G_des_ss, fit_relative_error = chosen
+
+        # Avaliar G_des(jw_k) e RGA antes/depois em todas as frequências alvo
+        eval_after = _eval_model_matrix_at_omega(G_des_ss, w_arr)
+        G_des_mats = eval_after["G"]
+
+        rga_before_res = rga(G_ss, omega_list, raise_on_error=True)
+        rga_after_res = rga(G_des_ss, omega_list, raise_on_error=True)
+        assert rga_before_res.data is not None and rga_after_res.data is not None
+
+        per_frequency: list[dict[str, Any]] = []
+        rga_before_list: list[np.ndarray] = []
+        for k, w_k in enumerate(omega_list):
+            s_before_k = np.linalg.svd(G_mats[k], compute_uv=False)
+            kappa_before_k = float(s_before_k[0] / s_before_k[-1]) if float(s_before_k[-1]) > 0.0 else float("inf")
+
+            s_after_k = np.linalg.svd(G_des_mats[k], compute_uv=False)
+            kappa_after_k = float(s_after_k[0] / s_after_k[-1]) if float(s_after_k[-1]) > 0.0 else float("inf")
+
+            rga_before_c_k = _extract_rga_matrix_at(rga_before_res.data, k)
+            rga_after_c_k = _extract_rga_matrix_at(rga_after_res.data, k)
+            rga_before_list.append(np.real(rga_before_c_k))
+            rga_after_k = np.real(rga_after_c_k)
+
+            offdiag_before_k = float(np.linalg.norm(rga_before_c_k - np.eye(m, dtype=np.complex128)))
+            offdiag_after_k = float(np.linalg.norm(rga_after_c_k - np.eye(m, dtype=np.complex128)))
+
+            per_frequency.append(
+                {
+                    "omega": float(w_k),
+                    "kappa_before": kappa_before_k,
+                    "kappa_after": kappa_after_k,
+                    "rga_offdiag_norm_before": offdiag_before_k,
+                    "rga_offdiag_norm_after": offdiag_after_k,
+                    "rga_after": rga_after_k,
+                }
+            )
+
+        rep_entry = per_frequency[rep_idx]
+        kappa_before = float(rep_entry["kappa_before"])
+        kappa_after = float(rep_entry["kappa_after"])
+        rga_before = rga_before_list[rep_idx]
+        rga_after = rep_entry["rga_after"]
+        offdiag_before = float(rep_entry["rga_offdiag_norm_before"])
+        offdiag_after = float(rep_entry["rga_offdiag_norm_after"])
 
         assumptions = {
             "domain": "continuous" if eff_dt is None else "discrete",
             "dt": eff_dt,
-            "omega_target": w0,
+            "omega_target": w_rep,
+            "omega_targets": omega_list,
             "realization_mode": realization_mode,
+            "order_mode": order_mode,
             "n_channels": m,
         }
         diagnostics = {
@@ -319,6 +739,9 @@ def design_svd_decoupler(
             "rga_offdiag_norm_after": offdiag_after,
             "decoupler_states": W1_ss.n_states,
             "decoupled_plant_states": G_des_ss.n_states,
+            "n_omega_targets": n_w,
+            "order_used": order_used,
+            "fit_relative_error": fit_relative_error,
         }
 
         return Result(
@@ -326,8 +749,13 @@ def design_svd_decoupler(
             data={
                 "decoupler": W1_model.to_dict(),
                 "decoupled_plant": G_des_ss.to_dict(),
-                "omega_target": w0,
+                "omega_target": w_rep,
+                "omega_targets": omega_list,
+                "per_frequency": per_frequency,
                 "realization_mode": realization_mode,
+                "order_used": order_used,
+                "order_mode": order_mode,
+                "fit_relative_error": fit_relative_error,
                 "kappa_before": kappa_before,
                 "kappa_after": kappa_after,
                 "rga_before": rga_before,

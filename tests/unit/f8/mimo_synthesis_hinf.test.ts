@@ -509,22 +509,23 @@ test("WP-PHASE2-B3-F8-MIMO-SYNTHESIS-HINF-UI: Desacoplador SVD, Malha Fechada ca
   assert.ok(synthesisCard, "Quadro #mimo-synthesis-card deve existir");
   assert.ok(hinfCard, "Quadro #mimo-hinf-card deve existir");
 
-  // 1. Workflow SVD Decoupler (first_order)
+  // 1. Workflow SVD Decoupler (modo automático)
   const omegaEl = root.querySelector<FakeElement>("#mimo-decoupler-omega");
   const modeEl = root.querySelector<FakeElement>("#mimo-decoupler-mode");
   assert.ok(omegaEl && modeEl);
   omegaEl.value = "1.0";
-  modeEl.value = "first_order";
+  modeEl.value = "auto";
 
   root.querySelector<FakeElement>('[data-action="mimo-design-decoupler"]')?.dispatchEvent("click");
   await flushAsync();
 
   const decReq = client.executedRequests.find((r) => r.operation === "mimo.design_decoupler");
   assert.ok(decReq, "RPC mimo.design_decoupler deve ser executado");
-  assert.equal(decReq.payload.realization_mode, "first_order");
+  assert.equal(decReq.payload.realization_mode, "auto");
   assert.equal(decReq.payload.omega_target, 1.0);
 
   const decSummaryHtml = root.querySelector<FakeElement>("#mimo-decoupler-summary")?.innerHTML ?? "";
+  assert.ok(decSummaryHtml.includes("Ordem do desacoplador:"), "Resumo deve exibir ordem do desacoplador");
   assert.ok(decSummaryHtml.includes("Condicionamento κ(G):"), "Resumo deve exibir κ(G) antes vs depois");
   assert.ok(decSummaryHtml.includes("||Λ − I||"), "Resumo deve exibir norma off-diagonal da RGA");
   assert.ok(decSummaryHtml.includes("RGA pós-desacoplamento"), "Resumo deve exibir tabela RGA pós-desacoplamento");
@@ -594,3 +595,92 @@ test("WP-PHASE2-B3-F8-MIMO-SYNTHESIS-HINF-UI: Desacoplador SVD, Malha Fechada ca
   const regObjects = app.shell.getTypedWorkspace().listRegisteredObjects();
   assert.ok(regObjects.length >= 3, "Planta exemplo, planta desacoplada e controlador K∞ devem estar registrados");
 });
+
+test("WP-PHASE2-D3-F8-MULTIFREQ-UI: Desacoplador SVD multi-frequência suporta modo automático e ordem explícita, exibindo ordem, erro de ajuste e tabelas", async () => {
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const client = new CpythonMimoBridgeClient();
+
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client,
+  });
+
+  app.shell.switchTab("mimo_frequency");
+  root.querySelector<FakeElement>('[data-action="mimo-load-example"]')?.dispatchEvent("click");
+  await flushAsync();
+
+  const omegaEl = root.querySelector<FakeElement>("#mimo-decoupler-omega");
+  const modeEl = root.querySelector<FakeElement>("#mimo-decoupler-mode");
+  assert.ok(omegaEl && modeEl, "Controles #mimo-decoupler-omega e #mimo-decoupler-mode devem existir");
+  assert.equal(omegaEl.getAttribute("type"), "text", "#mimo-decoupler-omega deve ser type='text'");
+
+  // 1) Modo automático ("auto")
+  omegaEl.value = "0.1, 1.0, 10.0";
+  modeEl.value = "auto";
+
+  root.querySelector<FakeElement>('[data-action="mimo-design-decoupler"]')?.dispatchEvent("click");
+  await flushAsync();
+
+  const decReqsAuto = client.executedRequests.filter((r) => r.operation === "mimo.design_decoupler");
+  assert.equal(decReqsAuto.length, 1, "RPC mimo.design_decoupler deve ser executado em modo auto");
+  const decReqAuto = decReqsAuto[0];
+  assert.equal(decReqAuto.payload.realization_mode, "auto");
+  assert.equal(decReqAuto.payload.order, undefined);
+  assert.deepEqual(decReqAuto.payload.omega_targets, [0.1, 1.0, 10.0]);
+  assert.equal(decReqAuto.payload.omega_target, 1.0);
+
+  const summaryEl = root.querySelector<FakeElement>("#mimo-decoupler-summary");
+  assert.ok(summaryEl, "#mimo-decoupler-summary deve existir");
+  const autoHtml = summaryEl.innerHTML;
+  assert.ok(autoHtml.includes("Ordem do desacoplador:"), "Resumo deve exibir ordem do desacoplador");
+  assert.ok(autoHtml.includes("(automática)"), "Resumo deve indicar modo automático");
+  assert.ok(
+    /Ordem do desacoplador:<\/strong>\s*<code>\d+<\/code>\s*\(automática\)/.test(autoHtml),
+    "Resumo deve exibir orderUsed numérico com (automática)",
+  );
+  assert.ok(
+    autoHtml.includes("Erro de ajuste em frequência:") && autoHtml.includes("%"),
+    "Resumo deve exibir erro de ajuste em frequência em %",
+  );
+
+  const perFreqTable = summaryEl.querySelector<FakeElement>(
+    'table[aria-label="Comparação por frequência do desacoplador"]',
+  );
+  assert.ok(perFreqTable, "Tabela comparativa por frequência deve ser renderizada");
+  assert.ok(
+    perFreqTable.className.includes("mimo-rga-table") &&
+      perFreqTable.className.includes("accessible-data-table"),
+    "Tabela comparativa deve reutilizar classes .accessible-data-table .mimo-rga-table",
+  );
+  const perFreqTbody = perFreqTable.querySelector<FakeElement>("tbody");
+  assert.ok(perFreqTbody, "Tabela comparativa deve ter tbody");
+  const perFreqRows = perFreqTbody.querySelectorAll<FakeElement>("tr");
+  assert.equal(perFreqRows.length, 3, "Tabela comparativa deve conter 3 linhas (0.1, 1.0, 10.0)");
+
+  const rgaAfterTable = summaryEl.querySelector<FakeElement>(
+    'table[aria-label="RGA pós-desacoplamento"]',
+  );
+  assert.ok(rgaAfterTable, "Tabela RGA pós-desacoplamento deve ser renderizada");
+
+  // 2) Modo manual com ordem explícita "2"
+  modeEl.value = "2";
+  root.querySelector<FakeElement>('[data-action="mimo-design-decoupler"]')?.dispatchEvent("click");
+  await flushAsync();
+
+  const decReqsAll = client.executedRequests.filter((r) => r.operation === "mimo.design_decoupler");
+  assert.equal(decReqsAll.length, 2, "Segunda chamada mimo.design_decoupler deve ser executada");
+  const decReqManual = decReqsAll[1];
+  assert.equal(decReqManual.payload.realization_mode, "rational");
+  assert.equal(decReqManual.payload.order, 2);
+
+  const manualHtml = summaryEl.innerHTML;
+  assert.ok(
+    /Ordem do desacoplador:<\/strong>\s*<code>2<\/code>\s*\(manual\)/.test(manualHtml),
+    "Resumo deve exibir orderUsed === 2 e orderMode === 'manual'",
+  );
+  assert.ok(
+    manualHtml.includes("Erro de ajuste em frequência:") && manualHtml.includes("%"),
+    "Resumo em modo manual deve exibir erro de ajuste em frequência em %",
+  );
+});
+

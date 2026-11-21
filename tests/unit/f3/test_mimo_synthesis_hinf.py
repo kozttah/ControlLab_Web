@@ -75,6 +75,143 @@ def test_design_svd_decoupler_discrete_and_validation() -> None:
     with pytest.raises(ValidationError):
         design_svd_decoupler(_coupled_2x2_tf(), realization_mode="invalid", raise_on_error=True)
 
+    # Erro em omega_targets vazio ou negativo
+    with pytest.raises(ValidationError):
+        design_svd_decoupler(_coupled_2x2_tf(), omega_targets=[], raise_on_error=True)
+    with pytest.raises(ValidationError):
+        design_svd_decoupler(_coupled_2x2_tf(), omega_targets=[0.1, -1.0], raise_on_error=True)
+
+
+def test_design_svd_decoupler_multifreq_static_and_first_order() -> None:
+    plant = _coupled_2x2_tf()
+    targets = [0.1, 1.0, 10.0]
+
+    res_static = design_svd_decoupler(plant, realization_mode="static", omega_targets=targets)
+    assert res_static.status in ("success", "warning")
+    assert res_static.data is not None
+    d_static = res_static.data
+    assert d_static["omega_targets"] == targets
+    assert d_static["omega_target"] == 1.0
+    assert len(d_static["per_frequency"]) == 3
+    assert d_static["rga_offdiag_norm_after"] < d_static["rga_offdiag_norm_before"]
+
+    # Também aceita sequência diretamente em omega_target (com deduplicação e ordenação)
+    res_seq = design_svd_decoupler(plant, omega_target=[10.0, 0.1, 1.0, 1.0], realization_mode="first_order")
+    assert res_seq.status in ("success", "warning")
+    assert res_seq.data is not None
+    d_fo = res_seq.data
+    assert d_fo["omega_targets"] == targets
+    assert d_fo["omega_target"] == 1.0
+    assert d_fo["decoupler"]["kind"] == "TransferFunction"
+    assert len(d_fo["per_frequency"]) == 3
+    assert d_fo["rga_offdiag_norm_after"] < d_fo["rga_offdiag_norm_before"]
+    for entry in d_fo["per_frequency"]:
+        assert entry["rga_offdiag_norm_after"] < entry["rga_offdiag_norm_before"]
+
+    # Discreto multi-frequência em modo first_order
+    dt = 0.05
+    plant_d = StateSpace(
+        A=np.array([[0.85, 0.12], [0.08, 0.80]]),
+        B=np.array([[0.5, 0.3], [0.25, 0.6]]),
+        C=np.eye(2),
+        D=np.zeros((2, 2)),
+        dt=dt,
+    )
+    res_d_multi = design_svd_decoupler(plant_d, omega_targets=[0.2, 1.0, 5.0], realization_mode="first_order")
+    assert res_d_multi.status in ("success", "warning")
+    assert res_d_multi.data is not None
+    assert res_d_multi.data["order_used"] == 1
+    assert res_d_multi.data["order_mode"] == "manual"
+    assert len(res_d_multi.data["per_frequency"]) == 3
+    assert res_d_multi.data["rga_offdiag_norm_after"] < res_d_multi.data["rga_offdiag_norm_before"]
+
+
+def test_design_svd_decoupler_rational_order_and_auto() -> None:
+    plant = _coupled_2x2_tf()
+    targets = [0.1, 1.0, 10.0]
+
+    # Ordem explícita 2 (contínuo)
+    res_ord2 = design_svd_decoupler(plant, omega_targets=targets, order=2)
+    assert res_ord2.status in ("success", "warning")
+    assert res_ord2.data is not None
+    d2 = res_ord2.data
+    assert d2["order_used"] == 2
+    assert d2["order_mode"] == "manual"
+    assert d2["decoupler"]["kind"] == "TransferFunction"
+    assert np.isfinite(d2["fit_relative_error"])
+    assert d2["rga_offdiag_norm_after"] < d2["rga_offdiag_norm_before"]
+    for entry in d2["per_frequency"]:
+        assert entry["rga_offdiag_norm_after"] < entry["rga_offdiag_norm_before"]
+    # Verificar que todos os canais do desacoplador são próprios e estritamente estáveis
+    w_tf = TransferFunction.from_dict(d2["decoupler"])
+    for i in range(2):
+        for j in range(2):
+            assert len(w_tf.num[i][j]) <= len(w_tf.den[i][j])
+            poles = np.roots(w_tf.den[i][j])
+            assert np.all(np.real(poles) < 0.0)
+
+    # Modo automático (order=None, realization_mode="auto") escolhe a menor ordem própria
+    res_auto = design_svd_decoupler(plant, omega_targets=targets, realization_mode="auto", order=None)
+    assert res_auto.status in ("success", "warning")
+    assert res_auto.data is not None
+    da = res_auto.data
+    assert da["order_mode"] == "auto"
+    assert 1 <= da["order_used"] <= 4
+    assert np.isfinite(da["fit_relative_error"])
+    assert da["rga_offdiag_norm_after"] < da["rga_offdiag_norm_before"]
+    for entry in da["per_frequency"]:
+        assert entry["rga_offdiag_norm_after"] < entry["rga_offdiag_norm_before"]
+
+    # Para planta estática constante, modo automático deve selecionar ordem 0
+    static_plant = StateSpace(
+        A=np.zeros((0, 0)),
+        B=np.zeros((0, 2)),
+        C=np.zeros((2, 0)),
+        D=np.array([[2.0, 1.0], [0.5, 3.0]]),
+    )
+    res_auto_static = design_svd_decoupler(static_plant, omega_targets=targets, realization_mode="auto")
+    assert res_auto_static.data is not None
+    assert res_auto_static.data["order_used"] == 0
+    assert res_auto_static.data["order_mode"] == "auto"
+    assert res_auto_static.data["decoupler"]["kind"] == "StateSpace"
+
+    # Compatibilidade order=0 / static
+    res_ord0 = design_svd_decoupler(plant, omega_targets=targets, order=0)
+    assert res_ord0.data is not None
+    assert res_ord0.data["order_used"] == 0
+    assert res_ord0.data["order_mode"] == "manual"
+    assert res_ord0.data["decoupler"]["kind"] == "StateSpace"
+
+    # Ordem explícita 2 (discreto)
+    dt = 0.05
+    plant_d = StateSpace(
+        A=np.array([[0.85, 0.12], [0.08, 0.80]]),
+        B=np.array([[0.5, 0.3], [0.25, 0.6]]),
+        C=np.eye(2),
+        D=np.zeros((2, 2)),
+        dt=dt,
+    )
+    res_d_ord2 = design_svd_decoupler(plant_d, omega_targets=[0.2, 1.0, 5.0], order=2)
+    assert res_d_ord2.status in ("success", "warning")
+    assert res_d_ord2.data is not None
+    assert res_d_ord2.data["order_used"] == 2
+    assert res_d_ord2.data["order_mode"] == "manual"
+    w_tf_d = TransferFunction.from_dict(res_d_ord2.data["decoupler"])
+    for i in range(2):
+        for j in range(2):
+            poles_d = np.roots(w_tf_d.den[i][j])
+            assert np.all(np.abs(poles_d) < 1.0)
+
+    # Validações de order
+    with pytest.raises(ValidationError):
+        design_svd_decoupler(plant, order=-1, raise_on_error=True)
+    with pytest.raises(ValidationError):
+        design_svd_decoupler(plant, order=7, raise_on_error=True)
+    with pytest.raises(ValidationError):
+        design_svd_decoupler(plant, order=True, raise_on_error=True)
+    with pytest.raises(ValidationError):
+        design_svd_decoupler(plant, realization_mode="static", order=2, raise_on_error=True)
+
 
 def test_simulate_mimo_closed_loop_with_and_without_decoupler() -> None:
     plant = _coupled_2x2_tf()

@@ -1136,7 +1136,7 @@ export class StatespaceView {
     };
     for (const kind of ["pvm", "ctrlab"] as const) {
       this.container
-        .querySelector<HTMLElement>(`[data-action="export-${kind}"]`)
+        .querySelector<HTMLElement>(`#btn-export-${kind}`)
         ?.addEventListener("click", (ev) => {
           void openNativeFile(kind, ev.currentTarget as HTMLElement | null).catch(
             (error: unknown) => this.shell.presentError(error),

@@ -667,3 +667,137 @@ test("WP-UX-REFACTOR-05-HIGH-CONTRAST-AND-VISUAL-CLEANUP: sincroniza high_contra
 
   app.destroy();
 });
+
+test("WP-UX-REFACTOR-07-WORKBENCH-MOCKUP-FIDELITY: Topbar global project buttons (#btn-header-open-ctrlab, #btn-header-export-ctrlab, #btn-header-export-pvm) respeitam R-23 e layouts .lmi-results-split, .mimo-workbench-grid, .siso-charts-grid, #siso-advanced-params-details mantêm todos os slots filhos", async () => {
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const mockAdapter = new MockWorkerAdapter();
+  const origExecute = mockAdapter.execute.bind(mockAdapter);
+  mockAdapter.execute = async (req, opts) => {
+    if (req.operation === "io.export_pvm" || req.operation === "io.export_ctrlab") {
+      const { sha256Hex } = await import("../../../web/bridge/protocol.ts");
+      const bytes = new TextEncoder().encode(JSON.stringify(req.payload));
+      return {
+        api_version: req.api_version,
+        request_id: req.request_id,
+        project_id: req.project_id,
+        project_revision: req.project_revision,
+        status: "success" as const,
+        result: {
+          bytes_base64: btoa(String.fromCharCode(...bytes)),
+          sha256: sha256Hex(bytes),
+          size_bytes: bytes.length,
+          media_type: req.operation === "io.export_ctrlab" ? "application/zip" : "application/json",
+        },
+        assumptions: {},
+        diagnostics: {
+          numeric_status: "ok" as const,
+          warnings_count: 0,
+          condition_estimates: {},
+          residuals: {},
+          timings_ms: { total: 1.0 },
+        },
+        provenance: {
+          operation: req.operation,
+          algorithm: "test.io_transport",
+          backend: "numpy_scipy",
+          code_hash: "0".repeat(64),
+          input_hash: "0".repeat(64),
+          random_seed: null,
+          deterministic: true,
+          model_revision: 1,
+          project_revision: req.project_revision,
+          lib_versions: {},
+        },
+        warnings: [],
+        error: null,
+      };
+    }
+    return origExecute(req, opts);
+  };
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client: mockAdapter,
+    project_id: "proj-ux-mockup-fidelity",
+  });
+  await app.client.init();
+
+  const headerOpenBtn = root.querySelector<FakeElement>("#btn-header-open-ctrlab")!;
+  const headerExportCtrlabBtn = root.querySelector<FakeElement>("#btn-header-export-ctrlab")!;
+  const headerExportPvmBtn = root.querySelector<FakeElement>("#btn-header-export-pvm")!;
+
+  assert.ok(headerOpenBtn !== null);
+  assert.ok(headerExportCtrlabBtn !== null);
+  assert.ok(headerExportPvmBtn !== null);
+
+  // Before LQR commit: R-23 blocks export
+  assert.equal(headerExportCtrlabBtn.disabled, true);
+  assert.equal(headerExportCtrlabBtn.getAttribute("aria-disabled"), "true");
+  assert.equal(headerExportPvmBtn.disabled, true);
+  assert.equal(headerExportPvmBtn.getAttribute("aria-disabled"), "true");
+
+  // Single unique IDs for Tab 3 file input and export buttons
+  assert.equal(root.querySelectorAll("#ctrlab-file-input").length, 1);
+  assert.equal(root.querySelectorAll("#btn-export-ctrlab").length, 1);
+  assert.equal(root.querySelectorAll("#btn-export-pvm").length, 1);
+
+  // Clicking #btn-header-open-ctrlab forwards click to #ctrlab-file-input
+  let fileInputClicked = false;
+  root.querySelector<FakeElement>("#ctrlab-file-input")!.addEventListener("click", () => {
+    fileInputClicked = true;
+  });
+  headerOpenBtn.dispatchEvent("click");
+  assert.equal(fileInputClicked, true);
+
+  // Commit LQR -> Topbar export buttons become enabled
+  await app.shell.getLqrWorkspace().commitCurrentDesign();
+  assert.equal(headerExportCtrlabBtn.disabled, false);
+  assert.equal(headerExportCtrlabBtn.getAttribute("aria-disabled"), null);
+  assert.equal(headerExportPvmBtn.disabled, false);
+  assert.equal(headerExportPvmBtn.getAttribute("aria-disabled"), null);
+
+  // Clicking #btn-header-export-pvm triggers .pvm export modal
+  const exportModal = root.querySelector<FakeElement>("#controllab-export-modal")!;
+  const exportModalTitle = root.querySelector<FakeElement>("#export-modal-title")!;
+  assert.equal(exportModal.hasAttribute("hidden"), true);
+  headerExportPvmBtn.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(exportModal.hasAttribute("hidden"), false);
+  assert.equal(exportModalTitle.textContent, "Exportação .pvm");
+
+  // Verify workbench grid containers and child slots exist in DOM
+  const sisoDetails = root.querySelector<FakeElement>("#siso-advanced-params-details")!;
+  assert.ok(sisoDetails !== null);
+  assert.equal(sisoDetails.hasAttribute("open"), true);
+  assert.ok(sisoDetails.querySelector("#btn-siso-eval-bode") !== null);
+  assert.ok(sisoDetails.querySelector("#btn-siso-eval-rl") !== null);
+  assert.ok(sisoDetails.querySelector("#btn-siso-eval-step") !== null);
+  assert.ok(sisoDetails.querySelector("#siso-delay") !== null);
+  assert.ok(sisoDetails.querySelector("#siso-rl-zeta") !== null);
+
+  const sisoChartsGrid = root.querySelector<FakeElement>(".siso-charts-grid")!;
+  assert.ok(sisoChartsGrid !== null);
+  assert.ok(sisoChartsGrid.querySelector("#siso-bode-chart-slot") !== null);
+  assert.ok(sisoChartsGrid.querySelector("#siso-nyquist-chart-slot") !== null);
+  assert.ok(sisoChartsGrid.querySelector("#siso-rl-chart-slot") !== null);
+  assert.ok(sisoChartsGrid.querySelector("#siso-time-chart-slot") !== null);
+
+  const mimoGrid = root.querySelector<FakeElement>(".mimo-workbench-grid")!;
+  assert.ok(mimoGrid !== null);
+  assert.ok(mimoGrid.querySelector("#mimo-sigma-chart-slot") !== null);
+  assert.ok(mimoGrid.querySelector("#mimo-rga-heatmap-slot") !== null);
+
+  const fuzzyGrid = root.querySelector<FakeElement>(".fuzzy-workbench-grid")!;
+  assert.ok(fuzzyGrid !== null);
+  assert.ok(fuzzyGrid.querySelector("#fuzzy-mf-svg") !== null);
+  assert.ok(fuzzyGrid.querySelector("#fuzzy-surface-chart-slot") !== null);
+
+  const lmiResultsSplit = root.querySelector<FakeElement>(".lmi-results-split")!;
+  assert.ok(lmiResultsSplit !== null);
+  assert.ok(lmiResultsSplit.querySelector("#lmi-certificate-panel") !== null);
+  assert.ok(lmiResultsSplit.querySelector("#lmi-certificate-dims") !== null);
+  assert.ok(lmiResultsSplit.querySelector("#lmi-spectrum-chart-slot") !== null);
+  assert.ok(lmiResultsSplit.querySelector("#lmi-spectrum-table-slot") !== null);
+
+  app.destroy();
+});
+

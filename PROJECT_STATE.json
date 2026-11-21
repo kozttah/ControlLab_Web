@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 2
+      "2026-11-21": 3
     }
   },
   "audit_reference": {
@@ -3916,6 +3916,100 @@
         "docs/audits/handoffs/WP-UX-REFACTOR-06-F9-HIGH-CONTRAST-AUDIT.md",
         "tests/e2e/test_ux_refactor_cl_ux_dir_001.py",
         "tests/e2e/test_gatecd_interactions.py"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-REFACTOR-07-WORKBENCH-MOCKUP-FIDELITY",
+      "front": "f8-ui-charts",
+      "phase": "UX-Refactor-CL-UX-DIR-001",
+      "title": "Fidelidade 1:1 com o Mockup: Topbar global (.ctrlab/.pvm), auto-plot 2x2 SISO com detalhes recolhíveis, matrizes 2 colunas LQR e bancadas 2 colunas em Ident, MIMO, Fuzzy e LMI",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-UX-REFACTOR-06-F9-HIGH-CONTRAST-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-FREQ-01",
+        "T-SDP-C1",
+        "T-FML-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Topbar Global (main.ts): adicionar atalhos globais Abrir .ctrlab, Salvar .ctrlab e Exportar .pvm visíveis em todas as 6 abas e pílula limpa de status do motor Python/Wasm (preservando IDs #btn-export-pvm, #ctrlab-file-input, #btn-export-ctrlab e title/data-attributes com revisão e status do SW)",
+        "Aba 1 (IdentificationView): adicionar botões diretos de 1 clique Estimar ARX (#btn-id-fit-arx), Estimar Subespaços MOESP/N4SID (#btn-id-fit-subspace) e Validar em Holdout (#btn-id-validate-holdout) diretamente no card da Etapa 2, sem exigir uso do drawer legado",
+        "Aba 2 (SisoView): recolher parâmetros avançados de grade/Padé/K_max em <details id=\"siso-advanced-params-details\" open> compacto em grade 2 colunas e disparar auto-plot inicial dos 4 gráficos 2x2 (Bode, Nyquist, Lugar das Raízes e Degrau) ao abrir a Aba 2 pela primeira vez quando o motor estiver pronto",
+        "Aba 3 (StatespaceView): organizar as matrizes A, B, C, D e Q, R, x0 em grade compacta de 2 colunas lado a lado (.lqr-matrix-grids) e compactar o card de exportações secundárias (Ganhos JSON, CSV, Relatório R-27, opções PathView)",
+        "Abas 4, 5 e 6 (MimoView, FuzzyView, LmiView): aplicar layout de bancada de 2 colunas lado a lado no desktop (MIMO: controles + RGA à esquerda e Sigma à direita; Fuzzy: editor MF + matriz de regras à esquerda e superfície + TS/PDC à direita, com auto-avaliação inicial da superfície; LMI: Certificado 5D e Espectro de Autovalores lado a lado em 2 colunas abaixo do par Editor Monaco | Leitura Matemática)"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-REFACTOR-07-WORKBENCH-MOCKUP-FIDELITY.md",
+      "assessed_commit": "fb638acca0044e53a1e7b6e7d25c048a49e79ba5",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "2039c11803ca157cd4fc389aad487e67fcb049243510e3c9cdf2e1b9895f576b",
+        "web/app/styles.css": "82a89a2ba1ec9553ce40b5aa821743f8e744f6f0f3793bc8bf3a60d55b4e1a01",
+        "web/features/views/fuzzy_view.ts": "eac1068856810ddee4a87724955492627960dc982f8d10837482369bb6b2dbba",
+        "web/features/views/identification_view.ts": "0fc2cd411d14d6d7aee08a7c95c8504b2aa8c6e6b19eb9946c140876279c45c0",
+        "web/features/views/lmi_view.ts": "bcd1b74c800920a4ee63ab6932948104858a3d7784e0b23c33e491be42a38a47",
+        "web/features/views/siso_view.ts": "7285dbaaab2ca149e444139e210ddc38a1aaa7ca4ecf7a74a53a22c3a8d293ef",
+        "web/features/views/statespace_view.ts": "5a8c0fb37af0025be9b7efdb617e25728672b08cb11742e89e8b7f0803ac5a44",
+        "tests/unit/f8/shell_dock_ux.test.ts": "2cc88cacc9e16094f8a8450999cea6736562b8e1695d7d00b869e13e32d058e7"
+      },
+      "acceptance_scope": "topbar_global_project_actions_r23_siso_2x2_advanced_details_mimo_fuzzy_lmi_2col_grids",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-REFACTOR-07-WORKBENCH-MOCKUP-FIDELITY.md",
+        "tests/unit/f8/shell_dock_ux.test.ts",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-REFACTOR-08-F9-MOCKUP-FIDELITY-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "UX-Refactor-CL-UX-DIR-001",
+      "title": "Auditoria independente F9 em navegador real para a fidelidade 1:1 das 6 bancadas com o Mockup CL-UX-DIR-001",
+      "allowed_paths": [
+        "tests/e2e/",
+        "tests/wasm/",
+        "tests/oracles/",
+        "tests/integration/",
+        "scripts/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-UX-REFACTOR-07-WORKBENCH-MOCKUP-FIDELITY"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-FREQ-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/e2e/test_gatecd_interactions.py tests/e2e/test_id_siso_verticals.py -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Validar em navegador real (Playwright) os botões globais da Topbar, botões diretos de estimação ARX/Subespaços na Aba 1, auto-plot dos 4 gráficos SISO ao abrir a Aba 2, layout de 2 colunas nas Abas 3, 4, 5 e 6 e zero overflow horizontal em desktop e mobile"
       ]
     }
   ],

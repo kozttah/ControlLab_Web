@@ -185,8 +185,8 @@ textarea {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.65rem;
-  padding: 0.5rem 1rem;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
   background: var(--surface);
   border-bottom: 1px solid var(--border-subtle);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -195,19 +195,19 @@ textarea {
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
   min-width: 0;
 }
 
 .brand-mark {
-  width: 38px;
-  height: 38px;
-  border-radius: 9px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   background: var(--accent);
   color: var(--accent-text);
   display: grid;
   place-items: center;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -220,21 +220,22 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .brand-text h1 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .project-title-input {
-  width: min(220px, 100%);
+  width: min(175px, 100%);
   max-width: 100%;
   min-width: 0;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   background: var(--surface-alt);
 }
 
@@ -242,18 +243,20 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.2rem;
-  font-size: 0.85rem;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   background: var(--surface-alt);
   color: var(--text-primary);
   border: 1px solid var(--border);
+  font-size: 0.76rem;
+  padding: 0.12rem 0.45rem;
 }
 
 .status-dot {
@@ -281,16 +284,17 @@ textarea {
 
 .header-controls {
   align-items: center;
+  gap: 0.35rem;
 }
 
 .compact-label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 500;
   color: var(--text-secondary);
 }
 
 .decimals-input {
-  width: 72px;
+  width: 64px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -873,10 +877,29 @@ textarea {
 }
 
 .lqr-matrix-grids {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.65rem;
+}
+
+.lqr-export-card {
+  padding: 0.55rem 0.7rem;
+  margin: 0.45rem 0;
+}
+
+.lqr-export-card h4 {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.88rem;
+}
+
+.lqr-export-card .panel-actions {
+  gap: 0.35rem;
+}
+
+.lqr-export-card details {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
 }
 
 .lqr-matrix-block {
@@ -979,6 +1002,27 @@ textarea {
   gap: 0.45rem;
 }
 
+.id-params-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.id-param-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  font-size: 0.84rem;
+}
+
+.id-param-field .id-param-input,
+.id-param-field select {
+  width: 100%;
+  min-width: 0;
+}
+
 .id-param-input {
   width: 72px;
   font-variant-numeric: tabular-nums;
@@ -1049,6 +1093,36 @@ textarea {
 }
 
 /* Aba 2: Diagrama de blocos, MIMO guard, datatips interativos */
+.siso-advanced-details {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  padding: 0.45rem 0.6rem;
+}
+
+.siso-advanced-summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.25rem 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.siso-params-compact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  align-items: end;
+  margin-bottom: 0.4rem;
+}
+
+.siso-params-compact-grid .tool-field {
+  margin-bottom: 0;
+  font-size: 0.84rem;
+}
+
 .siso-loop-diagram-bar {
   display: flex;
   flex-wrap: wrap;
@@ -1218,8 +1292,8 @@ textarea {
 /* Aba 4: Bancada MIMO */
 .mimo-workbench-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 1.35fr) minmax(260px, 0.85fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
   align-items: start;
 }
 
@@ -1275,10 +1349,11 @@ textarea {
 }
 
 /* Aba 5: Bancada Fuzzy / TS */
-.fuzzy-main-grid {
+.fuzzy-main-grid,
+.fuzzy-workbench-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(300px, 1.1fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
   align-items: start;
 }
 
@@ -1324,6 +1399,12 @@ textarea {
   max-width: 100%;
 }
 
+.fuzzy-rules-matrix-wrap .accessible-data-table th,
+.fuzzy-rules-matrix-wrap .accessible-data-table td {
+  padding: 0.35rem 0.45rem;
+  text-align: center;
+}
+
 /* Aba 6: Bancada LMI / SDP (Editor estilo Monaco + Leitura Matemática + Certificado 5D) */
 .lmi-toolbar-row {
   margin-bottom: 0.45rem;
@@ -1346,10 +1427,11 @@ textarea {
   min-height: 36px;
 }
 
-.lmi-editor-split {
+.lmi-editor-split,
+.lmi-results-split {
   display: grid;
-  grid-template-columns: minmax(280px, 1.15fr) minmax(260px, 0.95fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
   align-items: start;
 }
 
@@ -1454,7 +1536,7 @@ textarea {
 
 .lmi-cert-dims-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
   gap: 0.5rem;
   margin-bottom: 0.55rem;
 }
@@ -1471,11 +1553,44 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+@media (min-width: 960px) {
+  .siso-charts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .mimo-workbench-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(290px, 1fr);
+    gap: 0.85rem;
+    align-items: start;
+  }
+
+  .fuzzy-main-grid,
+  .fuzzy-workbench-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: start;
+  }
+
+  .lmi-editor-split,
+  .lmi-results-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: start;
+  }
+}
+
 @media (max-width: 1400px) {
   .app-workbench-shell.inspector-open .workspace-two-col,
   .app-workbench-shell.inspector-open .mimo-workbench-grid,
   .app-workbench-shell.inspector-open .fuzzy-main-grid,
-  .app-workbench-shell.inspector-open .lmi-editor-split {
+  .app-workbench-shell.inspector-open .fuzzy-workbench-grid,
+  .app-workbench-shell.inspector-open .lmi-editor-split,
+  .app-workbench-shell.inspector-open .lmi-results-split {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -1494,23 +1609,20 @@ textarea {
   .app-workbench-shell.inspector-open .inspector-drawer {
     grid-column: 1 / -1;
   }
-
-  .siso-charts-grid,
-  .lmi-cert-dims-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1023px) {
   .workspace-two-col,
   .mimo-workbench-grid,
   .fuzzy-main-grid,
-  .lmi-editor-split {
+  .fuzzy-workbench-grid,
+  .lmi-editor-split,
+  .lmi-results-split {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 959px) {
   .app-workbench-shell,
   .app-workbench-shell.dock-collapsed,
   .app-workbench-shell.inspector-open,
@@ -1519,11 +1631,16 @@ textarea {
   .controllab-main.single-main-col,
   .controllab-main.tab-identification,
   .workspace-two-col,
+  .siso-charts-grid,
   .mimo-workbench-grid,
   .fuzzy-main-grid,
+  .fuzzy-workbench-grid,
   .lmi-editor-split,
+  .lmi-results-split,
   .lmi-cert-dims-grid,
-  .lqr-kpi-cards {
+  .lqr-kpi-cards,
+  .id-params-grid,
+  .siso-params-compact-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

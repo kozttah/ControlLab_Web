@@ -294,6 +294,9 @@ export function mountControlLabApp(
     `</div>`,
     `</div>`,
     `<div class="panel-actions header-controls">`,
+    `<button type="button" id="btn-header-open-ctrlab" class="touch-control btn-secondary btn-small" data-action="header-open-ctrlab">Abrir .ctrlab</button>`,
+    `<button type="button" id="btn-header-export-ctrlab" class="touch-control btn-secondary btn-small" data-action="export-ctrlab">Salvar .ctrlab</button>`,
+    `<button type="button" id="btn-header-export-pvm" class="touch-control btn-primary btn-small" data-action="header-export-pvm">Exportar .pvm</button>`,
     `<button type="button" id="btn-toggle-workspace-dock" class="touch-control btn-secondary btn-small" data-action="toggle-workspace-dock" aria-expanded="true">Workspace</button>`,
     `<button type="button" id="btn-toggle-inspector" class="touch-control btn-secondary btn-small" data-action="toggle-inspector" aria-expanded="false">Inspetor R-27</button>`,
     `<label for="decimals-select" class="compact-label">Casas decimais</label>`,
@@ -391,6 +394,9 @@ export function mountControlLabApp(
   const projectTitleInputEl = container.querySelector<HTMLInputElement>("#project-title-input");
   const engineBadgeEl = container.querySelector<HTMLElement>("#engine-status-badge");
   const revSummaryEl = container.querySelector<HTMLElement>("#revision-summary");
+  const btnHeaderOpenCtrlabEl = container.querySelector<HTMLButtonElement>("#btn-header-open-ctrlab");
+  const btnHeaderExportCtrlabEl = container.querySelector<HTMLButtonElement>("#btn-header-export-ctrlab");
+  const btnHeaderExportPvmEl = container.querySelector<HTMLButtonElement>("#btn-header-export-pvm");
   const decimalsInputEl = container.querySelector<HTMLInputElement>("#decimals-select");
   const themeBtnEl = container.querySelector<HTMLElement>("#theme-toggle-btn");
   const mainEl = container.querySelector<HTMLElement>("#controllab-main");
@@ -553,6 +559,17 @@ export function mountControlLabApp(
     }
     if (revSummaryEl) {
       revSummaryEl.textContent = `Rev. Projeto: ${lqr.getProjectRevision()} | Rev. Modelo: ${lqr.getPlant().revision}`;
+    }
+    if (btnHeaderExportCtrlabEl) {
+      btnHeaderExportCtrlabEl.disabled = !exportGuard.allowed;
+      if (exportGuard.allowed) btnHeaderExportCtrlabEl.removeAttribute("aria-disabled");
+      else btnHeaderExportCtrlabEl.setAttribute("aria-disabled", "true");
+    }
+    if (btnHeaderExportPvmEl) {
+      const canPvm = exportGuard.allowed && shell.canExportPvm();
+      btnHeaderExportPvmEl.disabled = !canPvm;
+      if (canPvm) btnHeaderExportPvmEl.removeAttribute("aria-disabled");
+      else btnHeaderExportPvmEl.setAttribute("aria-disabled", "true");
     }
     if (decimalsInputEl && decimalsInputEl.value !== String(decimals)) {
       decimalsInputEl.value = String(decimals);
@@ -795,6 +812,29 @@ export function mountControlLabApp(
     if (projectTitleInputEl.value !== projectTitle) {
       projectTitleInputEl.value = projectTitle;
     }
+  });
+
+  const forwardTriggerClick = (targetEl: HTMLElement | null): void => {
+    if (!targetEl) return;
+    if (typeof targetEl.click === "function") {
+      targetEl.click();
+    } else {
+      (targetEl as unknown as { dispatchEvent?: (type: string) => void }).dispatchEvent?.("click");
+    }
+  };
+  btnHeaderOpenCtrlabEl?.addEventListener("click", () => {
+    const fileInput = container.querySelector<HTMLInputElement>("#ctrlab-file-input");
+    forwardTriggerClick(fileInput);
+  });
+  btnHeaderExportCtrlabEl?.addEventListener("click", () => {
+    if (btnHeaderExportCtrlabEl.disabled) return;
+    const targetBtn = container.querySelector<HTMLButtonElement>("#btn-export-ctrlab");
+    forwardTriggerClick(targetBtn);
+  });
+  btnHeaderExportPvmEl?.addEventListener("click", () => {
+    if (btnHeaderExportPvmEl.disabled) return;
+    const targetBtn = container.querySelector<HTMLButtonElement>("#btn-export-pvm");
+    forwardTriggerClick(targetBtn);
   });
 
   for (const btn of tabButtons) {

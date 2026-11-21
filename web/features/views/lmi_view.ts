@@ -258,6 +258,7 @@ export function renderLmiViewHtml(): string {
     `<div id="lmi-parsed-alert" class="lmi-parsed-alert" aria-live="polite"></div>`,
     `</div>`,
     `</div>`,
+    `<div class="lmi-results-split">`,
     `<div id="lmi-certificate-panel" class="subcard lmi-certificate-panel" aria-live="polite">`,
     `<h4>Certificado de Auditoria Independente (5 Dimensões — ADR-010)</h4>`,
     `<div id="lmi-certificate-dims" class="lmi-cert-dims-grid"><p>Execute <strong>Resolver LMI</strong> para auditar o problema e gerar o certificado em 5 dimensões, ou exporte scripts CVXPY/YALMIP diretamente.</p></div>`,
@@ -268,6 +269,7 @@ export function renderLmiViewHtml(): string {
     `<div id="lmi-spectrum-chart-slot" class="chart-container"></div>`,
     renderLmiExportBarHtml("lmi-spectrum-chart-slot", "Espectro LMI λ_min(F_b(x*))"),
     `<details><summary>Tabela acessível do espectro de blocos LMI (WCAG 2.2 AA)</summary><div id="lmi-spectrum-table-slot"><p>Sem solução LMI auditada ainda.</p></div></details>`,
+    `</div>`,
     `</div>`,
     `</section>`,
   ].join("\n");

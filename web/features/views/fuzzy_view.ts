@@ -262,7 +262,7 @@ export function renderFuzzyViewHtml(): string {
     `<button type="button" id="btn-fuzzy-export-fml" class="touch-control btn-secondary" data-action="fuzzy-export-fml">Exportar FML (IEEE 1855-2016)</button>`,
     `<button type="button" id="btn-fuzzy-import-fml" class="touch-control btn-secondary" data-action="fuzzy-import-fml">Importar FML (XML)</button>`,
     `</div>`,
-    `<div class="fuzzy-main-grid">`,
+    `<div class="fuzzy-main-grid fuzzy-workbench-grid">`,
     `<div class="subcard fuzzy-mf-panel">`,
     `<h4>Funções de Pertinência &amp; Parâmetros Numéricos</h4>`,
     `<div class="panel-actions">`,

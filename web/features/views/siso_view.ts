@@ -169,7 +169,7 @@ export function renderSisoViewHtml(): string {
     `<div class="workspace-controls-col">`,
     `<div class="subcard tool-field" id="siso-compensator-tuner">`,
     `<div class="panel-actions"><button type="button" id="btn-siso-eval-all" class="touch-control btn-primary" data-action="siso-eval-all">Atualizar 4 Gráficos SISO (Bode / Nyquist / LR / Degrau)</button></div>`,
-    `<label for="siso-gain-slider">Sintonia do Compensador C(s) = K</label>`,
+    `<label id="siso-gain-slider-label" for="siso-gain-slider">Sintonia do Compensador C(s) = K</label>`,
     `<div id="siso-gain-slider" class="touch-control lqr-slider siso-slider" data-action="siso-gain-slider"></div>`,
     `<p id="siso-tuner-status" class="siso-tuner-status">Pré-visualiza no arraste; confirma no motor Python ao soltar.</p>`,
     `<div class="panel-actions">`,
@@ -259,7 +259,7 @@ export function renderSisoViewHtml(): string {
     `</div>`,
     `<section id="siso-compensator-modal" class="modal-dialog new-object-modal" role="dialog" aria-modal="true" aria-labelledby="siso-comp-modal-title" hidden>`,
     `<div class="modal-header">`,
-    `<h2 id="siso-comp-modal-title">Editor de Compensador Dinâmico C(s)</h2>`,
+    `<h2 id="siso-comp-modal-title">Editor de Compensador Dinâmico C(s) [Contínuo]</h2>`,
     `<button type="button" id="btn-siso-close-comp" class="touch-control btn-secondary btn-small" data-action="siso-close-comp">Fechar</button>`,
     `</div>`,
     `<div class="new-object-mode-bar" role="tablist" aria-label="Modo de edição do compensador">`,
@@ -269,12 +269,13 @@ export function renderSisoViewHtml(): string {
     `<div id="siso-comp-modal-error" class="field-error" role="alert" hidden></div>`,
     `<div id="siso-comp-panel-tf" class="new-obj-panel">`,
     `<div class="typed-tf-builder-grid">`,
-    `<div class="tool-field"><label for="siso-comp-num">Numerador N_c(s) (ordem decrescente, ex: 1, 2)</label><input id="siso-comp-num" type="text" class="touch-control" value="1" /></div>`,
-    `<div class="tool-field"><label for="siso-comp-den">Denominador D_c(s) (ordem decrescente, ex: 1, 10)</label><input id="siso-comp-den" type="text" class="touch-control" value="1" /></div>`,
+    `<div class="tool-field"><label id="siso-comp-num-label" for="siso-comp-num">Numerador N_c(s) (ordem decrescente, ex: 1, 2)</label><input id="siso-comp-num" type="text" class="touch-control" value="1" /></div>`,
+    `<div class="tool-field"><label id="siso-comp-den-label" for="siso-comp-den">Denominador D_c(s) (ordem decrescente, ex: 1, 10)</label><input id="siso-comp-den" type="text" class="touch-control" value="1" /></div>`,
     `</div>`,
     `<p id="siso-comp-preview" class="dock-item-summary">C(s) = 1</p>`,
     `</div>`,
     `<div id="siso-comp-panel-zpk" class="new-obj-panel" hidden>`,
+    `<p id="siso-comp-zpk-hint" class="dock-item-summary">Em tempo contínuo (s), polos estáveis ficam no semiplano esquerdo Re(s) &lt; 0 (ex: polo em -5, integrador em s = 0).</p>`,
     `<div class="tool-field"><label for="siso-comp-zpk-gain">Ganho K</label><input id="siso-comp-zpk-gain" type="number" step="0.1" class="touch-control" value="1" /></div>`,
     `<div class="panel-actions">`,
     `<button type="button" id="btn-siso-add-zero" class="touch-control btn-secondary btn-small" data-action="siso-add-zero">+ Adicionar Zero</button>`,
@@ -292,6 +293,30 @@ export function renderSisoViewHtml(): string {
   ].join("\n");
 }
 
+function formatPolyExpression(coeffs: readonly number[], decimals: number, varSym: "s" | "z"): string {
+  const deg = coeffs.length - 1;
+  const terms: string[] = [];
+  for (let i = 0; i < coeffs.length; i += 1) {
+    const c = coeffs[i];
+    if (Math.abs(c) < 1e-12) continue;
+    const p = deg - i;
+    const absC = Math.abs(c);
+    const numStr =
+      Number.isInteger(absC) && absC < 1e9
+        ? String(absC)
+        : formatNumericDisplay(absC, Math.min(decimals, 3));
+    const sign = c < 0 ? (terms.length === 0 ? "-" : " - ") : (terms.length === 0 ? "" : " + ");
+    if (p === 0) {
+      terms.push(`${sign}${numStr}`);
+    } else {
+      const prefix = Math.abs(absC - 1) < 1e-9 ? "" : `${numStr}·`;
+      const varPart = p === 1 ? varSym : `${varSym}^${p}`;
+      terms.push(`${sign}${prefix}${varPart}`);
+    }
+  }
+  return terms.length > 0 ? terms.join("") : "0";
+}
+
 export class SisoView {
   private readonly shell: ControlLabShell;
   private readonly container: HTMLElement;
@@ -300,8 +325,10 @@ export class SisoView {
   private readonly loopDiagramBarEl: HTMLElement | null;
   private readonly mimoGuardCalloutEl: HTMLElement | null;
   private readonly mimoGuardMsgEl: HTMLElement | null;
+  private readonly gainSliderLabelEl: HTMLElement | null;
   private readonly gainSliderEl: HTMLElement | null;
   private readonly tunerStatusEl: HTMLElement | null;
+  private readonly editCompBtnEl: HTMLElement | null;
 
   private readonly wMinEl: HTMLInputElement | null;
   private readonly wMaxEl: HTMLInputElement | null;
@@ -330,17 +357,23 @@ export class SisoView {
   private readonly timeTableSlotEl: HTMLElement | null;
 
   private readonly compModalEl: HTMLElement | null;
+  private readonly compModalTitleEl: HTMLElement | null;
   private readonly compModalErrEl: HTMLElement | null;
   private readonly compModeTfBtnEl: HTMLElement | null;
   private readonly compModeZpkBtnEl: HTMLElement | null;
   private readonly compPanelTfEl: HTMLElement | null;
   private readonly compPanelZpkEl: HTMLElement | null;
+  private readonly compNumLabelEl: HTMLElement | null;
+  private readonly compDenLabelEl: HTMLElement | null;
   private readonly compNumEl: HTMLInputElement | null;
   private readonly compDenEl: HTMLInputElement | null;
   private readonly compPreviewEl: HTMLElement | null;
+  private readonly compZpkHintEl: HTMLElement | null;
   private readonly compZpkGainEl: HTMLInputElement | null;
   private readonly compZerosListEl: HTMLElement | null;
   private readonly compPolesListEl: HTMLElement | null;
+  private readonly compApplyBtnEl: HTMLElement | null;
+  private readonly compResetBtnEl: HTMLElement | null;
 
   private compEditorMode: "tf" | "zpk" = "tf";
   private draftZeros: Array<{ re: number; im: number }> = [];
@@ -349,6 +382,7 @@ export class SisoView {
   private isGainPreviewActive = false;
   private dragStartGain = 1.0;
   private previewInFlight = false;
+  private lastObservedPlantDt: number | null | undefined = undefined;
 
   private lastBodeModelRef: BodeChartModel | null = null;
   private lastNyquistModelRef: NyquistChartModel | null = null;
@@ -366,8 +400,10 @@ export class SisoView {
     this.loopDiagramBarEl = this.container.querySelector<HTMLElement>("#siso-loop-diagram-bar");
     this.mimoGuardCalloutEl = this.container.querySelector<HTMLElement>("#siso-mimo-guard-callout");
     this.mimoGuardMsgEl = this.container.querySelector<HTMLElement>("#siso-mimo-guard-msg");
+    this.gainSliderLabelEl = this.container.querySelector<HTMLElement>("#siso-gain-slider-label");
     this.gainSliderEl = this.container.querySelector<HTMLElement>("#siso-gain-slider");
     this.tunerStatusEl = this.container.querySelector<HTMLElement>("#siso-tuner-status");
+    this.editCompBtnEl = this.container.querySelector<HTMLElement>("#btn-siso-edit-compensator");
 
     this.wMinEl = this.container.querySelector<HTMLInputElement>("#siso-w-min");
     this.wMaxEl = this.container.querySelector<HTMLInputElement>("#siso-w-max");
@@ -396,17 +432,23 @@ export class SisoView {
     this.timeTableSlotEl = this.container.querySelector<HTMLElement>("#siso-time-table-slot");
 
     this.compModalEl = this.container.querySelector<HTMLElement>("#siso-compensator-modal");
+    this.compModalTitleEl = this.container.querySelector<HTMLElement>("#siso-comp-modal-title");
     this.compModalErrEl = this.container.querySelector<HTMLElement>("#siso-comp-modal-error");
     this.compModeTfBtnEl = this.container.querySelector<HTMLElement>("#btn-siso-comp-mode-tf");
     this.compModeZpkBtnEl = this.container.querySelector<HTMLElement>("#btn-siso-comp-mode-zpk");
     this.compPanelTfEl = this.container.querySelector<HTMLElement>("#siso-comp-panel-tf");
     this.compPanelZpkEl = this.container.querySelector<HTMLElement>("#siso-comp-panel-zpk");
+    this.compNumLabelEl = this.container.querySelector<HTMLElement>("#siso-comp-num-label");
+    this.compDenLabelEl = this.container.querySelector<HTMLElement>("#siso-comp-den-label");
     this.compNumEl = this.container.querySelector<HTMLInputElement>("#siso-comp-num");
     this.compDenEl = this.container.querySelector<HTMLInputElement>("#siso-comp-den");
     this.compPreviewEl = this.container.querySelector<HTMLElement>("#siso-comp-preview");
+    this.compZpkHintEl = this.container.querySelector<HTMLElement>("#siso-comp-zpk-hint");
     this.compZpkGainEl = this.container.querySelector<HTMLInputElement>("#siso-comp-zpk-gain");
     this.compZerosListEl = this.container.querySelector<HTMLElement>("#siso-comp-zeros-list");
     this.compPolesListEl = this.container.querySelector<HTMLElement>("#siso-comp-poles-list");
+    this.compApplyBtnEl = this.container.querySelector<HTMLElement>("#btn-siso-apply-comp");
+    this.compResetBtnEl = this.container.querySelector<HTMLElement>("#btn-siso-reset-comp");
 
     this.bindEvents();
   }
@@ -414,6 +456,29 @@ export class SisoView {
   public isPreviewActive(): boolean {
     const bode = this.shell.getSisoWorkspace().getBodeChartModel();
     return this.isGainPreviewActive || bode?.series_semantics === "preview";
+  }
+
+  private getActiveDomainInfo(): { isDiscrete: boolean; dt: number | null; varSym: "s" | "z" } {
+    const dt = this.shell.getSisoWorkspace().getActivePlantDt();
+    const isDiscrete = dt !== null && dt > 0;
+    return {
+      isDiscrete,
+      dt,
+      varSym: isDiscrete ? "z" : "s",
+    };
+  }
+
+  private syncDiscreteFrequencyBoundsIfChanged(): void {
+    const { isDiscrete, dt } = this.getActiveDomainInfo();
+    if (this.lastObservedPlantDt === dt) return;
+    this.lastObservedPlantDt = dt;
+    if (isDiscrete && dt !== null && this.wMaxEl) {
+      const nyquistW = Number((Math.PI / dt).toFixed(2));
+      const currentWMax = Number(this.wMaxEl.value);
+      if (!Number.isFinite(currentWMax) || currentWMax > nyquistW) {
+        this.wMaxEl.value = String(nyquistW);
+      }
+    }
   }
 
   private hasValidSisoPlant(): boolean {
@@ -446,6 +511,24 @@ export class SisoView {
       .finally(() => {
         this.previewInFlight = false;
       });
+  }
+
+  private updateTfPreviewText(): void {
+    if (!this.compPreviewEl) return;
+    const { varSym } = this.getActiveDomainInfo();
+    const decimals = this.shell.getDisplayDecimals();
+    const parseDraft = (raw: string | undefined): number[] => {
+      if (!raw) return [1];
+      const nums = raw
+        .split(/[\s,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map(Number);
+      return nums.length > 0 && nums.every(Number.isFinite) ? nums : [1];
+    };
+    const numExpr = formatPolyExpression(parseDraft(this.compNumEl?.value), decimals, varSym);
+    const denExpr = formatPolyExpression(parseDraft(this.compDenEl?.value), decimals, varSym);
+    this.compPreviewEl.textContent = `C(${varSym}) = K · (${numExpr}) / (${denExpr})`;
   }
 
   private bindEvents(): void {
@@ -545,25 +628,22 @@ export class SisoView {
       this.syncCompensatorModal();
     });
 
-    const updateTfPreview = () => {
-      if (this.compPreviewEl && this.compNumEl && this.compDenEl) {
-        this.compPreviewEl.textContent = `C(s) = K · (${this.compNumEl.value || "1"}) / (${this.compDenEl.value || "1"})`;
-      }
-    };
-    this.compNumEl?.addEventListener("input", updateTfPreview);
-    this.compDenEl?.addEventListener("input", updateTfPreview);
+    this.compNumEl?.addEventListener("input", () => this.updateTfPreviewText());
+    this.compDenEl?.addEventListener("input", () => this.updateTfPreviewText());
 
     this.container
       .querySelector<HTMLElement>('[data-action="siso-add-zero"]')
       ?.addEventListener("click", () => {
-        this.draftZeros.push({ re: -1, im: 0 });
+        const { isDiscrete } = this.getActiveDomainInfo();
+        this.draftZeros.push({ re: isDiscrete ? 0.5 : -1, im: 0 });
         this.renderZpkLists();
       });
 
     this.container
       .querySelector<HTMLElement>('[data-action="siso-add-pole"]')
       ?.addEventListener("click", () => {
-        this.draftPoles.push({ re: -5, im: 0 });
+        const { isDiscrete } = this.getActiveDomainInfo();
+        this.draftPoles.push({ re: isDiscrete ? 0.8 : -5, im: 0 });
         this.renderZpkLists();
       });
 
@@ -645,12 +725,13 @@ export class SisoView {
       this.gainSliderEl.addEventListener("blur", cancelGainDrag);
 
       this.gainSliderEl.addEventListener("keydown", (ev: KeyboardEvent) => {
+        const { varSym } = this.getActiveDomainInfo();
         const cfg: AccessibleSliderConfig = {
           min: 0.1,
           max: 20,
           step: 0.1,
           value: sisoWorkspace.getCompensatorGain(),
-          label: "Ganho do compensador C(s) = K",
+          label: `Ganho do compensador C(${varSym}) = K`,
         };
         const res = handleSliderKeyDown(ev.key, cfg);
         if (!res.handled) return;
@@ -706,10 +787,56 @@ export class SisoView {
     });
   }
 
+  private syncCompensatorDomainLabels(): void {
+    const { isDiscrete, dt, varSym } = this.getActiveDomainInfo();
+    const siso = this.shell.getSisoWorkspace();
+    const decimals = this.shell.getDisplayDecimals();
+
+    if (this.gainSliderLabelEl) {
+      this.gainSliderLabelEl.textContent = `Sintonia do Compensador C(${varSym}) = K`;
+    }
+    if (this.editCompBtnEl) {
+      this.editCompBtnEl.textContent = `Editar Compensador C(${varSym})...`;
+    }
+    if (this.compModalTitleEl) {
+      this.compModalTitleEl.textContent =
+        isDiscrete && dt !== null
+          ? `Editor de Compensador Dinâmico C(z) [Discreto, dt = ${dt} s]`
+          : `Editor de Compensador Dinâmico C(s) [Contínuo]`;
+    }
+    if (this.compNumLabelEl) {
+      this.compNumLabelEl.textContent = isDiscrete
+        ? "Numerador N_c(z) (ordem decrescente, ex: 1, -0.5)"
+        : "Numerador N_c(s) (ordem decrescente, ex: 1, 2)";
+    }
+    if (this.compDenLabelEl) {
+      this.compDenLabelEl.textContent = isDiscrete
+        ? "Denominador D_c(z) (ordem decrescente, ex: 1, -0.8)"
+        : "Denominador D_c(s) (ordem decrescente, ex: 1, 10)";
+    }
+    if (this.compZpkHintEl) {
+      this.compZpkHintEl.textContent = isDiscrete
+        ? "Em tempo discreto (z), polos estáveis ficam dentro do círculo unitário |z| < 1 (ex: polo em 0.8, integrador em z = 1)."
+        : "Em tempo contínuo (s), polos estáveis ficam no semiplano esquerdo Re(s) < 0 (ex: polo em -5, integrador em s = 0).";
+    }
+    if (this.compApplyBtnEl) {
+      this.compApplyBtnEl.textContent = `Aplicar Compensador C(${varSym})`;
+    }
+    if (this.compResetBtnEl) {
+      this.compResetBtnEl.textContent = `Resetar para C(${varSym}) = K`;
+    }
+    if (this.compPreviewEl) {
+      this.compPreviewEl.textContent = `C(${varSym}) = ${siso.formatCompensatorExpression(decimals, varSym)}`;
+    }
+  }
+
   private renderTunerControls(): void {
     const sisoWorkspace = this.shell.getSisoWorkspace();
     const decimals = this.shell.getDisplayDecimals();
     const gain = sisoWorkspace.getCompensatorGain();
+    const { varSym } = this.getActiveDomainInfo();
+
+    this.syncCompensatorDomainLabels();
 
     if (this.gainSliderEl) {
       const cfg: AccessibleSliderConfig = {
@@ -717,7 +844,7 @@ export class SisoView {
         max: 20,
         step: 0.1,
         value: gain,
-        label: "Ganho do compensador C(s) = K",
+        label: `Ganho do compensador C(${varSym}) = K`,
       };
       const attrs = getSliderAriaAttributes(cfg, decimals);
       for (const [k, v] of Object.entries(attrs)) {
@@ -743,13 +870,15 @@ export class SisoView {
     const typedWorkspace = this.shell.getTypedWorkspace();
     const decimals = this.shell.getDisplayDecimals();
     const sel = typedWorkspace.getEffectiveSelection("frequencyPlant");
-    const gain = sisoWorkspace.getCompensatorGain();
     const fbSign = sisoWorkspace.getFeedbackSign();
     const margins = sisoWorkspace.getMarginsView();
+    const { isDiscrete, dt, varSym } = this.getActiveDomainInfo();
 
     const sumLabel = fbSign === "positive" ? "Σ (r + y)" : "Σ (r - y)";
+    const summaryText = sel ? formatDockObjectSummary(sel.object, Math.min(decimals, 2)) : "";
+    const dtSuffix = isDiscrete && dt !== null && !summaryText.includes("dt") ? `, dt = ${dt} s` : "";
     const plantText = sel
-      ? `${sel.object.id} (${formatDockObjectSummary(sel.object, Math.min(decimals, 2))})`
+      ? `${sel.object.id} (${summaryText}${dtSuffix})`
       : "Nenhuma planta SISO selecionada";
 
     const fmtM = (v: number | null | undefined, unit: string) =>
@@ -771,7 +900,7 @@ export class SisoView {
       ? `<span class="badge badge-preview">Pré-visualizando…</span>`
       : `<span class="badge badge-stable">Sincronizado</span>`;
 
-    const compExpr = sisoWorkspace.formatCompensatorExpression(decimals);
+    const compExpr = sisoWorkspace.formatCompensatorExpression(decimals, varSym);
 
     this.loopDiagramBarEl.innerHTML = [
       `<div class="block-diagram-flow" aria-label="Estrutura da malha fechada SISO">`,
@@ -779,9 +908,9 @@ export class SisoView {
       `<span class="block-arrow" aria-hidden="true">→</span>`,
       `<span class="block-node block-sum">${escapeHtml(sumLabel)}</span>`,
       `<span class="block-arrow" aria-hidden="true">→</span>`,
-      `<button type="button" class="block-node block-comp touch-control" data-action="siso-open-comp-modal" title="Clique para editar compensador C(s)">C(s) = ${escapeHtml(compExpr)}</button>`,
+      `<button type="button" class="block-node block-comp touch-control" data-action="siso-open-comp-modal" title="Clique para editar compensador C(${varSym})">C(${varSym}) = ${escapeHtml(compExpr)}</button>`,
       `<span class="block-arrow" aria-hidden="true">→</span>`,
-      `<span class="block-node block-plant" title="${escapeHtml(plantText)}">G(s): ${escapeHtml(plantText)}</span>`,
+      `<span class="block-node block-plant" title="${escapeHtml(plantText)}">G(${varSym}): ${escapeHtml(plantText)}</span>`,
       `<span class="block-arrow" aria-hidden="true">→</span>`,
       `<span class="block-node block-signal">y</span>`,
       `</div>`,
@@ -803,14 +932,16 @@ export class SisoView {
   private openCompensatorModal(): void {
     const siso = this.shell.getSisoWorkspace();
     const comp = siso.getCompensatorTf();
+    const { varSym } = this.getActiveDomainInfo();
     this.compEditorMode = comp.mode === "zpk" ? "zpk" : "tf";
     this.draftZeros = comp.zeros.map((z) => ({ ...z }));
     this.draftPoles = comp.poles.map((p) => ({ ...p }));
     if (this.compNumEl) this.compNumEl.value = comp.num.join(", ");
     if (this.compDenEl) this.compDenEl.value = comp.den.join(", ");
     if (this.compZpkGainEl) this.compZpkGainEl.value = String(comp.gain);
+    this.syncCompensatorDomainLabels();
     if (this.compPreviewEl) {
-      this.compPreviewEl.textContent = `C(s) = ${siso.formatCompensatorExpression(this.shell.getDisplayDecimals())}`;
+      this.compPreviewEl.textContent = `C(${varSym}) = ${siso.formatCompensatorExpression(this.shell.getDisplayDecimals(), varSym)}`;
     }
     if (this.compModalErrEl) {
       this.compModalErrEl.textContent = "";
@@ -1076,6 +1207,7 @@ export class SisoView {
       this.mimoGuardMsgEl.textContent = `O modelo '${selPlant.id}' possui ${dims.inputs} entrada(s) e ${dims.outputs} saída(s). Esta bancada suporta apenas plantas SISO (1×1).`;
     }
 
+    this.syncDiscreteFrequencyBoundsIfChanged();
     this.renderLoopDiagramHeader();
     this.renderTunerControls();
 

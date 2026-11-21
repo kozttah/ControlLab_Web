@@ -836,6 +836,13 @@ def test_ux_phase1_workspace_csv_legend_siso_comp_and_fuzzy_reset(browser_harnes
     page.locator("#btn-id-fit-arx").click()
     id_svg = page.locator("#id-response-chart-slot svg")
     id_svg.wait_for(state="visible", timeout=30000)
+    assert id_svg.get_attribute("data-chart-layout") == "identification-4panel"
+    for subplot_id in ("input", "one-step", "free-sim", "residuals"):
+        assert id_svg.locator(f'g[data-subplot="{subplot_id}"]').count() == 1, (
+            f"Expected subplot '{subplot_id}' in #id-response-chart-slot svg"
+        )
+    assert id_svg.locator('g[data-subplot="residuals"] polyline[data-channel-id^="residuals-one-step-"]').count() == 1
+    assert id_svg.locator('g[data-subplot="residuals"] polyline[data-channel-id^="residuals-free-sim-"]').count() == 1
 
     legend_info = page.evaluate(
         """() => {
@@ -854,6 +861,30 @@ def test_ux_phase1_workspace_csv_legend_siso_comp_and_fuzzy_reset(browser_harnes
     ), f"Expected ŷ prediction label in legend: {legend_info}"
     distinct_colors = {item["fill"] for item in legend_info if item["fill"]}
     assert len(distinct_colors) >= 2, f"Expected distinct legend colors, got {legend_info}"
+
+    # 3b. Promote discrete identified model (dt = 0.05) to SISO -> C(z), G(z), dt=0.05, w_max <= Nyquist
+    page.locator('[data-action="id-reuse-to-siso"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'siso_frequency'", timeout=25000)
+    page.locator("#siso-workspace-panel").wait_for(state="visible")
+    discrete_loop_text = page.locator("#siso-loop-diagram-bar").inner_text()
+    assert "C(z)" in discrete_loop_text and "G(z)" in discrete_loop_text, (
+        f"Expected C(z) and G(z) in #siso-loop-diagram-bar, got: {discrete_loop_text}"
+    )
+    assert "dt=0.05" in discrete_loop_text or "dt = 0.05" in discrete_loop_text, (
+        f"Expected 'dt=0.05' in #siso-loop-diagram-bar, got: {discrete_loop_text}"
+    )
+    w_max_discrete = float(page.locator("#siso-w-max").input_value())
+    assert w_max_discrete <= 62.84, f"Expected #siso-w-max clamped to Nyquist (<= 62.84), got {w_max_discrete}"
+
+    page.locator("#btn-siso-edit-compensator").click()
+    discrete_comp_modal = page.locator("#siso-compensator-modal")
+    discrete_comp_modal.wait_for(state="visible")
+    discrete_modal_title = page.locator("#siso-comp-modal-title").inner_text()
+    assert "C(z)" in discrete_modal_title, (
+        f"Expected C(z) in #siso-comp-modal-title, got: {discrete_modal_title}"
+    )
+    page.locator("#btn-siso-close-comp").click()
+    discrete_comp_modal.wait_for(state="hidden")
 
     # 4. SISO Dynamic Compensator C(s): load mass_spring_damper, open modal, apply TF (s+2)/(s+10), eval all 4 charts
     page.select_option("#dock-example-select", "mass_spring_damper")

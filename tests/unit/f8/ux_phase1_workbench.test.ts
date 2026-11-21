@@ -521,11 +521,12 @@ test("Phase 1 Item 2: Upload .csv no modal + Novo e na Aba 1 (Identificação)",
   }
 });
 
-test("Phase 1 Item 3: Gráfico de validação da Aba 1 com cores distintas e legenda dinâmica", () => {
+test("Phase 1 Item 3 & Phase 2: Gráfico de validação da Aba 1 com 4 subgráficos sincronizados e ambos resíduos (1-Passo e Simulação Livre)", () => {
   const idModel = buildIdentificationResponseChartModel({
     partition: "validation",
     dt: 0.1,
     t: [0, 0.1, 0.2, 0.3],
+    u: [1, 1, -1, -1],
     y_measured: [0, 0.2, 0.5, 0.8],
     y_one_step: [0, 0.19, 0.51, 0.79],
     y_free_sim: [0, 0.18, 0.48, 0.77],
@@ -536,25 +537,29 @@ test("Phase 1 Item 3: Gráfico de validação da Aba 1 com cores distintas e leg
   });
 
   const idSvg = renderTimeResponseSvg(idModel);
+  assert.ok(idSvg.includes('data-chart-layout="identification-4panel"'));
+  assert.ok(idSvg.includes('data-subplot="input"'));
+  assert.ok(idSvg.includes('data-subplot="one-step"'));
+  assert.ok(idSvg.includes('data-subplot="free-sim"'));
+  assert.ok(idSvg.includes('data-subplot="residuals"'));
+
+  assert.ok(idSvg.includes("Entrada u(k) (Holdout)"));
   assert.ok(idSvg.includes("y Medido (Holdout)"));
   assert.ok(idSvg.includes("ŷ Previsão 1-Passo (Holdout)"));
   assert.ok(idSvg.includes("ŷ Simulação Livre (Holdout)"));
-  assert.ok(idSvg.includes("Resíduo e(k)=y-ŷ (Holdout)"));
+  assert.ok(idSvg.includes("Resíduo 1-Passo e(k)=y-ŷ (Holdout)"));
+  assert.ok(idSvg.includes("Resíduo Simulação Livre e_livre(k)=y-ŷ_livre (Holdout)"));
   assert.equal(idSvg.includes("Estado (x)"), false, "Não deve renderizar legenda hardcoded de StateSpace");
 
-  // Extrai cores dos polylines dos 4 canais
-  const colorMatches = Array.from(
-    idSvg.matchAll(/stroke="([^"]+)"[^>]*data-channel-id="((?:y|residuals)-[^"]+)"/g),
-  );
-  const colorByChannel = new Map(colorMatches.map((m) => [m[2], m[1]]));
-  assert.equal(colorByChannel.size, 4);
-  const uniqueColors = new Set(colorByChannel.values());
-  assert.equal(uniqueColors.size, 4, "Os 4 canais de identificação (incluindo resíduo) devem possuir cores distintas");
-  assert.equal(colorByChannel.get("residuals-one-step-validation"), "#9333EA");
+  // Verifica ambos os canais de resíduos no 4º painel
+  assert.ok(idSvg.includes('data-channel-id="residuals-one-step-validation" data-subplot-channel="residuals"'));
+  assert.ok(idSvg.includes('data-channel-id="residuals-free-sim-validation" data-subplot-channel="residuals"'));
   assert.ok(idSvg.includes('stroke="#9333EA" stroke-width="1.4"'));
+  assert.ok(idSvg.includes('stroke="#D97706" stroke-width="1.4"'));
 
   const idSvgHc = renderTimeResponseSvg(idModel, { themeMode: "high_contrast" });
   assert.ok(idSvgHc.includes('stroke="#F472B6" stroke-width="1.4"'));
+  assert.ok(idSvgHc.includes('stroke="#FBBF24" stroke-width="1.4"'));
 
   // Verifica que gráfico LQR padrão preserva legenda tradicional
   const lqrModel = buildTimeResponseChartModel({
@@ -639,6 +644,92 @@ test("Phase 1 Item 4: Compensador Dinâmico C(s) (TF num/den e Polos & Zeros) na
     await flushMicrotasks();
     assert.deepEqual(siso.getCompensatorTf().num, [1]);
     assert.deepEqual(siso.getCompensatorTf().den, [1]);
+  } finally {
+    app.destroy();
+  }
+});
+
+test("Phase 2: Coerência em Tempo Discreto (dt = 0.05) na Aba 2 SISO (C(z), G(z), Nyquist π/dt e reset de compensador de outro domínio)", async () => {
+  const doc = new FakeDocument();
+  const rootEl = doc.createElement("div");
+  const root = rootEl as unknown as HTMLElement;
+  const client = new PythonPhase1Client();
+  const app = mountControlLabApp(root, { client, project_id: "proj-phase2-discrete-siso" });
+  try {
+    app.shell.switchTab("siso_frequency");
+    const typed = app.shell.getTypedWorkspace();
+    const siso = app.shell.getSisoWorkspace();
+
+    // 1. Registra planta contínua e define compensador contínuo (s + 2) / (s + 10)
+    await typed.registerTypedObject(
+      {
+        schema_version: "1.0.0",
+        id: "tf-cont",
+        revision: 1,
+        kind: "TransferFunction",
+        dt: null,
+        variable: "s",
+        poly_order: "descending",
+        num: [[{ shape: [1], dtype: "float64", order: "C", data: [1] }]],
+        den: [[{ shape: [2], dtype: "float64", order: "C", data: [1, 1] }]],
+        units: { time: "s", inputs: ["u1"], outputs: ["y1"] },
+        provenance: { source: "test" },
+      },
+      { selectRole: "frequencyPlant" },
+    );
+    siso.setCompensatorTf([1, 2], [1, 10], "tf");
+    assert.equal(siso.isDynamicCompensator(), true);
+
+    // 2. Promove/seleciona planta discreta G(z) com dt = 0.05 (Nyquist = pi/0.05 ≈ 62.83 rad/s)
+    await typed.registerTypedObject(
+      {
+        schema_version: "1.0.0",
+        id: "tf-disc-arx",
+        revision: 1,
+        kind: "TransferFunction",
+        dt: 0.05,
+        variable: "z",
+        poly_order: "descending",
+        num: [[{ shape: [2], dtype: "float64", order: "C", data: [0.4, 0.2] }]],
+        den: [[{ shape: [3], dtype: "float64", order: "C", data: [1, -1.5, 0.7] }]],
+        units: { time: "s", inputs: ["u1"], outputs: ["y1"] },
+        provenance: { source: "test" },
+      },
+      { selectRole: "frequencyPlant" },
+    );
+    await flushMicrotasks();
+
+    // Compensador contínuo deve ter sido resetado para C(z) = K ao mudar de domínio
+    assert.equal(siso.getActivePlantDt(), 0.05);
+    assert.equal(siso.isDynamicCompensator(), false);
+
+    // Verifica atualização de rótulos para C(z) e G(z) e limite de Nyquist em #siso-w-max
+    const loopBar = rootEl.querySelector<FakeElement>("#siso-loop-diagram-bar")!;
+    assert.ok(loopBar.textContent.includes("C(z) ="), "Diagrama de malha deve exibir C(z)");
+    assert.ok(loopBar.textContent.includes("G(z):"), "Diagrama de malha deve exibir G(z)");
+
+    const editBtn = rootEl.querySelector<FakeElement>("#btn-siso-edit-compensator")!;
+    assert.ok(editBtn.textContent.includes("C(z)"));
+    editBtn.click();
+
+    const modalTitle = rootEl.querySelector<FakeElement>("#siso-comp-modal-title")!;
+    assert.ok(modalTitle.textContent.includes("C(z)") && modalTitle.textContent.includes("0.05"));
+    const zpkHint = rootEl.querySelector<FakeElement>("#siso-comp-zpk-hint")!;
+    assert.ok(zpkHint.textContent.includes("|z| < 1"));
+
+    // Define compensador discreto C(z) = (z - 0.5) / (z - 0.8)
+    rootEl.querySelector<FakeElement>("#siso-comp-num")!.value = "1, -0.5";
+    rootEl.querySelector<FakeElement>("#siso-comp-den")!.value = "1, -0.8";
+    rootEl.querySelector<FakeElement>("#btn-siso-apply-comp")!.click();
+    await flushMicrotasks();
+
+    assert.ok(loopBar.textContent.includes("z - 0.5") && loopBar.textContent.includes("z - 0.8"));
+
+    // Verifica que a avaliação de Bode limita ω_max à frequência de Nyquist π/dt
+    const { bodeChart } = await siso.evaluateBodeAndMargins({ customWMax: 500 });
+    const nyquistW = Math.PI / 0.05;
+    const maxEvaluatedW = Math.max(...bodeChart.omega);
+    assert.ok(maxEvaluatedW <= nyquistW, `ω avaliado (${maxEvaluatedW}) não pode exceder Nyquist (${nyquistW})`);
   } finally {
     app.destroy();
   }

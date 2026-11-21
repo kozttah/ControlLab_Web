@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 9
+      "2026-11-21": 10
     }
   },
   "audit_reference": {
@@ -4780,6 +4780,112 @@
         "e2e_sw_chromium": "1/1 passed in 62.21s",
         "verify_fixtures": "11 schemas + 7 golden fixtures OK",
         "governance_tests": "20 passed in 6.60s"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-F1-F8-DISCRETE-SISO-AND-IDENT-4PLOT",
+      "front": "f8-ui-charts",
+      "phase": "Phase2-Polish-And-CI",
+      "title": "F8: Coerencia de tempo discreto C(z)/Nyquist no Projeto SISO e separacao em 4 subgraficos na Aba 1 (Entrada u, 1-Passo vs y, Simulacao Livre vs y, Residuos 1-Passo e Livre)",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-E3-F9-SW-FIREFOX-FIX-AND-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-06",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-FREQ-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Projeto SISO discreto (dt != null): modal, diagrama de malha e polinomios de C(z) exibidos em z (com dt da planta ativa), ajuste automatico de w_max para Nyquist pi/dt quando planta discreta e selecionada e reset de C(s)->C(z) ao trocar dominio continuo/discreto",
+        "Aba 1 Identificacao: separar #id-response-chart-slot em 4 subgraficos sincronizados (1. Entrada u(k); 2. Previsao 1-Passo vs Saida Medida y(k); 3. Simulacao Livre vs Saida Medida y(k); 4. Residuos de 1-Passo e de Simulacao Livre no mesmo grafico)"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-F1-F8-DISCRETE-SISO-AND-IDENT-4PLOT.md",
+      "assessed_commit": "e4c13ddabd792d68cc0399d8013f34c2353e4a41",
+      "reviewed_source_sha256": {
+        "web/features/siso_workspace.ts": "6bdd983f3fd088d1bc73d161dc91cfb10722c25312c913d3f59b096f3730bc45",
+        "web/features/views/siso_view.ts": "5f9f7978d03ba6aba64b408ae4ccea4e38b2156e6949d4739334bd2fcc166fd7",
+        "web/features/identification_workspace.ts": "2d42d0dd384ef74bdf5d1fd0e58675bc5e60e276ffc72bd86a10152d74686a70",
+        "web/charts/scientific_chart.ts": "54439ef40cd161833a687e722a73d00c12825e6986f1e7f6dc08981884b4a393",
+        "tests/unit/f8/ux_phase1_workbench.test.ts": "b457f445df029bb1f3207467db0fcf9901d96201bd6d36c019b56f2f4badfa2f"
+      },
+      "acceptance_scope": [
+        "web/features/siso_workspace.ts",
+        "web/features/views/siso_view.ts",
+        "web/features/identification_workspace.ts",
+        "web/charts/scientific_chart.ts",
+        "tests/unit/f8/ux_phase1_workbench.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "0 errors",
+        "web_tests_all": "135/135 passed across 17 files in 85561ms",
+        "build": "web/dist OK",
+        "e2e_chromium": "12/12 passed in 110.26s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK"
+      }
+    },
+    {
+      "wp_id": "WP-PHASE2-F2-F9-AUDIT-AND-LMI-DESIGN-DOC",
+      "front": "f9-integration-qa",
+      "phase": "Phase2-Polish-And-CI",
+      "title": "F9: Auditoria independente de SISO discreto C(z), 4 subgraficos de Identificacao e Documento Diretor da DSL/Aba de LMIs v2.0",
+      "allowed_paths": [
+        "tests/e2e/",
+        "docs/audits/",
+        "docs/architecture/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-F1-F8-DISCRETE-SISO-AND-IDENT-4PLOT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-06",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-FREQ-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/e2e/test_id_siso_verticals.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Validar em Chromium real a coerencia discreta C(z) no SISO, os 4 subgraficos de Identificacao e o registro do Documento Diretor CL-LMI-DSL-DIR-001 v1.0.0"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE2-F2-F9-AUDIT-AND-LMI-DESIGN-DOC.md",
+      "assessed_commit": "e4c13ddabd792d68cc0399d8013f34c2353e4a41",
+      "reviewed_source_sha256": {
+        "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md": "51491ad4e68fad18a4575f57f90c5e4ef0a142239b176c5b5de183010dffc911",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "25fa3d1d5169f1bdfb92a8f1a647325d59d0a52bd03cfd720e70a7db683c6881"
+      },
+      "acceptance_scope": [
+        "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "0 errors",
+        "web_tests_all": "135/135 passed across 17 files in 85561ms",
+        "build": "web/dist OK",
+        "e2e_chromium": "12/12 passed in 110.26s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK"
       }
     }
   ],

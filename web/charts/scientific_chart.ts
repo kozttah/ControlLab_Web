@@ -271,6 +271,7 @@ export function buildIdentificationResponseChartModel(input: {
   y_one_step?: readonly number[] | null;
   y_free_sim?: readonly number[] | null;
   residuals?: readonly number[] | null;
+  residuals_free_sim?: readonly number[] | null;
   u?: readonly number[] | null;
   units?: {
     time?: string;
@@ -328,15 +329,40 @@ export function buildIdentificationResponseChartModel(input: {
     });
   }
 
-  if (input.residuals && input.residuals.length > 0) {
+  const resOneStepVals =
+    input.residuals && input.residuals.length > 0
+      ? [...input.residuals]
+      : input.y_one_step && input.y_one_step.length > 0
+        ? input.y_measured.map((yVal, idx) => yVal - (input.y_one_step![idx] ?? yVal))
+        : [];
+  if (resOneStepVals.length > 0) {
     channels.push({
       id: `residuals-one-step-${input.partition}`,
       group: "u",
-      label: `Resíduo e(k)=y-ŷ (${partLabel})`,
+      label: `Resíduo 1-Passo e(k)=y-ŷ (${partLabel})`,
       unit: outUnit,
-      values: [...input.residuals],
+      values: resOneStepVals,
       shape: "diamond",
-      stroke_dasharray: "8 3 2 3",
+      stroke_dasharray: "",
+      series_semantics: semantics,
+    });
+  }
+
+  const resFreeSimVals =
+    input.residuals_free_sim && input.residuals_free_sim.length > 0
+      ? [...input.residuals_free_sim]
+      : input.y_free_sim && input.y_free_sim.length > 0
+        ? input.y_measured.map((yVal, idx) => yVal - (input.y_free_sim![idx] ?? yVal))
+        : [];
+  if (resFreeSimVals.length > 0) {
+    channels.push({
+      id: `residuals-free-sim-${input.partition}`,
+      group: "u",
+      label: `Resíduo Simulação Livre e_livre(k)=y-ŷ_livre (${partLabel})`,
+      unit: outUnit,
+      values: resFreeSimVals,
+      shape: "diamond",
+      stroke_dasharray: "6 3",
       series_semantics: semantics,
     });
   }
@@ -349,7 +375,7 @@ export function buildIdentificationResponseChartModel(input: {
       unit: inUnit,
       values: [...input.u],
       shape: "cross",
-      stroke_dasharray: "4 2",
+      stroke_dasharray: "",
       series_semantics: semantics,
     });
   }
@@ -1819,6 +1845,281 @@ export function renderPoleZeroSvg(
   ].join("");
 }
 
+export function renderIdentificationFourPanelSvg(
+  model: TimeResponseChartModel,
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    themeMode?: AccessibilityThemeMode;
+  },
+): string {
+  const widthPx = options?.widthPx ?? 760;
+  const heightPx = options?.heightPx ?? 560;
+  const decimals = options?.decimals ?? 3;
+  const effectiveThemeMode = options?.themeMode ?? model.theme_mode ?? "standard_aa";
+  const theme = getThemeTokens(effectiveThemeMode);
+  const isHc = effectiveThemeMode === "high_contrast";
+
+  const xBounds = computeSafeAxisBounds(model.t, 0.02);
+
+  const uChan = model.channels.find((ch) => ch.id.startsWith("u-input-"));
+  const yMeasChan = model.channels.find((ch) => ch.id.startsWith("y-measured-"));
+  const yOneStepChan = model.channels.find((ch) => ch.id.startsWith("y-hat-one-step-"));
+  const yFreeSimChan = model.channels.find((ch) => ch.id.startsWith("y-hat-free-sim-"));
+  const resOneStepChan = model.channels.find((ch) => ch.id.startsWith("residuals-one-step-"));
+  const resFreeSimChan = model.channels.find((ch) => ch.id.startsWith("residuals-free-sim-"));
+
+  const colInput = isHc ? "#38BDF8" : "#0284C7";
+  const colMeasured = theme.textPrimary;
+  const colOneStep = isHc ? "#4ADE80" : "#059669";
+  const colFreeSim = isHc ? "#38BDF8" : "#1D4ED8";
+  const colResOneStep = isHc ? "#F472B6" : "#9333EA";
+  const colResFreeSim = isHc ? "#FBBF24" : "#D97706";
+
+  interface SubplotSpec {
+    subplotId: "input" | "one-step" | "free-sim" | "residuals";
+    title: string;
+    colIdx: number;
+    rowIdx: number;
+    yUnit: string;
+    includeZeroRef: boolean;
+    series: Array<{
+      channel: TimeSeriesChannel;
+      color: string;
+      dash: string;
+      strokeWidth: string;
+      legendSymbol: string;
+    }>;
+  }
+
+  const outUnit = model.units.outputs?.[0] ?? "y";
+  const inUnit = model.units.inputs?.[0] ?? "u";
+
+  const specs: SubplotSpec[] = [
+    {
+      subplotId: "input",
+      title: `1. Entrada u(k) [${inUnit}]`,
+      colIdx: 0,
+      rowIdx: 0,
+      yUnit: inUnit,
+      includeZeroRef: true,
+      series: uChan
+        ? [
+            {
+              channel: uChan,
+              color: colInput,
+              dash: "",
+              strokeWidth: "1.8",
+              legendSymbol: "—",
+            },
+          ]
+        : [],
+    },
+    {
+      subplotId: "one-step",
+      title: `2. Previsão 1-Passo (ŷ_1p) vs. Saída Medida (y) [${outUnit}]`,
+      colIdx: 1,
+      rowIdx: 0,
+      yUnit: outUnit,
+      includeZeroRef: false,
+      series: [
+        ...(yMeasChan
+          ? [
+              {
+                channel: yMeasChan,
+                color: colMeasured,
+                dash: "",
+                strokeWidth: "2.0",
+                legendSymbol: "—",
+              },
+            ]
+          : []),
+        ...(yOneStepChan
+          ? [
+              {
+                channel: yOneStepChan,
+                color: colOneStep,
+                dash: "4 2",
+                strokeWidth: "2.0",
+                legendSymbol: "··",
+              },
+            ]
+          : []),
+      ],
+    },
+    {
+      subplotId: "free-sim",
+      title: `3. Simulação Livre (ŷ_livre) vs. Saída Medida (y) [${outUnit}]`,
+      colIdx: 0,
+      rowIdx: 1,
+      yUnit: outUnit,
+      includeZeroRef: false,
+      series: [
+        ...(yMeasChan
+          ? [
+              {
+                channel: yMeasChan,
+                color: colMeasured,
+                dash: "",
+                strokeWidth: "2.0",
+                legendSymbol: "—",
+              },
+            ]
+          : []),
+        ...(yFreeSimChan
+          ? [
+              {
+                channel: yFreeSimChan,
+                color: colFreeSim,
+                dash: "6 3",
+                strokeWidth: "2.0",
+                legendSymbol: "--",
+              },
+            ]
+          : []),
+      ],
+    },
+    {
+      subplotId: "residuals",
+      title: `4. Resíduos: 1-Passo (e_1p) vs. Sim. Livre (e_livre) [${outUnit}]`,
+      colIdx: 1,
+      rowIdx: 1,
+      yUnit: outUnit,
+      includeZeroRef: true,
+      series: [
+        ...(resOneStepChan
+          ? [
+              {
+                channel: resOneStepChan,
+                color: colResOneStep,
+                dash: "",
+                strokeWidth: "1.4",
+                legendSymbol: "—",
+              },
+            ]
+          : []),
+        ...(resFreeSimChan
+          ? [
+              {
+                channel: resFreeSimChan,
+                color: colResFreeSim,
+                dash: "6 3",
+                strokeWidth: "1.4",
+                legendSymbol: "--",
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
+
+  const colBoxes = [
+    { left: 56, width: 310 },
+    { left: 428, width: 310 },
+  ];
+  const rowBoxes = [
+    { top: 58, height: 192 },
+    { top: 316, height: 192 },
+  ];
+
+  const subplotGroups: string[] = [];
+  const legendEntries: string[] = [];
+  const emittedLegendChannels = new Set<string>();
+
+  for (const spec of specs) {
+    const cBox = colBoxes[spec.colIdx];
+    const rBox = rowBoxes[spec.rowIdx];
+    const boxLeft = cBox.left;
+    const boxTop = rBox.top;
+    const boxW = cBox.width;
+    const boxH = rBox.height;
+
+    const yValues: number[] = spec.includeZeroRef ? [0] : [];
+    for (const s of spec.series) {
+      yValues.push(...s.channel.values);
+    }
+    const yBounds = computeSafeAxisBounds(yValues, 0.14);
+
+    const toPxX = (tVal: number) => mapCoord(tVal, xBounds.min, xBounds.span, boxLeft, boxW, false);
+    const toPxY = (yVal: number) => mapCoord(yVal, yBounds.min, yBounds.span, boxTop, boxH, true);
+
+    const zeroLine =
+      yBounds.min <= 0 && yBounds.max >= 0
+        ? `<line x1="${boxLeft}" y1="${toPxY(0).toFixed(2)}" x2="${boxLeft + boxW}" y2="${toPxY(0).toFixed(2)}" stroke="${theme.chartGrid}" stroke-dasharray="4 3" stroke-width="1" />`
+        : "";
+
+    const ticksX = [xBounds.min, (xBounds.min + xBounds.max) / 2, xBounds.max]
+      .map((v) => {
+        const px = toPxX(v).toFixed(2);
+        const yBase = boxTop + boxH;
+        return `<line x1="${px}" y1="${yBase}" x2="${px}" y2="${yBase + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${yBase + 15}" text-anchor="middle" font-size="9.5" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+      })
+      .join("");
+
+    const ticksY = [yBounds.min, (yBounds.min + yBounds.max) / 2, yBounds.max]
+      .map((v) => {
+        const py = toPxY(v).toFixed(2);
+        return `<line x1="${boxLeft - 4}" y1="${py}" x2="${boxLeft}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${boxLeft - 6}" y="${(Number(py) + 3).toFixed(2)}" text-anchor="end" font-size="9.5" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+      })
+      .join("");
+
+    const polylines = spec.series
+      .map((s) => {
+        const ch = s.channel;
+        const n = Math.min(model.t.length, ch.values.length);
+        if (n === 0) return "";
+        const pts: string[] = [];
+        for (let i = 0; i < n; i += 1) {
+          pts.push(`${toPxX(model.t[i]).toFixed(2)},${toPxY(ch.values[i]).toFixed(2)}`);
+        }
+        const label = `${ch.label} [${ch.unit}] (${ch.series_semantics})`;
+        return `<polyline fill="none" stroke="${s.color}" stroke-width="${s.strokeWidth}" stroke-dasharray="${s.dash}" points="${pts.join(" ")}" data-channel-id="${escapeHtml(ch.id)}" data-subplot-channel="${escapeHtml(spec.subplotId)}" data-series-semantics="${escapeHtml(ch.series_semantics)}"><title>${escapeHtml(label)}</title></polyline>`;
+      })
+      .join("");
+
+    const localLegends = spec.series
+      .map((s, idx) => {
+        const ch = s.channel;
+        const lx = boxLeft + 6;
+        const ly = boxTop + 13 + idx * 13;
+        const attr = !emittedLegendChannels.has(ch.id)
+          ? ` data-legend-channel="${escapeHtml(ch.id)}"`
+          : ` data-subplot-legend="${escapeHtml(ch.id)}"`;
+        emittedLegendChannels.add(ch.id);
+        return `<text x="${lx}" y="${ly}" font-size="9.5" fill="${s.color}"${attr}>${s.legendSymbol} ${escapeHtml(ch.label)}</text>`;
+      })
+      .join("");
+
+    legendEntries.push(localLegends);
+
+    subplotGroups.push(
+      [
+        `<g class="id-subplot-panel" data-subplot="${spec.subplotId}">`,
+        `<text x="${boxLeft}" y="${boxTop - 7}" font-size="11" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(spec.title)}</text>`,
+        `<rect x="${boxLeft}" y="${boxTop}" width="${boxW}" height="${boxH}" fill="${theme.surfaceAlt}" stroke="${theme.border}" stroke-width="1" />`,
+        zeroLine,
+        `<g class="axis-ticks">${ticksX}${ticksY}</g>`,
+        `<g class="subplot-curves">${polylines}</g>`,
+        `<g class="subplot-legend">${localLegends}</g>`,
+        `</g>`,
+      ].join(""),
+    );
+  }
+
+  const ariaSummary = `${model.title}; 4 subgráficos sincronizados (Entrada, Previsão 1-Passo, Simulação Livre e Resíduos); ${model.channels.length} canais confirmados.`;
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${widthPx} ${heightPx}" role="img" aria-label="${escapeHtml(ariaSummary)}" style="background:${theme.surface};color:${theme.textPrimary}" data-chart-kind="time_response" data-chart-layout="identification-4panel" data-series-semantics="${escapeHtml(model.series_semantics)}" data-model-revision="${escapeHtml(String(model.model_revision))}" data-project-revision="${escapeHtml(String(model.project_revision))}">`,
+    `<title>${escapeHtml(model.title)}</title>`,
+    `<desc>${escapeHtml(ariaSummary)}</desc>`,
+    `<text x="56" y="24" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${escapeHtml(model.series_semantics)}]</text>`,
+    `<g data-layer="committed">${subplotGroups.join("")}</g>`,
+    `<text x="${(widthPx / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11.5" fill="${theme.textSecondary}">${escapeHtml(model.units.x_axis)}</text>`,
+    `</svg>`,
+  ].join("");
+}
+
 export function renderTimeResponseSvg(
   model: TimeResponseChartModel,
   options?: {
@@ -1828,6 +2129,14 @@ export function renderTimeResponseSvg(
     themeMode?: AccessibilityThemeMode;
   },
 ): string {
+  const isIdentChart =
+    model.chart_id.startsWith("id-response") ||
+    model.channels.some((ch) => ch.id.startsWith("y-measured") || ch.id.startsWith("y-hat-"));
+
+  if (isIdentChart) {
+    return renderIdentificationFourPanelSvg(model, options);
+  }
+
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 360;
   const decimals = options?.decimals ?? 3;
@@ -1866,10 +2175,6 @@ export function renderTimeResponseSvg(
     return `<polyline fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${ch.stroke_dasharray}" points="${pts.join(" ")}" data-channel-id="${escapeHtml(ch.id)}" data-series-semantics="${escapeHtml(ch.series_semantics)}"><title>${escapeHtml(label)}</title></polyline>`;
   };
 
-  const isIdentChart =
-    model.chart_id.startsWith("id-response") ||
-    model.channels.some((ch) => ch.id.startsWith("y-measured") || ch.id.startsWith("y-hat-"));
-
   const isObserverChart =
     model.chart_id === "observer-state-comparison" ||
     model.channels.some((ch) => ch.id.startsWith("obs-state-"));
@@ -1878,15 +2183,6 @@ export function renderTimeResponseSvg(
   const STATE_COLORS_HC = ["#38BDF8", "#4ADE80", "#F472B6", "#FB923C", "#22D3EE", "#FCA5A5"];
 
   const resolveChannelColor = (ch: TimeSeriesChannel): string => {
-    if (isIdentChart) {
-      if (ch.id.includes("residual")) {
-        return effectiveThemeMode === "high_contrast" ? "#F472B6" : "#9333EA";
-      }
-      if (ch.id.includes("y-measured")) return theme.textPrimary;
-      if (ch.id.includes("free-sim")) return theme.chartClosedLoop;
-      if (ch.id.includes("one-step")) return theme.chartOverlayExact;
-      if (ch.group === "u") return theme.chartPreview;
-    }
     if (isObserverChart) {
       const obsMatch = /^obs-state-(?:x|xhat)-(\d+)$/.exec(ch.id);
       if (obsMatch) {
@@ -1927,7 +2223,7 @@ export function renderTimeResponseSvg(
     })
     .join("");
 
-  const timeLegendItems: string[] = isIdentChart || isObserverChart
+  const timeLegendItems: string[] = isObserverChart
     ? model.channels.map((ch, idx) => {
         const col = resolveChannelColor(ch);
         const sym = !ch.stroke_dasharray
@@ -1935,8 +2231,8 @@ export function renderTimeResponseSvg(
           : ch.stroke_dasharray.startsWith("2") || ch.stroke_dasharray.startsWith("3")
             ? "··"
             : "--";
-        const colsPerRow = isObserverChart ? 4 : 3;
-        const colWidth = isObserverChart ? 135 : 185;
+        const colsPerRow = 4;
+        const colWidth = 135;
         const lx = padLeft + 8 + (idx % colsPerRow) * colWidth;
         const ly = padTop + 14 + Math.floor(idx / colsPerRow) * 14;
         return `<text x="${lx}" y="${ly}" font-size="10" fill="${col}" data-legend-channel="${escapeHtml(ch.id)}">${sym} ${escapeHtml(ch.label)}</text>`;

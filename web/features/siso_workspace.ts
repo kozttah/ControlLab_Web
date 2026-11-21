@@ -314,6 +314,7 @@ export class SisoWorkspace {
   private compensator_zeros: Array<{ re: number; im: number }> = [];
   private compensator_poles: Array<{ re: number; im: number }> = [];
   private compensator_mode: "gain" | "tf" | "zpk" = "gain";
+  private compensator_dt: number | null = null;
 
   // Últimos resultados gerados
   private lastBodeModel: BodeChartModel | null = null;
@@ -339,6 +340,10 @@ export class SisoWorkspace {
     this.projectRevisionProvider = options.projectRevisionProvider ?? (() => 0);
     this.themeModeProvider = options.themeModeProvider ?? (() => "standard_aa");
     this.announcer = options.announcer ?? new AriaLiveAnnouncer();
+
+    this.typedWorkspace.subscribe(() => {
+      this.ensureCompensatorDomainCoherence();
+    });
   }
 
   public subscribe(listener: () => void): () => void {
@@ -359,6 +364,31 @@ export class SisoWorkspace {
     }
   }
 
+  public getActivePlantDt(): number | null {
+    const sel = this.typedWorkspace.getEffectiveSelection("frequencyPlant");
+    const rawDt = sel?.object?.value?.dt;
+    return typeof rawDt === "number" && Number.isFinite(rawDt) && rawDt > 0 ? rawDt : null;
+  }
+
+  public getCompensatorDt(): number | null {
+    return this.compensator_dt;
+  }
+
+  private ensureCompensatorDomainCoherence(): void {
+    const activeDt = this.getActivePlantDt();
+    if (!this.isDynamicCompensator()) {
+      this.compensator_dt = activeDt;
+      return;
+    }
+    const domainMismatch =
+      (this.compensator_dt === null && activeDt !== null) ||
+      (this.compensator_dt !== null && activeDt === null) ||
+      (this.compensator_dt !== null && activeDt !== null && Math.abs(this.compensator_dt - activeDt) > 1e-12);
+    if (domainMismatch) {
+      this.resetCompensator();
+    }
+  }
+
   // Getters de estado
   public getWMin(): number { return this.w_min; }
   public getWMax(): number { return this.w_max; }
@@ -375,7 +405,9 @@ export class SisoWorkspace {
     gain: number;
     zeros: Array<{ re: number; im: number }>;
     poles: Array<{ re: number; im: number }>;
+    dt: number | null;
   } {
+    this.ensureCompensatorDomainCoherence();
     return {
       num: [...this.compensator_num],
       den: [...this.compensator_den],
@@ -383,6 +415,7 @@ export class SisoWorkspace {
       gain: this.compensator_gain,
       zeros: this.compensator_zeros.map((z) => ({ ...z })),
       poles: this.compensator_poles.map((p) => ({ ...p })),
+      dt: this.compensator_dt,
     };
   }
   public isDynamicCompensator(): boolean {
@@ -396,13 +429,15 @@ export class SisoWorkspace {
   public isCompensatorTrivial(): boolean {
     return !this.isDynamicCompensator() && this.compensator_gain === 1;
   }
-  public formatCompensatorExpression(decimals = 3): string {
+  public formatCompensatorExpression(decimals = 3, varSym?: "s" | "z"): string {
+    this.ensureCompensatorDomainCoherence();
     const kStr = formatNumericDisplay(this.compensator_gain, Math.min(decimals, 3));
     if (!this.isDynamicCompensator()) {
       return kStr;
     }
-    const nStr = formatPolyDesc(this.compensator_num, "s", decimals);
-    const dStr = formatPolyDesc(this.compensator_den, "s", decimals);
+    const sym = varSym ?? (this.getActivePlantDt() !== null ? "z" : "s");
+    const nStr = formatPolyDesc(this.compensator_num, sym, decimals);
+    const dStr = formatPolyDesc(this.compensator_den, sym, decimals);
     const nWrapped = this.compensator_num.filter((v) => Math.abs(v) > 1e-12).length > 1 ? `(${nStr})` : nStr;
     const dWrapped = this.compensator_den.filter((v) => Math.abs(v) > 1e-12).length > 1 ? `(${dStr})` : dStr;
     return `${kStr} · ${nWrapped} / ${dWrapped}`;
@@ -473,6 +508,7 @@ export class SisoWorkspace {
     this.compensator_num = trimLeadingZerosDesc(num);
     this.compensator_den = trimLeadingZerosDesc(den);
     this.compensator_mode = mode;
+    this.compensator_dt = this.getActivePlantDt();
     this.notify();
   }
 
@@ -500,6 +536,7 @@ export class SisoWorkspace {
     this.compensator_num = expandRootsToRealPoly(this.compensator_zeros);
     this.compensator_den = expandRootsToRealPoly(this.compensator_poles);
     this.compensator_mode = "zpk";
+    this.compensator_dt = this.getActivePlantDt();
     this.notify();
   }
 
@@ -509,6 +546,7 @@ export class SisoWorkspace {
     this.compensator_zeros = [];
     this.compensator_poles = [];
     this.compensator_mode = "gain";
+    this.compensator_dt = this.getActivePlantDt();
     this.notify();
   }
 
@@ -561,6 +599,7 @@ export class SisoWorkspace {
       );
     }
     this.assertStrictlySiso(sel.object);
+    this.ensureCompensatorDomainCoherence();
     return {
       ref: sel.ref,
       object: sel.object,
@@ -572,6 +611,7 @@ export class SisoWorkspace {
     object: RegisteredTypedObject,
     opKind: "open_loop_with_gain" | "open_loop_unit_gain" | "closed_loop_step",
   ): Record<string, unknown> {
+    this.ensureCompensatorDomainCoherence();
     if (
       this.isCompensatorTrivial() ||
       (opKind === "open_loop_unit_gain" && !this.isDynamicCompensator())
@@ -684,7 +724,6 @@ export class SisoWorkspace {
           );
         }
         const alpha = 1 / denom;
-        const nTot = Aol.length;
         const Acl = Aol.map((row, i) =>
           row.map((v, j) => v - fbScale * alpha * Bol[i][0] * Col[0][j]),
         );
@@ -748,8 +787,22 @@ export class SisoWorkspace {
     const { ref, object } = this.resolveActivePlant();
     const isPreview = options?.previewOnly === true;
 
-    const wMin = options?.customWMin ?? this.w_min;
-    const wMax = options?.customWMax ?? this.w_max;
+    const rawDt = object.value.dt;
+    const activeDt = typeof rawDt === "number" && Number.isFinite(rawDt) && rawDt > 0 ? rawDt : null;
+
+    let wMin = options?.customWMin ?? this.w_min;
+    let wMax = options?.customWMax ?? this.w_max;
+    if (activeDt !== null) {
+      const nyquistLimit = Number(((Math.PI / activeDt) * 0.999).toFixed(4));
+      if (wMax > nyquistLimit) {
+        wMax = nyquistLimit;
+        this.w_max = Number((Math.PI / activeDt).toFixed(2));
+      }
+      if (wMin >= wMax) {
+        wMin = Number((wMax * 0.01).toFixed(4));
+        this.w_min = wMin;
+      }
+    }
     const nPoints = options?.customNPoints ?? this.n_points;
     const delay = options?.customDelay ?? this.delay;
     const usePade = options?.customUsePade ?? this.use_pade;
@@ -1245,8 +1298,15 @@ export class SisoWorkspace {
       const projectId = this.projectIdProvider();
       const projectRevision = this.projectRevisionProvider();
       const amp = options?.amplitude ?? 1.0;
-      const tFinal = options?.t_final ?? 10.0;
-      const nPoints = options?.n_points ?? 400;
+      const rawDt = object.value.dt;
+      const activeDt = typeof rawDt === "number" && Number.isFinite(rawDt) && rawDt > 0 ? rawDt : null;
+      let tFinal = options?.t_final ?? 10.0;
+      let nPoints = options?.n_points ?? 400;
+      if (activeDt !== null) {
+        const nSteps = Math.max(4, Math.min(5000, Math.round(tFinal / activeDt)));
+        tFinal = Number((nSteps * activeDt).toFixed(9));
+        nPoints = nSteps + 1;
+      }
 
       const stepPlantPayload = this.buildPlantPayloadForOperation(ref, object, "closed_loop_step");
 

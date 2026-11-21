@@ -148,6 +148,7 @@ export interface IdentificationSeriesSnapshot {
   y_one_step: readonly number[];
   y_free_sim: readonly number[];
   residuals: readonly number[];
+  residuals_free_sim?: readonly number[];
   units: {
     time: string;
     input: string;
@@ -1400,15 +1401,28 @@ export class IdentificationWorkspace {
       const resTr = extractFirstChannelFromTensor(res.residuals_train);
       if (yPredTr.length > 0 || ySimTr.length > 0) {
         const n = trainDsSeries.t.length;
+        const alignedPred = alignTailToLength(yPredTr, n, trainDsSeries.y[0] ?? 0);
+        const alignedSim = alignTailToLength(ySimTr, n, trainDsSeries.y[0] ?? 0);
+        const alignedRes1 =
+          resTr.length > 0
+            ? alignTailToLength(resTr, n, 0)
+            : alignedPred.length === n
+              ? trainDsSeries.y.map((yv, idx) => yv - alignedPred[idx])
+              : [];
+        const computedResFree =
+          alignedSim.length === n
+            ? trainDsSeries.y.map((yv, idx) => yv - alignedSim[idx])
+            : [];
         trainSeries = {
           partition: "train",
           dt: trainDsSeries.dt ?? dtFromModel,
           t: trainDsSeries.t,
           u: trainDsSeries.u,
           y_measured: trainDsSeries.y,
-          y_one_step: alignTailToLength(yPredTr, n, trainDsSeries.y[0] ?? 0),
-          y_free_sim: alignTailToLength(ySimTr, n, trainDsSeries.y[0] ?? 0),
-          residuals: alignTailToLength(resTr, n, 0),
+          y_one_step: alignedPred,
+          y_free_sim: alignedSim,
+          residuals: alignedRes1,
+          residuals_free_sim: computedResFree,
           units: trainDsSeries.units,
         };
       }
@@ -1436,6 +1450,10 @@ export class IdentificationWorkspace {
           alignedPred.length === n
             ? valDsSeries.y.map((yv, idx) => yv - alignedPred[idx])
             : [];
+        const computedResFree =
+          alignedSim.length === n
+            ? valDsSeries.y.map((yv, idx) => yv - alignedSim[idx])
+            : [];
         validationSeries = {
           partition: "validation",
           dt: valDsSeries.dt ?? dtFromModel,
@@ -1445,6 +1463,7 @@ export class IdentificationWorkspace {
           y_one_step: alignedPred,
           y_free_sim: alignedSim,
           residuals: computedRes,
+          residuals_free_sim: computedResFree,
           units: valDsSeries.units,
         };
       }
@@ -1481,13 +1500,10 @@ export class IdentificationWorkspace {
     };
   }
 
-  /**
-   * Constrói o gráfico temporal comparativo (y medido vs previsão 1-passo vs simulação livre vs resíduos)
-   * para a partição selecionada (`train` ou `validation`).
-   */
-  public buildResponseChart(
-    partition?: "train" | "validation",
-  ): TimeResponseChartModel | null {
+  private resolveSeriesAndSourceReport(partition?: "train" | "validation"): {
+    series: IdentificationSeriesSnapshot;
+    sourceReport: IdentificationReportView;
+  } | null {
     const targetPart = partition ?? this.activePartitionView;
     const valReport = this.lastValidationReport;
     const fitReport = this.lastFitReport;
@@ -1519,6 +1535,19 @@ export class IdentificationWorkspace {
     if (!series || !sourceReport) {
       return null;
     }
+    return { series, sourceReport };
+  }
+
+  /**
+   * Constrói o gráfico temporal comparativo (y medido vs previsão 1-passo vs simulação livre vs resíduos)
+   * para a partição selecionada (`train` ou `validation`).
+   */
+  public buildResponseChart(
+    partition?: "train" | "validation",
+  ): TimeResponseChartModel | null {
+    const resolved = this.resolveSeriesAndSourceReport(partition);
+    if (!resolved) return null;
+    const { series, sourceReport } = resolved;
 
     return buildIdentificationResponseChartModel({
       chart_id: `id-response-${series.partition}`,
@@ -1529,6 +1558,7 @@ export class IdentificationWorkspace {
       y_one_step: series.y_one_step,
       y_free_sim: series.y_free_sim,
       residuals: series.residuals,
+      residuals_free_sim: series.residuals_free_sim,
       u: series.u,
       units: series.units,
       model_revision: sourceReport.model_ref?.revision ?? null,
@@ -1538,6 +1568,50 @@ export class IdentificationWorkspace {
         sourceReport.status === "warning" ? "approximate" : "numeric_verified",
       theme_mode: this.themeModeProvider(),
     });
+  }
+
+  /**
+   * Constrói os 4 modelos de gráficos sincronizados separados (Entrada u(k), Previsão 1-Passo vs y,
+   * Simulação Livre vs y e Resíduos 1-Passo vs Simulação Livre).
+   */
+  public buildSplitResponseCharts(partition?: "train" | "validation"): {
+    inputChart: TimeResponseChartModel;
+    oneStepChart: TimeResponseChartModel;
+    freeSimChart: TimeResponseChartModel;
+    residualsChart: TimeResponseChartModel;
+  } | null {
+    const combined = this.buildResponseChart(partition);
+    if (!combined) return null;
+
+    const filterChannels = (pred: (id: string) => boolean, chartId: string, title: string): TimeResponseChartModel => ({
+      ...combined,
+      chart_id: chartId,
+      title,
+      channels: combined.channels.filter((ch) => pred(ch.id)),
+    });
+
+    return {
+      inputChart: filterChannels(
+        (id) => id.startsWith("u-input-"),
+        "id-plot-input",
+        "1. Entrada u(k)",
+      ),
+      oneStepChart: filterChannels(
+        (id) => id.startsWith("y-measured-") || id.startsWith("y-hat-one-step-"),
+        "id-plot-one-step",
+        "2. Previsão 1-Passo à Frente vs. Saída Medida",
+      ),
+      freeSimChart: filterChannels(
+        (id) => id.startsWith("y-measured-") || id.startsWith("y-hat-free-sim-"),
+        "id-plot-free-sim",
+        "3. Simulação Livre vs. Saída Medida",
+      ),
+      residualsChart: filterChannels(
+        (id) => id.startsWith("residuals-one-step-") || id.startsWith("residuals-free-sim-"),
+        "id-plot-residuals",
+        "4. Resíduos: 1-Passo vs. Simulação Livre",
+      ),
+    };
   }
 
   /**

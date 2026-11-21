@@ -397,3 +397,174 @@ def test_ux_mimo_fuzzy_lmi_monaco_and_viewport_responsiveness(browser_harness):
             "overflow_report": overflow_report,
         },
     )
+
+
+def test_ux_high_contrast_aaa_and_compact_legacy_drawer(browser_harness):
+    """Test 4: High-Contrast AAA theme propagation (DOM + scientific SVG charts), 1-click 4-chart SISO, and compact legacy RPC drawer."""
+    page = mount_ui(browser_harness, "e2e-ux-high-contrast-aaa", {"width": 1280, "height": 800})
+
+    # Ensure we are on Tab 3 (statespace) even if a previous test left a location.hash
+    page.locator('button[data-tab-id="statespace"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'statespace'")
+
+    # Commit LQR first so StateSpace pole-zero SVG and KPI values are rendered
+    page.locator('[data-action="commit-lqr"]').click()
+    wait_committed(page)
+
+    # 1. Switch to High-Contrast theme via #theme-toggle-btn
+    page.locator("#theme-toggle-btn").click()
+    theme_attrs = page.evaluate(
+        """() => {
+            const appEl = document.querySelector('#controllab-app') || document.body.firstElementChild;
+            return {
+                app: appEl?.getAttribute('data-theme'),
+                html: document.documentElement.getAttribute('data-theme'),
+                body: document.body.getAttribute('data-theme'),
+            };
+        }"""
+    )
+    assert theme_attrs["app"] == "high_contrast"
+    assert theme_attrs["html"] == "high_contrast"
+    assert theme_attrs["body"] == "high_contrast"
+
+    # 2. Verify high-contrast dark background and light text on h1, h2, .kpi-value, and .lmi-math-expr
+    styles_ss = page.evaluate(
+        """() => {
+            const h1 = document.querySelector('h1');
+            const h2 = document.querySelector('#controllab-tab-heading');
+            const kpi = document.querySelector('.kpi-value');
+            const appEl = document.querySelector('#controllab-app') || document.body.firstElementChild;
+            const cardEl = document.querySelector('.panel-card');
+            return {
+                h1Color: h1 ? getComputedStyle(h1).color : null,
+                h2Color: h2 ? getComputedStyle(h2).color : null,
+                kpiColor: kpi ? getComputedStyle(kpi).color : null,
+                appBg: appEl ? getComputedStyle(appEl).backgroundColor : null,
+                cardBg: cardEl ? getComputedStyle(cardEl).backgroundColor : null,
+            };
+        }"""
+    )
+    assert styles_ss["h1Color"] == "rgb(248, 250, 252)"
+    assert styles_ss["h2Color"] == "rgb(248, 250, 252)"
+    assert styles_ss["kpiColor"] == "rgb(248, 250, 252)"
+    assert styles_ss["h1Color"] != "rgb(15, 23, 42)"
+    assert styles_ss["appBg"] in ("rgb(5, 8, 15)", "rgb(13, 19, 34)")
+    assert styles_ss["cardBg"] in ("rgb(5, 8, 15)", "rgb(13, 19, 34)")
+
+    # 3. Verify rendered SVG chart (#pz-chart-slot svg rect) uses high-contrast dark surface (#0B0F17 or #141B29)
+    pz_rect_fills = page.evaluate(
+        """() => Array.from(document.querySelectorAll('#pz-chart-slot svg rect')).map(
+            (r) => (r.getAttribute('fill') || '').toUpperCase()
+        )"""
+    )
+    assert any(f in ("#0B0F17", "#141B29") for f in pz_rect_fills), (
+        f"Expected dark high-contrast SVG surface in #pz-chart-slot, got {pz_rect_fills}"
+    )
+
+    # Check .lmi-math-expr computed color on Tab 6 (optimization_lmi)
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    lmi_expr_color = page.evaluate(
+        """() => {
+            const el = document.querySelector('.lmi-math-expr');
+            return el ? getComputedStyle(el).color : null;
+        }"""
+    )
+    assert lmi_expr_color == "rgb(248, 250, 252)"
+    assert lmi_expr_color != "rgb(15, 23, 42)"
+
+    # 4. In Tab 2 (siso_frequency), clicking #btn-siso-eval-all renders all 4 SISO charts in a single click
+    page.locator('button[data-tab-id="siso_frequency"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'siso_frequency'")
+    page.locator("#siso-workspace-panel").wait_for(state="visible")
+
+    tf_siso_hc = {
+        "schema_version": "1.0.0",
+        "id": "tf-siso-hc-e2e",
+        "revision": 1,
+        "kind": "TransferFunction",
+        "dt": None,
+        "variable": "s",
+        "poly_order": "descending",
+        "input_names": ["u1"],
+        "output_names": ["y1"],
+        "num": [[{"shape": [1], "dtype": "float64", "order": "C", "data": [2.0]}]],
+        "den": [[{"shape": [3], "dtype": "float64", "order": "C", "data": [1.0, 2.0, 2.0]}]],
+        "units": {"time": "s", "inputs": ["V"], "outputs": ["V"]},
+        "provenance": {"algorithm": "test", "library": "control_lab", "seed": None},
+    }
+    page.evaluate(
+        """async (dto) => {
+            await app.shell.getTypedWorkspace().registerTypedObject(dto, {
+                selectRole: "frequencyPlant",
+                persistToIndexedDB: true,
+            });
+        }""",
+        tf_siso_hc,
+    )
+
+    page.locator("#siso-n-points").fill("40")
+    page.locator('#btn-siso-eval-all[data-action="siso-eval-all"]').click()
+
+    page.locator("#siso-bode-chart-slot svg").wait_for(state="visible", timeout=30000)
+    page.locator("#siso-nyquist-chart-slot svg").wait_for(state="visible", timeout=30000)
+    page.locator("#siso-rl-chart-slot svg").wait_for(state="visible", timeout=30000)
+    page.locator("#siso-time-chart-slot svg").wait_for(state="visible", timeout=30000)
+
+    siso_bode_fills = page.evaluate(
+        """() => Array.from(document.querySelectorAll('#siso-bode-chart-slot svg rect')).map(
+            (r) => (r.getAttribute('fill') || '').toUpperCase()
+        )"""
+    )
+    assert any(f in ("#0B0F17", "#141B29") for f in siso_bode_fills)
+
+    # 5. Legacy RPC drawer (#legacy-rpc-inspector-details) is compact by default (max-height <= 220px) and #btn-toggle-advanced-rpc toggles .expanded
+    drawer_initial = page.evaluate(
+        """() => {
+            const el = document.querySelector('#legacy-rpc-inspector-details');
+            const cs = el ? getComputedStyle(el) : null;
+            return {
+                hasExpanded: el ? el.classList.contains('expanded') : null,
+                maxHeightPx: cs ? parseFloat(cs.maxHeight) : null,
+                ariaExpanded: document.querySelector('#btn-toggle-advanced-rpc')?.getAttribute('aria-expanded'),
+            };
+        }"""
+    )
+    assert drawer_initial["hasExpanded"] is False
+    assert drawer_initial["maxHeightPx"] is not None and drawer_initial["maxHeightPx"] <= 220
+    assert drawer_initial["ariaExpanded"] == "false"
+
+    page.locator("#btn-toggle-advanced-rpc").click()
+    drawer_expanded = page.evaluate(
+        """() => {
+            const el = document.querySelector('#legacy-rpc-inspector-details');
+            const cs = el ? getComputedStyle(el) : null;
+            return {
+                hasExpanded: el ? el.classList.contains('expanded') : null,
+                maxHeight: cs ? cs.maxHeight : null,
+                ariaExpanded: document.querySelector('#btn-toggle-advanced-rpc')?.getAttribute('aria-expanded'),
+            };
+        }"""
+    )
+    assert drawer_expanded["hasExpanded"] is True
+    assert drawer_expanded["maxHeight"] == "none"
+    assert drawer_expanded["ariaExpanded"] == "true"
+
+    page.locator("#btn-toggle-advanced-rpc").click()
+    assert page.evaluate(
+        "() => document.querySelector('#legacy-rpc-inspector-details')?.classList.contains('expanded')"
+    ) is False
+
+    browser_harness.record(
+        "e2e-ux-high-contrast-aaa",
+        {
+            "theme_attrs": theme_attrs,
+            "styles_ss": styles_ss,
+            "lmi_expr_color": lmi_expr_color,
+            "pz_rect_fills": pz_rect_fills[:4],
+            "siso_4_charts_single_click": True,
+            "drawer_initial": drawer_initial,
+            "drawer_expanded": drawer_expanded,
+        },
+    )
+

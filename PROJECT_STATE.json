@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 1
+      "2026-11-21": 2
     }
   },
   "audit_reference": {
@@ -3899,11 +3899,23 @@
         "T-SDP-C1"
       ],
       "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/e2e/test_gatecd_interactions.py tests/e2e/test_id_siso_verticals.py -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "Validar em navegador real (Playwright) que a alternância para Alto Contraste altera efetivamente as cores computadas de títulos, rótulos, cartões e SVGs científicos com contraste legível e que a altura da bancada principal foi enxugada com os painéis legados recolhidos por padrão"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-REFACTOR-06-F9-HIGH-CONTRAST-AUDIT.md",
+      "assessed_commit": "5f91ec858440f615b8150e65115b54f647e57d95",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "3f98ec913e11bd13b845d0947e6fa30dff1fd33748dc80ec5839747eebafd15c"
+      },
+      "acceptance_scope": "real_browser_high_contrast_aaa_dom_svg_1click_siso_and_compact_legacy_drawer_audit",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-REFACTOR-06-F9-HIGH-CONTRAST-AUDIT.md",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py",
+        "tests/e2e/test_gatecd_interactions.py"
       ]
     }
   ],

@@ -1119,4 +1119,109 @@ def test_ux_phase2_lqg_observer_mimo_decoupler_and_hinf(browser_harness):
     )
 
 
+def test_ux_phase3_lmi_v2_system_char_and_forall_quantifiers(browser_harness):
+    """Test 8: Phase 3 LMI DSL v2.0 — System Characterization Card, generalized plant, polytopic/TS forall quantifiers, CVXPY loops, and zero overflow."""
+    page = mount_ui(browser_harness, "e2e-ux-phase3-lmi-v2", {"width": 1280, "height": 800})
+
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
+
+    # 1. #lmi-system-characterization-card is visible above .lmi-editor-split
+    sys_card = page.locator("#lmi-system-characterization-card")
+    editor_split = page.locator(".lmi-editor-split")
+    sys_card.wait_for(state="visible")
+    editor_split.wait_for(state="visible")
+
+    sys_box = sys_card.bounding_box()
+    split_box = editor_split.bounding_box()
+    assert sys_box is not None and split_box is not None
+    assert sys_box["y"] < split_box["y"], (
+        f"Expected #lmi-system-characterization-card (y={sys_box['y']}) above .lmi-editor-split (y={split_box['y']})"
+    )
+
+    # 2. Switch #lmi-sys-class-select to 'lti' and enable #lmi-gen-enable-w / #lmi-gen-enable-z -> generalized plant matrices visible
+    page.select_option("#lmi-sys-class-select", "lti")
+    assert page.locator("#lmi-sys-class-select").input_value() == "lti"
+
+    gen_panel = page.locator("#lmi-gen-matrices-panel")
+    assert not gen_panel.is_visible()
+
+    page.locator("#lmi-gen-enable-w").check()
+    page.locator("#lmi-gen-enable-z").check()
+    gen_panel.wait_for(state="visible")
+    for matrix_id in ("#lmi-gen-bw", "#lmi-gen-cz", "#lmi-gen-dzu", "#lmi-gen-dzw"):
+        assert page.locator(matrix_id).is_visible(), f"Expected generalized matrix input {matrix_id} to be visible"
+
+    # 3. Select template 'polytopic_robust' -> sys-class switches to 'polytopic', forall badge in #lmi-parsed-math, #lmi-expanded-blocks-badge updates
+    badge_before = page.locator("#lmi-expanded-blocks-badge").inner_text()
+    page.select_option("#lmi-template-select", "polytopic_robust")
+    assert page.locator("#lmi-sys-class-select").input_value() == "polytopic"
+    assert page.locator("#lmi-sys-panel-polytopic").is_visible()
+
+    parsed_math_poly = page.locator("#lmi-parsed-math").inner_text()
+    assert "∀" in parsed_math_poly, f"Expected ∀ quantifier badge in #lmi-parsed-math, got: {parsed_math_poly!r}"
+    assert page.locator("#lmi-parsed-math .lmi-quantifier-badge").count() >= 1
+
+    badge_poly = page.locator("#lmi-expanded-blocks-badge").inner_text()
+    assert "expandidos" in badge_poly
+    assert badge_poly != badge_before or "blocos LMI expandidos" in badge_poly
+
+    # 4. Select template 'ts_pdc_relaxed' -> sys-class switches to 'ts', #lmi-ts-premises-list toggles Medida/Não Medida, j > i in #lmi-parsed-math, CVXPY for loops
+    page.select_option("#lmi-template-select", "ts_pdc_relaxed")
+    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
+    assert page.locator("#lmi-sys-panel-ts").is_visible()
+
+    premises_list = page.locator("#lmi-ts-premises-list")
+    premises_list.wait_for(state="visible")
+    toggle_btn = premises_list.locator('[data-action="lmi-toggle-premise"]').first
+    toggle_btn.wait_for(state="visible")
+    initial_premise_label = toggle_btn.inner_text()
+    assert "Medida" in initial_premise_label
+    toggle_btn.click()
+    toggled_premise_label = toggle_btn.inner_text()
+    assert toggled_premise_label != initial_premise_label
+    assert ("Não Medida" in toggled_premise_label) or ("Medida" in toggled_premise_label)
+
+    parsed_math_ts = page.locator("#lmi-parsed-math").inner_text()
+    assert "∀" in parsed_math_ts
+    assert "j > i" in parsed_math_ts, f"Expected 'j > i' in #lmi-parsed-math, got: {parsed_math_ts!r}"
+
+    page.locator("#btn-lmi-export-cvxpy").click()
+    export_modal = page.locator("#controllab-export-modal")
+    export_modal.wait_for(state="visible", timeout=20000)
+    cvxpy_content = page.locator("#export-modal-content").inner_text()
+    assert "import cvxpy" in cvxpy_content
+    assert "for i in range(" in cvxpy_content, f"Expected quantified for-loop in CVXPY export, got: {cvxpy_content!r}"
+    assert "for j in range(" in cvxpy_content, f"Expected nested j for-loop in CVXPY export, got: {cvxpy_content!r}"
+    page.locator("#export-modal-close").click()
+    export_modal.wait_for(state="hidden")
+
+    # 5. Zero horizontal overflow on Tab 6 at 1280x800 and 390x844
+    overflow_phase3 = {}
+    for width, height in ((1280, 800), (390, 844)):
+        page.set_viewport_size({"width": width, "height": height})
+        vp_key = f"{width}x{height}"
+        m = page.evaluate(
+            "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
+        )
+        overflow_phase3[vp_key] = m
+        assert m["scrollWidth"] <= m["innerWidth"], (
+            f"Horizontal overflow at {vp_key} on Tab 6: "
+            f"scrollWidth={m['scrollWidth']} > innerWidth={m['innerWidth']}"
+        )
+
+    browser_harness.record(
+        "e2e-ux-phase3-lmi-v2",
+        {
+            "sys_card_above_editor": True,
+            "polytopic_badge": badge_poly,
+            "premise_toggle": f"{initial_premise_label} -> {toggled_premise_label}",
+            "cvxpy_has_for_loops": True,
+            "overflow_phase3": overflow_phase3,
+        },
+    )
+
+
+
 

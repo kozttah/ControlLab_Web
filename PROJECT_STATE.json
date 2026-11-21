@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 10
+      "2026-11-21": 11
     }
   },
   "audit_reference": {
@@ -4886,6 +4886,154 @@
         "build": "web/dist OK",
         "e2e_chromium": "12/12 passed in 110.26s",
         "verify_fixtures": "11 schemas + 7 golden fixtures OK"
+      }
+    },
+    {
+      "wp_id": "WP-LMI-V2-01-DSL-PARSER-QUANTIFIERS",
+      "front": "f8-ui-charts",
+      "phase": "Phase3-LMI-DSL-v2",
+      "title": "F8: Parser deterministico da DSL LMI v2.0 (system, index, variaveis indexadas, matrizes generalizadas, He(), * em bmat, macro e quantificadores forall)",
+      "allowed_paths": [
+        "web/features/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE2-F2-F9-AUDIT-AND-LMI-DESIGN-DOC"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "lmi_dsl_parser.ts suporta system (lti/polytopic/ts), index, variaveis indexadas var Y[i], matrizes generalizadas (Bw, Dyw, Cz, Dzu, Dzw), He(), simetria * em bmat, macro M(i,j) e blocos forall (forall i, forall i, j where j > i, etc.) com expansao deterministica de blocos e leitura matematica tipografica sem eval"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-LMI-V2-01-DSL-PARSER-QUANTIFIERS.md",
+      "assessed_commit": "14d104330c7af7854991d61080f910b62c464fc5",
+      "reviewed_source_sha256": {
+        "web/features/views/lmi_dsl_parser.ts": "130a42885994df56d78a3ced04d9e2bdb6100fcbf3d07981bbe4e23b5f281011",
+        "tests/unit/f8/lmi_dsl_v2.test.ts": "f6a9e7e09f7e3b5e79caabdb0da72cc4c8e16734e96a61d2f897cfac1cbb30dc"
+      },
+      "acceptance_scope": [
+        "web/features/views/lmi_dsl_parser.ts",
+        "tests/unit/f8/lmi_dsl_v2.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "0 errors",
+        "web_tests_all": "137/137 passed across 18 files in 87223ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "e2e_chromium": "8/8 passed in 69.86s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20 passed in 4.46s"
+      }
+    },
+    {
+      "wp_id": "WP-LMI-V2-02-SYSTEM-CHARACTERIZATION-UI",
+      "front": "f8-ui-charts",
+      "phase": "Phase3-LMI-DSL-v2",
+      "title": "F8: Quadro de Caracterizacao do Sistema (Linear/Generalizado, Politopico Incerto, TS com premissas e pertinencias) e templates v2.0 na Aba 6",
+      "allowed_paths": [
+        "web/features/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-LMI-V2-01-DSL-PARSER-QUANTIFIERS"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-C1",
+        "T-SDP-D1"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Zona 2 (#lmi-system-characterization-card) na Aba 6 com modos Linear/Planta Generalizada, Politopico Incerto (Nv vertices + indice) e Modelo TS (Nr regras + pertinencias + premissas medidas/nao medidas), declaracao de indices extras, novos templates v2.0 e exportacao CVXPY/YALMIP com loops forall"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-LMI-V2-02-SYSTEM-CHARACTERIZATION-UI.md",
+      "assessed_commit": "14d104330c7af7854991d61080f910b62c464fc5",
+      "reviewed_source_sha256": {
+        "web/features/views/lmi_view.ts": "91ac04c42afeebb262ae623c425566fb4a8151970c29b88b2a52fd2a8e6d54d7",
+        "web/app/styles.css": "83f1cf486c7217ea385297625f242fe82c0bc872486f1a09856e970228fa2c54",
+        "tests/unit/f8/lmi_dsl_v2.test.ts": "f6a9e7e09f7e3b5e79caabdb0da72cc4c8e16734e96a61d2f897cfac1cbb30dc"
+      },
+      "acceptance_scope": [
+        "web/features/views/lmi_view.ts",
+        "web/app/styles.css",
+        "tests/unit/f8/lmi_dsl_v2.test.ts"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "0 errors",
+        "web_tests_all": "137/137 passed across 18 files in 87223ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "e2e_chromium": "8/8 passed in 69.86s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20 passed in 4.46s"
+      }
+    },
+    {
+      "wp_id": "WP-LMI-V2-03-F9-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase3-LMI-DSL-v2",
+      "title": "F9: Auditoria independente em navegador real para a Aba de LMIs v2.0 e DSL com quantificadores forall",
+      "allowed_paths": [
+        "tests/e2e/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-LMI-V2-01-DSL-PARSER-QUANTIFIERS",
+        "WP-LMI-V2-02-SYSTEM-CHARACTERIZATION-UI"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-C1",
+        "T-SDP-D1"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Validar em Chromium real o Quadro de Caracterizacao do Sistema (Linear Generalizado, Politopico, TS com premissas), quantificadores forall i e forall i, j where j > i, leitura matematica e exportacao CVXPY/YALMIP"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-LMI-V2-03-F9-AUDIT.md",
+      "assessed_commit": "14d104330c7af7854991d61080f910b62c464fc5",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "990b4adfc169cac61108cc6cd844aab38be4ed2c669d6018f11c61a747a78550"
+      },
+      "acceptance_scope": [
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ],
+      "acceptance_evidence": {
+        "typecheck": "0 errors",
+        "web_tests_all": "137/137 passed across 18 files in 87223ms",
+        "build": "control_lab-1.0.0-py3-none-any.whl + 42 local assets OK",
+        "e2e_chromium": "8/8 passed in 69.86s",
+        "verify_fixtures": "11 schemas + 7 golden fixtures OK",
+        "governance_tests": "20 passed in 4.46s"
       }
     }
   ],

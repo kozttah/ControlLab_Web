@@ -1,19 +1,18 @@
 /**
  * Bancada da Aba 6 — LMIs, SDPs e Síntese Robusta
- * seguindo CL-UX-DIR-001 v1.0.0 Seção 4.6 e ADR-010 (`WP-UX-REFACTOR-03-MIMO-FUZZY-LMI`).
+ * seguindo CL-LMI-DSL-DIR-001 v1.0.0, CL-UX-DIR-001 v1.0.0 Seção 4.6 e ADR-010
+ * (`WP-UX-REFACTOR-03-MIMO-FUZZY-LMI` + `WP-LMI-V2-02-SYSTEM-CHARACTERIZATION-UI`).
  *
  * Responsabilidades estritas de UI/Apresentação (F8):
- * - Editor DSL estilo Monaco (`#lmi-code-editor` + `#lmi-line-gutter`) pré-carregado na
- *   abertura com o template comentado "Decaimento α + Estabilização".
- * - Seletor de templates (`#lmi-template-select`), salvar/carregar presets na sessão
- *   (`#btn-lmi-save-dsl`, `#lmi-saved-select`) e exportar/importar `.lmi` passivos.
- * - Painel em tempo real "Leitura Matemática Interpretada" (`#lmi-parsed-vars`,
- *   `#lmi-parsed-math`, `#lmi-parsed-alert`, `#lmi-syntax-badge`) via parser puro sem `eval`.
- * - Botões "Resolver LMI" (`optimization.solve`), "Auditar Certificado" (`optimization.verify`),
- *   "Exportar CVXPY" (`optimization.export_cvxpy`) e "Exportar YALMIP" (`optimization.export_yalmip`)
- *   sempre habilitados mesmo sem solução confirmada (ADR-010).
- * - Painel de Certificado de Auditoria Independente em 5 Dimensões (`#lmi-certificate-panel`)
+ * - Zona 1: Barra de ações, templates v1.0/v2.0, salvar/carregar presets e exportar/importar `.lmi`.
+ * - Zona 2: Quadro de Caracterização do Sistema e Conjuntos de Índices (`#lmi-system-characterization-card`)
+ *   com modos LTI / Planta Generalizada (`Bw, Cz, Dzu, Dzw`), Politópico Incerto (`N_v`, vértices ±δ%)
+ *   e Takagi-Sugeno (`N_r`, importação de pertinências da Aba 5 e premissas Medidas vs. Não Medidas).
+ * - Zona 3: Editor DSL estilo Monaco (`#lmi-code-editor` + `#lmi-line-gutter`) + Leitura Matemática
+ *   Interpretada (`#lmi-parsed-vars`, `#lmi-parsed-math`, `#lmi-expanded-blocks-badge`) via parser puro sem `eval`.
+ * - Zona 4: Certificado de Auditoria Independente em 5 Dimensões (`#lmi-certificate-panel`)
  *   + ganho recuperado `K` + Espectro de autovalores LMI (`#lmi-spectrum-chart-slot`).
+ * - Exportação CVXPY/YALMIP sempre habilitada (ADR-010), com laços `for` quantificados para DSL v2.0.
  *
  * 100% compatível com erasableSyntaxOnly, verbatimModuleSyntax e FakeElement/FakeDocument.
  */
@@ -42,11 +41,15 @@ import {
   type LmiSpectrumChartModel,
 } from "../../charts/scientific_chart.ts";
 import {
+  generateQuantifiedCvxpySnippet,
+  generateQuantifiedYalmipSnippet,
   LMI_DSL_TEMPLATES,
   parseLmiDsl,
   resolveShapeLabel,
   type LmiBackendTemplateId,
+  type LmiDslParseOptions,
   type LmiDslParseResult,
+  type LmiQuantifiedExportContext,
 } from "./lmi_dsl_parser.ts";
 
 export interface LmiExportModalPayload {
@@ -71,6 +74,36 @@ export interface SavedLmiPreset {
   template: LmiBackendTemplateId;
   dsl: string;
   savedAt: string;
+}
+
+interface LmiPremiseVarState {
+  name: string;
+  measured: boolean;
+}
+
+interface LmiPolytopeVertexPreview {
+  index: number;
+  label: string;
+  aMatrix: number[][];
+}
+
+interface LmiSystemCharacterizationState {
+  systemClass: "lti" | "polytopic" | "ts";
+  genEnableW: boolean;
+  genEnableZ: boolean;
+  genBwText: string;
+  genCzText: string;
+  genDzuText: string;
+  genDzwText: string;
+  polyVerticesCount: number;
+  polyIndexName: string;
+  polyDeltaPct: number;
+  polyVertices: LmiPolytopeVertexPreview[];
+  tsRulesCount: number;
+  tsIndexName: string;
+  tsPremises: LmiPremiseVarState[];
+  tsMfSummary: string[];
+  extraIndices: string;
 }
 
 interface LmiSolveSnapshot {
@@ -134,6 +167,19 @@ function extractRealTensor2D(
   };
 }
 
+function parseCompactMatrixJson(text: string): number[][] | null {
+  try {
+    const parsed = JSON.parse(text.trim()) as unknown;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    if (Array.isArray(parsed[0])) {
+      return (parsed as unknown[][]).map((r) => r.map((v) => Number(v)));
+    }
+    return [(parsed as unknown[]).map((v) => Number(v))];
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Formata K = Y * Q^{-1} apenas para exibição visual quando `result.variables` traz `Q` e `Y`.
  * Nunca altera `controller_validity` retornado pelo auditor Python.
@@ -146,7 +192,6 @@ function formatGainFromQY(
   const m = yMat.rows;
   if (n !== qMat.cols || yMat.cols !== n || n < 1 || n > 12) return null;
 
-  // Gauss-Jordan sobre [Q | I_n] -> [I_n | Q^{-1}]
   const aug: number[][] = Array.from({ length: n }, (_, i) => {
     const row: number[] = [];
     for (let j = 0; j < n; j += 1) row.push(qMat.data[i * n + j]);
@@ -239,6 +284,67 @@ export function renderLmiViewHtml(): string {
     `<button type="button" id="btn-lmi-export-yalmip" class="touch-control btn-secondary" data-action="lmi-export-yalmip">Exportar YALMIP (.m)</button>`,
     `</div>`,
     `</div>`,
+
+    `<div id="lmi-system-characterization-card" class="subcard lmi-sys-card" aria-label="Caracterização do Sistema e Conjuntos de Índices">`,
+    `<div class="lmi-sys-head">`,
+    `<h4>Caracterização do Sistema &amp; Conjuntos de Índices (Zona 2)</h4>`,
+    `<span id="lmi-expanded-blocks-badge" class="badge badge-sufficient">2 blocos LMI expandidos</span>`,
+    `</div>`,
+    `<div class="lmi-sys-class-row">`,
+    `<label for="lmi-sys-class-select">Classe do Sistema</label>`,
+    `<select id="lmi-sys-class-select" class="touch-control" aria-label="Classe do sistema na bancada LMI">`,
+    `<option value="lti">Linear (LTI Nominal / Planta Generalizada)</option>`,
+    `<option value="polytopic">Politópico Incerto (𝒫 = co{Gᵢ})</option>`,
+    `<option value="ts">Takagi-Sugeno (TS — Regras &amp; Premissas)</option>`,
+    `</select>`,
+    `</div>`,
+
+    `<div class="lmi-sys-grid">`,
+    `<div class="lmi-sys-col">`,
+    `<div id="lmi-sys-panel-lti" class="lmi-sys-mode-panel">`,
+    `<div id="lmi-lti-dims-summary" class="lmi-sys-summary"></div>`,
+    `<div class="lmi-sys-checks">`,
+    `<label class="lmi-check-label"><input type="checkbox" id="lmi-gen-enable-w" class="touch-control" /> Canal exógeno w: Bw, Dyw</label>`,
+    `<label class="lmi-check-label"><input type="checkbox" id="lmi-gen-enable-z" class="touch-control" /> Canal desempenho z: Cz, Dzu, Dzw</label>`,
+    `</div>`,
+    `<div id="lmi-gen-matrices-panel" class="lmi-gen-matrices-panel" hidden>`,
+    `<label>Bw <input type="text" id="lmi-gen-bw" class="touch-control" value="[[0],[1]]" aria-label="Matriz Bw" /></label>`,
+    `<label>Cz <input type="text" id="lmi-gen-cz" class="touch-control" value="[[1,0],[0,1]]" aria-label="Matriz Cz" /></label>`,
+    `<label>Dzu <input type="text" id="lmi-gen-dzu" class="touch-control" value="[[0],[0.1]]" aria-label="Matriz Dzu" /></label>`,
+    `<label>Dzw <input type="text" id="lmi-gen-dzw" class="touch-control" value="[[0],[0]]" aria-label="Matriz Dzw" /></label>`,
+    `</div>`,
+    `</div>`,
+
+    `<div id="lmi-sys-panel-polytopic" class="lmi-sys-mode-panel" hidden>`,
+    `<div class="lmi-sys-fields">`,
+    `<label>Nº de Vértices N_v <input type="number" id="lmi-poly-vertices-count" class="touch-control" min="2" max="8" value="2" /></label>`,
+    `<label>Índice dos vértices na DSL <input type="text" id="lmi-poly-index-name" class="touch-control" value="i" /></label>`,
+    `<label>Incerteza ±δ (%) <input type="number" id="lmi-poly-delta" class="touch-control" min="1" max="80" value="15" /></label>`,
+    `<button type="button" id="btn-lmi-gen-polytope" class="touch-control btn-secondary btn-small" data-action="lmi-gen-polytope">Gerar Vértices ±δ%</button>`,
+    `</div>`,
+    `<div id="lmi-poly-vertex-preview" class="lmi-vertex-preview"></div>`,
+    `</div>`,
+
+    `<div id="lmi-sys-panel-ts" class="lmi-sys-mode-panel" hidden>`,
+    `<div class="lmi-sys-fields">`,
+    `<label>Nº de Regras N_r <input type="number" id="lmi-ts-rules-count" class="touch-control" min="2" max="6" value="2" /></label>`,
+    `<label>Índice das regras na DSL <input type="text" id="lmi-ts-index-name" class="touch-control" value="i" /></label>`,
+    `<button type="button" id="btn-lmi-import-fuzzy" class="touch-control btn-secondary btn-small" data-action="lmi-import-fuzzy">Importar Pertinências da Aba 5</button>`,
+    `</div>`,
+    `<div id="lmi-ts-mf-summary" class="lmi-ts-mf-summary"></div>`,
+    `<div id="lmi-ts-premises-list" class="lmi-ts-premises-list"></div>`,
+    `</div>`,
+    `</div>`,
+
+    `<div class="lmi-sys-col lmi-sys-indices-col">`,
+    `<label for="lmi-extra-indices">Índices adicionais na DSL (ex: j, k)</label>`,
+    `<input type="text" id="lmi-extra-indices" class="touch-control" value="j" aria-label="Índices adicionais na DSL" />`,
+    `<div id="lmi-sys-indices-summary" class="lmi-sys-summary"></div>`,
+    `<button type="button" id="btn-lmi-sync-dsl" class="touch-control btn-secondary btn-small" data-action="lmi-sync-dsl">Sincronizar Diretiva system na DSL</button>`,
+    `</div>`,
+    `</div>`,
+    `</div>`,
+
     `<div id="lmi-envelope-banner" class="warning-callout" hidden></div>`,
     `<div class="lmi-editor-split">`,
     `<div class="subcard lmi-editor-card">`,
@@ -303,11 +409,37 @@ export class LmiView {
   private readonly spectrumChartSlotEl: HTMLElement | null;
   private readonly spectrumTableSlotEl: HTMLElement | null;
 
+  // Zona 2 DOM references
+  private readonly expandedBlocksBadgeEl: HTMLElement | null;
+  private readonly sysClassSelectEl: HTMLSelectElement | null;
+  private readonly sysPanelLtiEl: HTMLElement | null;
+  private readonly sysPanelPolyEl: HTMLElement | null;
+  private readonly sysPanelTsEl: HTMLElement | null;
+  private readonly ltiDimsSummaryEl: HTMLElement | null;
+  private readonly genEnableWEl: HTMLInputElement | null;
+  private readonly genEnableZEl: HTMLInputElement | null;
+  private readonly genMatricesPanelEl: HTMLElement | null;
+  private readonly genBwEl: HTMLInputElement | null;
+  private readonly genCzEl: HTMLInputElement | null;
+  private readonly genDzuEl: HTMLInputElement | null;
+  private readonly genDzwEl: HTMLInputElement | null;
+  private readonly polyVerticesCountEl: HTMLInputElement | null;
+  private readonly polyIndexNameEl: HTMLInputElement | null;
+  private readonly polyDeltaEl: HTMLInputElement | null;
+  private readonly polyVertexPreviewEl: HTMLElement | null;
+  private readonly tsRulesCountEl: HTMLInputElement | null;
+  private readonly tsIndexNameEl: HTMLInputElement | null;
+  private readonly tsMfSummaryEl: HTMLElement | null;
+  private readonly tsPremisesListEl: HTMLElement | null;
+  private readonly extraIndicesEl: HTMLInputElement | null;
+  private readonly sysIndicesSummaryEl: HTMLElement | null;
+
   private currentDsl: string;
   private parsed: LmiDslParseResult;
   private savedPresets: SavedLmiPreset[] = [];
   private lastSolve: LmiSolveSnapshot | null = null;
   private lastBuildPayload: Record<string, unknown> | null = null;
+  private sysState: LmiSystemCharacterizationState;
 
   constructor(options: LmiViewOptions) {
     this.shell = options.shell;
@@ -316,8 +448,33 @@ export class LmiView {
     this.onRequestRender = options.onRequestRender;
     this.onOpenExportModal = options.onOpenExportModal;
 
+    this.sysState = {
+      systemClass: "lti",
+      genEnableW: false,
+      genEnableZ: false,
+      genBwText: "[[0],[1]]",
+      genCzText: "[[1,0],[0,1]]",
+      genDzuText: "[[0],[0.1]]",
+      genDzwText: "[[0],[0]]",
+      polyVerticesCount: 2,
+      polyIndexName: "i",
+      polyDeltaPct: 15,
+      polyVertices: [],
+      tsRulesCount: 2,
+      tsIndexName: "i",
+      tsPremises: [
+        { name: "z1 (x1)", measured: true },
+        { name: "z2 (x2)", measured: true },
+      ],
+      tsMfSummary: [
+        "h₁(z) = (1 - tanh(z₁))/2",
+        "h₂(z) = (1 + tanh(z₁))/2",
+      ],
+      extraIndices: "j",
+    };
+
     this.currentDsl = LMI_DSL_TEMPLATES[0].dsl;
-    this.parsed = parseLmiDsl(this.currentDsl);
+    this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
 
     this.panelEl = this.container.querySelector<HTMLElement>("#lmi-workspace-panel");
     this.templateSelectEl = this.container.querySelector<HTMLSelectElement>("#lmi-template-select");
@@ -337,14 +494,193 @@ export class LmiView {
     this.spectrumChartSlotEl = this.container.querySelector<HTMLElement>("#lmi-spectrum-chart-slot");
     this.spectrumTableSlotEl = this.container.querySelector<HTMLElement>("#lmi-spectrum-table-slot");
 
+    this.expandedBlocksBadgeEl = this.container.querySelector<HTMLElement>("#lmi-expanded-blocks-badge");
+    this.sysClassSelectEl = this.container.querySelector<HTMLSelectElement>("#lmi-sys-class-select");
+    this.sysPanelLtiEl = this.container.querySelector<HTMLElement>("#lmi-sys-panel-lti");
+    this.sysPanelPolyEl = this.container.querySelector<HTMLElement>("#lmi-sys-panel-polytopic");
+    this.sysPanelTsEl = this.container.querySelector<HTMLElement>("#lmi-sys-panel-ts");
+    this.ltiDimsSummaryEl = this.container.querySelector<HTMLElement>("#lmi-lti-dims-summary");
+    this.genEnableWEl = this.container.querySelector<HTMLInputElement>("#lmi-gen-enable-w");
+    this.genEnableZEl = this.container.querySelector<HTMLInputElement>("#lmi-gen-enable-z");
+    this.genMatricesPanelEl = this.container.querySelector<HTMLElement>("#lmi-gen-matrices-panel");
+    this.genBwEl = this.container.querySelector<HTMLInputElement>("#lmi-gen-bw");
+    this.genCzEl = this.container.querySelector<HTMLInputElement>("#lmi-gen-cz");
+    this.genDzuEl = this.container.querySelector<HTMLInputElement>("#lmi-gen-dzu");
+    this.genDzwEl = this.container.querySelector<HTMLInputElement>("#lmi-gen-dzw");
+    this.polyVerticesCountEl = this.container.querySelector<HTMLInputElement>("#lmi-poly-vertices-count");
+    this.polyIndexNameEl = this.container.querySelector<HTMLInputElement>("#lmi-poly-index-name");
+    this.polyDeltaEl = this.container.querySelector<HTMLInputElement>("#lmi-poly-delta");
+    this.polyVertexPreviewEl = this.container.querySelector<HTMLElement>("#lmi-poly-vertex-preview");
+    this.tsRulesCountEl = this.container.querySelector<HTMLInputElement>("#lmi-ts-rules-count");
+    this.tsIndexNameEl = this.container.querySelector<HTMLInputElement>("#lmi-ts-index-name");
+    this.tsMfSummaryEl = this.container.querySelector<HTMLElement>("#lmi-ts-mf-summary");
+    this.tsPremisesListEl = this.container.querySelector<HTMLElement>("#lmi-ts-premises-list");
+    this.extraIndicesEl = this.container.querySelector<HTMLInputElement>("#lmi-extra-indices");
+    this.sysIndicesSummaryEl = this.container.querySelector<HTMLElement>("#lmi-sys-indices-summary");
+
+    this.generatePolytopeVertices();
     this.bindEvents();
+  }
+
+  private buildParseOptions(): LmiDslParseOptions {
+    const systemN =
+      this.sysState.systemClass === "polytopic"
+        ? this.sysState.polyVerticesCount
+        : this.sysState.systemClass === "ts"
+          ? this.sysState.tsRulesCount
+          : 1;
+    const indexName =
+      this.sysState.systemClass === "polytopic"
+        ? this.sysState.polyIndexName
+        : this.sysState.systemClass === "ts"
+          ? this.sysState.tsIndexName
+          : undefined;
+    const extraIndices = this.sysState.extraIndices
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return {
+      systemClass: this.sysState.systemClass,
+      systemN,
+      indexName,
+      extraIndices,
+      premisesMeasured: this.sysState.tsPremises.every((p) => p.measured),
+      generalized: this.sysState.genEnableW || this.sysState.genEnableZ,
+    };
+  }
+
+  private syncStateFromParsedSystemSpec(): void {
+    const spec = this.parsed.systemSpec;
+    if (!spec) return;
+    this.sysState.systemClass = spec.systemClass;
+    if (spec.systemClass === "polytopic") {
+      if (spec.nCount) this.sysState.polyVerticesCount = spec.nCount;
+      if (spec.indices[0]) this.sysState.polyIndexName = spec.indices[0];
+      if (spec.indices.length > 1) this.sysState.extraIndices = spec.indices.slice(1).join(", ");
+      this.generatePolytopeVertices();
+    } else if (spec.systemClass === "ts") {
+      if (spec.nCount) this.sysState.tsRulesCount = spec.nCount;
+      if (spec.indices[0]) this.sysState.tsIndexName = spec.indices[0];
+      if (spec.indices.length > 1) this.sysState.extraIndices = spec.indices.slice(1).join(", ");
+      if (spec.premises === "measured") {
+        this.sysState.tsPremises = this.sysState.tsPremises.map((p) => ({ ...p, measured: true }));
+      } else if (spec.premises === "unmeasured") {
+        this.sysState.tsPremises = this.sysState.tsPremises.map((p, idx) => ({
+          ...p,
+          measured: idx === 0 ? false : p.measured,
+        }));
+      }
+    } else {
+      if (spec.generalized) {
+        this.sysState.genEnableW = true;
+        this.sysState.genEnableZ = true;
+      }
+    }
+  }
+
+  private generatePolytopeVertices(): void {
+    const plant = this.shell.getLqrWorkspace().getPlant();
+    const a2d = tensorTo2DArray(plant.matrices.A);
+    const nv = Math.max(2, Math.min(8, this.sysState.polyVerticesCount));
+    const delta = Math.max(1, Math.min(80, this.sysState.polyDeltaPct)) / 100;
+    const vertices: LmiPolytopeVertexPreview[] = [];
+    for (let idx = 0; idx < nv; idx += 1) {
+      const frac = nv === 1 ? 0 : -1 + (2 * idx) / (nv - 1);
+      const scale = 1 + frac * delta;
+      const aVert = a2d.map((row) => row.map((v) => Number((v * scale).toFixed(4))));
+      vertices.push({
+        index: idx + 1,
+        label: `Vértice ${idx + 1} (escala ${(scale * 100).toFixed(0)}%)`,
+        aMatrix: aVert,
+      });
+    }
+    this.sysState.polyVertices = vertices;
+  }
+
+  private importFuzzyMembershipsFromTab5(): void {
+    const typed = this.shell.getTypedWorkspace();
+    const fuzzyObjs = typed.listRegisteredObjects(["FuzzySystem"]);
+    if (fuzzyObjs.length > 0) {
+      const latest = fuzzyObjs[fuzzyObjs.length - 1];
+      const inputs = Array.isArray(latest.value.input_variables)
+        ? (latest.value.input_variables as Array<{ name?: string; terms?: Array<{ name?: string }> }>)
+        : [];
+      if (inputs.length > 0) {
+        this.sysState.tsPremises = inputs.map((inp, idx) => ({
+          name: String(inp.name ?? `z${idx + 1}`),
+          measured: true,
+        }));
+        const mfLines: string[] = [];
+        for (const inp of inputs) {
+          const termNames = Array.isArray(inp.terms)
+            ? inp.terms.map((t) => String(t.name ?? "MF")).join(", ")
+            : "N, Z, P";
+          mfLines.push(`h(${String(inp.name ?? "z")}): [${termNames}]`);
+        }
+        this.sysState.tsMfSummary = mfLines;
+        const firstTermCount = Array.isArray(inputs[0].terms) ? inputs[0].terms.length : 2;
+        this.sysState.tsRulesCount = Math.max(2, Math.min(6, firstTermCount));
+      }
+    } else {
+      this.sysState.tsPremises = [
+        { name: "erro (z1)", measured: true },
+        { name: "d_erro (z2)", measured: true },
+      ];
+      this.sysState.tsMfSummary = [
+        "h₁(erro): N [-10,-10,0], Z [-5,0,5], P [0,10,10]",
+        "h₂(d_erro): N [-10,-10,0], Z [-5,0,5], P [0,10,10]",
+      ];
+    }
+    this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+    this.renderCharacterizationCard();
+    this.renderEditorAndMath();
+    this.shell
+      .getAnnouncer()
+      .announce("Pertinências e premissas Takagi-Sugeno importadas da Aba 5.", "polite", "status");
+  }
+
+  private syncSystemDirectiveToDsl(): void {
+    const cls = this.sysState.systemClass;
+    const extra = this.sysState.extraIndices
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    let directive = "";
+    if (cls === "lti") {
+      const gen = this.sysState.genEnableW || this.sysState.genEnableZ;
+      directive = `system lti generalized=${gen ? "true" : "false"}`;
+    } else if (cls === "polytopic") {
+      const idxAll = [this.sysState.polyIndexName.trim() || "i", ...extra].join(",");
+      directive = `system polytopic vertices=${this.sysState.polyVerticesCount} index=${idxAll}`;
+    } else {
+      const idxAll = [this.sysState.tsIndexName.trim() || "i", ...extra].join(",");
+      const allMeasured = this.sysState.tsPremises.every((p) => p.measured);
+      directive = `system ts rules=${this.sysState.tsRulesCount} index=${idxAll} premises=${allMeasured ? "measured" : "unmeasured"}`;
+    }
+
+    const lines = this.currentDsl.split(/\r?\n/);
+    const existingIdx = lines.findIndex((l) => /^\s*system\s+(lti|polytopic|ts)\b/i.test(l));
+    if (existingIdx >= 0) {
+      lines[existingIdx] = directive;
+    } else {
+      lines.unshift(directive);
+    }
+    this.currentDsl = lines.join("\n");
+    if (this.codeEditorEl) {
+      this.codeEditorEl.value = this.currentDsl;
+    }
+    this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+    this.renderCharacterizationCard();
+    this.renderEditorAndMath();
   }
 
   private bindEvents(): void {
     const syncFromEditor = (): void => {
       if (!this.codeEditorEl) return;
       this.currentDsl = this.codeEditorEl.value;
-      this.parsed = parseLmiDsl(this.currentDsl);
+      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+      this.syncStateFromParsedSystemSpec();
+      this.renderCharacterizationCard();
       this.renderEditorAndMath();
     };
     this.codeEditorEl?.addEventListener("input", syncFromEditor);
@@ -356,6 +692,99 @@ export class LmiView {
       if (!found) return;
       this.loadDsl(found.dsl);
     });
+
+    // Zona 2 events
+    this.sysClassSelectEl?.addEventListener("change", () => {
+      const val = this.sysClassSelectEl?.value;
+      if (val === "lti" || val === "polytopic" || val === "ts") {
+        this.sysState.systemClass = val;
+        if (val === "polytopic") this.generatePolytopeVertices();
+        this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+        this.renderCharacterizationCard();
+        this.renderEditorAndMath();
+      }
+    });
+
+    const onGenToggle = (): void => {
+      this.sysState.genEnableW = Boolean(this.genEnableWEl?.checked);
+      this.sysState.genEnableZ = Boolean(this.genEnableZEl?.checked);
+      if (this.genBwEl) this.sysState.genBwText = this.genBwEl.value;
+      if (this.genCzEl) this.sysState.genCzText = this.genCzEl.value;
+      if (this.genDzuEl) this.sysState.genDzuText = this.genDzuEl.value;
+      if (this.genDzwEl) this.sysState.genDzwText = this.genDzwEl.value;
+      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+      this.renderCharacterizationCard();
+      this.renderEditorAndMath();
+    };
+    this.genEnableWEl?.addEventListener("change", onGenToggle);
+    this.genEnableZEl?.addEventListener("change", onGenToggle);
+    this.genBwEl?.addEventListener("change", onGenToggle);
+    this.genCzEl?.addEventListener("change", onGenToggle);
+    this.genDzuEl?.addEventListener("change", onGenToggle);
+    this.genDzwEl?.addEventListener("change", onGenToggle);
+
+    const onPolyChange = (): void => {
+      if (this.polyVerticesCountEl) {
+        const n = Number(this.polyVerticesCountEl.value);
+        if (Number.isFinite(n)) this.sysState.polyVerticesCount = Math.max(2, Math.min(8, Math.round(n)));
+      }
+      if (this.polyIndexNameEl) {
+        const idx = this.polyIndexNameEl.value.trim();
+        if (idx) this.sysState.polyIndexName = idx;
+      }
+      if (this.polyDeltaEl) {
+        const d = Number(this.polyDeltaEl.value);
+        if (Number.isFinite(d)) this.sysState.polyDeltaPct = Math.max(1, Math.min(80, d));
+      }
+      this.generatePolytopeVertices();
+      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+      this.renderCharacterizationCard();
+      this.renderEditorAndMath();
+    };
+    this.polyVerticesCountEl?.addEventListener("change", onPolyChange);
+    this.polyVerticesCountEl?.addEventListener("input", onPolyChange);
+    this.polyIndexNameEl?.addEventListener("input", onPolyChange);
+    this.polyDeltaEl?.addEventListener("change", onPolyChange);
+    this.container
+      .querySelector<HTMLElement>('[data-action="lmi-gen-polytope"]')
+      ?.addEventListener("click", onPolyChange);
+
+    const onTsChange = (): void => {
+      if (this.tsRulesCountEl) {
+        const n = Number(this.tsRulesCountEl.value);
+        if (Number.isFinite(n)) this.sysState.tsRulesCount = Math.max(2, Math.min(6, Math.round(n)));
+      }
+      if (this.tsIndexNameEl) {
+        const idx = this.tsIndexNameEl.value.trim();
+        if (idx) this.sysState.tsIndexName = idx;
+      }
+      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+      this.renderCharacterizationCard();
+      this.renderEditorAndMath();
+    };
+    this.tsRulesCountEl?.addEventListener("change", onTsChange);
+    this.tsRulesCountEl?.addEventListener("input", onTsChange);
+    this.tsIndexNameEl?.addEventListener("input", onTsChange);
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="lmi-import-fuzzy"]')
+      ?.addEventListener("click", () => {
+        this.importFuzzyMembershipsFromTab5();
+      });
+
+    this.extraIndicesEl?.addEventListener("input", () => {
+      if (!this.extraIndicesEl) return;
+      this.sysState.extraIndices = this.extraIndicesEl.value;
+      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+      this.renderCharacterizationCard();
+      this.renderEditorAndMath();
+    });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="lmi-sync-dsl"]')
+      ?.addEventListener("click", () => {
+        this.syncSystemDirectiveToDsl();
+      });
 
     this.container
       .querySelector<HTMLElement>('[data-action="lmi-save-dsl"]')
@@ -421,14 +850,16 @@ export class LmiView {
     if (this.codeEditorEl) {
       this.codeEditorEl.value = dsl;
     }
-    this.parsed = parseLmiDsl(dsl);
+    this.parsed = parseLmiDsl(dsl, this.buildParseOptions());
+    this.syncStateFromParsedSystemSpec();
+    this.renderCharacterizationCard();
     this.renderEditorAndMath();
   }
 
   public saveCurrentPreset(customName?: string): SavedLmiPreset {
     if (this.codeEditorEl && this.codeEditorEl.value !== this.currentDsl) {
       this.currentDsl = this.codeEditorEl.value;
-      this.parsed = parseLmiDsl(this.currentDsl);
+      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
     }
     const rawName = (customName ?? this.presetNameEl?.value ?? "").trim();
     const name = rawName || `Condição LMI ${this.savedPresets.length + 1}`;
@@ -485,10 +916,23 @@ export class LmiView {
     };
   }
 
+  private buildQuantifiedExportContext(): LmiQuantifiedExportContext {
+    const dims = this.getActivePlantDims();
+    return {
+      systemClass: this.sysState.systemClass,
+      n: dims.n,
+      m: dims.m,
+      p: dims.p,
+      systemN: this.parsed.effectiveSystemN,
+      generalized: this.sysState.genEnableW || this.sysState.genEnableZ,
+      premisesMeasured: this.sysState.tsPremises.every((p) => p.measured),
+    };
+  }
+
   private async buildBackendPayload(): Promise<Record<string, unknown>> {
     if (this.codeEditorEl && this.codeEditorEl.value !== this.currentDsl) {
       this.currentDsl = this.codeEditorEl.value;
-      this.parsed = parseLmiDsl(this.currentDsl);
+      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
     }
     if (!this.parsed.valid) {
       throw new ControlLabBridgeError(
@@ -510,19 +954,24 @@ export class LmiView {
       return { problem: this.parsed.canonicalSdpOverride };
     }
 
-    if (tpl === "hinf_brl") {
+    if (tpl === "hinf_brl" || tpl === "hinf_generalized_brl") {
       const plant = this.shell.getLqrWorkspace().getPlant();
       const A2d = tensorTo2DArray(plant.matrices.A);
       const B2_2d = tensorTo2DArray(plant.matrices.B);
-      const C1_2d = tensorTo2DArray(plant.matrices.C);
+      const C1_default = tensorTo2DArray(plant.matrices.C);
       const n = A2d.length;
-      const B1_2d = Array.from({ length: n }, (_, i) => [i === n - 1 ? 1.0 : 0.0]);
+      const bwParsed = this.sysState.genEnableW ? parseCompactMatrixJson(this.sysState.genBwText) : null;
+      const czParsed = this.sysState.genEnableZ ? parseCompactMatrixJson(this.sysState.genCzText) : null;
+      const B1_2d = bwParsed && bwParsed.length === n
+        ? bwParsed
+        : Array.from({ length: n }, (_, i) => [i === n - 1 ? 1.0 : 0.0]);
+      const C1_2d = czParsed && czParsed[0]?.length === n ? czParsed : C1_default;
       const basePayload: Record<string, unknown> = {
         template: "hinf_brl",
         A: makeFloat64Tensor([n, n], A2d.flat()),
-        B1: makeFloat64Tensor([n, 1], B1_2d.flat()),
+        B1: makeFloat64Tensor([n, B1_2d[0].length], B1_2d.flat()),
         B2: makeFloat64Tensor([n, plant.matrices.B.shape[1]], B2_2d.flat()),
-        C1: makeFloat64Tensor([plant.matrices.C.shape[0], n], C1_2d.flat()),
+        C1: makeFloat64Tensor([C1_2d.length, n], C1_2d.flat()),
         feedback_sign: this.parsed.inferredFeedbackSign,
       };
       if (this.parsed.inferredGamma !== null && this.parsed.inferredGamma > 0) {
@@ -531,17 +980,24 @@ export class LmiView {
       return basePayload;
     }
 
+    const mappedTemplate: LmiBackendTemplateId =
+      tpl === "polytopic_robust"
+        ? "quadratic_stabilization"
+        : tpl === "ts_pdc_relaxed"
+          ? "ts_pdc_stabilization"
+          : tpl;
+
     const rawParams: Record<string, unknown> = {
-      template: tpl,
+      template: mappedTemplate,
       feedback_sign: this.parsed.inferredFeedbackSign,
     };
     if (this.parsed.inferredAlpha !== null) {
       rawParams.alpha = this.parsed.inferredAlpha;
     }
-    if (tpl === "regional_pole_placement") {
+    if (mappedTemplate === "regional_pole_placement") {
       rawParams.radius = this.parsed.inferredRadius ?? 5.0;
     }
-    if (tpl === "lqr_lmi") {
+    if (mappedTemplate === "lqr_lmi") {
       const weights = this.shell.getLqrWorkspace().getWeights();
       const dims = this.getActivePlantDims();
       if (weights.Q.shape[0] === dims.n && weights.R.shape[0] === dims.m) {
@@ -598,7 +1054,6 @@ export class LmiView {
       ? (residualsObj.primal_block_min_eigs as unknown[]).map((v) => Number(v))
       : [];
 
-    // Try recovering K from result.K or variables.{Q, Y}
     let recoveredK = extractRealTensor2D(res.K);
     if (!recoveredK && isPlainObject(res.variables)) {
       const vars = res.variables as Record<string, unknown>;
@@ -708,6 +1163,34 @@ export class LmiView {
     trigger: HTMLElement | null,
   ): Promise<void> {
     try {
+      const hasQuantifiers = this.parsed.constraints.some((c) => Boolean(c.quantifier));
+      if (
+        hasQuantifiers ||
+        this.parsed.systemSpec?.systemClass === "polytopic" ||
+        this.parsed.systemSpec?.systemClass === "ts"
+      ) {
+        const ctx = this.buildQuantifiedExportContext();
+        const content =
+          format === "cvxpy"
+            ? generateQuantifiedCvxpySnippet(this.parsed, ctx)
+            : generateQuantifiedYalmipSnippet(this.parsed, ctx);
+        const ext = format === "cvxpy" ? "py" : "m";
+        this.onOpenExportModal?.(
+          {
+            title: `Exportação Offline ${format.toUpperCase()} Quantificada (ADR-010)`,
+            filename: `${this.parsed.inferredTemplate || "lmi_quantified"}.${ext}`,
+            mimeType: "text/plain;charset=utf-8",
+            content,
+            offlineDesign: true,
+          },
+          trigger,
+        );
+        this.shell
+          .getAnnouncer()
+          .announce(`Script ${format.toUpperCase()} quantificado exportado.`, "polite", "status");
+        return;
+      }
+
       const payload = await this.buildBackendPayload();
       const file = await this.shell.exportSdpScript(format, payload);
       this.onOpenExportModal?.(
@@ -743,12 +1226,106 @@ export class LmiView {
     ].join("");
   }
 
+  private renderCharacterizationCard(): void {
+    const dims = this.getActivePlantDims();
+    if (this.sysClassSelectEl) {
+      this.sysClassSelectEl.value = this.sysState.systemClass;
+    }
+
+    setElHidden(this.sysPanelLtiEl, this.sysState.systemClass !== "lti");
+    setElHidden(this.sysPanelPolyEl, this.sysState.systemClass !== "polytopic");
+    setElHidden(this.sysPanelTsEl, this.sysState.systemClass !== "ts");
+
+    if (this.expandedBlocksBadgeEl) {
+      const count = this.parsed.expandedBlockCount;
+      this.expandedBlocksBadgeEl.textContent = `${count} bloco${count === 1 ? "" : "s"} LMI expandido${count === 1 ? "" : "s"}`;
+    }
+
+    if (this.ltiDimsSummaryEl) {
+      const plant = this.shell.getLqrWorkspace().getPlant();
+      const domainLabel = plant.dt === null ? "Contínuo (ẋ = Ax + Bu)" : `Discreto (dt=${plant.dt}s)`;
+      this.ltiDimsSummaryEl.innerHTML = `<strong>Planta ativa (${escapeHtml(domainLabel)}):</strong> A (${dims.n}×${dims.n}), B (${dims.n}×${dims.m}), C (${dims.p}×${dims.n}), D (${dims.p}×${dims.m})`;
+    }
+
+    if (this.genEnableWEl) this.genEnableWEl.checked = this.sysState.genEnableW;
+    if (this.genEnableZEl) this.genEnableZEl.checked = this.sysState.genEnableZ;
+    setElHidden(
+      this.genMatricesPanelEl,
+      !(this.sysState.genEnableW || this.sysState.genEnableZ),
+    );
+
+    if (this.polyVerticesCountEl) this.polyVerticesCountEl.value = String(this.sysState.polyVerticesCount);
+    if (this.polyIndexNameEl) this.polyIndexNameEl.value = this.sysState.polyIndexName;
+    if (this.polyDeltaEl) this.polyDeltaEl.value = String(this.sysState.polyDeltaPct);
+    if (this.polyVertexPreviewEl) {
+      const chips = this.sysState.polyVertices.map(
+        (v) =>
+          `<div class="lmi-vertex-chip"><strong>A<sub>${v.index}</sub></strong> (${escapeHtml(v.label)}): <code>${escapeHtml(JSON.stringify(v.aMatrix))}</code></div>`,
+      );
+      this.polyVertexPreviewEl.innerHTML = chips.join("");
+    }
+
+    if (this.tsRulesCountEl) this.tsRulesCountEl.value = String(this.sysState.tsRulesCount);
+    if (this.tsIndexNameEl) this.tsIndexNameEl.value = this.sysState.tsIndexName;
+    if (this.tsMfSummaryEl) {
+      this.tsMfSummaryEl.innerHTML = this.sysState.tsMfSummary
+        .map((line) => `<span class="badge">${escapeHtml(line)}</span>`)
+        .join(" ");
+    }
+    if (this.tsPremisesListEl) {
+      const anyUnmeasured = this.sysState.tsPremises.some((p) => !p.measured);
+      const rows = this.sysState.tsPremises.map((p, idx) => {
+        const cls = p.measured ? "badge-stable" : "badge-beta";
+        const label = p.measured ? "Medida" : "Não Medida (Estimada)";
+        return `<div class="lmi-premise-row"><span>Premissa <strong>${escapeHtml(p.name)}</strong></span><button type="button" class="touch-control btn-small btn-secondary ${cls}" data-action="lmi-toggle-premise" data-premise-idx="${idx}">${escapeHtml(label)}</button></div>`;
+      });
+      if (anyUnmeasured) {
+        rows.push(
+          `<div class="warning-callout" role="status"><strong>ts_partially_observed:</strong> Há premissas não medidas (ẑ). Utilize observador TS ou termos de acoplamento Lipschitz γ_L na DSL.</div>`,
+        );
+      }
+      this.tsPremisesListEl.innerHTML = rows.join("");
+      const toggleBtns = Array.from(this.tsPremisesListEl.querySelectorAll<HTMLElement>('[data-action="lmi-toggle-premise"]'));
+      for (const btn of toggleBtns) {
+        btn.addEventListener("click", () => {
+          const idx = Number(btn.getAttribute("data-premise-idx"));
+          if (!Number.isInteger(idx) || idx < 0 || idx >= this.sysState.tsPremises.length) return;
+          this.sysState.tsPremises[idx].measured = !this.sysState.tsPremises[idx].measured;
+          this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+          this.renderCharacterizationCard();
+          this.renderEditorAndMath();
+        });
+      }
+    }
+
+    if (this.extraIndicesEl && this.extraIndicesEl.value !== this.sysState.extraIndices) {
+      this.extraIndicesEl.value = this.sysState.extraIndices;
+    }
+    if (this.sysIndicesSummaryEl) {
+      const primary =
+        this.sysState.systemClass === "polytopic"
+          ? this.sysState.polyIndexName
+          : this.sysState.systemClass === "ts"
+            ? this.sysState.tsIndexName
+            : null;
+      const extras = this.sysState.extraIndices
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const all = primary ? [primary, ...extras] : extras;
+      const N = this.parsed.effectiveSystemN;
+      this.sysIndicesSummaryEl.innerHTML = all.length > 0
+        ? `<strong>Índices na DSL:</strong> ${escapeHtml(all.join(", "))} ∈ {1..${N}}`
+        : `<strong>Modo LTI:</strong> Sem índice obrigatório (adicione se necessário).`;
+    }
+  }
+
   private renderEditorAndMath(): void {
     const dims = this.getActivePlantDims();
     if (this.envelopeBannerEl) {
-      if (dims.n > 12) {
+      if (dims.n > 12 || this.parsed.expandedBlockCount > 32) {
         setElHidden(this.envelopeBannerEl, false);
-        this.envelopeBannerEl.innerHTML = `<strong>Limite do motor navegador:</strong> Planta possui n=${dims.n} estados (&gt; 12). Recomenda-se usar <strong>Exportar CVXPY / YALMIP</strong> para execução offline com MOSEK/SCS.`;
+        this.envelopeBannerEl.innerHTML = `<strong>Limite do motor navegador (ADR-010):</strong> Planta com n=${dims.n} estados e ${this.parsed.expandedBlockCount} bloco(s) LMI. Recomenda-se usar <strong>Exportar CVXPY / YALMIP</strong> para execução offline com MOSEK/SCS.`;
       } else {
         setElHidden(this.envelopeBannerEl, true);
         this.envelopeBannerEl.innerHTML = "";
@@ -774,6 +1351,9 @@ export class LmiView {
     }
 
     if (this.parsedVarsEl) {
+      const sysChip = this.parsed.systemSpec
+        ? `<span class="badge badge-stable">Sistema: ${escapeHtml(this.parsed.systemSpec.systemClass)} (N=${this.parsed.effectiveSystemN})</span>`
+        : `<span class="badge">Sistema: ${escapeHtml(this.sysState.systemClass)} (N=${this.parsed.effectiveSystemN})</span>`;
       const varChips = this.parsed.variables.map(
         (v) =>
           `<span class="badge badge-sufficient">var ${escapeHtml(v.name)}: ${escapeHtml(resolveShapeLabel(v, dims))}</span>`,
@@ -783,7 +1363,8 @@ export class LmiView {
           `<span class="badge">param ${escapeHtml(p.name === "alpha" ? "α" : p.name === "gamma" ? "γ" : p.name)} = ${p.value}</span>`,
       );
       const tplChip = `<span class="badge">Template: ${escapeHtml(this.parsed.inferredTemplate)}</span>`;
-      this.parsedVarsEl.innerHTML = [...varChips, ...paramChips, tplChip].join(" ");
+      const blkChip = `<span class="badge badge-sufficient">${this.parsed.expandedBlockCount} bloco(s) LMI</span>`;
+      this.parsedVarsEl.innerHTML = [sysChip, ...varChips, ...paramChips, tplChip, blkChip].join(" ");
     }
 
     if (this.parsedMathEl) {
@@ -950,6 +1531,7 @@ export class LmiView {
     setElHidden(this.panelEl, !isLmi);
     if (!isLmi) return;
 
+    this.renderCharacterizationCard();
     this.renderEditorAndMath();
     this.renderCertificateAndSpectrum();
   }

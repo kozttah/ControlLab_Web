@@ -99,6 +99,21 @@ function makeFloat64Tensor(shape: number[], data: number[]): RealTensor {
   return { shape, dtype: "float64", order: "C", data };
 }
 
+function readUploadedTextFile(file: File): Promise<string> {
+  if (typeof file.text === "function") {
+    return file.text();
+  }
+  if (typeof FileReader !== "undefined") {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler arquivo CSV."));
+      reader.readAsText(file);
+    });
+  }
+  return Promise.reject(new Error("Leitura de arquivo não suportada neste ambiente."));
+}
+
 function parseCoeffList(raw: string, fieldLabel: string): number[] {
   const parts = raw
     .split(/[\s,;]+/)
@@ -284,7 +299,20 @@ export function renderWorkspaceDockHtml(): string {
     `<aside id="workspace-dock-aside" class="workspace-dock" aria-label="Workspace da Sessão">`,
     `<div class="dock-header">`,
     `<h2 class="dock-title">Workspace</h2>`,
+    `<div class="dock-header-actions">`,
+    `<button type="button" id="btn-dock-clear-workspace" class="touch-control btn-secondary btn-small" data-action="dock-clear-workspace" title="Limpar todos os objetos registrados da sessão">Limpar</button>`,
     `<button type="button" id="btn-open-new-object-modal" class="touch-control btn-primary btn-small" data-action="open-new-object-modal">+ Novo</button>`,
+    `</div>`,
+    `</div>`,
+    `<div class="dock-examples-bar" aria-label="Exemplos rápidos">`,
+    `<select id="dock-example-select" class="touch-control" aria-label="Selecionar sistema de exemplo">`,
+    `<option value="double_integrator">Integrador Duplo 1/s² (SS)</option>`,
+    `<option value="mass_spring_damper">Massa-Mola-Amortecedor (TF)</option>`,
+    `<option value="first_order_delay">1ª Ordem Estável 2/(s+3) (TF)</option>`,
+    `<option value="mimo_2x2">Planta MIMO 2×2 Acoplada (SS)</option>`,
+    `<option value="prbs_dataset">Dataset PRBS Treino/Holdout</option>`,
+    `</select>`,
+    `<button type="button" id="btn-dock-load-example" class="touch-control btn-secondary btn-small" data-action="dock-load-example">Carregar Exemplo</button>`,
     `</div>`,
     `<div id="workspace-dock-content" class="dock-content"></div>`,
     `</aside>`,
@@ -338,6 +366,7 @@ export function renderNewObjectModalHtml(): string {
     `<div class="tool-field"><label for="new-csv-id">ID da série temporal</label><input id="new-csv-id" type="text" class="touch-control" value="ds-ensaio" /></div>`,
     `<div class="tool-field"><label for="new-csv-train-fraction">Fração de treino (0.2–0.85)</label><input id="new-csv-train-fraction" type="number" min="0.2" max="0.85" step="0.05" value="0.7" class="touch-control" /></div>`,
     `</div>`,
+    `<div class="tool-field"><label for="new-obj-csv-file">Carregar arquivo CSV (.csv / .txt)</label><input type="file" id="new-obj-csv-file" accept=".csv,.txt" class="touch-control" aria-label="Carregar arquivo CSV do computador" /></div>`,
     `<div class="tool-field"><label for="new-csv-content">Dados CSV (colunas t, u, y)</label><textarea id="new-csv-content" class="touch-control" rows="5">t,u,y\n0.00,1.0,0.00\n0.05,1.0,0.10\n0.10,1.0,0.25\n0.15,1.0,0.42\n0.20,1.0,0.58\n0.25,1.0,0.71\n0.30,1.0,0.82\n0.35,1.0,0.90\n0.40,1.0,0.95\n0.45,1.0,0.98</textarea></div>`,
     `<div class="panel-actions"><button type="button" id="btn-new-csv-submit" class="touch-control btn-primary" data-action="submit-new-csv">Importar Série &amp; Particionar</button></div>`,
     `</div>`,
@@ -384,6 +413,7 @@ export class WorkspaceDockController {
 
   private readonly csvIdEl: HTMLInputElement | null;
   private readonly csvTrainFracEl: HTMLInputElement | null;
+  private readonly csvFileEl: HTMLInputElement | null;
   private readonly csvContentEl: HTMLTextAreaElement | null;
 
   constructor(options: WorkspaceDockOptions) {
@@ -428,6 +458,7 @@ export class WorkspaceDockController {
 
     this.csvIdEl = this.container.querySelector<HTMLInputElement>("#new-csv-id");
     this.csvTrainFracEl = this.container.querySelector<HTMLInputElement>("#new-csv-train-fraction");
+    this.csvFileEl = this.container.querySelector<HTMLInputElement>("#new-obj-csv-file");
     this.csvContentEl = this.container.querySelector<HTMLTextAreaElement>("#new-csv-content");
     if (this.csvContentEl && !this.csvContentEl.value) {
       this.csvContentEl.value = [
@@ -494,6 +525,22 @@ export class WorkspaceDockController {
       ?.addEventListener("click", () => {
         void this.submitNewCsvDataset();
       });
+
+    this.csvFileEl?.addEventListener("change", () => {
+      const files = (this.csvFileEl as unknown as { files?: FileList })?.files;
+      const file = files?.[0];
+      if (!file) return;
+      void readUploadedTextFile(file)
+        .then((txt) => {
+          if (this.csvContentEl) {
+            this.csvContentEl.value = txt;
+          }
+          this.shell
+            .getAnnouncer()
+            .announce(`Arquivo CSV '${file.name ?? "dataset.csv"}' carregado no formulário.`, "polite", "status");
+        })
+        .catch((err: unknown) => this.showModalError(err));
+    });
   }
 
   public isCollapsed(): boolean {
@@ -871,6 +918,7 @@ export class WorkspaceDockController {
                 `<div class="dock-item-head">`,
                 `<button type="button" class="dock-item-link" data-dock-action="inspect-object" data-object-key="${escapeHtml(ds.key)}">${escapeHtml(ds.id)} <small>#r${ds.revision}</small></button>`,
                 badges,
+                `<button type="button" class="touch-control btn-secondary btn-small dock-remove-btn" data-action="dock-remove-item" data-obj-id="${escapeHtml(ds.id)}" data-obj-rev="${ds.revision}" aria-label="Remover ${escapeHtml(ds.id)} revisão ${ds.revision}" title="Remover item">×</button>`,
                 `</div>`,
                 `<div class="dock-item-summary">${escapeHtml(formatDockObjectSummary(ds, decimals))}</div>`,
                 `<div class="dock-item-actions">`,
@@ -926,11 +974,16 @@ export class WorkspaceDockController {
                     `<button type="button" class="touch-control btn-secondary btn-small" data-dock-action="route-lqr" data-object-key="${escapeHtml(m.key)}">→ SS/LQR</button>`,
                   ].join("")
                 : "";
+              const isRegistered = typed.getRegisteredObject({ id: m.id, revision: m.revision }) !== null;
+              const removeBtnHtml = isRegistered
+                ? `<button type="button" class="touch-control btn-secondary btn-small dock-remove-btn" data-action="dock-remove-item" data-obj-id="${escapeHtml(m.id)}" data-obj-rev="${m.revision}" aria-label="Remover ${escapeHtml(m.id)} revisão ${m.revision}" title="Remover item">×</button>`
+                : "";
               return [
                 `<div class="dock-item" data-dock-item-key="${escapeHtml(m.key)}">`,
                 `<div class="dock-item-head">`,
                 `<button type="button" class="dock-item-link" data-dock-action="inspect-object" data-object-key="${escapeHtml(m.key)}">${escapeHtml(m.id)} <small>#r${m.revision}</small></button>`,
                 badges,
+                removeBtnHtml,
                 `</div>`,
                 `<div class="dock-item-summary">${escapeHtml(formatDockObjectSummary(m, decimals))}</div>`,
                 actionsHtml ? `<div class="dock-item-actions">${actionsHtml}</div>` : "",
@@ -1014,6 +1067,20 @@ export class WorkspaceDockController {
         const key = btn.getAttribute("data-object-key");
         if (action) {
           void this.handleDockAction(action, key);
+        }
+      });
+    }
+
+    const removeButtons = Array.from(
+      this.dockContentEl.querySelectorAll<HTMLElement>('[data-action="dock-remove-item"]'),
+    );
+    for (const btn of removeButtons) {
+      btn.addEventListener("click", () => {
+        const objId = btn.getAttribute("data-obj-id");
+        const objRevRaw = btn.getAttribute("data-obj-rev");
+        const objRev = objRevRaw !== null ? Number(objRevRaw) : NaN;
+        if (objId && Number.isInteger(objRev)) {
+          this.shell.getTypedWorkspace().removeRegisteredObject(objId, objRev);
         }
       });
     }

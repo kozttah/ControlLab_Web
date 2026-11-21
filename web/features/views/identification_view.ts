@@ -41,6 +41,21 @@ function setElHidden(el: Element | null | undefined, hidden: boolean): void {
   else el.removeAttribute("hidden");
 }
 
+function readUploadedTextFile(file: File): Promise<string> {
+  if (typeof file.text === "function") {
+    return file.text();
+  }
+  if (typeof FileReader !== "undefined") {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler arquivo CSV."));
+      reader.readAsText(file);
+    });
+  }
+  return Promise.reject(new Error("Leitura de arquivo não suportada neste ambiente."));
+}
+
 function renderIdExportBarHtml(slotId: string, label: string): string {
   return [
     `<div class="chart-export-bar" data-export-bar-for="${escapeHtml(slotId)}" hidden>`,
@@ -70,6 +85,7 @@ export function renderIdentificationViewHtml(): string {
     `<h4>1. Dados &amp; Partição Treino / Holdout</h4>`,
     `<div class="tool-field">`,
     `<label for="id-csv-input">Importar Dataset CSV (t, u, y) ou Carregar Benchmark PRBS / Entrada Constante</label>`,
+    `<div class="panel-actions"><input type="file" id="id-csv-file-input" accept=".csv,.txt" class="touch-control" aria-label="Carregar arquivo CSV para identificação" /></div>`,
     `<textarea id="id-csv-input" class="touch-control" rows="2" data-field="id-csv-input" aria-label="Conteúdo CSV do Dataset (t, u, y)"></textarea>`,
     `<div class="panel-actions">`,
     `<label for="id-train-fraction">Fração Treino (0.1–0.9)</label>`,
@@ -183,6 +199,7 @@ export class IdentificationView {
   private readonly panelEl: HTMLElement | null;
   private readonly pipelineBarEl: HTMLElement | null;
   private readonly csvInputEl: HTMLTextAreaElement | null;
+  private readonly csvFileInputEl: HTMLInputElement | null;
   private readonly trainFractionEl: HTMLInputElement | null;
   private readonly partitionSelectEl: HTMLSelectElement | null;
 
@@ -213,6 +230,7 @@ export class IdentificationView {
     this.panelEl = this.container.querySelector<HTMLElement>("#identification-workspace-panel");
     this.pipelineBarEl = this.container.querySelector<HTMLElement>("#id-pipeline-bar");
     this.csvInputEl = this.container.querySelector<HTMLTextAreaElement>("#id-csv-input");
+    this.csvFileInputEl = this.container.querySelector<HTMLInputElement>("#id-csv-file-input");
     this.trainFractionEl = this.container.querySelector<HTMLInputElement>("#id-train-fraction");
     this.partitionSelectEl = this.container.querySelector<HTMLSelectElement>("#id-chart-partition-select");
 
@@ -277,6 +295,24 @@ export class IdentificationView {
 
   private bindEvents(): void {
     const idWorkspace = this.shell.getIdentificationWorkspace();
+
+    this.csvFileInputEl?.addEventListener("change", () => {
+      const files = (this.csvFileInputEl as unknown as { files?: FileList })?.files;
+      const file = files?.[0];
+      if (!file) return;
+      void readUploadedTextFile(file)
+        .then((txt) => {
+          if (this.csvInputEl) {
+            this.csvInputEl.value = txt;
+          }
+          this.shell
+            .getAnnouncer()
+            .announce(`Arquivo CSV '${file.name ?? "dataset.csv"}' carregado na Etapa 1.`, "polite", "status");
+        })
+        .catch((err: unknown) => {
+          this.shell.presentError(err);
+        });
+    });
 
     this.container
       .querySelector<HTMLElement>('[data-action="id-import-csv"]')

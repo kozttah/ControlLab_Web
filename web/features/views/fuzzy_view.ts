@@ -216,6 +216,65 @@ export function buildStarterFuzzySystemDto(
   };
 }
 
+export function buildBlankFuzzySystemDto(
+  inferenceType: "mamdani" | "ts" = "mamdani",
+): CanonicalFuzzySystemDraft {
+  const inputVariables: FuzzyVariableSpec[] = [
+    {
+      name: "x1",
+      universe: [-10, 10],
+      terms: [{ name: "T1", mf: "triangular", params: [-10, 0, 10] }],
+    },
+    {
+      name: "x2",
+      universe: [-10, 10],
+      terms: [{ name: "T1", mf: "triangular", params: [-10, 0, 10] }],
+    },
+  ];
+
+  const outputVariables: FuzzyVariableSpec[] = [
+    {
+      name: "y",
+      universe: [-10, 10],
+      terms:
+        inferenceType === "mamdani"
+          ? [{ name: "T1", mf: "triangular", params: [-10, 0, 10] }]
+          : [{ name: "T1", type: "constant", params: [0], coefficients: [0] }],
+    },
+  ];
+
+  return {
+    schema_version: "1.0.0",
+    id: "fuzzy-novo",
+    revision: 1,
+    kind: "FuzzySystem",
+    inference_type: inferenceType,
+    fml_profile: "IEEE-1855-2016",
+    is_dynamic_model: false,
+    input_variables: inputVariables,
+    output_variables: outputVariables,
+    rules: [],
+    operators:
+      inferenceType === "mamdani"
+        ? {
+            and: "min",
+            or: "max",
+            implication: "min",
+            aggregation: "max",
+            defuzzification: "centroid",
+          }
+        : {
+            and: "prod",
+            or: "probor",
+            defuzzification: "wtaver",
+          },
+    provenance: {
+      source: "fuzzy_workbench_blank",
+      description: "Sistema Fuzzy em branco para edição",
+    },
+  };
+}
+
 function evalVisualMembership(mfType: string, params: readonly number[], x: number): number {
   const kind = mfType.toLowerCase();
   if (kind === "triangular" || kind === "tri" || kind === "trimf") {
@@ -259,6 +318,8 @@ export function renderFuzzyViewHtml(): string {
     `<option value="ts">Takagi-Sugeno (TS 0ª/1ª ordem)</option>`,
     `</select>`,
     `<button type="button" id="btn-fuzzy-register" class="touch-control btn-secondary" data-action="fuzzy-register">Sincronizar no Workspace</button>`,
+    `<button type="button" id="btn-fuzzy-clear-system" class="touch-control btn-secondary" data-action="fuzzy-clear-system">Limpar / Novo Sistema</button>`,
+    `<button type="button" id="btn-fuzzy-reset-starter" class="touch-control btn-secondary" data-action="fuzzy-reset-starter">Restaurar Exemplo PD</button>`,
     `<button type="button" id="btn-fuzzy-export-fml" class="touch-control btn-secondary" data-action="fuzzy-export-fml">Exportar FML (IEEE 1855-2016)</button>`,
     `<button type="button" id="btn-fuzzy-import-fml" class="touch-control btn-secondary" data-action="fuzzy-import-fml">Importar FML (XML)</button>`,
     `</div>`,
@@ -301,6 +362,7 @@ export function renderFuzzyViewHtml(): string {
     `<h4>Matriz de Regras Fuzzy</h4>`,
     `<span id="fuzzy-coverage-status" class="badge badge-stable"></span>`,
     `<button type="button" id="btn-fuzzy-add-rule" class="touch-control btn-secondary btn-small" data-action="fuzzy-add-rule">+ Regra</button>`,
+    `<button type="button" id="btn-fuzzy-clear-rules" class="touch-control btn-secondary btn-small" data-action="fuzzy-clear-rules">Limpar Regras</button>`,
     `</div>`,
     `<div id="fuzzy-rules-matrix" class="fuzzy-rules-matrix-wrap"></div>`,
     `</div>`,
@@ -397,6 +459,18 @@ export class FuzzyView {
       });
 
     this.container
+      .querySelector<HTMLElement>('[data-action="fuzzy-clear-system"]')
+      ?.addEventListener("click", () => {
+        this.clearSystem();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="fuzzy-reset-starter"]')
+      ?.addEventListener("click", () => {
+        this.resetStarter();
+      });
+
+    this.container
       .querySelector<HTMLElement>('[data-action="fuzzy-add-term"]')
       ?.addEventListener("click", () => {
         this.addTermToSelectedVar();
@@ -406,6 +480,12 @@ export class FuzzyView {
       .querySelector<HTMLElement>('[data-action="fuzzy-add-rule"]')
       ?.addEventListener("click", () => {
         this.addRuleFallback();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="fuzzy-clear-rules"]')
+      ?.addEventListener("click", () => {
+        this.clearRules();
       });
 
     this.container
@@ -623,6 +703,55 @@ export class FuzzyView {
     }
     this.renderMfSection();
     this.renderRulesSection();
+  }
+
+  public removeTermFromSelectedVar(termIdx: number): void {
+    const selectedVar = this.findSelectedVariable();
+    if (!selectedVar || termIdx < 0 || termIdx >= selectedVar.terms.length) return;
+    const [removed] = selectedVar.terms.splice(termIdx, 1);
+    if (removed) {
+      const varName = selectedVar.name;
+      this.draft.rules = this.draft.rules.filter((r) =>
+        selectedVar.role === "output"
+          ? r.consequents[varName] !== removed.name
+          : r.antecedents[varName] !== removed.name,
+      );
+    }
+    this.mfParamError = null;
+    this.renderMfSection();
+    this.renderRulesSection();
+  }
+
+  public clearRules(): void {
+    this.draft.rules = [];
+    this.renderRulesSection();
+    this.shell.getAnnouncer().announce("Regras fuzzy limpas.", "polite", "status");
+  }
+
+  public clearSystem(): void {
+    const typed = this.shell.getTypedWorkspace();
+    for (const obj of typed.listRegisteredObjects(["FuzzySystem"])) {
+      if (obj.id === "fuzzy-pd-starter") {
+        typed.removeRegisteredObject(obj.id, obj.revision);
+      }
+    }
+    this.draft = buildBlankFuzzySystemDto(this.draft.inference_type);
+    this.selectedVarName = this.draft.input_variables[0]?.name ?? "x1";
+    this.surfaceModel = null;
+    this.mfParamError = null;
+    this.render();
+    this.onRequestRender?.();
+    this.shell.getAnnouncer().announce("Novo sistema fuzzy em branco criado.", "polite", "status");
+  }
+
+  public resetStarter(): void {
+    this.draft = buildStarterFuzzySystemDto(this.draft.inference_type);
+    this.selectedVarName = this.draft.input_variables[0]?.name ?? "erro";
+    this.surfaceModel = null;
+    this.mfParamError = null;
+    this.render();
+    this.onRequestRender?.();
+    this.shell.getAnnouncer().announce("Exemplo PD Fuzzy restaurado.", "polite", "status");
   }
 
   private addRuleFallback(): void {
@@ -1009,6 +1138,7 @@ export class FuzzyView {
             `<strong class="fuzzy-term-name">${escapeHtml(term.name)}</strong>`,
             `<select class="touch-control" data-fuzzy-term-idx="${tIdx}" data-fuzzy-mf-select="true" aria-label="Tipo de pertinência para ${escapeHtml(term.name)}">${typeOptions}</select>`,
             `<div class="fuzzy-param-inputs">${paramInputs}</div>`,
+            `<button type="button" class="touch-control btn-secondary btn-small" data-action="fuzzy-remove-term" data-term-idx="${tIdx}" aria-label="Excluir termo ${escapeHtml(term.name)}" title="Excluir termo">×</button>`,
             `</div>`,
           ].join("");
         })
@@ -1018,6 +1148,18 @@ export class FuzzyView {
         ? `<p class="field-error" role="alert">${escapeHtml(this.mfParamError)}</p>`
         : "";
       this.mfParamsListEl.innerHTML = errBanner + rowsHtml;
+
+      const removeTermBtns = Array.from(
+        this.mfParamsListEl.querySelectorAll<HTMLElement>('[data-action="fuzzy-remove-term"]'),
+      );
+      for (const btn of removeTermBtns) {
+        btn.addEventListener("click", () => {
+          const idx = Number(btn.getAttribute("data-term-idx"));
+          if (Number.isInteger(idx)) {
+            this.removeTermFromSelectedVar(idx);
+          }
+        });
+      }
     }
   }
 

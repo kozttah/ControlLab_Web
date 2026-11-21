@@ -24,7 +24,7 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 4
+      "2026-11-21": 5
     }
   },
   "audit_reference": {
@@ -4024,6 +4024,101 @@
         "tests/e2e/test_ux_refactor_cl_ux_dir_001.py",
         "tests/e2e/test_gatecd_interactions.py",
         "tests/e2e/test_id_siso_verticals.py"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-PHASE1-01-WORKSPACE-CSV-LEGEND-SISO-FUZZY",
+      "front": "f8-ui-charts",
+      "phase": "UX-Phase1-Ergonomics-CL-UX-DIR-001",
+      "title": "Fase 1 Ergonomia: Limpar Workspace + Carregar Exemplos + Upload .csv + Legenda/Cores Validacao Ident + Editor Compensador C(s) SISO + Limpar/Excluir Fuzzy",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-UX-REFACTOR-08-F9-MOCKUP-FIDELITY-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-06",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-FREQ-01",
+        "T-FML-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Workspace Dock: botao Limpar Workspace (#btn-dock-clear-workspace), menu/botao Carregar Exemplo (#dock-example-select / #btn-dock-load-example) com presets rapidos (Integrador Duplo, Massa-Mola, MIMO 2x2, Dataset PRBS) e botao de remover item individual",
+        "Upload .csv por botao (<input type=file>) no modal + Novo (aba CSV) e na Aba 1 Identificacao (#id-csv-file-input)",
+        "Grafico de Validacao (Aba 1): legenda dinamica e cores/tracos distintos em renderTimeResponseSvg para Saida do Dataset (y medido) vs Saida Prevista pelo Modelo (Simulacao Livre e Previsao 1-Passo)",
+        "Aba 2 SISO: modal/editor de Compensador Dinamico C(s) (#btn-siso-edit-compensator e clique no bloco C(s)) suportando num/den e adicao/edicao de polos e zeros, integrado a Bode, Nyquist, Margens, Lugar das Raizes e Degrau com ganho multiplicador K",
+        "Aba 5 Fuzzy: botoes Limpar / Novo Sistema Fuzzy (#btn-fuzzy-clear-system), Restaurar Exemplo PD (#btn-fuzzy-reset-starter), excluir termo de pertinencia e limpar base de regras"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-PHASE1-01-WORKSPACE-CSV-LEGEND-SISO-FUZZY.md",
+      "assessed_commit": "3c97c440a1fa867879e363cce78675e2e4e4d472",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "dd91aebef871f950391e49c99e2005bb88c16c40cdac36c79129c3ca0d147f3b",
+        "web/app/workspace_dock.ts": "829b6b546e7d3487e3fd504fc05e136a94977bb49a704cdf9cc384b4a2c48e44",
+        "web/charts/scientific_chart.ts": "dc1b4296291789b155983d5aeada1a70d3a9577420160b1607bad2a867f37518",
+        "web/features/siso_workspace.ts": "582285221343d7c20a3397f937a610f01c9601dc3bd280de1458f590efebb062",
+        "web/features/typed_workspace.ts": "5473ac6f6c4b7271209a7c6c4284a66c898215ea84abca6b190f29ee7140f060",
+        "web/features/views/fuzzy_view.ts": "53bc80c11389c2107e5c94407551a0ae6af62f6486d667a49dbe12d0aff431a2",
+        "web/features/views/identification_view.ts": "d71a16aa46795bf987e5d84c85f44bdf8ca6a7b8564d50ce34b6655488d70839",
+        "web/features/views/siso_view.ts": "191e03e079a740869c2ead0db2788aee8f1395f2160e99076b0777cc47a95eb8",
+        "tests/unit/f8/ux_phase1_workbench.test.ts": "02966a5170ad6d5b4e729065e4b19f9b7141937e11cb11d6c7bd85937289fed2"
+      },
+      "acceptance_scope": "workspace_dock_clear_examples_csv_upload_ident_legend_siso_compensator_fuzzy_clear_reset",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-PHASE1-01-WORKSPACE-CSV-LEGEND-SISO-FUZZY.md",
+        "tests/unit/f8/ux_phase1_workbench.test.ts",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-PHASE1-02-F9-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "UX-Phase1-Ergonomics-CL-UX-DIR-001",
+      "title": "Auditoria independente F9 em navegador real para a Fase 1 (Workspace, CSV, Legenda Validacao, Compensador C(s) SISO e Reset Fuzzy)",
+      "allowed_paths": [
+        "tests/e2e/",
+        "tests/wasm/",
+        "tests/oracles/",
+        "tests/integration/",
+        "scripts/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-UX-PHASE1-01-WORKSPACE-CSV-LEGEND-SISO-FUZZY"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-06",
+        "R-23",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-FREQ-01",
+        "T-FML-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/e2e/test_gatecd_interactions.py tests/e2e/test_id_siso_verticals.py -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/audits/NEXT_QUEUE_FUNCTIONAL_AND_SYNTHESIS_2026-11-21.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Validar em Chromium real todas as 5 entregas da Fase 1 (Limpar Workspace + Carregar Exemplo, Upload CSV, Legenda distinta y Medido vs y Previsto, Editor C(s) com polos/zeros na Aba 2 e Reset/Exclusao na Aba 5) e ausencia de regressoes"
       ]
     }
   ],

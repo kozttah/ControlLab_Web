@@ -173,6 +173,7 @@ export function renderSisoViewHtml(): string {
     `<div id="siso-gain-slider" class="touch-control lqr-slider siso-slider" data-action="siso-gain-slider"></div>`,
     `<p id="siso-tuner-status" class="siso-tuner-status">Pré-visualiza no arraste; confirma no motor Python ao soltar.</p>`,
     `<div class="panel-actions">`,
+    `<button type="button" id="btn-siso-edit-compensator" class="touch-control btn-secondary" data-action="siso-open-comp-modal">Editar Compensador C(s)...</button>`,
     `<label for="siso-feedback-sign">Sinal da Realimentação</label>`,
     `<select id="siso-feedback-sign" class="touch-control" data-action="siso-select-feedback-sign" aria-label="Sinal da realimentação">`,
     `<option value="negative">Negativa (1 + K·G = 0)</option>`,
@@ -256,6 +257,37 @@ export function renderSisoViewHtml(): string {
     `<details><summary>Tabela acessível da resposta ao degrau SISO (WCAG 2.2 AA)</summary><div id="siso-time-table-slot"></div></details>`,
     `</div>`,
     `</div>`,
+    `<section id="siso-compensator-modal" class="modal-dialog new-object-modal" role="dialog" aria-modal="true" aria-labelledby="siso-comp-modal-title" hidden>`,
+    `<div class="modal-header">`,
+    `<h2 id="siso-comp-modal-title">Editor de Compensador Dinâmico C(s)</h2>`,
+    `<button type="button" id="btn-siso-close-comp" class="touch-control btn-secondary btn-small" data-action="siso-close-comp">Fechar</button>`,
+    `</div>`,
+    `<div class="new-object-mode-bar" role="tablist" aria-label="Modo de edição do compensador">`,
+    `<button type="button" id="btn-siso-comp-mode-tf" class="touch-control btn-primary btn-small" data-siso-comp-mode="tf">Função de Transferência (num / den)</button>`,
+    `<button type="button" id="btn-siso-comp-mode-zpk" class="touch-control btn-secondary btn-small" data-siso-comp-mode="zpk">Polos &amp; Zeros (K, z_i, p_i)</button>`,
+    `</div>`,
+    `<div id="siso-comp-modal-error" class="field-error" role="alert" hidden></div>`,
+    `<div id="siso-comp-panel-tf" class="new-obj-panel">`,
+    `<div class="typed-tf-builder-grid">`,
+    `<div class="tool-field"><label for="siso-comp-num">Numerador N_c(s) (ordem decrescente, ex: 1, 2)</label><input id="siso-comp-num" type="text" class="touch-control" value="1" /></div>`,
+    `<div class="tool-field"><label for="siso-comp-den">Denominador D_c(s) (ordem decrescente, ex: 1, 10)</label><input id="siso-comp-den" type="text" class="touch-control" value="1" /></div>`,
+    `</div>`,
+    `<p id="siso-comp-preview" class="dock-item-summary">C(s) = 1</p>`,
+    `</div>`,
+    `<div id="siso-comp-panel-zpk" class="new-obj-panel" hidden>`,
+    `<div class="tool-field"><label for="siso-comp-zpk-gain">Ganho K</label><input id="siso-comp-zpk-gain" type="number" step="0.1" class="touch-control" value="1" /></div>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-siso-add-zero" class="touch-control btn-secondary btn-small" data-action="siso-add-zero">+ Adicionar Zero</button>`,
+    `<button type="button" id="btn-siso-add-pole" class="touch-control btn-secondary btn-small" data-action="siso-add-pole">+ Adicionar Polo</button>`,
+    `</div>`,
+    `<div id="siso-comp-zeros-list" class="fuzzy-mf-params-list"></div>`,
+    `<div id="siso-comp-poles-list" class="fuzzy-mf-params-list"></div>`,
+    `</div>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-siso-apply-comp" class="touch-control btn-primary" data-action="siso-apply-comp">Aplicar Compensador C(s)</button>`,
+    `<button type="button" id="btn-siso-reset-comp" class="touch-control btn-secondary" data-action="siso-reset-comp">Resetar para C(s) = K</button>`,
+    `</div>`,
+    `</section>`,
     `</section>`,
   ].join("\n");
 }
@@ -296,6 +328,23 @@ export class SisoView {
   private readonly nyquistTableSlotEl: HTMLElement | null;
   private readonly rlTableSlotEl: HTMLElement | null;
   private readonly timeTableSlotEl: HTMLElement | null;
+
+  private readonly compModalEl: HTMLElement | null;
+  private readonly compModalErrEl: HTMLElement | null;
+  private readonly compModeTfBtnEl: HTMLElement | null;
+  private readonly compModeZpkBtnEl: HTMLElement | null;
+  private readonly compPanelTfEl: HTMLElement | null;
+  private readonly compPanelZpkEl: HTMLElement | null;
+  private readonly compNumEl: HTMLInputElement | null;
+  private readonly compDenEl: HTMLInputElement | null;
+  private readonly compPreviewEl: HTMLElement | null;
+  private readonly compZpkGainEl: HTMLInputElement | null;
+  private readonly compZerosListEl: HTMLElement | null;
+  private readonly compPolesListEl: HTMLElement | null;
+
+  private compEditorMode: "tf" | "zpk" = "tf";
+  private draftZeros: Array<{ re: number; im: number }> = [];
+  private draftPoles: Array<{ re: number; im: number }> = [];
 
   private isGainPreviewActive = false;
   private dragStartGain = 1.0;
@@ -345,6 +394,19 @@ export class SisoView {
     this.nyquistTableSlotEl = this.container.querySelector<HTMLElement>("#siso-nyquist-table-slot");
     this.rlTableSlotEl = this.container.querySelector<HTMLElement>("#siso-rl-table-slot");
     this.timeTableSlotEl = this.container.querySelector<HTMLElement>("#siso-time-table-slot");
+
+    this.compModalEl = this.container.querySelector<HTMLElement>("#siso-compensator-modal");
+    this.compModalErrEl = this.container.querySelector<HTMLElement>("#siso-comp-modal-error");
+    this.compModeTfBtnEl = this.container.querySelector<HTMLElement>("#btn-siso-comp-mode-tf");
+    this.compModeZpkBtnEl = this.container.querySelector<HTMLElement>("#btn-siso-comp-mode-zpk");
+    this.compPanelTfEl = this.container.querySelector<HTMLElement>("#siso-comp-panel-tf");
+    this.compPanelZpkEl = this.container.querySelector<HTMLElement>("#siso-comp-panel-zpk");
+    this.compNumEl = this.container.querySelector<HTMLInputElement>("#siso-comp-num");
+    this.compDenEl = this.container.querySelector<HTMLInputElement>("#siso-comp-den");
+    this.compPreviewEl = this.container.querySelector<HTMLElement>("#siso-comp-preview");
+    this.compZpkGainEl = this.container.querySelector<HTMLInputElement>("#siso-comp-zpk-gain");
+    this.compZerosListEl = this.container.querySelector<HTMLElement>("#siso-comp-zeros-list");
+    this.compPolesListEl = this.container.querySelector<HTMLElement>("#siso-comp-poles-list");
 
     this.bindEvents();
   }
@@ -461,6 +523,70 @@ export class SisoView {
       const val = this.feedbackSignEl?.value === "positive" ? "positive" : "negative";
       sisoWorkspace.setFeedbackSign(val);
     });
+
+    this.container
+      .querySelector<HTMLElement>("#btn-siso-edit-compensator")
+      ?.addEventListener("click", () => {
+        this.openCompensatorModal();
+      });
+
+    this.container
+      .querySelector<HTMLElement>("#btn-siso-close-comp")
+      ?.addEventListener("click", () => {
+        this.closeCompensatorModal();
+      });
+
+    this.compModeTfBtnEl?.addEventListener("click", () => {
+      this.compEditorMode = "tf";
+      this.syncCompensatorModal();
+    });
+    this.compModeZpkBtnEl?.addEventListener("click", () => {
+      this.compEditorMode = "zpk";
+      this.syncCompensatorModal();
+    });
+
+    const updateTfPreview = () => {
+      if (this.compPreviewEl && this.compNumEl && this.compDenEl) {
+        this.compPreviewEl.textContent = `C(s) = K · (${this.compNumEl.value || "1"}) / (${this.compDenEl.value || "1"})`;
+      }
+    };
+    this.compNumEl?.addEventListener("input", updateTfPreview);
+    this.compDenEl?.addEventListener("input", updateTfPreview);
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="siso-add-zero"]')
+      ?.addEventListener("click", () => {
+        this.draftZeros.push({ re: -1, im: 0 });
+        this.renderZpkLists();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="siso-add-pole"]')
+      ?.addEventListener("click", () => {
+        this.draftPoles.push({ re: -5, im: 0 });
+        this.renderZpkLists();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="siso-apply-comp"]')
+      ?.addEventListener("click", () => {
+        this.applyCompensatorFromModal();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="siso-reset-comp"]')
+      ?.addEventListener("click", () => {
+        sisoWorkspace.resetCompensator();
+        this.draftZeros = [];
+        this.draftPoles = [];
+        if (this.compNumEl) this.compNumEl.value = "1";
+        if (this.compDenEl) this.compDenEl.value = "1";
+        this.closeCompensatorModal();
+        this.render();
+        if (this.hasValidSisoPlant() && sisoWorkspace.getBodeChartModel() !== null) {
+          void this.reEvaluateAllCharts();
+        }
+      });
 
     if (this.gainSliderEl) {
       this.gainSliderEl.addEventListener("pointerdown", (ev: PointerEvent) => {
@@ -645,13 +771,15 @@ export class SisoView {
       ? `<span class="badge badge-preview">Pré-visualizando…</span>`
       : `<span class="badge badge-stable">Sincronizado</span>`;
 
+    const compExpr = sisoWorkspace.formatCompensatorExpression(decimals);
+
     this.loopDiagramBarEl.innerHTML = [
       `<div class="block-diagram-flow" aria-label="Estrutura da malha fechada SISO">`,
       `<span class="block-node block-signal">r</span>`,
       `<span class="block-arrow" aria-hidden="true">→</span>`,
       `<span class="block-node block-sum">${escapeHtml(sumLabel)}</span>`,
       `<span class="block-arrow" aria-hidden="true">→</span>`,
-      `<span class="block-node block-comp">C(s) = ${escapeHtml(formatNumericDisplay(gain, Math.min(decimals, 3)))}</span>`,
+      `<button type="button" class="block-node block-comp touch-control" data-action="siso-open-comp-modal" title="Clique para editar compensador C(s)">C(s) = ${escapeHtml(compExpr)}</button>`,
       `<span class="block-arrow" aria-hidden="true">→</span>`,
       `<span class="block-node block-plant" title="${escapeHtml(plantText)}">G(s): ${escapeHtml(plantText)}</span>`,
       `<span class="block-arrow" aria-hidden="true">→</span>`,
@@ -664,6 +792,150 @@ export class SisoView {
       syncPill,
       `</div>`,
     ].join("");
+
+    this.loopDiagramBarEl
+      .querySelector<HTMLElement>('[data-action="siso-open-comp-modal"]')
+      ?.addEventListener("click", () => {
+        this.openCompensatorModal();
+      });
+  }
+
+  private openCompensatorModal(): void {
+    const siso = this.shell.getSisoWorkspace();
+    const comp = siso.getCompensatorTf();
+    this.compEditorMode = comp.mode === "zpk" ? "zpk" : "tf";
+    this.draftZeros = comp.zeros.map((z) => ({ ...z }));
+    this.draftPoles = comp.poles.map((p) => ({ ...p }));
+    if (this.compNumEl) this.compNumEl.value = comp.num.join(", ");
+    if (this.compDenEl) this.compDenEl.value = comp.den.join(", ");
+    if (this.compZpkGainEl) this.compZpkGainEl.value = String(comp.gain);
+    if (this.compPreviewEl) {
+      this.compPreviewEl.textContent = `C(s) = ${siso.formatCompensatorExpression(this.shell.getDisplayDecimals())}`;
+    }
+    if (this.compModalErrEl) {
+      this.compModalErrEl.textContent = "";
+      setElHidden(this.compModalErrEl, true);
+    }
+    this.syncCompensatorModal();
+    this.renderZpkLists();
+    setElHidden(this.compModalEl, false);
+  }
+
+  private closeCompensatorModal(): void {
+    setElHidden(this.compModalEl, true);
+  }
+
+  private syncCompensatorModal(): void {
+    setElHidden(this.compPanelTfEl, this.compEditorMode !== "tf");
+    setElHidden(this.compPanelZpkEl, this.compEditorMode !== "zpk");
+  }
+
+  private renderZpkLists(): void {
+    const renderList = (
+      el: HTMLElement | null,
+      items: Array<{ re: number; im: number }>,
+      kind: "zero" | "pole",
+      labelPrefix: string,
+    ) => {
+      if (!el) return;
+      if (items.length === 0) {
+        el.innerHTML = `<p class="dock-empty">Nenhum ${kind === "zero" ? "zero" : "polo"} adicionado.</p>`;
+        return;
+      }
+      el.innerHTML = items
+        .map(
+          (item, idx) => [
+            `<div class="fuzzy-param-row" data-zpk-kind="${kind}" data-zpk-idx="${idx}">`,
+            `<strong>${labelPrefix}${idx + 1}</strong>`,
+            `<label class="fuzzy-param-cell"><span>Re</span><input type="number" step="0.5" class="touch-control id-param-input" value="${item.re}" data-zpk-field="re" data-zpk-kind="${kind}" data-zpk-idx="${idx}" aria-label="${labelPrefix}${idx + 1} Re" /></label>`,
+            `<label class="fuzzy-param-cell"><span>Im</span><input type="number" step="0.5" class="touch-control id-param-input" value="${item.im}" data-zpk-field="im" data-zpk-kind="${kind}" data-zpk-idx="${idx}" aria-label="${labelPrefix}${idx + 1} Im" /></label>`,
+            `<button type="button" class="touch-control btn-secondary btn-small" data-action="siso-remove-zpk" data-zpk-kind="${kind}" data-zpk-idx="${idx}" aria-label="Remover ${labelPrefix}${idx + 1}">×</button>`,
+            `</div>`,
+          ].join(""),
+        )
+        .join("");
+
+      for (const inp of Array.from(el.querySelectorAll<HTMLInputElement>("input[data-zpk-field]"))) {
+        inp.addEventListener("change", () => {
+          const idx = Number(inp.getAttribute("data-zpk-idx"));
+          const field = inp.getAttribute("data-zpk-field") === "im" ? "im" : "re";
+          const val = Number(inp.value);
+          if (Number.isFinite(val) && items[idx]) {
+            items[idx][field] = val;
+          }
+        });
+      }
+      for (const btn of Array.from(el.querySelectorAll<HTMLElement>('[data-action="siso-remove-zpk"]'))) {
+        btn.addEventListener("click", () => {
+          const idx = Number(btn.getAttribute("data-zpk-idx"));
+          if (Number.isInteger(idx) && idx >= 0 && idx < items.length) {
+            items.splice(idx, 1);
+            this.renderZpkLists();
+          }
+        });
+      }
+    };
+    renderList(this.compZerosListEl, this.draftZeros, "zero", "z");
+    renderList(this.compPolesListEl, this.draftPoles, "pole", "p");
+  }
+
+  private async reEvaluateAllCharts(): Promise<void> {
+    const siso = this.shell.getSisoWorkspace();
+    const kMax = this.rlKMaxEl ? Number(this.rlKMaxEl.value) : 100;
+    const zeta = this.rlZetaEl ? Number(this.rlZetaEl.value) : 0.5;
+    const amp = this.stepAmpEl ? Number(this.stepAmpEl.value) : 1;
+    const tf = this.stepTFinalEl ? Number(this.stepTFinalEl.value) : 10;
+    try {
+      await siso.evaluateBodeAndMargins(this.readEvalOptions());
+      await siso.evaluateRootLocus({ k_max: kMax, damping_ratio: zeta });
+      await siso.evaluateStepResponse({ amplitude: amp, t_final: tf });
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
+  private applyCompensatorFromModal(): void {
+    const siso = this.shell.getSisoWorkspace();
+    try {
+      if (this.compModalErrEl) {
+        this.compModalErrEl.textContent = "";
+        setElHidden(this.compModalErrEl, true);
+      }
+      if (this.compEditorMode === "tf") {
+        const parseNums = (raw: string, name: string): number[] => {
+          const parts = raw
+            .split(/[\s,;]+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (parts.length === 0) {
+            throw new Error(`${name} deve conter ao menos um coeficiente.`);
+          }
+          const nums = parts.map(Number);
+          if (nums.some((v) => !Number.isFinite(v))) {
+            throw new Error(`${name} contém coeficiente inválido.`);
+          }
+          return nums;
+        };
+        const num = parseNums(this.compNumEl?.value ?? "1", "Numerador");
+        const den = parseNums(this.compDenEl?.value ?? "1", "Denominador");
+        siso.setCompensatorTf(num, den, "tf");
+      } else {
+        const gain = Number(this.compZpkGainEl?.value ?? "1");
+        siso.setCompensatorZpk(gain, this.draftZeros, this.draftPoles);
+      }
+      this.closeCompensatorModal();
+      this.render();
+      if (this.hasValidSisoPlant()) {
+        void this.reEvaluateAllCharts();
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (this.compModalErrEl) {
+        this.compModalErrEl.textContent = msg;
+        setElHidden(this.compModalErrEl, false);
+      }
+      this.shell.presentError(err);
+    }
   }
 
   private renderBodeSlotAndTip(): void {

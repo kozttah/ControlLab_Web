@@ -882,6 +882,111 @@ export function mountControlLabApp(
     }
   });
 
+  container.querySelector<HTMLElement>('[data-action="dock-clear-workspace"]')?.addEventListener("click", () => {
+    typedWorkspace.clearRegisteredObjects({ keepActiveLqrPlant: true });
+  });
+
+  container.querySelector<HTMLElement>('[data-action="dock-load-example"]')?.addEventListener("click", () => {
+    const selectEl = container.querySelector<HTMLSelectElement>("#dock-example-select");
+    const exampleKey = selectEl?.value ?? "double_integrator";
+    void (async () => {
+      if (exampleKey === "prbs_dataset") {
+        await idWorkspace.loadBenchmarkDataset({
+          preset: "prbs",
+          splitTrainHoldout: true,
+          trainFraction: 0.7,
+        });
+        return;
+      }
+      if (exampleKey === "mass_spring_damper") {
+        await typedWorkspace.registerTypedObject(
+          {
+            schema_version: "1.0.0",
+            id: "mass-spring-damper",
+            revision: 1,
+            kind: "TransferFunction",
+            dt: null,
+            variable: "s",
+            poly_order: "descending",
+            num: [[makeFloat64Tensor([1], [1])]],
+            den: [[makeFloat64Tensor([3], [1, 0.5, 2])]],
+            units: { time: "s", inputs: ["F"], outputs: ["x"] },
+            provenance: { source: "dock_example_loader" },
+          },
+          { selectRole: "frequencyPlant" },
+        );
+        return;
+      }
+      if (exampleKey === "first_order_delay") {
+        await typedWorkspace.registerTypedObject(
+          {
+            schema_version: "1.0.0",
+            id: "first-order-stable",
+            revision: 1,
+            kind: "TransferFunction",
+            dt: null,
+            variable: "s",
+            poly_order: "descending",
+            num: [[makeFloat64Tensor([1], [2])]],
+            den: [[makeFloat64Tensor([2], [1, 3])]],
+            units: { time: "s", inputs: ["u1"], outputs: ["y1"] },
+            provenance: { source: "dock_example_loader" },
+          },
+          { selectRole: "frequencyPlant" },
+        );
+        return;
+      }
+      if (exampleKey === "mimo_2x2") {
+        await typedWorkspace.registerTypedObject(
+          {
+            schema_version: "1.0.0",
+            id: "mimo-2x2-coupled",
+            revision: 1,
+            kind: "StateSpace",
+            dt: null,
+            state_names: ["x1", "x2"],
+            input_names: ["u1", "u2"],
+            output_names: ["y1", "y2"],
+            matrices: {
+              A: makeFloat64Tensor([2, 2], [-1, 0.2, 0.1, -2]),
+              B: makeFloat64Tensor([2, 2], [1, 0.3, 0.2, 1]),
+              C: makeFloat64Tensor([2, 2], [1, 0, 0, 1]),
+              D: makeFloat64Tensor([2, 2], [0, 0, 0, 0]),
+            },
+            units: { time: "s", states: ["", ""], inputs: ["", ""], outputs: ["", ""] },
+            provenance: { source: "dock_example_loader" },
+          },
+          { selectRole: "statespacePlant" },
+        );
+        return;
+      }
+      const reg = await typedWorkspace.registerTypedObject(
+        {
+          schema_version: "1.0.0",
+          id: "double-integrator",
+          revision: 1,
+          kind: "StateSpace",
+          dt: null,
+          state_names: ["x1", "x2"],
+          input_names: ["u1"],
+          output_names: ["y1"],
+          matrices: {
+            A: makeFloat64Tensor([2, 2], [0, 1, 0, 0]),
+            B: makeFloat64Tensor([2, 1], [0, 1]),
+            C: makeFloat64Tensor([1, 2], [1, 0]),
+            D: makeFloat64Tensor([1, 1], [0]),
+          },
+          units: { time: "s", states: ["", ""], inputs: [""], outputs: [""] },
+          provenance: { source: "dock_example_loader" },
+        },
+        { selectRole: "statespacePlant" },
+      );
+      typedWorkspace.selectRef("frequencyPlant", { id: reg.id, revision: reg.revision });
+    })().catch((err: unknown) => {
+      shell.presentError(err);
+    });
+  });
+
   container.querySelector<HTMLElement>('[data-action="register-tf-builder"]')?.addEventListener("click", () => {
     try {
       const tfId = (typedTfIdEl?.value?.trim() ?? "") || "tf-custom";

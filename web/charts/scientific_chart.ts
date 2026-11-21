@@ -1863,18 +1863,25 @@ export function renderTimeResponseSvg(
     return `<polyline fill="none" stroke="${color}" stroke-width="${isPreview ? "2" : "2.2"}" stroke-dasharray="${ch.stroke_dasharray}" points="${pts.join(" ")}" data-channel-id="${escapeHtml(ch.id)}" data-series-semantics="${escapeHtml(ch.series_semantics)}"><title>${escapeHtml(label)}</title></polyline>`;
   };
 
+  const isIdentChart =
+    model.chart_id.startsWith("id-response") ||
+    model.channels.some((ch) => ch.id.startsWith("y-measured") || ch.id.startsWith("y-hat-"));
+
+  const resolveChannelColor = (ch: TimeSeriesChannel): string => {
+    if (isIdentChart) {
+      if (ch.id.includes("y-measured")) return theme.textPrimary;
+      if (ch.id.includes("free-sim")) return theme.chartClosedLoop;
+      if (ch.id.includes("one-step")) return theme.chartOverlayExact;
+      if (ch.id.includes("residual")) return theme.chartOpenLoop;
+      if (ch.group === "u") return theme.chartPreview;
+    }
+    if (ch.group === "u") return theme.chartOpenLoop;
+    if (ch.group === "x") return theme.chartOverlayExact;
+    return theme.chartClosedLoop;
+  };
+
   const committedLines = model.channels
-    .map((ch) =>
-      buildPolyline(
-        ch,
-        ch.group === "u"
-          ? theme.chartOpenLoop
-          : ch.group === "x"
-            ? theme.chartOverlayExact
-            : theme.chartClosedLoop,
-        false,
-      ),
-    )
+    .map((ch) => buildPolyline(ch, resolveChannelColor(ch), false))
     .join("");
   const previewLines = model.preview_channels
     .map((ch) => buildPolyline(ch, theme.chartPreview, true))
@@ -1899,11 +1906,23 @@ export function renderTimeResponseSvg(
     })
     .join("");
 
-  const timeLegendItems: string[] = [
-    `<text x="${padLeft + 8}" y="${padTop + 14}" font-size="10" fill="${theme.chartClosedLoop}">— Saída (y)</text>`,
-    `<text x="${padLeft + 88}" y="${padTop + 14}" font-size="10" fill="${theme.chartOpenLoop}">-- Entrada (u)</text>`,
-    `<text x="${padLeft + 178}" y="${padTop + 14}" font-size="10" fill="${theme.chartOverlayExact}">·· Estado (x)</text>`,
-  ];
+  const timeLegendItems: string[] = isIdentChart
+    ? model.channels.map((ch, idx) => {
+        const col = resolveChannelColor(ch);
+        const sym = !ch.stroke_dasharray
+          ? "—"
+          : ch.stroke_dasharray.startsWith("2")
+            ? "··"
+            : "--";
+        const lx = padLeft + 8 + (idx % 3) * 185;
+        const ly = padTop + 14 + Math.floor(idx / 3) * 14;
+        return `<text x="${lx}" y="${ly}" font-size="10" fill="${col}" data-legend-channel="${escapeHtml(ch.id)}">${sym} ${escapeHtml(ch.label)}</text>`;
+      })
+    : [
+        `<text x="${padLeft + 8}" y="${padTop + 14}" font-size="10" fill="${theme.chartClosedLoop}">— Saída (y)</text>`,
+        `<text x="${padLeft + 88}" y="${padTop + 14}" font-size="10" fill="${theme.chartOpenLoop}">-- Entrada (u)</text>`,
+        `<text x="${padLeft + 178}" y="${padTop + 14}" font-size="10" fill="${theme.chartOverlayExact}">·· Estado (x)</text>`,
+      ];
   if (model.preview_channels.length > 0) {
     timeLegendItems.push(
       `<text x="${padLeft + 266}" y="${padTop + 14}" font-size="10" fill="${theme.chartPreview}">⋯ Preview</text>`,

@@ -176,6 +176,120 @@ function extractComplexPair(val: unknown): ComplexVectorPair | null {
   return { real, imag };
 }
 
+function trimLeadingZerosDesc(coeffs: readonly number[]): number[] {
+  let first = 0;
+  while (first < coeffs.length - 1 && Math.abs(coeffs[first]) < 1e-14) {
+    first += 1;
+  }
+  return coeffs.slice(first);
+}
+
+function convolvePoly(a: readonly number[], b: readonly number[]): number[] {
+  const res = new Array<number>(a.length + b.length - 1).fill(0);
+  for (let i = 0; i < a.length; i += 1) {
+    for (let j = 0; j < b.length; j += 1) {
+      res[i + j] += a[i] * b[j];
+    }
+  }
+  return trimLeadingZerosDesc(res);
+}
+
+function addPolysDescending(a: readonly number[], b: readonly number[], scaleB = 1): number[] {
+  const len = Math.max(a.length, b.length);
+  const out = new Array<number>(len).fill(0);
+  const offA = len - a.length;
+  const offB = len - b.length;
+  for (let i = 0; i < a.length; i += 1) out[offA + i] += a[i];
+  for (let i = 0; i < b.length; i += 1) out[offB + i] += scaleB * b[i];
+  return trimLeadingZerosDesc(out);
+}
+
+function expandRootsToRealPoly(roots: ReadonlyArray<{ re: number; im: number }>): number[] {
+  let poly: Array<{ re: number; im: number }> = [{ re: 1, im: 0 }];
+  for (const r of roots) {
+    // Multiply poly(s) by (s - r)
+    const next: Array<{ re: number; im: number }> = Array.from(
+      { length: poly.length + 1 },
+      () => ({ re: 0, im: 0 }),
+    );
+    for (let i = 0; i < poly.length; i += 1) {
+      // s * poly[i] -> index i
+      next[i].re += poly[i].re;
+      next[i].im += poly[i].im;
+      // -r * poly[i] -> index i + 1
+      next[i + 1].re -= poly[i].re * r.re - poly[i].im * r.im;
+      next[i + 1].im -= poly[i].re * r.im + poly[i].im * r.re;
+    }
+    poly = next;
+  }
+  return trimLeadingZerosDesc(poly.map((c) => (Math.abs(c.re) < 1e-13 ? 0 : c.re)));
+}
+
+function formatPolyDesc(coeffs: readonly number[], variable: string, decimals: number): string {
+  const deg = coeffs.length - 1;
+  const terms: string[] = [];
+  for (let i = 0; i < coeffs.length; i += 1) {
+    const c = coeffs[i];
+    if (Math.abs(c) < 1e-12) continue;
+    const p = deg - i;
+    const absC = Math.abs(c);
+    const numStr =
+      Number.isInteger(absC) && absC < 1e9
+        ? String(absC)
+        : formatNumericDisplay(absC, Math.min(decimals, 3));
+    const sign = c < 0 ? (terms.length === 0 ? "-" : " - ") : (terms.length === 0 ? "" : " + ");
+    if (p === 0) {
+      terms.push(`${sign}${numStr}`);
+    } else {
+      const prefix = Math.abs(absC - 1) < 1e-9 ? "" : `${numStr}·`;
+      const varPart = p === 1 ? variable : `${variable}^${p}`;
+      terms.push(`${sign}${prefix}${varPart}`);
+    }
+  }
+  return terms.length > 0 ? terms.join("") : "0";
+}
+
+function tfToSisoStateSpace(
+  numDesc: readonly number[],
+  denDesc: readonly number[],
+): { A: number[][]; B: number[][]; C: number[][]; D: number[][] } {
+  const den = trimLeadingZerosDesc(denDesc);
+  const a0 = den[0];
+  if (!Number.isFinite(a0) || Math.abs(a0) < 1e-14) {
+    throw new ControlLabBridgeError("VALIDATION_ERROR", "Denominador do compensador não pode ter coeficiente líder nulo.");
+  }
+  const n = den.length - 1;
+  const normDen = den.map((v) => v / a0);
+  const numPadded = new Array<number>(den.length).fill(0);
+  const offset = den.length - numDesc.length;
+  if (offset < 0) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      "Compensador impróprio (grau(num) > grau(den)) não pode ser conectado em série com planta StateSpace.",
+    );
+  }
+  for (let i = 0; i < numDesc.length; i += 1) {
+    numPadded[offset + i] = numDesc[i] / a0;
+  }
+  const d0 = numPadded[0];
+  if (n === 0) {
+    return { A: [], B: [], C: [], D: [[d0]] };
+  }
+  const A = Array.from({ length: n }, () => new Array<number>(n).fill(0));
+  for (let i = 0; i < n - 1; i += 1) {
+    A[i][i + 1] = 1;
+  }
+  for (let j = 0; j < n; j += 1) {
+    A[n - 1][j] = -normDen[n - j];
+  }
+  const B = Array.from({ length: n }, (_, i) => [i === n - 1 ? 1 : 0]);
+  const C = [
+    Array.from({ length: n }, (_, j) => numPadded[n - j] - d0 * normDen[n - j]),
+  ];
+  const D = [[d0]];
+  return { A, B, C, D };
+}
+
 export class SisoWorkspace {
   private readonly client: ControlLabEngineClient;
   private readonly typedWorkspace: TypedObjectWorkspace;
@@ -195,6 +309,11 @@ export class SisoWorkspace {
   private pade_order = 1;
   private feedback_sign: "negative" | "positive" = "negative";
   private compensator_gain = 1.0;
+  private compensator_num: number[] = [1];
+  private compensator_den: number[] = [1];
+  private compensator_zeros: Array<{ re: number; im: number }> = [];
+  private compensator_poles: Array<{ re: number; im: number }> = [];
+  private compensator_mode: "gain" | "tf" | "zpk" = "gain";
 
   // Últimos resultados gerados
   private lastBodeModel: BodeChartModel | null = null;
@@ -249,6 +368,45 @@ export class SisoWorkspace {
   public getPadeOrder(): number { return this.pade_order; }
   public getFeedbackSign(): "negative" | "positive" { return this.feedback_sign; }
   public getCompensatorGain(): number { return this.compensator_gain; }
+  public getCompensatorTf(): {
+    num: number[];
+    den: number[];
+    mode: "gain" | "tf" | "zpk";
+    gain: number;
+    zeros: Array<{ re: number; im: number }>;
+    poles: Array<{ re: number; im: number }>;
+  } {
+    return {
+      num: [...this.compensator_num],
+      den: [...this.compensator_den],
+      mode: this.compensator_mode,
+      gain: this.compensator_gain,
+      zeros: this.compensator_zeros.map((z) => ({ ...z })),
+      poles: this.compensator_poles.map((p) => ({ ...p })),
+    };
+  }
+  public isDynamicCompensator(): boolean {
+    return !(
+      this.compensator_num.length === 1 &&
+      this.compensator_num[0] === 1 &&
+      this.compensator_den.length === 1 &&
+      this.compensator_den[0] === 1
+    );
+  }
+  public isCompensatorTrivial(): boolean {
+    return !this.isDynamicCompensator() && this.compensator_gain === 1;
+  }
+  public formatCompensatorExpression(decimals = 3): string {
+    const kStr = formatNumericDisplay(this.compensator_gain, Math.min(decimals, 3));
+    if (!this.isDynamicCompensator()) {
+      return kStr;
+    }
+    const nStr = formatPolyDesc(this.compensator_num, "s", decimals);
+    const dStr = formatPolyDesc(this.compensator_den, "s", decimals);
+    const nWrapped = this.compensator_num.filter((v) => Math.abs(v) > 1e-12).length > 1 ? `(${nStr})` : nStr;
+    const dWrapped = this.compensator_den.filter((v) => Math.abs(v) > 1e-12).length > 1 ? `(${dStr})` : dStr;
+    return `${kStr} · ${nWrapped} / ${dWrapped}`;
+  }
   public getStatus(): "idle" | "running" | "success" | "warning" | "failure" { return this.lastStatus; }
   public getErrorMessage(): string | null { return this.lastErrorMessage; }
   public getWarnings(): readonly WarningEntry[] { return this.lastWarnings; }
@@ -295,6 +453,62 @@ export class SisoWorkspace {
       throw new ControlLabBridgeError("VALIDATION_ERROR", "Ganho do compensador deve ser finito não nulo.");
     }
     this.compensator_gain = gain;
+    this.notify();
+  }
+
+  public setCompensatorTf(
+    num: readonly number[],
+    den: readonly number[],
+    mode: "gain" | "tf" | "zpk" = "tf",
+  ): void {
+    if (!Array.isArray(num) || num.length === 0 || num.some((v) => !Number.isFinite(v))) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Numerador de C(s) deve conter coeficientes finitos não vazios.");
+    }
+    if (!Array.isArray(den) || den.length === 0 || den.some((v) => !Number.isFinite(v))) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Denominador de C(s) deve conter coeficientes finitos não vazios.");
+    }
+    if (den.every((v) => Math.abs(v) < 1e-14)) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Denominador de C(s) não pode ser identicamente nulo.");
+    }
+    this.compensator_num = trimLeadingZerosDesc(num);
+    this.compensator_den = trimLeadingZerosDesc(den);
+    this.compensator_mode = mode;
+    this.notify();
+  }
+
+  public setCompensatorZpk(
+    gain: number,
+    zeros: ReadonlyArray<{ re: number; im: number }>,
+    poles: ReadonlyArray<{ re: number; im: number }>,
+  ): void {
+    if (!Number.isFinite(gain) || gain === 0) {
+      throw new ControlLabBridgeError("VALIDATION_ERROR", "Ganho K de C(s) deve ser finito não nulo.");
+    }
+    for (const z of zeros) {
+      if (!Number.isFinite(z.re) || !Number.isFinite(z.im)) {
+        throw new ControlLabBridgeError("VALIDATION_ERROR", "Zeros de C(s) devem possuir partes real e imaginária finitas.");
+      }
+    }
+    for (const p of poles) {
+      if (!Number.isFinite(p.re) || !Number.isFinite(p.im)) {
+        throw new ControlLabBridgeError("VALIDATION_ERROR", "Polos de C(s) devem possuir partes real e imaginária finitas.");
+      }
+    }
+    this.compensator_gain = gain;
+    this.compensator_zeros = zeros.map((z) => ({ re: z.re, im: z.im }));
+    this.compensator_poles = poles.map((p) => ({ re: p.re, im: p.im }));
+    this.compensator_num = expandRootsToRealPoly(this.compensator_zeros);
+    this.compensator_den = expandRootsToRealPoly(this.compensator_poles);
+    this.compensator_mode = "zpk";
+    this.notify();
+  }
+
+  public resetCompensator(): void {
+    this.compensator_num = [1];
+    this.compensator_den = [1];
+    this.compensator_zeros = [];
+    this.compensator_poles = [];
+    this.compensator_mode = "gain";
     this.notify();
   }
 
@@ -353,6 +567,167 @@ export class SisoWorkspace {
     };
   }
 
+  private buildPlantPayloadForOperation(
+    ref: CanonicalObjectRef,
+    object: RegisteredTypedObject,
+    opKind: "open_loop_with_gain" | "open_loop_unit_gain" | "closed_loop_step",
+  ): Record<string, unknown> {
+    if (
+      this.isCompensatorTrivial() ||
+      (opKind === "open_loop_unit_gain" && !this.isDynamicCompensator())
+    ) {
+      return { plant_ref: { id: ref.id, revision: ref.revision } };
+    }
+
+    const gainFactor = opKind === "open_loop_unit_gain" ? 1 : this.compensator_gain;
+    const fbScale = this.feedback_sign === "negative" ? 1 : -1;
+
+    if (object.kind === "TransferFunction") {
+      const val = object.value;
+      const polyOrder = typeof val.poly_order === "string" ? val.poly_order : "descending";
+      const rawNum = ((val.num as Array<Array<{ data?: number[] }>>)?.[0]?.[0]?.data ?? [1]).map(Number);
+      const rawDen = ((val.den as Array<Array<{ data?: number[] }>>)?.[0]?.[0]?.data ?? [1]).map(Number);
+      const plantNum = polyOrder === "ascending" ? [...rawNum].reverse() : rawNum;
+      const plantDen = polyOrder === "ascending" ? [...rawDen].reverse() : rawDen;
+
+      const olNum = convolvePoly(this.compensator_num, plantNum).map((v) => v * gainFactor);
+      const olDen = convolvePoly(this.compensator_den, plantDen);
+      const finalNum = olNum;
+      const finalDen =
+        opKind === "closed_loop_step"
+          ? addPolysDescending(olDen, olNum, fbScale)
+          : olDen;
+
+      return {
+        plant: {
+          schema_version: "1.0.0",
+          id: `${object.id}_comp`,
+          revision: object.revision,
+          kind: "TransferFunction",
+          dt: val.dt ?? null,
+          variable: val.variable ?? (val.dt === null || val.dt === undefined ? "s" : "z"),
+          poly_order: "descending",
+          num: [[{ shape: [finalNum.length], dtype: "float64", order: "C", data: finalNum }]],
+          den: [[{ shape: [finalDen.length], dtype: "float64", order: "C", data: finalDen }]],
+          units: val.units ?? { time: "s", inputs: ["u1"], outputs: ["y1"] },
+          provenance: { source: "siso_compensator_composition" },
+        },
+      };
+    }
+
+    if (object.kind === "StateSpace") {
+      const val = object.value;
+      const matrices = (val.matrices as Record<string, { shape?: number[]; data?: number[] }>) ?? {};
+      const readMat = (m: { shape?: number[]; data?: number[] } | undefined): number[][] => {
+        const rows = m?.shape?.[0] ?? 1;
+        const cols = m?.shape?.[1] ?? 1;
+        const data = m?.data ?? [];
+        return Array.from({ length: rows }, (_, r) =>
+          Array.from({ length: cols }, (_, c) => Number(data[r * cols + c] ?? 0)),
+        );
+      };
+      const Ap = readMat(matrices.A);
+      const Bp = readMat(matrices.B);
+      const Cp = readMat(matrices.C);
+      const Dp = readMat(matrices.D);
+      const np = Ap.length;
+
+      let Aol = Ap;
+      let Bol = Bp;
+      let Col = Cp;
+      let Dol = Dp;
+
+      if (this.isDynamicCompensator()) {
+        const compSs = tfToSisoStateSpace(
+          this.compensator_num.map((v) => v * gainFactor),
+          this.compensator_den,
+        );
+        const nc = compSs.A.length;
+        if (nc === 0) {
+          const d0 = compSs.D[0][0];
+          Bol = Bp.map((row) => [row[0] * d0]);
+          Dol = [[Dp[0][0] * d0]];
+        } else {
+          // Series L(s) = G(s) * C(s): states [xp; xc]
+          const nTot = np + nc;
+          Aol = Array.from({ length: nTot }, (_, i) =>
+            Array.from({ length: nTot }, (__, j) => {
+              if (i < np && j < np) return Ap[i][j];
+              if (i < np && j >= np) return Bp[i][0] * compSs.C[0][j - np];
+              if (i >= np && j >= np) return compSs.A[i - np][j - np];
+              return 0;
+            }),
+          );
+          Bol = Array.from({ length: nTot }, (_, i) => [
+            i < np ? Bp[i][0] * compSs.D[0][0] : compSs.B[i - np][0],
+          ]);
+          Col = [
+            Array.from({ length: nTot }, (_, j) =>
+              j < np ? Cp[0][j] : Dp[0][0] * compSs.C[0][j - np],
+            ),
+          ];
+          Dol = [[Dp[0][0] * compSs.D[0][0]]];
+        }
+      } else {
+        // Pure gain K
+        Col = [Cp[0].map((v) => v * gainFactor)];
+        Dol = [[Dp[0][0] * gainFactor]];
+      }
+
+      if (opKind === "closed_loop_step") {
+        const dVal = Dol[0][0];
+        const denom = 1 + fbScale * dVal;
+        if (Math.abs(denom) < 1e-12) {
+          throw new ControlLabBridgeError(
+            "VALIDATION_ERROR",
+            "Laço algébrico singular (1 ± D_L = 0) ao fechar malha.",
+          );
+        }
+        const alpha = 1 / denom;
+        const nTot = Aol.length;
+        const Acl = Aol.map((row, i) =>
+          row.map((v, j) => v - fbScale * alpha * Bol[i][0] * Col[0][j]),
+        );
+        const Bcl = Bol.map((row) => [alpha * row[0]]);
+        const Ccl = [Col[0].map((v) => alpha * v)];
+        const Dcl = [[alpha * dVal]];
+        Aol = Acl;
+        Bol = Bcl;
+        Col = Ccl;
+        Dol = Dcl;
+      }
+
+      const nFinal = Aol.length;
+      return {
+        plant: {
+          schema_version: "1.0.0",
+          id: `${object.id}_comp`,
+          revision: object.revision,
+          kind: "StateSpace",
+          dt: val.dt ?? null,
+          state_names: Array.from({ length: nFinal }, (_, i) => `x${i + 1}`),
+          input_names: ["u1"],
+          output_names: ["y1"],
+          matrices: {
+            A: { shape: [nFinal, nFinal], dtype: "float64", order: "C", data: Aol.flat() },
+            B: { shape: [nFinal, 1], dtype: "float64", order: "C", data: Bol.flat() },
+            C: { shape: [1, nFinal], dtype: "float64", order: "C", data: Col.flat() },
+            D: { shape: [1, 1], dtype: "float64", order: "C", data: Dol.flat() },
+          },
+          units: val.units ?? {
+            time: "s",
+            states: Array.from({ length: nFinal }, () => ""),
+            inputs: [""],
+            outputs: [""],
+          },
+          provenance: { source: "siso_compensator_composition" },
+        },
+      };
+    }
+
+    return { plant_ref: { id: ref.id, revision: ref.revision } };
+  }
+
   /**
    * Avalia Resposta em Frequência (Bode, Nyquist) e Margens de Estabilidade.
    * Suporta Fast-Preview transitório (`previewOnly: true`) sem gravar execução autoritativa.
@@ -389,6 +764,8 @@ export class SisoWorkspace {
       const projectId = this.projectIdProvider();
       const projectRevision = this.projectRevisionProvider();
 
+      const plantPayload = this.buildPlantPayloadForOperation(ref, object, "open_loop_with_gain");
+
       // Chamada 1: frequency.eval_response (para Bode magnitude/fase e Nyquist Re/Im)
       const evalReq: RpcRequest = {
         api_version: RPC_API_VERSION,
@@ -397,7 +774,7 @@ export class SisoWorkspace {
         project_revision: projectRevision,
         operation: "frequency.eval_response",
         payload: {
-          plant_ref: { id: ref.id, revision: ref.revision },
+          ...plantPayload,
           w_min: wMin,
           w_max: wMax,
           n_points: nPoints,
@@ -417,7 +794,7 @@ export class SisoWorkspace {
         project_revision: projectRevision,
         operation: "frequency.stability_margins",
         payload: {
-          plant_ref: { id: ref.id, revision: ref.revision },
+          ...plantPayload,
           w_min: wMin,
           w_max: wMax,
           n_points: Math.max(nPoints, 1000),
@@ -667,6 +1044,8 @@ export class SisoWorkspace {
       const nGains = options?.n_gains ?? 100;
       const kMax = options?.k_max ?? 100;
 
+      const rlPlantPayload = this.buildPlantPayloadForOperation(ref, object, "open_loop_unit_gain");
+
       const req: RpcRequest = {
         api_version: RPC_API_VERSION,
         request_id: `req-siso-rl-${Date.now()}`,
@@ -674,7 +1053,7 @@ export class SisoWorkspace {
         project_revision: projectRevision,
         operation: "frequency.root_locus",
         payload: {
-          plant_ref: { id: ref.id, revision: ref.revision },
+          ...rlPlantPayload,
           n_gains: nGains,
           k_max: kMax,
           feedback_sign: this.feedback_sign,
@@ -869,6 +1248,8 @@ export class SisoWorkspace {
       const tFinal = options?.t_final ?? 10.0;
       const nPoints = options?.n_points ?? 400;
 
+      const stepPlantPayload = this.buildPlantPayloadForOperation(ref, object, "closed_loop_step");
+
       const req: RpcRequest = {
         api_version: RPC_API_VERSION,
         request_id: `req-siso-step-${Date.now()}`,
@@ -876,7 +1257,7 @@ export class SisoWorkspace {
         project_revision: projectRevision,
         operation: "frequency.step_response",
         payload: {
-          plant_ref: { id: ref.id, revision: ref.revision },
+          ...stepPlantPayload,
           amplitude: amp,
           t_final: tFinal,
           n_points: nPoints,

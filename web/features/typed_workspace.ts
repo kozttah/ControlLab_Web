@@ -1023,6 +1023,84 @@ export class TypedObjectWorkspace {
     return null;
   }
 
+  public removeRegisteredObject(id: string, revision: number): boolean {
+    const key = encodeObjectRefKey({ id, revision });
+    const existed = this.objects.delete(key);
+    if (!existed) {
+      return false;
+    }
+    for (const role of TYPED_SELECTION_ROLES) {
+      const sel = this.selectedRefs[role];
+      if (sel && sel.id === id && sel.revision === revision) {
+        this.selectedRefs[role] = null;
+        this.selectionVersionByRole[role] += 1;
+      }
+    }
+    if (
+      this.pendingIdentifiedModel &&
+      this.pendingIdentifiedModel.model_ref.id === id &&
+      this.pendingIdentifiedModel.model_ref.revision === revision
+    ) {
+      this.pendingIdentifiedModel = {
+        ...this.pendingIdentifiedModel,
+        registered: false,
+      };
+    }
+    if (
+      this.pendingDerivedModel &&
+      this.pendingDerivedModel.model_ref.id === id &&
+      this.pendingDerivedModel.model_ref.revision === revision
+    ) {
+      this.pendingDerivedModel = {
+        ...this.pendingDerivedModel,
+        registered: false,
+      };
+    }
+    this.announcer?.announce(
+      `Objeto '${id}' (rev. ${revision}) removido da sessão.`,
+      "polite",
+      "status",
+    );
+    this.notify();
+    return true;
+  }
+
+  public clearRegisteredObjects(options?: { keepActiveLqrPlant?: boolean }): void {
+    const keepLqr = options?.keepActiveLqrPlant === true;
+    const mirrorKey = keepLqr ? (this.activeLqrMirror?.key ?? null) : null;
+    const preservedLqrEntry = mirrorKey ? this.objects.get(mirrorKey) : undefined;
+
+    this.objects.clear();
+    if (preservedLqrEntry) {
+      this.objects.set(preservedLqrEntry.key, preservedLqrEntry);
+    }
+
+    for (const role of TYPED_SELECTION_ROLES) {
+      const sel = this.selectedRefs[role];
+      const keepRole =
+        keepLqr &&
+        (role === "statespacePlant" || role === "frequencyPlant") &&
+        sel !== null &&
+        mirrorKey !== null &&
+        encodeObjectRefKey(sel) === mirrorKey;
+      if (!keepRole) {
+        this.selectedRefs[role] = null;
+        this.selectionVersionByRole[role] += 1;
+      }
+    }
+
+    this.pendingIdentifiedModel = null;
+    this.pendingDerivedModel = null;
+    this.lastReuseOutcome = null;
+
+    this.announcer?.announce(
+      "Objetos registrados da sessão foram limpos.",
+      "polite",
+      "status",
+    );
+    this.notify();
+  }
+
   public selectRef(
     role: TypedSelectionRole,
     ref: CanonicalObjectRef | null,

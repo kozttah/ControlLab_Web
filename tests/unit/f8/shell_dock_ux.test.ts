@@ -136,8 +136,10 @@ class FakeElement {
 
 function matchesSimpleSelector(el: FakeElement, selector: string): boolean {
   const s = selector.trim();
-  if (s.startsWith("#")) return el.id === s.slice(1);
-  if (s.startsWith(".")) return el.className.split(/\s+/).includes(s.slice(1));
+  if (s.startsWith("#") && !s.includes("[") && !s.includes(".")) return el.id === s.slice(1);
+  if (s.startsWith(".") && !s.includes("[")) return el.className.split(/\s+/).includes(s.slice(1));
+  const idMatch = /^#([a-zA-Z0-9_-]+)/.exec(s);
+  if (idMatch && el.id !== idMatch[1]) return false;
   const tagMatch = /^([a-zA-Z0-9_-]+)/.exec(s);
   if (tagMatch && el.tagName !== tagMatch[1].toUpperCase()) return false;
   const attrRe = /\[([^\]=]+)(?:="([^"]*)")?\]/g;
@@ -152,14 +154,17 @@ function matchesSimpleSelector(el: FakeElement, selector: string): boolean {
       return false;
     }
   }
-  return matchedAnyAttr || Boolean(tagMatch);
+  if (!matchedAnyAttr && s.includes("[")) return false;
+  return matchedAnyAttr || Boolean(tagMatch) || Boolean(idMatch);
 }
 
 class FakeDocument {
   public activeElement: FakeElement | null = null;
+  public documentElement: FakeElement;
   public body: FakeElement;
 
   constructor() {
+    this.documentElement = new FakeElement("html", this);
     this.body = new FakeElement("body", this);
   }
 
@@ -469,6 +474,196 @@ test("WP-UX-REFACTOR-01-SHELL-DOCK: Inspetor R-27 oculto por padrão, alterna te
   app.shell.getLqrWorkspace().pointerMove({ qScale: 2.0 });
   assert.ok(root.querySelector("#lqr-status-text")!.textContent.startsWith("Fast-Preview"));
   await app.shell.getLqrWorkspace().cancelDrag();
+
+  app.destroy();
+});
+
+test("WP-UX-REFACTOR-05-HIGH-CONTRAST-AND-VISUAL-CLEANUP: sincroniza high_contrast em container/documentElement/body, repassa themeMode aos gráficos SVG, avalia 4 gráficos SISO em 1 clique e alterna .advanced-rpc-drawer", async () => {
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const makeSuccessResp = (
+    req: { request_id: string; project_id: string; project_revision: number; operation: string },
+    result: Record<string, unknown>,
+  ) => ({
+    api_version: "1.0" as const,
+    request_id: req.request_id,
+    project_id: req.project_id,
+    project_revision: req.project_revision,
+    status: "success" as const,
+    result,
+    assumptions: {},
+    diagnostics: {
+      numeric_status: "ok" as const,
+      warnings_count: 0,
+      condition_estimates: {},
+      residuals: {},
+      timings_ms: { total: 1.0 },
+    },
+    provenance: {
+      operation: req.operation,
+      algorithm: "mock",
+      backend: "numpy_scipy",
+      code_hash: "0".repeat(64),
+      input_hash: "0".repeat(64),
+      random_seed: null,
+      deterministic: true,
+      model_revision: 1,
+      project_revision: req.project_revision,
+      lib_versions: { python: "3.12", numpy: "2.0", scipy: "1.14", control_lab: "1.0.0" },
+    },
+    warnings: [],
+    error: null,
+  });
+  const mockAdapter = new MockWorkerAdapter();
+  const origExecute = mockAdapter.execute.bind(mockAdapter);
+  mockAdapter.execute = async (req, opts) => {
+    if (req.operation === "frequency.eval_response") {
+      return makeSuccessResp(req, {
+        dt: null,
+        omega: [0.1, 1.0, 10.0],
+        mag_db: [0, -3.01, -20.0],
+        phase_deg: [-5.7, -45.0, -84.3],
+        response: { real: [0.99, 0.5, 0.01], imag: [-0.1, -0.5, -0.1] },
+      });
+    }
+    if (req.operation === "frequency.stability_margins") {
+      return makeSuccessResp(req, {
+        gain_crossovers: [{ omega_gc: 1.0, phase_deg: -45.0, phase_margin_deg: 135.0, delay_margin_sec: 2.35 }],
+        phase_crossovers: [],
+        critical_phase_margin_deg: 135.0,
+        critical_omega_gc: 1.0,
+        critical_delay_margin_sec: 2.35,
+        critical_gain_margin_db: null,
+        critical_gain_margin_linear: null,
+        critical_omega_pc: null,
+        closed_loop_stable: true,
+        closed_loop_poles: { real: [-2.0], imag: [0.0] },
+      });
+    }
+    if (req.operation === "frequency.root_locus") {
+      return makeSuccessResp(req, {
+        dt: null,
+        gains: [0, 1, 5],
+        branches: [{ real: [-1.0, -2.0, -6.0], imag: [0.0, 0.0, 0.0] }],
+        open_loop_poles: { real: [-1.0], imag: [0.0] },
+        open_loop_zeros: { real: [], imag: [] },
+        breakaway_points: [],
+        stability_crossings: [],
+      });
+    }
+    if (req.operation === "frequency.step_response") {
+      return makeSuccessResp(req, {
+        dt: null,
+        t: [0, 0.5, 1.0],
+        y: [[0], [0.35], [0.5]],
+        u: [[1], [0.65], [0.5]],
+        metrics: {
+          is_stable: true,
+          steady_state_value: 0.5,
+          steady_state_error: 0.5,
+          overshoot_percent: 0,
+          peak_value: 0.5,
+          peak_time: 1.0,
+          settling_time: 0.8,
+          settling_threshold: 0.02,
+          rise_time_10_90: 0.5,
+        },
+      });
+    }
+    return origExecute(req, opts);
+  };
+
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client: mockAdapter,
+    project_id: "proj-ux-hc-cleanup",
+  });
+  await app.client.init();
+
+  // Default theme is standard_aa synced across container, documentElement, and body
+  assert.equal(root.getAttribute("data-theme"), "standard_aa");
+  assert.equal(doc.documentElement.getAttribute("data-theme"), "standard_aa");
+  assert.equal(doc.body.getAttribute("data-theme"), "standard_aa");
+
+  // Commit LQR so StateSpace pole-zero chart is rendered
+  await app.shell.getLqrWorkspace().commitCurrentDesign();
+  const pzChartSlot = root.querySelector<FakeElement>("#pz-chart-slot")!;
+  assert.ok(pzChartSlot.innerHTML.includes("#FFFFFF"));
+
+  // Toggle High-Contrast mode
+  const themeBtn = root.querySelector<FakeElement>("#theme-toggle-btn")!;
+  themeBtn.dispatchEvent("click");
+  assert.equal(root.getAttribute("data-theme"), "high_contrast");
+  assert.equal(doc.documentElement.getAttribute("data-theme"), "high_contrast");
+  assert.equal(doc.body.getAttribute("data-theme"), "high_contrast");
+
+  // LQR SVG chart re-renders immediately with dark high-contrast surface (#0B0F17)
+  assert.ok(pzChartSlot.innerHTML.includes("#0B0F17"));
+
+  // Switch to SISO tab, register a TransferFunction, and click 1-click button #btn-siso-eval-all
+  await app.shell.getTypedWorkspace().registerTypedObject(
+    {
+      schema_version: "1.0.0",
+      id: "tf-siso-hc",
+      revision: 1,
+      kind: "TransferFunction",
+      dt: null,
+      variable: "s",
+      poly_order: "descending",
+      num: [[{ shape: [1], dtype: "float64", order: "C", data: [1] }]],
+      den: [[{ shape: [2], dtype: "float64", order: "C", data: [1, 1] }]],
+      units: { time: "s", inputs: ["u"], outputs: ["y"] },
+      provenance: { source: "test" },
+    },
+    { selectRole: "frequencyPlant" },
+  );
+  app.shell.switchTab("siso_frequency");
+  const evalAllBtn = root.querySelector<FakeElement>("#btn-siso-eval-all")!;
+  assert.ok(evalAllBtn !== null);
+  assert.equal(evalAllBtn.getAttribute("data-action"), "siso-eval-all");
+  evalAllBtn.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 80));
+
+  const bodeSlot = root.querySelector<FakeElement>("#siso-bode-chart-slot")!;
+  const nyquistSlot = root.querySelector<FakeElement>("#siso-nyquist-chart-slot")!;
+  const rlSlot = root.querySelector<FakeElement>("#siso-rl-chart-slot")!;
+  const sisoTimeSlot = root.querySelector<FakeElement>("#siso-time-chart-slot")!;
+  assert.ok(
+    bodeSlot.innerHTML.includes("<svg"),
+    `bodeSlot empty; lastError=${JSON.stringify(app.shell.getPresentedLastError())}`,
+  );
+  assert.ok(nyquistSlot.innerHTML.includes("<svg"));
+  assert.ok(rlSlot.innerHTML.includes("<svg"));
+  assert.ok(sisoTimeSlot.innerHTML.includes("<svg"));
+  // All 4 SISO charts rendered in high_contrast surface (#0B0F17)
+  assert.ok(bodeSlot.innerHTML.includes("#0B0F17"));
+  assert.ok(nyquistSlot.innerHTML.includes("#0B0F17"));
+  assert.ok(rlSlot.innerHTML.includes("#0B0F17"));
+  assert.ok(sisoTimeSlot.innerHTML.includes("#0B0F17"));
+
+  // Toggle back to standard_aa -> all 4 SISO charts re-render in light theme (#FFFFFF)
+  themeBtn.dispatchEvent("click");
+  assert.equal(root.getAttribute("data-theme"), "standard_aa");
+  assert.ok(bodeSlot.innerHTML.includes("#FFFFFF"));
+  assert.ok(nyquistSlot.innerHTML.includes("#FFFFFF"));
+  assert.ok(rlSlot.innerHTML.includes("#FFFFFF"));
+  assert.ok(sisoTimeSlot.innerHTML.includes("#FFFFFF"));
+
+  // Verify compact .advanced-rpc-drawer and #btn-toggle-advanced-rpc toggle .expanded
+  const rpcDrawer = root.querySelector<FakeElement>("#legacy-rpc-inspector-details")!;
+  const toggleRpcBtn = root.querySelector<FakeElement>("#btn-toggle-advanced-rpc")!;
+  assert.ok(rpcDrawer !== null);
+  assert.ok(toggleRpcBtn !== null);
+  assert.equal(rpcDrawer.className.split(/\s+/).includes("advanced-rpc-drawer"), true);
+  assert.equal(rpcDrawer.className.split(/\s+/).includes("expanded"), false);
+  assert.equal(toggleRpcBtn.getAttribute("aria-expanded"), "false");
+
+  toggleRpcBtn.dispatchEvent("click");
+  assert.equal(rpcDrawer.className.split(/\s+/).includes("expanded"), true);
+  assert.equal(toggleRpcBtn.getAttribute("aria-expanded"), "true");
+
+  toggleRpcBtn.dispatchEvent("click");
+  assert.equal(rpcDrawer.className.split(/\s+/).includes("expanded"), false);
+  assert.equal(toggleRpcBtn.getAttribute("aria-expanded"), "false");
 
   app.destroy();
 });

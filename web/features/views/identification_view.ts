@@ -734,10 +734,11 @@ export class IdentificationView {
       }
     }
 
+    const themeMode = this.shell.getThemeMode();
     const idRespChart = idWorkspace.buildResponseChart();
     if (this.responseChartSlotEl) {
       this.responseChartSlotEl.innerHTML = idRespChart
-        ? renderTimeResponseSvg(idRespChart, { decimals })
+        ? renderTimeResponseSvg(idRespChart, { decimals, themeMode })
         : "";
     }
     if (this.responseTableSlotEl) {
@@ -752,7 +753,7 @@ export class IdentificationView {
     const idResidChart = idWorkspace.buildResidualCorrelationChart();
     if (this.residualsChartSlotEl) {
       this.residualsChartSlotEl.innerHTML = idResidChart
-        ? renderResidualCorrelationSvg(idResidChart, { decimals })
+        ? renderResidualCorrelationSvg(idResidChart, { decimals, themeMode })
         : "";
     }
     if (this.residualsTableSlotEl) {

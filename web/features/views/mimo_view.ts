@@ -608,14 +608,16 @@ export class MimoView {
       }
       return;
     }
+    const themeMode = this.shell.getThemeMode();
     const model: SingularValuesChartModel = {
       ...this.snapshot.svModel,
-      theme_mode: this.shell.getThemeMode(),
+      theme_mode: themeMode,
     };
     if (this.sigmaChartSlotEl) {
       this.sigmaChartSlotEl.innerHTML = renderSingularValuesSvg(model, {
         decimals,
         visibleGroups: this.visibleGroups,
+        themeMode,
       });
     }
     if (this.sigmaTableSlotEl) {

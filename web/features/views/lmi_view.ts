@@ -918,6 +918,7 @@ export class LmiView {
       this.recoveredGainEl.innerHTML = `<p>${kHtml}${objHtml}</p>`;
     }
 
+    const themeMode = this.shell.getThemeMode();
     if (s.blockMinEigs.length > 0) {
       const specModel: LmiSpectrumChartModel = buildLmiSpectrumChartModel({
         block_min_eigs: s.blockMinEigs,
@@ -925,10 +926,10 @@ export class LmiView {
         model_revision: this.shell.getLqrWorkspace().getPlant().revision,
         project_revision: this.shell.getLqrWorkspace().getProjectRevision(),
         provenance: s.provenance,
-        theme_mode: this.shell.getThemeMode(),
+        theme_mode: themeMode,
       });
       if (this.spectrumChartSlotEl) {
-        this.spectrumChartSlotEl.innerHTML = renderLmiSpectrumSvg(specModel, { decimals });
+        this.spectrumChartSlotEl.innerHTML = renderLmiSpectrumSvg(specModel, { decimals, themeMode });
       }
       if (this.spectrumTableSlotEl) {
         const table = buildAccessibleChartTable(specModel, decimals);

@@ -4,11 +4,11 @@
 [data-theme="standard_aa"] {
   --bg: #F8FAFC;
   --surface: #FFFFFF;
-  --surface-alt: #EFF4F9;
+  --surface-alt: #F1F5F9;
   --text-primary: #0F172A;
   --text-secondary: #334155;
-  --border: #64748B;
-  --border-subtle: #CBD5E1;
+  --border: #94A3B8;
+  --border-subtle: #E2E8F0;
   --accent: #1D4ED8;
   --accent-text: #FFFFFF;
   --danger: #B91C1C;
@@ -28,26 +28,26 @@
 }
 
 [data-theme="high_contrast"] {
-  --bg: #000000;
-  --surface: #0B0F17;
-  --surface-alt: #141B29;
-  --text-primary: #FFFFFF;
-  --text-secondary: #E2E8F0;
-  --border: #E2E8F0;
-  --border-subtle: #94A3B8;
-  --accent: #93C5FD;
-  --accent-text: #000000;
+  --bg: #05080F;
+  --surface: #0D1322;
+  --surface-alt: #162036;
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --border: #94A3B8;
+  --border-subtle: #475569;
+  --accent: #38BDF8;
+  --accent-text: #020617;
   --danger: #FCA5A5;
-  --danger-text: #000000;
+  --danger-text: #020617;
   --focus-ring: #FACC15;
   --success-bg: #052E16;
-  --success-fg: #86EFAC;
+  --success-fg: #4ADE80;
   --warning-bg: #451A03;
-  --warning-fg: #FDE047;
+  --warning-fg: #FACC15;
   --error-bg: #450A0A;
   --error-fg: #FCA5A5;
-  --info-bg: #172554;
-  --info-fg: #BAE6FD;
+  --info-bg: #0C4A6E;
+  --info-fg: #7DD3FC;
   --dot-ready: #4ADE80;
   --dot-busy: #FACC15;
   --dot-error: #FCA5A5;
@@ -61,12 +61,32 @@
   display: none !important;
 }
 
-body {
+body,
+[data-theme],
+.controllab-shell {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--text-primary);
   line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+p,
+label,
+th,
+td,
+summary,
+strong,
+code,
+.kpi-value,
+.lmi-math-expr,
+.lmi-bmat-cell {
+  color: var(--text-primary);
 }
 
 .skip-link {
@@ -165,10 +185,11 @@ textarea {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.65rem 1.25rem;
+  gap: 0.65rem;
+  padding: 0.5rem 1rem;
   background: var(--surface);
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .brand {
@@ -278,25 +299,26 @@ textarea {
 .controllab-tablist {
   display: flex;
   flex-wrap: nowrap;
-  gap: 0.45rem;
-  padding: 0.55rem 1.25rem;
-  background: var(--surface-alt);
-  border-bottom: 1px solid var(--border);
+  gap: 0.35rem;
+  padding: 0.4rem 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
   overflow-x: auto;
   scrollbar-width: thin;
   max-width: 100%;
 }
 
 .controllab-tablist [role="tab"] {
-  padding: 0.45rem 0.95rem;
-  background: var(--surface);
+  padding: 0.4rem 0.85rem;
+  background: var(--surface-alt);
   color: var(--text-primary);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-bottom: 3px solid transparent;
-  border-radius: 8px;
+  border-radius: 7px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
+  font-size: 0.9rem;
 }
 
 .controllab-tablist [role="tab"][aria-selected="true"] {
@@ -313,8 +335,8 @@ textarea {
   margin: 0 auto;
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr);
-  gap: 1rem;
-  padding: 1rem;
+  gap: 0.85rem;
+  padding: 0.85rem;
   align-items: start;
 }
 
@@ -333,14 +355,15 @@ textarea {
 .workspace-dock,
 .inspector-drawer {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   border-radius: 10px;
-  padding: 0.85rem;
+  padding: 0.75rem;
   min-width: 0;
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .dock-header,
@@ -490,33 +513,35 @@ textarea {
 
 .panel-card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   border-radius: 10px;
-  padding: 1rem;
+  padding: 0.85rem;
   min-width: 0;
   max-width: 100%;
 }
 
 .panel-card h2 {
-  margin: 0 0 0.75rem 0;
-  font-size: 1.2rem;
+  margin: 0 0 0.65rem 0;
+  font-size: 1.15rem;
 }
 
 .panel-card h3 {
-  margin: 0 0 0.75rem 0;
-  font-size: 1.05rem;
+  margin: 0 0 0.65rem 0;
+  font-size: 1rem;
 }
 
 .panel-card h4 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.95rem;
+  margin: 0 0 0.45rem 0;
+  font-size: 0.92rem;
 }
 
 .subcard,
 .typed-subcard {
-  margin: 0.75rem 0;
-  padding: 0.85rem;
-  border: 1px solid var(--border);
+  margin: 0.65rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   border-radius: 8px;
   background: var(--surface-alt);
   min-width: 0;
@@ -526,7 +551,7 @@ textarea {
 .workspace-two-col {
   display: grid;
   grid-template-columns: minmax(250px, 0.85fr) minmax(360px, 1.35fr);
-  gap: 1rem;
+  gap: 0.85rem;
   align-items: start;
 }
 
@@ -534,23 +559,24 @@ textarea {
 .workspace-results-col {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
   min-width: 0;
 }
 
 .siso-charts-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
 .chart-card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   border-radius: 8px;
-  padding: 0.75rem;
+  padding: 0.65rem;
   min-width: 0;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.45rem;
 }
 
 .chart-container svg {
@@ -686,18 +712,58 @@ textarea {
   align-items: center;
 }
 
+.advanced-rpc-drawer {
+  margin-top: 0.85rem;
+  max-height: 180px;
+  overflow-y: auto;
+  opacity: 0.9;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  background: var(--surface-alt);
+  font-size: 0.84rem;
+}
+
+.advanced-rpc-drawer.expanded {
+  max-height: none;
+  opacity: 1;
+}
+
+.advanced-rpc-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.advanced-rpc-summary {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+#lqr-json-advanced {
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.84rem;
+}
+
 .declarative-tools {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
 }
 
 .tool-card {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: 0.85rem;
-  background: var(--surface-alt);
+  padding: 0.7rem;
+  background: var(--surface);
 }
 
 .tool-card-header {

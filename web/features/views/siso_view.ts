@@ -168,6 +168,7 @@ export function renderSisoViewHtml(): string {
     `<div class="workspace-two-col">`,
     `<div class="workspace-controls-col">`,
     `<div class="subcard tool-field" id="siso-compensator-tuner">`,
+    `<div class="panel-actions"><button type="button" id="btn-siso-eval-all" class="touch-control btn-primary" data-action="siso-eval-all">Atualizar 4 Gráficos SISO (Bode / Nyquist / LR / Degrau)</button></div>`,
     `<label for="siso-gain-slider">Sintonia do Compensador C(s) = K</label>`,
     `<div id="siso-gain-slider" class="touch-control lqr-slider siso-slider" data-action="siso-gain-slider"></div>`,
     `<p id="siso-tuner-status" class="siso-tuner-status">Pré-visualiza no arraste; confirma no motor Python ao soltar.</p>`,
@@ -385,6 +386,28 @@ export class SisoView {
       .querySelector<HTMLElement>('[data-action="siso-open-mimo"]')
       ?.addEventListener("click", () => {
         this.shell.switchTab("mimo_frequency");
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="siso-eval-all"]')
+      ?.addEventListener("click", () => {
+        const kMax = this.rlKMaxEl ? Number(this.rlKMaxEl.value) : 100;
+        const zeta = this.rlZetaEl ? Number(this.rlZetaEl.value) : 0.5;
+        const amp = this.stepAmpEl ? Number(this.stepAmpEl.value) : 1;
+        const tf = this.stepTFinalEl ? Number(this.stepTFinalEl.value) : 10;
+        void (async () => {
+          await sisoWorkspace.evaluateBodeAndMargins(this.readEvalOptions());
+          await sisoWorkspace.evaluateRootLocus({
+            k_max: kMax,
+            damping_ratio: zeta,
+          });
+          await sisoWorkspace.evaluateStepResponse({
+            amplitude: amp,
+            t_final: tf,
+          });
+        })().catch((err: unknown) => {
+          this.shell.presentError(err);
+        });
       });
 
     this.container
@@ -639,11 +662,13 @@ export class SisoView {
   private renderBodeSlotAndTip(): void {
     const model = this.shell.getSisoWorkspace().getBodeChartModel();
     const decimals = this.shell.getDisplayDecimals();
+    const themeMode = this.shell.getThemeMode();
     if (this.bodeChartSlotEl) {
       this.bodeChartSlotEl.innerHTML = model
         ? renderBodeSvg(model, {
             decimals,
             selectedSampleIndex: this.selectedBodeTip?.sampleIndex ?? null,
+            themeMode,
           })
         : "";
     }
@@ -671,11 +696,13 @@ export class SisoView {
   private renderNyquistSlotAndTip(): void {
     const model = this.shell.getSisoWorkspace().getNyquistChartModel();
     const decimals = this.shell.getDisplayDecimals();
+    const themeMode = this.shell.getThemeMode();
     if (this.nyquistChartSlotEl) {
       this.nyquistChartSlotEl.innerHTML = model
         ? renderNyquistSvg(model, {
             decimals,
             selectedSampleIndex: this.selectedNyquistTip?.sampleIndex ?? null,
+            themeMode,
           })
         : "";
     }
@@ -705,11 +732,13 @@ export class SisoView {
   private renderRootLocusSlotAndTip(): void {
     const model = this.shell.getSisoWorkspace().getRootLocusChartModel();
     const decimals = this.shell.getDisplayDecimals();
+    const themeMode = this.shell.getThemeMode();
     if (this.rlChartSlotEl) {
       this.rlChartSlotEl.innerHTML = model
         ? renderRootLocusSvg(model, {
             decimals,
             frozenGainIndex: this.frozenRlTip?.gainIndex ?? null,
+            themeMode,
           })
         : "";
     }
@@ -856,7 +885,7 @@ export class SisoView {
     const timeChart = sisoWorkspace.getTimeResponseChartModel();
     if (this.timeChartSlotEl) {
       this.timeChartSlotEl.innerHTML = timeChart
-        ? renderTimeResponseSvg(timeChart, { decimals })
+        ? renderTimeResponseSvg(timeChart, { decimals, themeMode: this.shell.getThemeMode() })
         : "";
     }
     if (this.timeTableSlotEl) {

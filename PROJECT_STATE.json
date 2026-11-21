@@ -23,7 +23,8 @@
       "2026-11-16": 1,
       "2026-11-18": 5,
       "2026-11-19": 8,
-      "2026-11-20": 1
+      "2026-11-20": 1,
+      "2026-11-21": 1
     }
   },
   "audit_reference": {
@@ -3811,6 +3812,98 @@
       "acceptance_evidence": [
         "docs/audits/handoffs/WP-UX-REFACTOR-04-F9-BROWSER-AUDIT.md",
         "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-REFACTOR-05-HIGH-CONTRAST-AND-VISUAL-CLEANUP",
+      "front": "f8-ui-charts",
+      "phase": "UX-Refactor-CL-UX-DIR-001",
+      "title": "Tema Alto Contraste AAA (correção de herança data-theme + gráficos SVG) e limpeza visual de painéis legados duplicados",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-UX-REFACTOR-04-F9-BROWSER-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-ID-01",
+        "T-FREQ-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Corrigir herança de cores de [data-theme=\"high_contrast\"] em web/app/styles.css e web/app/main.ts (aplicar color/background explicitamente no container montado e sincronizar document.documentElement/document.body), garantindo contraste AAA (>= 7:1) em todos os títulos, rótulos, badges, tabelas, editor LMI e leitura matemática bmat",
+        "Propagar themeMode = shell.getThemeMode() para todos os renderizadores SVG científicos (renderPoleZeroSvg, renderTimeResponseSvg, renderBodeSvg, renderNyquistSvg, renderRootLocusSvg, renderSingularValuesSvg, renderFuzzySurfaceSvg, renderLmiSpectrumSvg, renderResidualCorrelationSvg e gráfico MF Fuzzy)",
+        "Recolher painéis legados duplicados (#controllab-tools-slot e #typed-workspace-panel) sob gaveta colapsada por padrão (<details class=\"advanced-rpc-drawer\"> sem atributo open), reduzindo a altura da bancada principal e preservando 100% dos seletores DOM para testes existentes",
+        "Melhorar a densidade visual de bancada em web/app/styles.css (bordas sutis, tipografia, alinhamento em grade das 6 abas) e adicionar botões diretos na barra de ferramentas da Aba 1 (Estimar ARX, Estimar Subespaços, Validar Holdout) e Aba 2 (Atualizar 4 Gráficos SISO)"
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX-REFACTOR-05-HIGH-CONTRAST-AND-VISUAL-CLEANUP.md",
+      "assessed_commit": "5392136f85c490e14dc661717b09d45582d06264",
+      "reviewed_source_sha256": {
+        "web/app/main.ts": "e1052662ac3687ccf267aa5cd94ea0fce893c19c8c01b503873ffd6ba6c9d3c6",
+        "web/app/styles.css": "74ed05a6a820d637e9860496ec76a5e8bfe0caad0b5a3594e29c697a554a8a68",
+        "web/charts/scientific_chart.ts": "779c98bda48a65259f30a075afb39d96c5d5304b8c65e08af99b815b5877671a",
+        "web/features/views/fuzzy_view.ts": "a51a03a85df42e6b3c84986891013c27d002a0f137eeb6abcb0fd6bcd9131d6d",
+        "web/features/views/identification_view.ts": "43861be1c5c64c10e13c0f7ffa4f1830fef524b90f385f2e8f69364e10764cb9",
+        "web/features/views/lmi_view.ts": "b7054e352f5bdf7d35b12c3a035b563d6d569a7f4035a9299b31029485c43aa1",
+        "web/features/views/mimo_view.ts": "7faf214bd7156ec7bd7e44a6e0561cad0c78cc6e0da4e5c1e2b7ec7bb555281e",
+        "web/features/views/siso_view.ts": "1c8a31069608852ab02b3b53a7629706e550598b00aaed4e458477784d4f520e",
+        "tests/unit/f8/shell_dock_ux.test.ts": "a1b7c3f92297772091768dd7a9fb054a9ca5f2db21299ec0e6929606447efd7c"
+      },
+      "acceptance_scope": "high_contrast_aaa_theme_inheritance_svg_propagation_compact_legacy_drawer_1click_siso",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-UX-REFACTOR-05-HIGH-CONTRAST-AND-VISUAL-CLEANUP.md",
+        "tests/unit/f8/shell_dock_ux.test.ts",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ]
+    },
+    {
+      "wp_id": "WP-UX-REFACTOR-06-F9-HIGH-CONTRAST-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "UX-Refactor-CL-UX-DIR-001",
+      "title": "Auditoria independente F9 em navegador para o tema Alto Contraste AAA e limpeza de layout CL-UX-DIR-001",
+      "allowed_paths": [
+        "tests/e2e/",
+        "tests/wasm/",
+        "tests/oracles/",
+        "tests/integration/",
+        "scripts/",
+        "docs/audits/"
+      ],
+      "dependencies": [
+        "WP-UX-REFACTOR-05-HIGH-CONTRAST-AND-VISUAL-CLEANUP"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-23",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-FREQ-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/e2e/test_gatecd_interactions.py tests/e2e/test_id_siso_verticals.py -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Validar em navegador real (Playwright) que a alternância para Alto Contraste altera efetivamente as cores computadas de títulos, rótulos, cartões e SVGs científicos com contraste legível e que a altura da bancada principal foi enxugada com os painéis legados recolhidos por padrão"
       ]
     }
   ],

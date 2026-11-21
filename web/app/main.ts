@@ -314,8 +314,12 @@ export function mountControlLabApp(
     renderMimoViewHtml(),
     renderFuzzyViewHtml(),
     renderLmiViewHtml(),
-    `<div id="controllab-tools-slot" class="declarative-tools"></div>`,
-    `<section id="typed-workspace-panel" class="panel-card" aria-label="Insumos tipados da sessão">`,
+    `<div id="legacy-rpc-inspector-details" class="advanced-rpc-drawer advanced-rpc-header" aria-label="Ferramentas RPC Declarativas e Insumos Canônicos (Modo Avançado)">`,
+    `<span class="advanced-rpc-summary">Ferramentas RPC Declarativas &amp; Insumos Canônicos (Modo Avançado)</span>`,
+    `<button type="button" id="btn-toggle-advanced-rpc" class="touch-control btn-secondary btn-small" data-action="toggle-advanced-rpc" aria-expanded="false">Mostrar/Expandir Painéis RPC Legados</button>`,
+    `</div>`,
+    `<div id="controllab-tools-slot" class="declarative-tools advanced-rpc-drawer"></div>`,
+    `<section id="typed-workspace-panel" class="panel-card advanced-rpc-drawer" aria-label="Insumos tipados da sessão">`,
     `<h3>Insumos Tipados da Sessão (Dataset / Modelo / Sistema)</h3>`,
     `<div id="typed-tf-builder" class="typed-tf-builder typed-subcard" aria-label="Construtor Guiado de TransferFunction">`,
     `<h4>Construtor Guiado de TransferFunction</h4>`,
@@ -408,12 +412,16 @@ export function mountControlLabApp(
   const pzTableDetailsEl = container.querySelector<HTMLElement>("#pz-table-details");
   const timeTableDetailsEl = container.querySelector<HTMLElement>("#time-table-details");
   const experimentsComparePanelEl = container.querySelector<HTMLElement>("#experiments-compare-panel");
+  const advancedRpcDrawerEl = container.querySelector<HTMLElement>("#legacy-rpc-inspector-details");
+  const typedWorkspacePanelEl = container.querySelector<HTMLElement>("#typed-workspace-panel");
+  const btnToggleAdvancedRpcEl = container.querySelector<HTMLButtonElement>("#btn-toggle-advanced-rpc");
   const toolsSlotEl = container.querySelector<HTMLElement>("#controllab-tools-slot");
   const pzChartSlotEl = container.querySelector<HTMLElement>("#pz-chart-slot");
   const timeChartSlotEl = container.querySelector<HTMLElement>("#time-chart-slot");
   const pzTableSlotEl = container.querySelector<HTMLElement>("#pz-table-slot");
   const timeTableSlotEl = container.querySelector<HTMLElement>("#time-table-slot");
   const experimentsCompareSlotEl = container.querySelector<HTMLElement>("#experiments-compare-slot");
+  let advancedRpcExpanded = false;
 
   const modalEl = container.querySelector<HTMLElement>("#controllab-export-modal");
   const modalTitleEl = container.querySelector<HTMLElement>("#export-modal-title");
@@ -527,6 +535,8 @@ export function mountControlLabApp(
     const presentedErr = shell.getPresentedLastError();
 
     container.setAttribute("data-theme", themeMode);
+    doc?.documentElement?.setAttribute("data-theme", themeMode);
+    doc?.body?.setAttribute("data-theme", themeMode);
 
     if (
       projectTitleInputEl &&
@@ -585,7 +595,7 @@ export function mountControlLabApp(
     if (isStatespace) {
       const pzChart = lqr.buildPoleZeroChart();
       if (pzChartSlotEl) {
-        pzChartSlotEl.innerHTML = renderPoleZeroSvg(pzChart, { decimals });
+        pzChartSlotEl.innerHTML = renderPoleZeroSvg(pzChart, { decimals, themeMode });
       }
       if (pzTableSlotEl) {
         const pzTable = buildAccessibleChartTable(pzChart, decimals);
@@ -595,7 +605,7 @@ export function mountControlLabApp(
       const timeChart = lqr.buildTimeResponseChart();
       if (timeChartSlotEl) {
         timeChartSlotEl.innerHTML = timeChart
-          ? renderTimeResponseSvg(timeChart, { decimals })
+          ? renderTimeResponseSvg(timeChart, { decimals, themeMode })
           : "";
       }
       if (timeTableSlotEl) {
@@ -610,7 +620,7 @@ export function mountControlLabApp(
       const idPzChart = idWorkspace.buildIdentifiedPoleZeroChart();
       if (idPzChart) {
         if (pzChartSlotEl) {
-          pzChartSlotEl.innerHTML = renderPoleZeroSvg(idPzChart, { decimals });
+          pzChartSlotEl.innerHTML = renderPoleZeroSvg(idPzChart, { decimals, themeMode });
         }
         if (pzTableSlotEl) {
           const idPzTable = buildAccessibleChartTable(idPzChart, decimals);
@@ -814,6 +824,16 @@ export function mountControlLabApp(
     shell.setThemeMode(
       shell.getThemeMode() === "standard_aa" ? "high_contrast" : "standard_aa",
     );
+  });
+  btnToggleAdvancedRpcEl?.addEventListener("click", () => {
+    advancedRpcExpanded = !advancedRpcExpanded;
+    toggleCssClass(advancedRpcDrawerEl, "expanded", advancedRpcExpanded);
+    toggleCssClass(toolsSlotEl, "expanded", advancedRpcExpanded);
+    toggleCssClass(typedWorkspacePanelEl, "expanded", advancedRpcExpanded);
+    btnToggleAdvancedRpcEl.setAttribute("aria-expanded", advancedRpcExpanded ? "true" : "false");
+    btnToggleAdvancedRpcEl.textContent = advancedRpcExpanded
+      ? "Recolher Painéis RPC Legados"
+      : "Mostrar/Expandir Painéis RPC Legados";
   });
   decimalsInputEl?.addEventListener("change", () => {
     const parsed = Number(decimalsInputEl.value);

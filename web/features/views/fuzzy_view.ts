@@ -1085,12 +1085,13 @@ export class FuzzyView {
       }
       return;
     }
+    const themeMode = this.shell.getThemeMode();
     const model: FuzzySurfaceChartModel = {
       ...this.surfaceModel,
-      theme_mode: this.shell.getThemeMode(),
+      theme_mode: themeMode,
     };
     if (this.surfaceChartSlotEl) {
-      this.surfaceChartSlotEl.innerHTML = renderFuzzySurfaceSvg(model, { decimals });
+      this.surfaceChartSlotEl.innerHTML = renderFuzzySurfaceSvg(model, { decimals, themeMode });
     }
     if (this.surfaceTableSlotEl) {
       const table = buildAccessibleChartTable(model, decimals);

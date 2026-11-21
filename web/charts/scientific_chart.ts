@@ -543,12 +543,17 @@ export function buildRootLocusChartModel(input: {
 
 export function renderResidualCorrelationSvg(
   model: ResidualCorrelationChartModel,
-  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    themeMode?: AccessibilityThemeMode;
+  },
 ): string {
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 360;
   const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
 
   const allLags: number[] = [0, ...model.lags, ...model.cross_lags];
   const allVals: number[] = [
@@ -809,10 +814,11 @@ export function renderBodeSvg(
     heightPx?: number;
     decimals?: number;
     selectedSampleIndex?: number | null;
+    themeMode?: AccessibilityThemeMode;
   },
 ): string {
   const decimals = options?.decimals ?? 2;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
   const geom = computeBodeGeometry(model, options);
   const {
     widthPx,
@@ -1027,10 +1033,11 @@ export function renderNyquistSvg(
     heightPx?: number;
     decimals?: number;
     selectedSampleIndex?: number | null;
+    themeMode?: AccessibilityThemeMode;
   },
 ): string {
   const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
   const geom = computeNyquistGeometry(model, options);
   const { widthPx, heightPx, padLeft, padTop, plotW, plotH, toPxX, toPxY } = geom;
 
@@ -1229,10 +1236,11 @@ export function renderRootLocusSvg(
     heightPx?: number;
     decimals?: number;
     frozenGainIndex?: number | null;
+    themeMode?: AccessibilityThemeMode;
   },
 ): string {
   const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
   const geom = computeRootLocusGeometry(model, options);
   const { widthPx, heightPx, padLeft, padTop, plotW, plotH, vp, toPxX, toPxY } = geom;
 
@@ -1609,12 +1617,17 @@ export function classifyPoleStability(
 
 export function renderPoleZeroSvg(
   model: PoleZeroChartModel,
-  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    themeMode?: AccessibilityThemeMode;
+  },
 ): string {
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 400;
   const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
 
   const allRe: number[] = [0];
   const allIm: number[] = [0];
@@ -1807,12 +1820,17 @@ export function renderPoleZeroSvg(
 
 export function renderTimeResponseSvg(
   model: TimeResponseChartModel,
-  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    themeMode?: AccessibilityThemeMode;
+  },
 ): string {
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 360;
   const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
 
   const xBounds = computeSafeAxisBounds(model.t, 0.02);
   const allY: number[] = [];
@@ -1949,12 +1967,13 @@ export function renderSingularValuesSvg(
     heightPx?: number;
     decimals?: number;
     visibleGroups?: ReadonlySet<string>;
+    themeMode?: AccessibilityThemeMode;
   },
 ): string {
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 380;
   const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
   const visibleGroups = options?.visibleGroups;
 
   const activeCurves = visibleGroups
@@ -2125,12 +2144,17 @@ function interpolateHeatmapColor(tNorm: number): string {
 
 export function renderFuzzySurfaceSvg(
   model: FuzzySurfaceChartModel,
-  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    themeMode?: AccessibilityThemeMode;
+  },
 ): string {
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 400;
   const decimals = options?.decimals ?? 3;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
 
   const padLeft = 64;
   const padRight = 84;
@@ -2281,12 +2305,17 @@ export function buildLmiSpectrumChartModel(input: {
 
 export function renderLmiSpectrumSvg(
   model: LmiSpectrumChartModel,
-  options?: { widthPx?: number; heightPx?: number; decimals?: number },
+  options?: {
+    widthPx?: number;
+    heightPx?: number;
+    decimals?: number;
+    themeMode?: AccessibilityThemeMode;
+  },
 ): string {
   const widthPx = options?.widthPx ?? 640;
   const heightPx = options?.heightPx ?? 280;
   const decimals = options?.decimals ?? 4;
-  const theme = getThemeTokens(model.theme_mode ?? "standard_aa");
+  const theme = getThemeTokens(options?.themeMode ?? model.theme_mode ?? "standard_aa");
 
   const padLeft = 140;
   const padRight = 32;

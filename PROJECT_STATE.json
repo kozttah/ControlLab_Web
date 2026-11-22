@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 10
+      "2026-11-22": 11
     }
   },
   "audit_reference": {
@@ -5825,6 +5825,78 @@
         "SDPBlock.from_dict suporta F_k_sparse (COO) mantendo retrocompatibilidade 100% com F_k denso; lmi_dsl_compiler.ts emite F_k_sparse",
         "Equilibracao Ruiz multi-varredura e decomposicao de esparsidade agregada / cordal (Goulart & Chen, Clarabel arXiv:2405.12762; Garstka, Cannon & Goulart IFAC 2020) com reconstrucao dual exata",
         "Envelope 2 faixas (fast_max_variables=448, max_variables=1024) + botao Cancelar (#btn-lmi-cancel-solve) na Aba 6 + ADR-010 atualizado"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE6-01-F8-UX-HYGIENE-P0P1",
+      "front": "f8-ui-charts",
+      "phase": "Phase6-UX-Hygiene-Polish",
+      "title": "F8: Ciclo de higiene visual P0+P1 (Top Bar compacta, Dock sem overflow, drawer legado discreto, checkboxes Aba 4/6, limpeza de jargao e eixos zero)",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "web/charts/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE5-05-SCALABLE-CHORDAL-COO-CANCEL"
+      ],
+      "requirement_ids": [
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f8_ux_hygiene_p0p1_topbar_dock_checkboxes_jargon_zero_ticks_and_scoped_empty_cards",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE6-01-F8-UX-HYGIENE-P0P1.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE6-01-F8-UX-HYGIENE-P0P1.md"
+      ],
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Top Bar compacta, Workspace Dock sem overflow do select e botoes alinhados, drawer legado recolhido de forma discreta mantendo compatibilidade 100% com testes",
+        "Numeracao unica na Aba 1, caixas vazias ocultas nas Abas 1/2, checkboxes 20x20 com label >=44px nas Abas 4 e 6, toolbar compacta na Aba 6, eixo Y 0 limpo na Aba 3, zero jargao (F2)-(F6)/(Zona 2)/(fuzzy.fit_anfis) nos titulos"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE6-02-F9-UX-HYGIENE-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase6-UX-Hygiene-Polish",
+      "title": "F9: Auditoria independente completa (Web, Wasm, E2E verticais + UX + mobile 390x844) do ciclo de higiene visual P0+P1",
+      "allowed_paths": [
+        "tests/e2e/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE6-01-F8-UX-HYGIENE-P0P1"
+      ],
+      "requirement_ids": [
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/e2e/test_id_siso_verticals.py tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_independent_audit_web_wasm_e2e_verticals_ux_mobile_390x844_and_governance",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE6-02-F9-UX-HYGIENE-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE6-02-F9-UX-HYGIENE-AUDIT.md"
+      ],
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "100% dos testes E2E (test_ux_refactor_cl_ux_dir_001, test_id_siso_verticals), Wasm (test_real_runtime) e 149+ Web aprovados sem regressao",
+        "Zero overflow horizontal em 1440x900 e 390x844 e melhoria mensuravel na altura da Top Bar e limpeza visual"
       ]
     }
   ],

@@ -13,10 +13,21 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { MockWorkerAdapter } from "../../../web/bridge/mock_adapter.ts";
 import { mountControlLabApp } from "../../../web/app/main.ts";
-import { formatDockObjectSummary } from "../../../web/app/workspace_dock.ts";
+import {
+  formatDockObjectDisplayName,
+  formatDockObjectSummary,
+} from "../../../web/app/workspace_dock.ts";
+import {
+  buildTimeResponseChartModel,
+  exportChartToCsv,
+  renderPoleZeroSvg,
+  renderTimeResponseSvg,
+} from "../../../web/charts/scientific_chart.ts";
 
 class FakeElement {
   public tagName: string;
@@ -800,4 +811,227 @@ test("WP-UX-REFACTOR-07-WORKBENCH-MOCKUP-FIDELITY: Topbar global project buttons
 
   app.destroy();
 });
+
+test("WP-PHASE6-01-F8-UX-HYGIENE-P0P1: cabeçalhos limpos, badge espaçado, Workspace Dock amigável, step pills sem duplicação, checkboxes 20px, ticks near-zero e certificado LMI bilíngue preservando tokens", async () => {
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const mockAdapter = new MockWorkerAdapter();
+  const origExecute = mockAdapter.execute.bind(mockAdapter);
+  mockAdapter.execute = async (req, opts) => {
+    if (req.operation === "optimization.solve") {
+      return {
+        api_version: req.api_version,
+        request_id: req.request_id,
+        project_id: req.project_id,
+        project_revision: req.project_revision,
+        status: "success" as const,
+        result: {
+          solver_status: "optimal",
+          audit_feasibility: "strictly_feasible",
+          certificate_status: "validated_dual",
+          conditioning: { status: "well_conditioned", condition_number: 8.5 },
+          controller_validity: "verified_closed_loop",
+          objective: 1.25,
+          block_min_eigs: [0.42, 0.18],
+          variables: {
+            Q: { shape: [2, 2], dtype: "float64", order: "C", data: [2, 0, 0, 2] },
+            Y: { shape: [1, 2], dtype: "float64", order: "C", data: [-2, -4] },
+          },
+        },
+        assumptions: {},
+        diagnostics: {
+          numeric_status: "ok" as const,
+          warnings_count: 0,
+          condition_estimates: {},
+          residuals: {},
+          timings_ms: { total: 2.0 },
+        },
+        warnings: [],
+        error: null,
+        provenance: { algorithm: "mock.sdp", lib_versions: {} },
+      };
+    }
+    return origExecute(req, opts);
+  };
+
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client: mockAdapter,
+    project_id: "proj-ux-hygiene",
+  });
+  await app.client.init();
+
+  // 1. Engine status badge preserves 'Motor: ready' and separates dot & text cleanly
+  const engineBadge = root.querySelector<FakeElement>("#engine-status-badge")!;
+  assert.ok(engineBadge.textContent.includes("Motor: ready"));
+  assert.ok(engineBadge.querySelector(".status-dot") !== null);
+  assert.ok(engineBadge.querySelector(".status-badge-text") !== null);
+
+  // 1b. Tab heading drops (F2)/(F3)/(F4)/(F5)/(F6) suffixes across all 6 tabs
+  const tabHeading = root.querySelector<FakeElement>("#controllab-tab-heading")!;
+  const expectedHeadings: Array<[Parameters<typeof app.shell.switchTab>[0], string]> = [
+    ["identification", "1. Identificação de Sistemas"],
+    ["siso_frequency", "2. Frequência SISO"],
+    ["statespace", "3. Espaço de Estados"],
+    ["mimo_frequency", "4. Frequência MIMO"],
+    ["fuzzy_ts", "5. Controle Fuzzy, TS e ANFIS"],
+    ["optimization_lmi", "6. LMIs, SDPs e Síntese Robusta"],
+  ];
+  for (const [tabId, expected] of expectedHeadings) {
+    app.shell.switchTab(tabId);
+    assert.equal(tabHeading.textContent, expected);
+    assert.ok(!/\(F[1-9]\)/.test(tabHeading.textContent));
+  }
+
+  // 2. Workspace Dock friendly display names + technical ID caption preserved + select class
+  assert.equal(formatDockObjectDisplayName("plant-double-integrator"), "Integrador Duplo 1/s²");
+  assert.equal(formatDockObjectDisplayName("ctrl-sf-proj-1-r2"), "Controlador LQR");
+  const dockSelect = root.querySelector<FakeElement>("#dock-example-select")!;
+  assert.ok(dockSelect.className.split(/\s+/).includes("dock-preset-select"));
+  const dockContent = root.querySelector<FakeElement>("#workspace-dock-content")!;
+  assert.ok(dockContent.textContent.includes("Integrador Duplo 1/s²"));
+  assert.ok(dockContent.textContent.includes("plant-double-integrator"));
+
+  app.shell.switchTab("statespace");
+  await app.shell.getLqrWorkspace().commitCurrentDesign();
+  const ctrlGroup = root.querySelector<FakeElement>('[data-dock-group="controllers"]')!;
+  assert.ok(ctrlGroup.textContent.includes("Controlador LQR"));
+
+  // 4. Aba 1 pipeline step pills have no duplicated numbering (no '1. Dados', '2. Estimação', '3. Comparar')
+  const pipelineBar = root.querySelector<FakeElement>("#id-pipeline-bar")!;
+  const stepNums = pipelineBar
+    .querySelectorAll<FakeElement>(".step-num")
+    .map((el) => el.textContent.trim());
+  const stepLabels = pipelineBar
+    .querySelectorAll<FakeElement>(".step-label")
+    .map((el) => el.textContent.trim());
+  assert.deepEqual(stepNums, ["1", "2", "3"]);
+  assert.deepEqual(stepLabels, [
+    "Dados & Partição",
+    "Estimação ARX / Subespaços",
+    "Comparar & Promover",
+  ]);
+
+  // 5a. Chart tick clamping near zero (no 2.2204e-16) and clean SVG heading without [numeric_verified]
+  const pzSvg = renderPoleZeroSvg(
+    {
+      kind: "pole_zero",
+      chart_id: "pz-near-zero",
+      title: "Mapa de Polos e Zeros",
+      dt: null,
+      model_revision: 1,
+      project_revision: 1,
+      provenance: null,
+      series_semantics: "numeric_verified",
+      feedback_sign: "negative",
+      units: { x_axis: "Re(λ)", y_axis: "Im(λ)" },
+      open_loop_poles: { real: [-1, 1 + 4.440892098500626e-16], imag: [-0.5, 0.5 + 4.440892098500626e-16] },
+      committed_closed_loop_poles: null,
+      preview_poles: null,
+      zeros: null,
+      overlays: [],
+    },
+    { decimals: 4 },
+  );
+  assert.ok(!pzSvg.includes("e-16"), `Axis tick leaked floating-point dust: ${pzSvg}`);
+  assert.ok(!pzSvg.includes("[numeric_verified]"), "Raw [numeric_verified] should not appear in SVG heading");
+  assert.ok(pzSvg.includes('data-series-semantics="numeric_verified"'));
+
+  const timeModel = buildTimeResponseChartModel({
+    dt: null,
+    t: [0, 1],
+    y: [[-1], [1 + 4.440892098500626e-16]],
+    model_revision: 1,
+    project_revision: 1,
+    provenance: null,
+    series_semantics: "numeric_verified",
+  });
+  const timeSvg = renderTimeResponseSvg(timeModel, { decimals: 4 });
+  assert.ok(!timeSvg.includes("e-16"));
+  assert.ok(!timeSvg.includes("[numeric_verified]"));
+  const csv = exportChartToCsv(timeModel);
+  assert.ok(csv.includes("# series_semantics=numeric_verified"));
+
+  // 5b. Calm button hierarchy in Aba 3
+  const cancelBtn = root.querySelector<FakeElement>('#btn-lqr-cancel[data-action="cancel-lqr"]')!;
+  assert.ok(cancelBtn !== null);
+  assert.ok(cancelBtn.className.split(/\s+/).includes("btn-danger"));
+  assert.ok(cancelBtn.className.split(/\s+/).includes("btn-danger-outline"));
+  const resetWorkerBtn = root.querySelector<FakeElement>("#btn-reset-worker")!;
+  assert.ok(resetWorkerBtn.className.split(/\s+/).includes("btn-subtle"));
+
+  // 6. Aba 4 MIMO 6 checkboxes inside .mimo-toggle-label
+  for (const id of [
+    "#mimo-toggle-G",
+    "#mimo-toggle-S",
+    "#mimo-toggle-T",
+    "#mimo-toggle-KS",
+    "#mimo-cl-use-decoupler",
+    "#mimo-cl-use-selected-ctrl",
+  ]) {
+    const cb = root.querySelector<FakeElement>(id);
+    assert.ok(cb !== null, `Missing MIMO checkbox ${id}`);
+    assert.ok(
+      cb.parentNode?.className.split(/\s+/).includes("mimo-toggle-label"),
+      `Checkbox ${id} should be enclosed in .mimo-toggle-label`,
+    );
+  }
+
+  // 7. Aba 5 ANFIS heading free of raw RPC op name
+  const anfisCard = root.querySelector<FakeElement>("#fuzzy-anfis-card")!;
+  const anfisH4 = anfisCard.querySelector<FakeElement>("h4")!;
+  assert.equal(anfisH4.textContent, "Treinamento Neuro-Fuzzy ANFIS");
+
+  // 8. Aba 6 LMI headings, checkboxes without .touch-control, and certificate tokens preserved
+  app.shell.switchTab("optimization_lmi");
+  const lmiPanel = root.querySelector<FakeElement>("#lmi-workspace-panel")!;
+  assert.equal(lmiPanel.querySelector<FakeElement>("h3")!.textContent, "LMIs, SDPs & Síntese Robusta");
+  assert.equal(
+    root.querySelector<FakeElement>("#lmi-system-characterization-card")!.querySelector<FakeElement>("h4")!.textContent,
+    "Caracterização do Sistema & Conjuntos de Índices",
+  );
+  assert.equal(
+    root.querySelector<FakeElement>("#lmi-certificate-panel")!.querySelector<FakeElement>("h4")!.textContent,
+    "Certificado de Auditoria Independente (5 Dimensões)",
+  );
+  for (const id of ["#lmi-gen-enable-w", "#lmi-gen-enable-z"]) {
+    const cb = root.querySelector<FakeElement>(id)!;
+    assert.equal(cb.className.split(/\s+/).includes("touch-control"), false);
+    assert.ok(cb.parentNode?.className.split(/\s+/).includes("lmi-check-label"));
+  }
+
+  const codeEditor = root.querySelector<FakeElement>("#lmi-code-editor")!;
+  codeEditor.value = [
+    "var Q sym(n)",
+    "var Y rect(m, n)",
+    "Q >= 1e-4 * I",
+    "A*Q + Q*A' + B*Y + Y'*B' <= -1e-4 * I",
+  ].join("\n");
+  codeEditor.dispatchEvent("input");
+
+  root.querySelector<FakeElement>('[data-action="lmi-solve"]')!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 80));
+  const certPanel = root.querySelector<FakeElement>("#lmi-certificate-panel")!;
+  assert.ok(certPanel.textContent.includes("Dual Validado"));
+  assert.ok(certPanel.textContent.includes("validated_dual"));
+  assert.ok(certPanel.textContent.includes("Estritamente Factível"));
+  assert.ok(certPanel.textContent.includes("strictly_feasible"));
+
+  // CSS rules verification (desktop compact header, dock select containment, collapsed RPC drawer, empty chart hide, checkbox 20px, import input 44px)
+  const cssPath = fileURLToPath(new URL("../../../web/app/styles.css", import.meta.url));
+  const css = readFileSync(cssPath, "utf8");
+  assert.ok(css.includes("@media (min-width: 1100px)"));
+  assert.ok(css.includes(".badge.status-badge"));
+  assert.ok(css.includes(".dock-preset-select"));
+  assert.ok(css.includes("#controllab-tools-slot.advanced-rpc-drawer:not(.expanded)"));
+  assert.ok(css.includes("max-height: 44px;"));
+  assert.ok(css.includes("#identification-workspace-panel .chart-container:empty"));
+  assert.ok(css.includes("#siso-workspace-panel .chart-container:empty"));
+  assert.ok(css.includes("#controllab-charts-panel .chart-container:empty"));
+  assert.ok(!/(?:^|\n)\s*\.chart-container:empty\s*\{/.test(css));
+  assert.ok(css.includes('input[type="checkbox"].touch-control'));
+  assert.ok(css.includes("#lmi-import-dsl-input"));
+
+  app.destroy();
+});
+
 

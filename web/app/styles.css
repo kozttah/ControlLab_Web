@@ -115,6 +115,26 @@ select {
   font: inherit;
 }
 
+input[type="checkbox"],
+input[type="checkbox"].touch-control {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.checkbox-touch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0 0.25rem;
+  cursor: pointer;
+}
+
 button {
   border-radius: 7px;
   padding: 0.45rem 0.9rem;
@@ -152,6 +172,40 @@ button:disabled {
   color: var(--danger-text);
   border: 2px solid var(--danger);
   font-weight: 600;
+}
+
+.btn-danger-outline,
+#btn-lqr-cancel.btn-danger,
+button[data-action="cancel-lqr"].btn-danger {
+  background: var(--surface);
+  color: var(--danger);
+  border: 1.5px solid var(--danger);
+  font-weight: 500;
+}
+
+.btn-danger-outline:hover:not(:disabled),
+#btn-lqr-cancel.btn-danger:hover:not(:disabled),
+button[data-action="cancel-lqr"].btn-danger:hover:not(:disabled) {
+  background: var(--error-bg);
+  color: var(--error-fg);
+  filter: none;
+}
+
+.btn-subtle,
+#btn-reset-worker,
+#btn-worker-restart {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.btn-subtle:hover:not(:disabled),
+#btn-reset-worker:hover:not(:disabled),
+#btn-worker-restart:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--text-primary);
+  filter: none;
 }
 
 .btn-small {
@@ -248,15 +302,26 @@ textarea {
   font-size: 0.78rem;
 }
 
+.badge.status-badge,
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.38rem;
   background: var(--surface-alt);
   color: var(--text-primary);
   border: 1px solid var(--border);
-  font-size: 0.76rem;
-  padding: 0.12rem 0.45rem;
+  font-size: 0.74rem;
+  padding: 0.1rem 0.48rem;
+  line-height: 1.25;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.status-badge-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-dot {
@@ -370,7 +435,53 @@ textarea {
   gap: 0.65rem;
 }
 
-.dock-header,
+.dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.dock-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.dock-header-actions .btn-small {
+  padding: 0.3rem 0.52rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.dock-examples-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#workspace-dock select,
+#workspace-dock-aside select,
+.workspace-dock select,
+.dock-preset-select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.dock-examples-bar button {
+  width: 100%;
+}
+
 .inspector-header,
 .inspector-json-header {
   display: flex;
@@ -382,7 +493,9 @@ textarea {
 .dock-title,
 .inspector-header h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.98rem;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .dock-content {
@@ -434,10 +547,44 @@ textarea {
   padding: 0.2rem 0.25rem;
   min-height: 44px;
   min-width: 44px;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.06rem;
   text-align: left;
   font-weight: 600;
   color: var(--accent);
   overflow-wrap: anywhere;
+}
+
+.dock-item-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.06rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dock-item-name {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.dock-item-ref {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.dock-remove-btn {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .dock-item-summary {
@@ -583,6 +730,19 @@ textarea {
   margin-bottom: 0.45rem;
 }
 
+#identification-workspace-panel .chart-container:empty,
+#siso-workspace-panel .chart-container:empty,
+#controllab-charts-panel .chart-container:empty {
+  display: none;
+}
+
+#identification-workspace-panel .chart-card:has(> .chart-container:empty),
+#siso-workspace-panel .chart-card:has(> .chart-container:empty),
+#controllab-charts-panel .chart-card:has(> .chart-container:empty),
+.siso-charts-grid:not(:has(.chart-container:not(:empty))) {
+  display: none;
+}
+
 .chart-container svg {
   max-width: 100%;
   height: auto;
@@ -717,20 +877,40 @@ textarea {
 }
 
 .advanced-rpc-drawer {
-  margin-top: 0.85rem;
+  margin-top: 0.75rem;
   max-height: 180px;
   overflow-y: auto;
   opacity: 0.9;
   border: 1px dashed var(--border-subtle);
   border-radius: 8px;
-  padding: 0.55rem 0.75rem;
+  padding: 0.45rem 0.65rem;
   background: var(--surface-alt);
   font-size: 0.84rem;
 }
 
-.advanced-rpc-drawer.expanded {
+#controllab-tools-slot.advanced-rpc-drawer:not(.expanded),
+#typed-workspace-panel.advanced-rpc-drawer:not(.expanded) {
+  margin-top: 0.4rem;
+  max-height: 44px;
+  overflow-y: auto;
+  opacity: 0.65;
+  padding: 0.3rem 0.6rem;
+  transition: opacity 0.15s ease;
+}
+
+#controllab-tools-slot.advanced-rpc-drawer:not(.expanded):hover,
+#typed-workspace-panel.advanced-rpc-drawer:not(.expanded):hover,
+#controllab-tools-slot.advanced-rpc-drawer:not(.expanded):focus-within,
+#typed-workspace-panel.advanced-rpc-drawer:not(.expanded):focus-within {
+  opacity: 0.92;
+}
+
+.advanced-rpc-drawer.expanded,
+#controllab-tools-slot.advanced-rpc-drawer.expanded,
+#typed-workspace-panel.advanced-rpc-drawer.expanded {
   max-height: none;
   opacity: 1;
+  padding: 0.55rem 0.75rem;
 }
 
 .advanced-rpc-header {
@@ -845,12 +1025,20 @@ textarea {
   max-height: 48vh;
 }
 
-.tool-field input,
+.tool-field input:not([type="checkbox"]),
 .tool-field select,
 .tool-field textarea {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+}
+
+.tool-field input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  max-width: 20px;
 }
 
 #pvm-dynamic-controller-json {
@@ -967,6 +1155,21 @@ textarea {
   background: var(--surface);
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.pipeline-step .step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .pipeline-step[data-step-state="active"] {
@@ -1315,8 +1518,9 @@ textarea {
 .mimo-toggle-label {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   min-height: 44px;
+  padding: 0 0.45rem;
   cursor: pointer;
 }
 
@@ -1325,6 +1529,8 @@ textarea {
   height: 20px;
   min-width: 20px;
   min-height: 20px;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .mimo-rga-meta {
@@ -1554,25 +1760,84 @@ textarea {
 }
 
 /* Aba 6: Bancada LMI / SDP (Editor estilo Monaco + Leitura Matemática + Certificado 5D) */
+.lmi-toolbar {
+  padding: 0.55rem 0.7rem;
+  margin: 0.45rem 0 0.6rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
 .lmi-toolbar-row {
-  margin-bottom: 0.45rem;
+  margin-bottom: 0;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.lmi-toolbar-row label:not(.lmi-import-label) {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.lmi-toolbar-row select,
+.lmi-toolbar-row input[type="text"] {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.5rem;
+}
+
+#lmi-template-select {
+  flex: 1 1 200px;
+  max-width: 280px;
+  text-overflow: ellipsis;
+}
+
+#lmi-preset-name {
+  flex: 0 1 150px;
+  width: 150px;
+}
+
+#lmi-saved-select {
+  flex: 0 1 165px;
+  max-width: 190px;
+  text-overflow: ellipsis;
+}
+
+.lmi-toolbar-row button {
+  padding: 0.35rem 0.62rem;
+  font-size: 0.84rem;
+  white-space: nowrap;
 }
 
 .lmi-import-label {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.35rem 0.7rem;
+  padding: 0 0.45rem 0 0.65rem;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--surface);
   min-height: 44px;
+  font-size: 0.84rem;
   cursor: pointer;
+  max-width: 100%;
 }
 
-.lmi-import-label input[type="file"] {
-  max-width: 180px;
-  min-height: 36px;
+.lmi-import-label input[type="file"],
+#lmi-import-dsl-input {
+  max-width: 175px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.35rem 0.25rem;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
 }
 
 .lmi-editor-split,
@@ -1701,6 +1966,12 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.cert-token {
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--text-secondary);
+}
+
 #lmi-solver-progress-panel,
 .lmi-solver-progress-panel {
   margin-top: 0.65rem;
@@ -1808,7 +2079,8 @@ textarea {
 }
 
 .lmi-sys-card {
-  margin-bottom: 0.85rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.6rem;
 }
 
 .lmi-sys-head {
@@ -1817,7 +2089,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  margin-bottom: 0.55rem;
+  margin-bottom: 0.45rem;
 }
 
 .lmi-sys-head h4 {
@@ -1829,7 +2101,7 @@ textarea {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.45rem;
 }
 
 .lmi-sys-grid {
@@ -1928,9 +2200,19 @@ textarea {
 .lmi-check-label {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   min-height: 44px;
+  padding: 0 0.45rem;
   cursor: pointer;
+}
+
+.lmi-check-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .lmi-vertex-preview,
@@ -2189,6 +2471,81 @@ textarea {
   }
 }
 
+@media (min-width: 1100px) {
+  .controllab-header {
+    flex-wrap: nowrap;
+    padding: 0.3rem 0.75rem;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .brand {
+    flex: 1 1 280px;
+    min-width: 0;
+    gap: 0.5rem;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    font-size: 1.15rem;
+  }
+
+  .brand-title-row {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .brand-text h1 {
+    font-size: 0.98rem;
+  }
+
+  .project-title-input {
+    width: min(155px, 100%);
+    font-size: 0.85rem;
+    padding: 0.25rem 0.45rem;
+  }
+
+  .header-meta {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    margin-top: 0.1rem;
+    font-size: 0.73rem;
+    min-width: 0;
+  }
+
+  .revision-summary {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .header-controls {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 0.28rem;
+  }
+
+  .header-controls button {
+    padding: 0.28rem 0.52rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .header-controls .compact-label {
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .header-controls .decimals-input {
+    width: 54px;
+    padding: 0.25rem 0.3rem;
+    font-size: 0.82rem;
+  }
+}
+
 @media (max-width: 1400px) {
   .app-workbench-shell.inspector-open .workspace-two-col,
   .app-workbench-shell.inspector-open .mimo-workbench-grid,
@@ -2276,6 +2633,11 @@ textarea {
     padding: 0.65rem 0.75rem;
   }
 
+  .status-badge-text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .controllab-tablist {
     padding: 0.5rem 0.75rem;
   }
@@ -2290,5 +2652,13 @@ textarea {
   .lmi-mf-row,
   .lmi-premise-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  #lmi-template-select,
+  #lmi-preset-name,
+  #lmi-saved-select {
+    max-width: 100%;
+    flex: 1 1 100%;
+    width: 100%;
   }
 }

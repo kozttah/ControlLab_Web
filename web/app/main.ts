@@ -560,7 +560,7 @@ export function mountControlLabApp(
       engineBadgeEl.setAttribute("data-engine-state", engineState);
       const caps = client.getCapabilities();
       const engineLabel = `Motor: ${engineState} | ${caps.engine_kind === "mock" ? "Simulador Local (beta)" : "Pyodide/Wasm (beta)"} | ${serviceWorkerStatus}`;
-      engineBadgeEl.innerHTML = `<span class="status-dot" aria-hidden="true"></span>${escapeHtml(engineLabel)}`;
+      engineBadgeEl.innerHTML = `<span class="status-dot" aria-hidden="true"></span> <span class="status-badge-text">${escapeHtml(engineLabel)}</span>`;
     }
     if (revSummaryEl) {
       revSummaryEl.textContent = `Rev. Projeto: ${lqr.getProjectRevision()} | Rev. Modelo: ${lqr.getPlant().revision}`;
@@ -598,7 +598,7 @@ export function mountControlLabApp(
 
     const tabVm = tabsCtrl.getTabViewModel(activeTab);
     if (tabHeadingEl) {
-      tabHeadingEl.textContent = `${tabVm.label} (${tabVm.ownerFront})`;
+      tabHeadingEl.textContent = tabVm.label;
     }
 
     if (errorSlotEl) {

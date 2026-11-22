@@ -99,6 +99,21 @@ export function computeSafeAxisBounds(
   };
 }
 
+function formatAxisTickLabel(v: number, decimals: number): string {
+  const cleaned = Number.isFinite(v) && Math.abs(v) < 1e-12 ? 0 : v;
+  return formatNumericDisplay(cleaned, decimals);
+}
+
+function formatChartHeadingTitle(
+  title: string,
+  seriesSemantics: ResultVerificationIndicator,
+): string {
+  if (seriesSemantics === "preview") {
+    return `${title} (Pré-visualização)`;
+  }
+  return title;
+}
+
 export interface ChartUnitsMetadata {
   x_axis: string;
   y_axis: string;
@@ -963,7 +978,7 @@ export function renderBodeSvg(
     `<polyline fill="none" stroke="${theme.chartOpenLoop}" stroke-width="2" points="${phasePts.join(" ")}" data-layer="phase_deg" />`,
     ...markerSvgs,
     datatipSvg,
-    `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${model.series_semantics}]</text>`,
+    `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(formatChartHeadingTitle(model.title, model.series_semantics))}</text>`,
     `<text x="16" y="${magTop + subH / 2}" transform="rotate(-90 16 ${magTop + subH / 2})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Mag [dB]</text>`,
     `<text x="16" y="${phaseTop + subH / 2}" transform="rotate(-90 16 ${phaseTop + subH / 2})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Fase [°]</text>`,
     `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Frequência ω [rad/s] (escala logarítmica)</text>`,
@@ -1120,7 +1135,7 @@ export function renderNyquistSvg(
     `<text x="${(critX - 6).toFixed(1)}" y="${(critY - 8).toFixed(1)}" font-size="11" font-weight="bold" fill="${theme.chartOverlayHeuristic}" text-anchor="end">(-1, j0)</text>`,
     `</g>`,
     datatipSvg,
-    `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${model.series_semantics}]</text>`,
+    `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(formatChartHeadingTitle(model.title, model.series_semantics))}</text>`,
     `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Im G(jω)</text>`,
     `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Re G(jω)</text>`,
     `</svg>`,
@@ -1371,7 +1386,7 @@ export function renderRootLocusSvg(
     ...poleSvgs,
     ...zeroSvgs,
     frozenDatatipSvg,
-    `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${model.series_semantics}]</text>`,
+    `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(formatChartHeadingTitle(model.title, model.series_semantics))}</text>`,
     `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Im(s)</text>`,
     `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Re(s)</text>`,
     `</svg>`,
@@ -1774,13 +1789,13 @@ export function renderPoleZeroSvg(
     .map((v) => {
       const px = toPxX(v).toFixed(2);
       const yBase = vp.heightPx - vp.padBottomPx;
-      return `<line x1="${px}" y1="${yBase}" x2="${px}" y2="${yBase + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${yBase + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+      return `<line x1="${px}" y1="${yBase}" x2="${px}" y2="${yBase + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${yBase + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(v, decimals))}</text>`;
     })
     .join("");
   const pzTicksY = [vp.yMin, (vp.yMin + vp.yMax) / 2, vp.yMax]
     .map((v) => {
       const py = toPxY(v).toFixed(2);
-      return `<line x1="${vp.padLeftPx - 4}" y1="${py}" x2="${vp.padLeftPx}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${vp.padLeftPx - 7}" y="${(Number(py) + 3).toFixed(2)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+      return `<line x1="${vp.padLeftPx - 4}" y1="${py}" x2="${vp.padLeftPx}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${vp.padLeftPx - 7}" y="${(Number(py) + 3).toFixed(2)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(v, decimals))}</text>`;
     })
     .join("");
 
@@ -1838,7 +1853,7 @@ export function renderPoleZeroSvg(
       "preview",
     ),
     `<g class="chart-legend" data-layer="legend">${pzLegendItems.join("")}</g>`,
-    `<text x="${vp.padLeftPx}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${escapeHtml(model.series_semantics)}]</text>`,
+    `<text x="${vp.padLeftPx}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(formatChartHeadingTitle(model.title, model.series_semantics))}</text>`,
     `<text x="${(vp.padLeftPx + plotW / 2).toFixed(2)}" y="${heightPx - 10}" text-anchor="middle" font-size="12" fill="${theme.textSecondary}">${escapeHtml(model.units.x_axis)} | ${escapeHtml(signText)}</text>`,
     `<text x="16" y="${(vp.padTopPx + plotH / 2).toFixed(2)}" transform="rotate(-90 16 ${(vp.padTopPx + plotH / 2).toFixed(2)})" text-anchor="middle" font-size="12" fill="${theme.textSecondary}">${escapeHtml(model.units.y_axis)}</text>`,
     `</svg>`,
@@ -2053,14 +2068,14 @@ export function renderIdentificationFourPanelSvg(
       .map((v) => {
         const px = toPxX(v).toFixed(2);
         const yBase = boxTop + boxH;
-        return `<line x1="${px}" y1="${yBase}" x2="${px}" y2="${yBase + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${yBase + 15}" text-anchor="middle" font-size="9.5" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+        return `<line x1="${px}" y1="${yBase}" x2="${px}" y2="${yBase + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${yBase + 15}" text-anchor="middle" font-size="9.5" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(v, decimals))}</text>`;
       })
       .join("");
 
     const ticksY = [yBounds.min, (yBounds.min + yBounds.max) / 2, yBounds.max]
       .map((v) => {
         const py = toPxY(v).toFixed(2);
-        return `<line x1="${boxLeft - 4}" y1="${py}" x2="${boxLeft}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${boxLeft - 6}" y="${(Number(py) + 3).toFixed(2)}" text-anchor="end" font-size="9.5" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+        return `<line x1="${boxLeft - 4}" y1="${py}" x2="${boxLeft}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${boxLeft - 6}" y="${(Number(py) + 3).toFixed(2)}" text-anchor="end" font-size="9.5" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(v, decimals))}</text>`;
       })
       .join("");
 
@@ -2113,7 +2128,7 @@ export function renderIdentificationFourPanelSvg(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${widthPx} ${heightPx}" role="img" aria-label="${escapeHtml(ariaSummary)}" style="background:${theme.surface};color:${theme.textPrimary}" data-chart-kind="time_response" data-chart-layout="identification-4panel" data-series-semantics="${escapeHtml(model.series_semantics)}" data-model-revision="${escapeHtml(String(model.model_revision))}" data-project-revision="${escapeHtml(String(model.project_revision))}">`,
     `<title>${escapeHtml(model.title)}</title>`,
     `<desc>${escapeHtml(ariaSummary)}</desc>`,
-    `<text x="56" y="24" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${escapeHtml(model.series_semantics)}]</text>`,
+    `<text x="56" y="24" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(formatChartHeadingTitle(model.title, model.series_semantics))}</text>`,
     `<g data-layer="committed">${subplotGroups.join("")}</g>`,
     `<text x="${(widthPx / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11.5" fill="${theme.textSecondary}">${escapeHtml(model.units.x_axis)}</text>`,
     `</svg>`,
@@ -2213,13 +2228,13 @@ export function renderTimeResponseSvg(
     .map((v) => {
       const px = toPxX(v).toFixed(2);
       const yBase = heightPx - padBottom;
-      return `<line x1="${px}" y1="${yBase}" x2="${px}" y2="${yBase + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${yBase + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+      return `<line x1="${px}" y1="${yBase}" x2="${px}" y2="${yBase + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${yBase + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(v, decimals))}</text>`;
     })
     .join("");
   const timeTicksY = [yBounds.min, (yBounds.min + yBounds.max) / 2, yBounds.max]
     .map((v) => {
       const py = toPxY(v).toFixed(2);
-      return `<line x1="${padLeft - 4}" y1="${py}" x2="${padLeft}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${padLeft - 7}" y="${(Number(py) + 3).toFixed(2)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+      return `<line x1="${padLeft - 4}" y1="${py}" x2="${padLeft}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${padLeft - 7}" y="${(Number(py) + 3).toFixed(2)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(v, decimals))}</text>`;
     })
     .join("");
 
@@ -2260,7 +2275,7 @@ export function renderTimeResponseSvg(
     `<g data-layer="committed">${committedLines}</g>`,
     `<g data-layer="fast-preview">${previewLines}</g>`,
     `<g class="chart-legend" data-layer="legend">${timeLegendItems.join("")}</g>`,
-    `<text x="${padLeft}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${escapeHtml(model.series_semantics)}]</text>`,
+    `<text x="${padLeft}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(formatChartHeadingTitle(model.title, model.series_semantics))}</text>`,
     `<text x="${(padLeft + plotW / 2).toFixed(2)}" y="${heightPx - 10}" text-anchor="middle" font-size="12" fill="${theme.textSecondary}">${escapeHtml(model.units.x_axis)}</text>`,
     `<text x="16" y="${(padTop + plotH / 2).toFixed(2)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(2)})" text-anchor="middle" font-size="12" fill="${theme.textSecondary}">${escapeHtml(model.units.y_axis)}</text>`,
     `</svg>`,
@@ -2374,7 +2389,7 @@ export function renderSingularValuesSvg(
   const yTicks = [yBounds.min, (yBounds.min + yBounds.max) / 2, yBounds.max]
     .map((v) => {
       const py = toPxY(v).toFixed(1);
-      return `<line x1="${padLeft - 4}" y1="${py}" x2="${padLeft}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${padLeft - 7}" y="${(Number(py) + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+      return `<line x1="${padLeft - 4}" y1="${py}" x2="${padLeft}" y2="${py}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${padLeft - 7}" y="${(Number(py) + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(v, decimals))}</text>`;
     })
     .join("");
 
@@ -2416,7 +2431,7 @@ export function renderSingularValuesSvg(
     `<g class="axis-ticks" data-layer="axis-ticks">${yTicks}</g>`,
     `<g data-layer="curves">${polylines.join("")}</g>`,
     `<g class="chart-legend" data-layer="legend">${legendItems.join("")}</g>`,
-    `<text x="${padLeft}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(model.title)} [${escapeHtml(model.series_semantics)}]</text>`,
+    `<text x="${padLeft}" y="22" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(formatChartHeadingTitle(model.title, model.series_semantics))}</text>`,
     `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">${escapeHtml(model.units.x_axis)}</text>`,
     `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">${escapeHtml(model.units.y_axis)}</text>`,
     `</svg>`,
@@ -2567,23 +2582,23 @@ export function renderFuzzySurfaceSvg(
   }
   cbSvg.push(
     `<rect x="${cbX}" y="${padTop}" width="${cbW}" height="${plotH}" fill="none" stroke="${theme.border}" stroke-width="1" />`,
-    `<text x="${cbX + cbW + 5}" y="${padTop + 10}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(zMax, decimals))}</text>`,
-    `<text x="${cbX + cbW + 5}" y="${(padTop + plotH / 2 + 3).toFixed(1)}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(0.5 * (zMin + zMax), decimals))}</text>`,
-    `<text x="${cbX + cbW + 5}" y="${padTop + plotH}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(zMin, decimals))}</text>`,
+    `<text x="${cbX + cbW + 5}" y="${padTop + 10}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(zMax, decimals))}</text>`,
+    `<text x="${cbX + cbW + 5}" y="${(padTop + plotH / 2 + 3).toFixed(1)}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(0.5 * (zMin + zMax), decimals))}</text>`,
+    `<text x="${cbX + cbW + 5}" y="${padTop + plotH}" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(zMin, decimals))}</text>`,
   );
 
   const xTicks =
     nx > 0
       ? [0, Math.floor((nx - 1) / 2), nx - 1].map((idx) => {
           const px = padLeft + (idx + 0.5) * cellW;
-          return `<text x="${px.toFixed(1)}" y="${padTop + plotH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(model.x0_grid[idx], decimals))}</text>`;
+          return `<text x="${px.toFixed(1)}" y="${padTop + plotH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(model.x0_grid[idx], decimals))}</text>`;
         })
       : [];
   const yTicks =
     ny > 0
       ? [0, Math.floor((ny - 1) / 2), ny - 1].map((idx) => {
           const py = padTop + (ny - 1 - idx + 0.5) * cellH;
-          return `<text x="${padLeft - 6}" y="${(py + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(model.x1_grid![idx], decimals))}</text>`;
+          return `<text x="${padLeft - 6}" y="${(py + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(model.x1_grid![idx], decimals))}</text>`;
         })
       : [];
 
@@ -2695,7 +2710,7 @@ export function renderLmiSpectrumSvg(
 
   const xTicks = [xBounds.min, 0, xBounds.max].map((v) => {
     const px = toPxX(v).toFixed(1);
-    return `<line x1="${px}" y1="${padTop + plotH}" x2="${px}" y2="${padTop + plotH + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${padTop + plotH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(v, decimals))}</text>`;
+    return `<line x1="${px}" y1="${padTop + plotH}" x2="${px}" y2="${padTop + plotH + 4}" stroke="${theme.chartAxis}" stroke-width="1" /><text x="${px}" y="${padTop + plotH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatAxisTickLabel(v, decimals))}</text>`;
   });
 
   const desc = `Espectro LMI com ${model.block_min_eigs.length} blocos; limiar PSD λ_min >= 0 destacado.`;

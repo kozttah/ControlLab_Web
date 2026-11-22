@@ -486,7 +486,7 @@ export function renderFuzzyViewHtml(): string {
     `<div id="fuzzy-rules-matrix" class="fuzzy-rules-matrix-wrap"></div>`,
     `</div>`,
     `<div id="fuzzy-anfis-card" class="subcard fuzzy-anfis-card">`,
-    `<h4>Treinamento Neuro-Fuzzy ANFIS (<code>fuzzy.fit_anfis</code>)</h4>`,
+    `<h4>Treinamento Neuro-Fuzzy ANFIS</h4>`,
     `<p class="dock-item-summary">Ajuste híbrido (QR/SVD nos consequentes TS + gradiente descendente nas premissas) com carregamento automático do sistema treinado na bancada.</p>`,
     `<div class="panel-actions fuzzy-anfis-controls">`,
     `<label for="fuzzy-anfis-preset">Preset</label>`,

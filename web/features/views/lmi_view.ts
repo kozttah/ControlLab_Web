@@ -447,7 +447,7 @@ export function renderLmiViewHtml(): string {
 
   return [
     `<section id="lmi-workspace-panel" class="panel-card workspace-section" aria-label="LMIs, SDPs e Síntese Robusta" hidden>`,
-    `<h3>LMIs, SDPs &amp; Síntese Robusta (ADR-010)</h3>`,
+    `<h3>LMIs, SDPs &amp; Síntese Robusta</h3>`,
     `<div class="lmi-toolbar subcard">`,
     `<div class="panel-actions lmi-toolbar-row">`,
     `<label for="lmi-template-select">Template</label>`,
@@ -470,7 +470,7 @@ export function renderLmiViewHtml(): string {
 
     `<div id="lmi-system-characterization-card" class="subcard lmi-sys-card" aria-label="Caracterização do Sistema e Conjuntos de Índices">`,
     `<div class="lmi-sys-head">`,
-    `<h4>Caracterização do Sistema &amp; Conjuntos de Índices (Zona 2)</h4>`,
+    `<h4>Caracterização do Sistema &amp; Conjuntos de Índices</h4>`,
     `<span id="lmi-expanded-blocks-badge" class="badge badge-sufficient">2 blocos LMI expandidos</span>`,
     `</div>`,
     `<div class="lmi-sys-class-row">`,
@@ -487,8 +487,8 @@ export function renderLmiViewHtml(): string {
     `<div id="lmi-sys-panel-lti" class="lmi-sys-mode-panel">`,
     `<div id="lmi-lti-dims-summary" class="lmi-sys-summary"></div>`,
     `<div class="lmi-sys-checks">`,
-    `<label class="lmi-check-label"><input type="checkbox" id="lmi-gen-enable-w" class="touch-control" /> Canal exógeno w: Bw, Dyw</label>`,
-    `<label class="lmi-check-label"><input type="checkbox" id="lmi-gen-enable-z" class="touch-control" /> Canal desempenho z: Cz, Dzu, Dzw</label>`,
+    `<label class="lmi-check-label"><input type="checkbox" id="lmi-gen-enable-w" /> Canal exógeno w: Bw, Dyw</label>`,
+    `<label class="lmi-check-label"><input type="checkbox" id="lmi-gen-enable-z" /> Canal desempenho z: Cz, Dzu, Dzw</label>`,
     `</div>`,
     `<div id="lmi-gen-matrices-panel" class="lmi-gen-matrices-panel" hidden>`,
     `<label>Bw <input type="text" id="lmi-gen-bw" class="touch-control" value="[[0],[1]]" aria-label="Matriz Bw" /></label>`,
@@ -572,7 +572,7 @@ export function renderLmiViewHtml(): string {
     `</div>`,
     `<div class="lmi-results-split">`,
     `<div id="lmi-certificate-panel" class="subcard lmi-certificate-panel" aria-live="polite">`,
-    `<h4>Certificado de Auditoria Independente (5 Dimensões — ADR-010)</h4>`,
+    `<h4>Certificado de Auditoria Independente (5 Dimensões)</h4>`,
     `<div id="lmi-certificate-dims" class="lmi-cert-dims-grid"><p>Execute <strong>Resolver LMI</strong> para auditar o problema e gerar o certificado em 5 dimensões, ou exporte scripts CVXPY/YALMIP diretamente.</p></div>`,
     `<div id="lmi-certificate-alert"></div>`,
     `<div id="lmi-recovered-gain" class="lmi-recovered-gain"></div>`,
@@ -2429,13 +2429,47 @@ export class LmiView {
         ? formatNumericDisplay(s.conditionNumber, decimals)
         : "N/D";
 
+    const friendlySolverLabel = (raw: string): string => {
+      if (raw === "optimal") return "Ótimo";
+      if (raw === "optimal_inaccurate") return "Ótimo (impreciso)";
+      if (raw === "infeasible") return "Infactível";
+      if (raw === "unbounded") return "Ilimitado";
+      if (raw === "cancelled") return "Cancelado";
+      return raw;
+    };
+    const friendlyAuditLabel = (raw: string): string => {
+      if (raw === "strictly_feasible") return "Estritamente Factível";
+      if (raw === "approximately_feasible") return "Aprox. Factível";
+      if (raw === "infeasible") return "Infactível";
+      if (raw === "inconclusive") return "Inconclusivo";
+      return raw;
+    };
+    const friendlyCertLabel = (raw: string): string => {
+      if (raw === "validated_dual") return "Dual Validado";
+      if (raw === "validated_primal") return "Primal Validado";
+      if (raw === "failed" || raw === "unvalidated") return "Não Validado";
+      return raw;
+    };
+    const friendlyCondLabel = (raw: string): string => {
+      if (raw === "well_conditioned") return "Bem Condicionado";
+      if (raw === "ill_conditioned") return "Mal Condicionado";
+      if (raw === "near_boundary") return "Próx. à Fronteira";
+      return raw;
+    };
+    const friendlyCtrlLabel = (raw: string): string => {
+      if (raw.startsWith("verified")) return "Verificado";
+      if (raw === "not_applicable") return "Não Aplicável";
+      if (raw === "violated") return "Violado";
+      return raw;
+    };
+
     if (this.certDimsEl) {
       this.certDimsEl.innerHTML = [
-        `<div class="lmi-cert-dim"><span class="kpi-label">1. Solver Status</span><span class="badge ${solverCls}">${escapeHtml(s.solverStatus)}</span></div>`,
-        `<div class="lmi-cert-dim"><span class="kpi-label">2. Auditoria Factibilidade</span><span class="badge ${auditCls}">${escapeHtml(s.auditFeasibility)}</span></div>`,
-        `<div class="lmi-cert-dim"><span class="kpi-label">3. Certificado Dual</span><span class="badge ${certCls}">${escapeHtml(s.certificateStatus)}</span></div>`,
-        `<div class="lmi-cert-dim"><span class="kpi-label">4. Condicionamento κ</span><span class="badge ${condCls}">${escapeHtml(s.conditioningStatus)} (κ=${escapeHtml(kappaStr)})</span></div>`,
-        `<div class="lmi-cert-dim"><span class="kpi-label">5. Validade Controlador</span><span class="badge ${ctrlCls}">${escapeHtml(s.controllerValidity)}</span></div>`,
+        `<div class="lmi-cert-dim"><span class="kpi-label">1. Solver Status</span><span class="badge ${solverCls}">${escapeHtml(friendlySolverLabel(s.solverStatus))}</span><code class="cert-token">${escapeHtml(s.solverStatus)}</code></div>`,
+        `<div class="lmi-cert-dim"><span class="kpi-label">2. Auditoria Factibilidade</span><span class="badge ${auditCls}">${escapeHtml(friendlyAuditLabel(s.auditFeasibility))}</span><code class="cert-token">${escapeHtml(s.auditFeasibility)}</code></div>`,
+        `<div class="lmi-cert-dim"><span class="kpi-label">3. Certificado Dual</span><span class="badge ${certCls}">${escapeHtml(friendlyCertLabel(s.certificateStatus))}</span><code class="cert-token">${escapeHtml(s.certificateStatus)}</code></div>`,
+        `<div class="lmi-cert-dim"><span class="kpi-label">4. Condicionamento κ</span><span class="badge ${condCls}">${escapeHtml(friendlyCondLabel(s.conditioningStatus))} (κ=${escapeHtml(kappaStr)})</span><code class="cert-token">${escapeHtml(s.conditioningStatus)}</code></div>`,
+        `<div class="lmi-cert-dim"><span class="kpi-label">5. Validade Controlador</span><span class="badge ${ctrlCls}">${escapeHtml(friendlyCtrlLabel(s.controllerValidity))}</span><code class="cert-token">${escapeHtml(s.controllerValidity)}</code></div>`,
       ].join("");
     }
 

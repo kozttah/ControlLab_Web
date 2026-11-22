@@ -194,7 +194,7 @@ export function renderSisoViewHtml(): string {
     `<input type="number" id="siso-n-points" class="touch-control" min="16" max="5000" step="10" value="200" aria-label="Número de pontos na grade de frequência" /></div>`,
     `<div class="tool-field"><label for="siso-delay">Atraso puro τ (s) — Exato e^{-jωτ}</label>`,
     `<input type="number" id="siso-delay" class="touch-control" min="0" max="100" step="0.01" value="0" aria-label="Atraso de transporte em segundos" /></div>`,
-    `<div class="tool-field"><label for="siso-use-pade"><input type="checkbox" id="siso-use-pade" data-action="siso-toggle-pade" /> Aproximar via Padé</label></div>`,
+    `<div class="tool-field"><label for="siso-use-pade" class="checkbox-touch-label"><input type="checkbox" id="siso-use-pade" data-action="siso-toggle-pade" /> Aproximar via Padé</label></div>`,
     `<div class="tool-field"><label for="siso-pade-order">Ordem Padé</label>`,
     `<input type="number" id="siso-pade-order" class="touch-control" min="1" max="10" step="1" value="1" aria-label="Ordem da aproximação de Padé" /></div>`,
     `</div>`,

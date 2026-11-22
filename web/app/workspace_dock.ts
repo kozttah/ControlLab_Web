@@ -294,6 +294,53 @@ export function formatDockObjectSummary(
   return obj.summary;
 }
 
+export function formatDockObjectDisplayName(id: string): string {
+  if (id === "plant-double-integrator" || id === "double-integrator") {
+    return "Integrador Duplo 1/s²";
+  }
+  if (id === "ss-double_integrator") {
+    return "Integrador Duplo (SS)";
+  }
+  if (id === "mass-spring-damper" || id === "ss-mass_spring_damper") {
+    return "Massa-Mola-Amortecedor";
+  }
+  if (id === "first-order-stable") {
+    return "1ª Ordem Estável 2/(s+3)";
+  }
+  if (id === "mimo-2x2-coupled" || id === "ss-mimo-distillation-2x2") {
+    return "Planta MIMO 2×2 Acoplada";
+  }
+  if (id.startsWith("ctrl-sf-") || id.startsWith("ctrl-lqr-") || id.startsWith("K_lqr_")) {
+    return "Controlador LQR";
+  }
+  if (id.startsWith("ctrl-lqg-")) {
+    return "Controlador LQG";
+  }
+  if (id.startsWith("ctrl-hinf-")) {
+    return "Controlador H∞";
+  }
+  if (id === "ds-b-arx-prbs-train") {
+    return "Dataset PRBS (Treino)";
+  }
+  if (id === "ds-b-arx-prbs-val") {
+    return "Dataset PRBS (Holdout)";
+  }
+  if (id === "ds-b-arx-prbs") {
+    return "Dataset PRBS (Benchmark)";
+  }
+  return id;
+}
+
+function renderDockCardTitleHtml(id: string, revision: number | null): string {
+  const friendly = formatDockObjectDisplayName(id);
+  const revSuffix = revision !== null ? `#r${revision}` : "";
+  const techRef = `${id}${revSuffix}`;
+  if (friendly !== id) {
+    return `<span class="dock-item-name">${escapeHtml(friendly)}</span> <small class="dock-item-ref">${escapeHtml(techRef)}</small>`;
+  }
+  return `<span class="dock-item-name">${escapeHtml(id)}</span>${revSuffix ? ` <small class="dock-item-ref">${escapeHtml(revSuffix)}</small>` : ""}`;
+}
+
 export function renderWorkspaceDockHtml(): string {
   return [
     `<aside id="workspace-dock-aside" class="workspace-dock" aria-label="Workspace da Sessão">`,
@@ -305,7 +352,7 @@ export function renderWorkspaceDockHtml(): string {
     `</div>`,
     `</div>`,
     `<div class="dock-examples-bar" aria-label="Exemplos rápidos">`,
-    `<select id="dock-example-select" class="touch-control" aria-label="Selecionar sistema de exemplo">`,
+    `<select id="dock-example-select" class="touch-control dock-preset-select" aria-label="Selecionar sistema de exemplo">`,
     `<option value="double_integrator">Integrador Duplo 1/s² (SS)</option>`,
     `<option value="mass_spring_damper">Massa-Mola-Amortecedor (TF)</option>`,
     `<option value="first_order_delay">1ª Ordem Estável 2/(s+3) (TF)</option>`,
@@ -919,7 +966,7 @@ export class WorkspaceDockController {
               return [
                 `<div class="dock-item" data-dock-item-key="${escapeHtml(ds.key)}">`,
                 `<div class="dock-item-head">`,
-                `<button type="button" class="dock-item-link" data-dock-action="inspect-object" data-object-key="${escapeHtml(ds.key)}">${escapeHtml(ds.id)} <small>#r${ds.revision}</small></button>`,
+                `<button type="button" class="dock-item-link" data-dock-action="inspect-object" data-object-key="${escapeHtml(ds.key)}" title="${escapeHtml(ds.id)}#r${ds.revision}">${renderDockCardTitleHtml(ds.id, ds.revision)}</button>`,
                 badges,
                 `<button type="button" class="touch-control btn-secondary btn-small dock-remove-btn" data-action="dock-remove-item" data-obj-id="${escapeHtml(ds.id)}" data-obj-rev="${ds.revision}" aria-label="Remover ${escapeHtml(ds.id)} revisão ${ds.revision}" title="Remover item">×</button>`,
                 `</div>`,
@@ -936,7 +983,7 @@ export class WorkspaceDockController {
       ? [
           `<div class="dock-item dock-item-pending" data-dock-item-key="pending-id">`,
           `<div class="dock-item-head">`,
-          `<button type="button" class="dock-item-link" data-dock-action="inspect-pending-identified" data-object-key="pending-id">${escapeHtml(pendingId.model_ref.id)} <small>#r${pendingId.model_ref.revision}</small></button>`,
+          `<button type="button" class="dock-item-link" data-dock-action="inspect-pending-identified" data-object-key="pending-id" title="${escapeHtml(pendingId.model_ref.id)}#r${pendingId.model_ref.revision}">${renderDockCardTitleHtml(pendingId.model_ref.id, pendingId.model_ref.revision)}</button>`,
           `<span class="badge badge-approximate">Não validado em holdout</span>`,
           `</div>`,
           `<div class="dock-item-summary">${escapeHtml(pendingId.algorithm)} • aguardando validação</div>`,
@@ -984,7 +1031,7 @@ export class WorkspaceDockController {
               return [
                 `<div class="dock-item" data-dock-item-key="${escapeHtml(m.key)}">`,
                 `<div class="dock-item-head">`,
-                `<button type="button" class="dock-item-link" data-dock-action="inspect-object" data-object-key="${escapeHtml(m.key)}">${escapeHtml(m.id)} <small>#r${m.revision}</small></button>`,
+                `<button type="button" class="dock-item-link" data-dock-action="inspect-object" data-object-key="${escapeHtml(m.key)}" title="${escapeHtml(m.id)}#r${m.revision}">${renderDockCardTitleHtml(m.id, m.revision)}</button>`,
                 badges,
                 removeBtnHtml,
                 `</div>`,
@@ -1013,7 +1060,7 @@ export class WorkspaceDockController {
       ctrlCards.push(
         [
           `<div class="dock-item" data-dock-item-key="ctrl-lqr">`,
-          `<div class="dock-item-head"><strong>${escapeHtml(ctrlId)}</strong> ${statusBadge}</div>`,
+          `<div class="dock-item-head"><strong class="dock-item-title-block" title="${escapeHtml(ctrlId)}">${renderDockCardTitleHtml(ctrlId, null)}</strong> ${statusBadge}</div>`,
           `<div class="dock-item-summary">K = ${escapeHtml(kFmt)} • ${escapeHtml(signLabel)}</div>`,
           `<div class="dock-item-actions">`,
           `<button type="button" class="touch-control btn-secondary btn-small" data-dock-action="focus-lqr-controller">→ SS/LQR</button>`,
@@ -1046,7 +1093,7 @@ export class WorkspaceDockController {
         [
           `<div class="dock-item" data-dock-item-key="${escapeHtml(dynCtrl.key)}">`,
           `<div class="dock-item-head">`,
-          `<button type="button" class="dock-item-link" data-dock-action="inspect-object" data-object-key="${escapeHtml(dynCtrl.key)}">${escapeHtml(dynCtrl.id)} <small>#r${dynCtrl.revision}</small></button>`,
+          `<button type="button" class="dock-item-link" data-dock-action="inspect-object" data-object-key="${escapeHtml(dynCtrl.key)}" title="${escapeHtml(dynCtrl.id)}#r${dynCtrl.revision}">${renderDockCardTitleHtml(dynCtrl.id, dynCtrl.revision)}</button>`,
           `<span class="badge badge-exact">LQG / Dinâmico</span>`,
           `<button type="button" class="touch-control btn-secondary btn-small dock-remove-btn" data-action="dock-remove-item" data-obj-id="${escapeHtml(dynCtrl.id)}" data-obj-rev="${dynCtrl.revision}" aria-label="Remover ${escapeHtml(dynCtrl.id)} revisão ${dynCtrl.revision}" title="Remover item">×</button>`,
           `</div>`,

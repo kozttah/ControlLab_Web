@@ -111,6 +111,7 @@ SUPPORTED_OPERATIONS: frozenset[str] = frozenset(
         "identification.validate_model",
         "fuzzy.evaluate",
         "fuzzy.evaluate_surface",
+        "fuzzy.fit_anfis",
         "fuzzy.import_fml",
         "fuzzy.export_fml",
         "optimization.export_cvxpy",
@@ -492,6 +493,27 @@ def _lookup_store(store: Any, project_id: str, obj_id: str, revision: int) -> An
     if item_rev is not None and _is_non_bool_int(item_rev) and int(item_rev) != revision:
         return None
     return item
+
+
+def _store_put_object(store: Any, project_id: str, obj: Any) -> None:
+    obj_id = getattr(obj, "id", None)
+    obj_rev = getattr(obj, "revision", 0)
+    if obj_id is None:
+        return
+    if hasattr(store, "put") and callable(store.put):
+        for args in (
+            (project_id, obj_id, obj_rev, obj),
+            (obj_id, obj_rev, obj),
+            ((obj_id, obj_rev), obj),
+            (obj,),
+        ):
+            try:
+                store.put(*args)
+                return
+            except TypeError:
+                continue
+    elif isinstance(store, dict):
+        store[(project_id, obj_id, obj_rev)] = obj
 
 
 def _restore_canonical_object(raw_obj: Any, *, field_name: str = "model") -> Any:
@@ -1870,10 +1892,75 @@ def _handle_identification(req: dict[str, Any], store: Any) -> dict[str, Any]:
 
 
 def _handle_fuzzy(req: dict[str, Any], store: Any) -> dict[str, Any]:
-    from control_lab.fuzzy import evaluate, evaluate_surface, export_fml, import_fml
+    from control_lab.fuzzy import evaluate, evaluate_surface, export_fml, fit_anfis, import_fml
 
     payload = req["payload"]
     op = req["operation"]
+
+    if op == "fuzzy.fit_anfis":
+        if "X" not in payload or "y" not in payload:
+            raise ValidationError("Operação fuzzy.fit_anfis exige 'X' e 'y' no payload.")
+        X_arr = _coerce_array(payload["X"], name="X")
+        if X_arr.ndim == 1:
+            X_arr = X_arr.reshape(-1, 1)
+        elif X_arr.ndim != 2:
+            raise DimensionMismatchError(f"X deve ser 1D ou 2D (N, n_inputs), recebido {X_arr.ndim}D.")
+        y_arr = _coerce_array(payload["y"], name="y", ndim=1)
+
+        n_mfs = payload.get("n_mfs", 2)
+        mf_type = str(payload.get("mf_type", "gaussian"))
+        max_epochs_raw = payload.get("max_epochs", 30)
+        if isinstance(max_epochs_raw, bool) or not isinstance(max_epochs_raw, int):
+            raise ValidationError("max_epochs deve ser inteiro >= 1.")
+        learning_rate = float(payload.get("learning_rate", 0.02))
+        validation_split = float(payload.get("validation_split", 0.2))
+        input_names = payload.get("input_names")
+        output_name = str(payload.get("output_name", "y"))
+
+        res = fit_anfis(
+            X_arr,
+            y_arr,
+            n_mfs=n_mfs,
+            mf_type=mf_type,
+            max_epochs=max_epochs_raw,
+            learning_rate=learning_rate,
+            validation_split=validation_split,
+            input_names=input_names,
+            output_name=output_name,
+        )
+        if res.status != "failure" and res.data is not None and isinstance(res.data, Mapping):
+            result_data = dict(res.data)
+            fs_raw = result_data.get("fuzzy_system")
+            fs_obj: FuzzySystem | None = None
+            if isinstance(fs_raw, FuzzySystem):
+                fs_obj = fs_raw
+                result_data["fuzzy_system"] = fs_obj.to_dict()
+            elif isinstance(fs_raw, Mapping) and fs_raw.get("kind") == "FuzzySystem":
+                fs_obj = restore_model(fs_raw)
+            if fs_obj is not None and store is not None:
+                _store_put_object(store, req["project_id"], fs_obj)
+                result_data["fuzzy_system_ref"] = {"id": fs_obj.id, "revision": fs_obj.revision}
+            return _build_rpc_response(
+                request_id=req["request_id"],
+                project_id=req["project_id"],
+                project_revision=req["project_revision"],
+                status=res.status,
+                result=result_data,
+                assumptions=res.assumptions,
+                diagnostics=res.diagnostics,
+                provenance=res.provenance,
+                warnings=res.warnings,
+                error=res.error,
+                fallback_algorithm="fuzzy.fit_anfis",
+            )
+
+        return _result_to_rpc_response(
+            res,
+            request_id=req["request_id"],
+            project_id=req["project_id"],
+            project_revision=req["project_revision"],
+            fallback_algorithm="fuzzy.fit_anfis",
+        )
 
     if op == "fuzzy.import_fml":
         xml_content = payload.get("xml_content", payload.get("xml"))
@@ -2174,6 +2261,7 @@ _DISPATCH_TABLE = {
     "identification.validate_model": _handle_identification,
     "fuzzy.evaluate": _handle_fuzzy,
     "fuzzy.evaluate_surface": _handle_fuzzy,
+    "fuzzy.fit_anfis": _handle_fuzzy,
     "fuzzy.import_fml": _handle_fuzzy,
     "fuzzy.export_fml": _handle_fuzzy,
     "optimization.export_cvxpy": _handle_optimization,

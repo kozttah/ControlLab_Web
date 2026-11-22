@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 4
+      "2026-11-22": 5
     }
   },
   "audit_reference": {
@@ -5408,12 +5408,15 @@
         "T-FZ-02"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/ -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/ControlLab_Web_Documento_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "Interface de treinamento ANFIS na Aba 5 conectada ao motor Python e visualizacao de erro/regras ajustadas"
-      ]
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-ROADMAP-ANFIS-TAB5.md",
+      "acceptance_scope": "cpython_and_pyodide_wasm_chromium_tab5_anfis_training"
     },
     {
       "wp_id": "WP-ROADMAP-CTRLAB-LMI-PERSISTENCE",

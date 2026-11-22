@@ -1484,3 +1484,55 @@ def test_ux_phase4_editable_vertices_and_ts_mf(browser_harness):
             "mobile_390x844_overflow": overflow_metrics,
         },
     )
+
+
+def test_ux_phase5_anfis_tab5_training(browser_harness):
+    """Test 12: Phase 5 ANFIS training on Tab 5 (fuzzy_ts) via Pyodide Wasm, RMSE SVG curve, and 390x844 containment."""
+    page = mount_ui(browser_harness, "e2e-ux-phase5-anfis-tab5", {"width": 1280, "height": 800})
+
+    page.locator('button[data-tab-id="fuzzy_ts"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'fuzzy_ts'")
+    page.locator("#fuzzy-workspace-panel").wait_for(state="visible")
+
+    anfis_card = page.locator("#fuzzy-anfis-card")
+    anfis_card.wait_for(state="visible")
+    assert anfis_card.is_visible()
+
+    train_btn = page.locator("#btn-fuzzy-train-anfis")
+    train_btn.wait_for(state="visible")
+    train_btn.click()
+
+    page.wait_for_function(
+        """() => {
+            const results = document.querySelector('#fuzzy-anfis-results');
+            const svg = document.querySelector('#fuzzy-anfis-results svg.fuzzy-anfis-rmse-svg');
+            const text = results ? results.textContent || '' : '';
+            return Boolean(svg) && text.includes('train_rmse:') && text.includes('val_rmse:');
+        }""",
+        timeout=45000,
+    )
+
+    results_text = page.locator("#fuzzy-anfis-results").inner_text()
+    assert "train_rmse:" in results_text
+    assert "val_rmse:" in results_text
+    assert page.locator("#fuzzy-anfis-results svg.fuzzy-anfis-rmse-svg").is_visible()
+
+    # Mobile 390x844 viewport: zero horizontal overflow with ANFIS results & SVG visible
+    page.set_viewport_size({"width": 390, "height": 844})
+    overflow_metrics = page.evaluate(
+        "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
+    )
+    assert overflow_metrics["scrollWidth"] <= 390, (
+        f"Horizontal overflow at 390x844 on Tab 5 ANFIS card: "
+        f"scrollWidth={overflow_metrics['scrollWidth']} > 390"
+    )
+
+    browser_harness.record(
+        "e2e-ux-phase5-anfis-tab5",
+        {
+            "anfis_results_text": results_text,
+            "rmse_svg_visible": True,
+            "mobile_390x844_overflow": overflow_metrics,
+        },
+    )
+

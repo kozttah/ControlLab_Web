@@ -99,6 +99,118 @@ function setElHidden(el: Element | null | undefined, hidden: boolean): void {
   else el.removeAttribute("hidden");
 }
 
+function buildDefaultAnfisRows(mode: "sin_linear" | "quadratic" = "sin_linear"): number[][] {
+  const rows: number[][] = [];
+  for (let i = 0; i < 20; i += 1) {
+    const x1 = Number((-3.0 + i * 0.3).toFixed(4));
+    const x2 = Number((-2.0 + ((i * 7) % 20) * 0.2).toFixed(4));
+    const yVal =
+      mode === "quadratic"
+        ? 0.2 * x1 * x1 - 0.3 * x2
+        : Math.sin(x1) + 0.5 * x2;
+    rows.push([x1, x2, Number(yVal.toFixed(6))]);
+  }
+  return rows;
+}
+
+const DEFAULT_ANFIS_DATASET_JSON = JSON.stringify(buildDefaultAnfisRows("sin_linear"));
+
+export function parseAnfisDataset(rawText: string): { X: number[][]; y: number[] } {
+  const trimmed = rawText.trim();
+  if (trimmed.length === 0) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      "Informe um conjunto de dados ANFIS com pelo menos 4 amostras [[x1, x2, y], ...].",
+    );
+  }
+
+  let rows: number[][] = [];
+  if (trimmed.startsWith("[")) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        "JSON do dataset ANFIS inválido. Use matriz [[x1, x2, y], ...].",
+      );
+    }
+    if (!Array.isArray(parsed)) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        "Dataset JSON deve ser uma lista de linhas [[x1, x2, y], ...].",
+      );
+    }
+    rows = parsed.map((row, idx) => {
+      if (!Array.isArray(row) || row.length < 2) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          `Linha ${idx + 1} do dataset deve ter ao menos 1 entrada e 1 saída.`,
+        );
+      }
+      return row.map((v) => {
+        const num = Number(v);
+        if (!Number.isFinite(num)) {
+          throw new ControlLabBridgeError(
+            "VALIDATION_ERROR",
+            `Valor não numérico na linha ${idx + 1} do dataset ANFIS.`,
+          );
+        }
+        return num;
+      });
+    });
+  } else {
+    const lines = trimmed
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    for (let i = 0; i < lines.length; i += 1) {
+      const parts = lines[i].split(/[\s,;]+/).filter((p) => p.length > 0);
+      const nums = parts.map((p) => Number(p));
+      if (i === 0 && nums.some((n) => !Number.isFinite(n))) {
+        // Optional CSV header row
+        continue;
+      }
+      if (nums.length < 2 || nums.some((n) => !Number.isFinite(n))) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          `Linha CSV ${i + 1} inválida: informe valores numéricos separados por vírgula.`,
+        );
+      }
+      rows.push(nums);
+    }
+  }
+
+  if (rows.length < 4) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      "ANFIS requer pelo menos 4 amostras para treino/validação.",
+    );
+  }
+  const colCount = rows[0].length;
+  for (let i = 1; i < rows.length; i += 1) {
+    if (rows[i].length !== colCount) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        `Linha ${i + 1} possui ${rows[i].length} colunas, esperado ${colCount}.`,
+      );
+    }
+  }
+
+  const X = rows.map((r) => r.slice(0, colCount - 1));
+  const y = rows.map((r) => r[colCount - 1]);
+  return { X, y };
+}
+
+export interface AnfisTrainingSummary {
+  trainRmse: number;
+  valRmse: number;
+  bestEpoch: number;
+  epochsExecuted: number;
+  trainHistory: number[];
+  valHistory: number[];
+}
+
 function renderFuzzyExportBarHtml(slotId: string, label: string): string {
   return [
     `<div class="chart-export-bar" data-export-bar-for="${escapeHtml(slotId)}" hidden>`,
@@ -297,6 +409,13 @@ function evalVisualMembership(mfType: string, params: readonly number[], x: numb
     const q = (x - c) / s;
     return Math.exp(-0.5 * q * q);
   }
+  if (kind === "bell" || kind === "gbell" || kind === "gbellmf") {
+    const [a = 1, b = 2, c = 0] = params;
+    const width = Math.max(1e-6, Math.abs(a));
+    const slope = Math.max(1e-3, Math.abs(b));
+    const ratio = Math.abs((x - c) / width);
+    return 1 / (1 + Math.pow(ratio, 2 * slope));
+  }
   if (kind === "singleton") {
     const [c = 0] = params;
     return Math.abs(x - c) <= 1e-6 ? 1 : 0;
@@ -366,6 +485,40 @@ export function renderFuzzyViewHtml(): string {
     `</div>`,
     `<div id="fuzzy-rules-matrix" class="fuzzy-rules-matrix-wrap"></div>`,
     `</div>`,
+    `<div id="fuzzy-anfis-card" class="subcard fuzzy-anfis-card">`,
+    `<h4>Treinamento Neuro-Fuzzy ANFIS (<code>fuzzy.fit_anfis</code>)</h4>`,
+    `<p class="dock-item-summary">Ajuste híbrido (QR/SVD nos consequentes TS + gradiente descendente nas premissas) com carregamento automático do sistema treinado na bancada.</p>`,
+    `<div class="panel-actions fuzzy-anfis-controls">`,
+    `<label for="fuzzy-anfis-preset">Preset</label>`,
+    `<select id="fuzzy-anfis-preset" class="touch-control" aria-label="Preset de dataset ANFIS">`,
+    `<option value="sin_linear" selected>y = sin(x1) + 0.5·x2 (20 pts)</option>`,
+    `<option value="quadratic">y = 0.2·x1² - 0.3·x2 (20 pts)</option>`,
+    `</select>`,
+    `<label for="fuzzy-anfis-nmfs">MFs / entrada</label>`,
+    `<select id="fuzzy-anfis-nmfs" class="touch-control" aria-label="Número de funções de pertinência por entrada">`,
+    `<option value="2" selected>2</option>`,
+    `<option value="3">3</option>`,
+    `</select>`,
+    `<label for="fuzzy-anfis-mftype">Tipo de MF</label>`,
+    `<select id="fuzzy-anfis-mftype" class="touch-control" aria-label="Tipo de função de pertinência ANFIS">`,
+    `<option value="gaussian" selected>Gaussiana</option>`,
+    `<option value="bell">Sino Generalizado (Bell)</option>`,
+    `</select>`,
+    `<label for="fuzzy-anfis-epochs">Épocas</label>`,
+    `<input type="number" id="fuzzy-anfis-epochs" class="touch-control id-param-input" min="1" max="500" step="1" value="25" aria-label="Número máximo de épocas ANFIS" />`,
+    `<label for="fuzzy-anfis-lr">Taxa (lr)</label>`,
+    `<input type="number" id="fuzzy-anfis-lr" class="touch-control id-param-input" min="0.0001" max="1" step="0.005" value="0.02" aria-label="Taxa de aprendizado ANFIS" />`,
+    `<button type="button" id="btn-fuzzy-train-anfis" class="touch-control btn-primary" data-action="fuzzy-train-anfis">Treinar ANFIS</button>`,
+    `</div>`,
+    `<div class="tool-field">`,
+    `<label for="fuzzy-anfis-dataset">Dataset <code>[[x1, x2, y], ...]</code> (JSON ou CSV)</label>`,
+    `<textarea id="fuzzy-anfis-dataset" class="touch-control fuzzy-anfis-dataset" rows="4" aria-label="Dataset para treinamento ANFIS">${escapeHtml(DEFAULT_ANFIS_DATASET_JSON)}</textarea>`,
+    `</div>`,
+    `<div id="fuzzy-anfis-results" class="fuzzy-anfis-results" aria-live="polite">`,
+    `<div id="fuzzy-anfis-metrics" class="fuzzy-anfis-metrics"><p>Configure os parâmetros e clique em <strong>Treinar ANFIS</strong>.</p></div>`,
+    `<div id="fuzzy-anfis-rmse-chart" class="chart-container fuzzy-anfis-rmse-chart"></div>`,
+    `</div>`,
+    `</div>`,
     `<details class="subcard fuzzy-fml-details">`,
     `<summary>Editor / Intercâmbio FML XML (IEEE 1855-2016)</summary>`,
     `<div class="tool-field">`,
@@ -406,10 +559,19 @@ export class FuzzyView {
   private readonly pointResultEl: HTMLElement | null;
   private readonly fmlXmlEl: HTMLTextAreaElement | null;
   private readonly fmlFileInputEl: HTMLInputElement | null;
+  private readonly anfisPresetEl: HTMLSelectElement | null;
+  private readonly anfisDatasetEl: HTMLTextAreaElement | null;
+  private readonly anfisNmfsEl: HTMLSelectElement | null;
+  private readonly anfisMftypeEl: HTMLSelectElement | null;
+  private readonly anfisEpochsEl: HTMLInputElement | null;
+  private readonly anfisLrEl: HTMLInputElement | null;
+  private readonly anfisMetricsEl: HTMLElement | null;
+  private readonly anfisRmseChartEl: HTMLElement | null;
 
   private draft: CanonicalFuzzySystemDraft;
   private selectedVarName = "erro";
   private surfaceModel: FuzzySurfaceChartModel | null = null;
+  private anfisSummary: AnfisTrainingSummary | null = null;
   private mfParamError: string | null = null;
 
   constructor(options: FuzzyViewOptions) {
@@ -437,6 +599,14 @@ export class FuzzyView {
     this.pointResultEl = this.container.querySelector<HTMLElement>("#fuzzy-point-result");
     this.fmlXmlEl = this.container.querySelector<HTMLTextAreaElement>("#fuzzy-fml-xml");
     this.fmlFileInputEl = this.container.querySelector<HTMLInputElement>("#fuzzy-fml-file-input");
+    this.anfisPresetEl = this.container.querySelector<HTMLSelectElement>("#fuzzy-anfis-preset");
+    this.anfisDatasetEl = this.container.querySelector<HTMLTextAreaElement>("#fuzzy-anfis-dataset");
+    this.anfisNmfsEl = this.container.querySelector<HTMLSelectElement>("#fuzzy-anfis-nmfs");
+    this.anfisMftypeEl = this.container.querySelector<HTMLSelectElement>("#fuzzy-anfis-mftype");
+    this.anfisEpochsEl = this.container.querySelector<HTMLInputElement>("#fuzzy-anfis-epochs");
+    this.anfisLrEl = this.container.querySelector<HTMLInputElement>("#fuzzy-anfis-lr");
+    this.anfisMetricsEl = this.container.querySelector<HTMLElement>("#fuzzy-anfis-metrics");
+    this.anfisRmseChartEl = this.container.querySelector<HTMLElement>("#fuzzy-anfis-rmse-chart");
 
     this.bindEvents();
   }
@@ -512,6 +682,19 @@ export class FuzzyView {
         void this.importFml();
       });
 
+    this.anfisPresetEl?.addEventListener("change", () => {
+      const mode = this.anfisPresetEl?.value === "quadratic" ? "quadratic" : "sin_linear";
+      if (this.anfisDatasetEl) {
+        this.anfisDatasetEl.value = JSON.stringify(buildDefaultAnfisRows(mode));
+      }
+    });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="fuzzy-train-anfis"]')
+      ?.addEventListener("click", () => {
+        void this.trainAnfis();
+      });
+
     this.fmlFileInputEl?.addEventListener("change", () => {
       const files = (this.fmlFileInputEl as unknown as { files?: FileList })?.files;
       const file = files?.[0];
@@ -551,6 +734,8 @@ export class FuzzyView {
           delete term.type;
           if (nextMf === "gaussian") {
             term.params = [mid, Math.max(0.5, (hi - lo) * 0.15)];
+          } else if (nextMf === "bell") {
+            term.params = [Math.max(0.5, (hi - lo) * 0.2), 2, mid];
           } else if (nextMf === "trapezoidal") {
             const q = (hi - lo) * 0.2;
             term.params = [mid - 1.5 * q, mid - 0.5 * q, mid + 0.5 * q, mid + 1.5 * q];
@@ -584,6 +769,10 @@ export class FuzzyView {
         }
         if (mfKind === "gaussian" && paramIdx === 1 && val <= 0) {
           this.mfParamError = `Parâmetro σ da gaussiana '${term.name}' deve ser > 0.`;
+          return;
+        }
+        if (mfKind === "bell" && (paramIdx === 0 || paramIdx === 1) && val <= 0) {
+          this.mfParamError = `Parâmetros 'a' e 'b' da função bell '${term.name}' devem ser > 0.`;
           return;
         }
         this.mfParamError = null;
@@ -981,6 +1170,110 @@ export class FuzzyView {
     }
   }
 
+  public async trainAnfis(): Promise<void> {
+    try {
+      const { X, y } = parseAnfisDataset(this.anfisDatasetEl?.value ?? "");
+      const nMfs = Math.round(Number(this.anfisNmfsEl?.value ?? 2));
+      if (!Number.isInteger(nMfs) || nMfs < 2 || nMfs > 10) {
+        throw new ControlLabBridgeError("VALIDATION_ERROR", "Número de MFs por entrada deve ser entre 2 e 10.");
+      }
+      const mfType = this.anfisMftypeEl?.value === "bell" ? "bell" : "gaussian";
+      const maxEpochs = Math.round(Number(this.anfisEpochsEl?.value ?? 25));
+      if (!Number.isInteger(maxEpochs) || maxEpochs < 1) {
+        throw new ControlLabBridgeError("VALIDATION_ERROR", "Número de épocas deve ser inteiro >= 1.");
+      }
+      const learningRate = Number(this.anfisLrEl?.value ?? 0.02);
+      if (!Number.isFinite(learningRate) || learningRate <= 0) {
+        throw new ControlLabBridgeError("VALIDATION_ERROR", "Taxa de aprendizado deve ser > 0.");
+      }
+
+      const nIn = X[0]?.length ?? 2;
+      const inputNames = Array.from({ length: nIn }, (_, idx) => `x${idx + 1}`);
+      const resp = await this.executeRpc("fuzzy.fit_anfis", {
+        X,
+        y,
+        n_mfs: nMfs,
+        mf_type: mfType,
+        max_epochs: maxEpochs,
+        learning_rate: learningRate,
+        input_names: inputNames,
+        output_name: "y",
+      });
+      if (resp.status === "failure" || !resp.result) {
+        throw new ControlLabBridgeError(
+          resp.error?.code ?? "INTERNAL_ERROR",
+          resp.error?.message ?? "Falha ao treinar modelo ANFIS.",
+        );
+      }
+
+      const res = resp.result as Record<string, unknown>;
+      const metrics = isPlainObject(res.metrics) ? (res.metrics as Record<string, unknown>) : {};
+      const history = isPlainObject(res.training_history)
+        ? (res.training_history as Record<string, unknown>)
+        : {};
+
+      const trainHistory = Array.isArray(history.train_rmse)
+        ? history.train_rmse.map((v) => Number(v)).filter((v) => Number.isFinite(v))
+        : [];
+      const valHistory = Array.isArray(history.val_rmse)
+        ? history.val_rmse.map((v) => Number(v)).filter((v) => Number.isFinite(v))
+        : [];
+
+      const trainRmse = Number(metrics.train_rmse ?? res.train_rmse ?? trainHistory[trainHistory.length - 1] ?? 0);
+      const valRmse = Number(metrics.val_rmse ?? res.val_rmse ?? valHistory[valHistory.length - 1] ?? 0);
+      const bestEpoch = Number(history.best_epoch ?? res.best_epoch ?? 1);
+      const epochsExecuted = Number(
+        history.epochs_executed ?? Math.max(trainHistory.length, valHistory.length, 1),
+      );
+
+      this.anfisSummary = {
+        trainRmse,
+        valRmse,
+        bestEpoch,
+        epochsExecuted,
+        trainHistory,
+        valHistory,
+      };
+
+      const trainedSys = isPlainObject(res.fuzzy_system)
+        ? res.fuzzy_system
+        : isPlainObject(res.fuzzy_system_ref)
+          ? res.fuzzy_system_ref
+          : null;
+
+      if (trainedSys && Array.isArray(trainedSys.input_variables)) {
+        this.draft = structuredClone(trainedSys) as unknown as CanonicalFuzzySystemDraft;
+        this.selectedVarName = this.draft.input_variables[0]?.name ?? "x1";
+        this.surfaceModel = null;
+        this.mfParamError = null;
+        const in0 = this.draft.input_variables[0];
+        const in1 = this.draft.input_variables[1];
+        if (this.pointX0El && in0) {
+          this.pointX0El.value = String(Number((0.5 * (in0.universe[0] + in0.universe[1])).toFixed(3)));
+        }
+        if (this.pointX1El && in1) {
+          this.pointX1El.value = String(Number((0.5 * (in1.universe[0] + in1.universe[1])).toFixed(3)));
+        }
+        await this.shell.getTypedWorkspace().registerTypedObject(this.draft, {
+          selectRole: "fuzzySystem",
+          source: "manual",
+        });
+      }
+
+      this.shell
+        .getAnnouncer()
+        .announce(
+          `ANFIS treinado (best_epoch=${bestEpoch}, val_rmse=${valRmse.toFixed(4)}). Sistema carregado na bancada.`,
+          "polite",
+          "status",
+        );
+      this.render();
+      this.onRequestRender?.();
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
   private renderMfSvgOnly(): void {
     if (!this.mfSvgEl) return;
     const selectedVar = this.findSelectedVariable();
@@ -1115,16 +1408,19 @@ export class FuzzyView {
                 `<option value="triangular"${curType === "triangular" ? " selected" : ""}>Triangular (a,b,c)</option>`,
                 `<option value="trapezoidal"${curType === "trapezoidal" ? " selected" : ""}>Trapezoidal (a,b,c,d)</option>`,
                 `<option value="gaussian"${curType === "gaussian" ? " selected" : ""}>Gaussiana (c,σ)</option>`,
+                `<option value="bell"${curType === "bell" ? " selected" : ""}>Sino Bell (a,b,c)</option>`,
               ].join("");
 
           const paramNames =
             curType === "gaussian"
               ? ["c", "σ"]
-              : curType === "constant"
-                ? ["c₀"]
-                : curType === "linear"
-                  ? ["p₁", "p₂", "p₀"]
-                  : ["a", "b", "c", "d"];
+              : curType === "bell"
+                ? ["a", "b", "c"]
+                : curType === "constant"
+                  ? ["c₀"]
+                  : curType === "linear"
+                    ? ["p₁", "p₂", "p₀"]
+                    : ["a", "b", "c", "d"];
 
           const paramInputs = term.params
             .map((pVal, pIdx) => {
@@ -1241,6 +1537,80 @@ export class FuzzyView {
     }
   }
 
+  private renderAnfisSection(): void {
+    if (!this.anfisMetricsEl || !this.anfisRmseChartEl) return;
+    if (!this.anfisSummary) {
+      return;
+    }
+    const decimals = this.shell.getDisplayDecimals();
+    const { trainRmse, valRmse, bestEpoch, epochsExecuted, trainHistory, valHistory } =
+      this.anfisSummary;
+
+    this.anfisMetricsEl.innerHTML = [
+      `<div class="fuzzy-anfis-kpi-row">`,
+      `<span class="badge badge-stable">train_rmse: <strong>${escapeHtml(formatNumericDisplay(trainRmse, decimals))}</strong></span>`,
+      `<span class="badge badge-stable">val_rmse: <strong>${escapeHtml(formatNumericDisplay(valRmse, decimals))}</strong></span>`,
+      `<span class="badge">best_epoch: <strong>${bestEpoch}</strong> / ${epochsExecuted}</span>`,
+      `</div>`,
+    ].join("");
+
+    const allVals = [...trainHistory, ...valHistory].filter((v) => Number.isFinite(v));
+    if (allVals.length === 0) {
+      this.anfisRmseChartEl.innerHTML = `<p>Histórico RMSE indisponível.</p>`;
+      return;
+    }
+
+    const theme = getThemeTokens(this.shell.getThemeMode());
+    const widthPx = 560;
+    const heightPx = 210;
+    const padLeft = 54;
+    const padRight = 20;
+    const padTop = 30;
+    const padBottom = 36;
+    const plotW = widthPx - padLeft - padRight;
+    const plotH = heightPx - padTop - padBottom;
+
+    const nPts = Math.max(trainHistory.length, valHistory.length, 1);
+    const minY = Math.min(...allVals);
+    const maxY = Math.max(...allVals);
+    const spanY = Math.max(1e-9, maxY - minY);
+    const toPxX = (epochIdx: number) =>
+      nPts === 1 ? padLeft + plotW / 2 : padLeft + (epochIdx / (nPts - 1)) * plotW;
+    const toPxY = (val: number) => padTop + (1 - (val - minY) / spanY) * plotH;
+
+    const trainPts = trainHistory
+      .map((v, i) => `${toPxX(i).toFixed(1)},${toPxY(v).toFixed(1)}`)
+      .join(" ");
+    const valPts = valHistory
+      .map((v, i) => `${toPxX(i).toFixed(1)},${toPxY(v).toFixed(1)}`)
+      .join(" ");
+
+    const bestIdx = Math.max(0, Math.min(nPts - 1, bestEpoch - 1));
+    const bestX = toPxX(bestIdx).toFixed(1);
+
+    this.anfisRmseChartEl.innerHTML = [
+      `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Curva de convergência RMSE ANFIS" class="scientific-chart-svg fuzzy-anfis-rmse-svg" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}">`,
+      `<rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${theme.surface}" />`,
+      `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="${theme.surfaceAlt}" stroke="${theme.border}" stroke-width="1" />`,
+      `<line x1="${bestX}" y1="${padTop}" x2="${bestX}" y2="${padTop + plotH}" stroke="${theme.accent}" stroke-width="1.4" stroke-dasharray="3 3" />`,
+      trainPts
+        ? `<polyline fill="none" stroke="${theme.chartClosedLoop}" stroke-width="2.2" points="${trainPts}" data-series="train_rmse" />`
+        : "",
+      valPts
+        ? `<polyline fill="none" stroke="${theme.chartOpenLoop}" stroke-width="2.2" stroke-dasharray="6 3" points="${valPts}" data-series="val_rmse" />`
+        : "",
+      `<text x="${padLeft + 8}" y="18" font-size="10" font-weight="bold" fill="${theme.chartClosedLoop}">— Treino RMSE</text>`,
+      `<text x="${padLeft + 115}" y="18" font-size="10" font-weight="bold" fill="${theme.chartOpenLoop}">-- Validação RMSE</text>`,
+      `<text x="${padLeft + 245}" y="18" font-size="10" fill="${theme.accent}">| Melhor época (${bestEpoch})</text>`,
+      `<text x="${padLeft - 6}" y="${padTop + 10}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(maxY, decimals))}</text>`,
+      `<text x="${padLeft - 6}" y="${padTop + plotH}" text-anchor="end" font-size="10" fill="${theme.textSecondary}">${escapeHtml(formatNumericDisplay(minY, decimals))}</text>`,
+      `<text x="${padLeft}" y="${padTop + plotH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">1</text>`,
+      `<text x="${padLeft + plotW}" y="${padTop + plotH + 16}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">${nPts}</text>`,
+      `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 6}" text-anchor="middle" font-size="10" fill="${theme.textSecondary}">Época</text>`,
+      `</svg>`,
+    ].join("");
+  }
+
   public render(): void {
     const isFuzzy = this.shell.getActiveTab() === "fuzzy_ts";
     setElHidden(this.panelEl, !isFuzzy);
@@ -1252,5 +1622,6 @@ export class FuzzyView {
     this.renderMfSection();
     this.renderRulesSection();
     this.renderSurfaceSection();
+    this.renderAnfisSection();
   }
 }

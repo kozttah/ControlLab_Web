@@ -1505,6 +1505,54 @@ textarea {
   text-align: center;
 }
 
+#fuzzy-anfis-card,
+.fuzzy-anfis-card {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.fuzzy-anfis-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fuzzy-anfis-dataset {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.fuzzy-anfis-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fuzzy-anfis-kpi-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.fuzzy-anfis-rmse-chart,
+.fuzzy-anfis-rmse-svg {
+  max-width: 100%;
+  height: auto;
+}
+
 /* Aba 6: Bancada LMI / SDP (Editor estilo Monaco + Leitura Matemática + Certificado 5D) */
 .lmi-toolbar-row {
   margin-bottom: 0.45rem;

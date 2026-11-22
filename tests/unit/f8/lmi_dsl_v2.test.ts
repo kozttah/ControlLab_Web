@@ -559,7 +559,7 @@ test("WP-LMI-V2-02: Zona 2 Caracterização do Sistema (LTI generalizada, Polit�
   app.destroy();
 });
 
-test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelope n<=16 / n<=12 H∞", async () => {
+test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelope n<=28 / n<=20 H∞", async () => {
   class ProgressStubClient extends StubLmiClient {
     public readonly progressListeners = new Set<SolverProgressListener>();
     public emitLiveDuringSolve = true;
@@ -704,7 +704,7 @@ test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelo
   assert.equal(rowsAfterLog.length, 56, "75 iterações devem compactar em 15 iniciais + 1 resumo + 40 finais");
   assert.ok(root.querySelector("#lmi-solver-progress-tbody")!.textContent.includes("20 iterações intermediárias omitidas"));
 
-  // 3. Updated browser envelope checks: n=16 allowed for general feasibility, n=17 exceeds, n=13 exceeds for Hinf
+  // 3. Updated browser envelope checks: n=24 allowed for general feasibility, n=30 exceeds, n=22 exceeds for Hinf
   const makePlant = (n: number) => {
     const aData = Array.from({ length: n * n }, (_, k) => (Math.floor(k / n) === k % n ? -1 : 0));
     const bData = Array.from({ length: n }, (_, i) => (i === n - 1 ? 1 : 0));
@@ -723,26 +723,26 @@ test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelo
 
   const editorEl = root.querySelector<FakeElement>("#lmi-code-editor")!;
 
-  // General stabilization with n=16 (n_vars = 136 <= 256) -> hidden
-  app.shell.getLqrWorkspace().updatePlant(makePlant(16));
+  // General stabilization with n=24 (n_vars = 300 <= 448) -> hidden
+  app.shell.getLqrWorkspace().updatePlant(makePlant(24));
   editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
   editorEl.dispatchEvent("input");
-  const banner16 = root.querySelector<FakeElement>("#lmi-envelope-banner")!;
-  assert.equal(banner16.hasAttribute("hidden"), true, "n=16 em factibilidade geral deve ficar dentro do envelope");
+  const banner = root.querySelector<FakeElement>("#lmi-envelope-banner")!;
+  assert.equal(banner.hasAttribute("hidden"), true, "n=24 em factibilidade geral deve ficar dentro do envelope");
 
-  // General stabilization with n=17 -> visible
-  app.shell.getLqrWorkspace().updatePlant(makePlant(17));
+  // General stabilization with n=30 (> 28, n_vars = 465 > 448) -> visible
+  app.shell.getLqrWorkspace().updatePlant(makePlant(30));
   editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
   editorEl.dispatchEvent("input");
-  assert.equal(banner16.hasAttribute("hidden"), false, "n=17 deve exibir aviso do envelope");
-  assert.ok(banner16.textContent.includes("max_variables=256"));
+  assert.equal(banner.hasAttribute("hidden"), false, "n=30 deve exibir aviso do envelope");
+  assert.ok(banner.textContent.includes("max_variables=448"));
 
-  // Hinf norm minimization with n=13 (> 12) -> visible
-  app.shell.getLqrWorkspace().updatePlant(makePlant(13));
+  // Hinf norm minimization with n=22 (> 20) -> visible
+  app.shell.getLqrWorkspace().updatePlant(makePlant(22));
   const hinfTpl = LMI_DSL_TEMPLATES.find((t) => t.id === "hinf_brl")!;
   editorEl.value = hinfTpl.dsl;
   editorEl.dispatchEvent("input");
-  assert.equal(banner16.hasAttribute("hidden"), false, "n=13 em H∞ (> 12) deve exibir aviso do envelope");
+  assert.equal(banner.hasAttribute("hidden"), false, "n=22 em H∞ (> 20) deve exibir aviso do envelope");
 
   app.destroy();
 });

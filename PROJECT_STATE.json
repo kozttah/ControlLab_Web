@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 8
+      "2026-11-22": 9
     }
   },
   "audit_reference": {
@@ -5707,6 +5707,79 @@
       "acceptance_requirements": [
         "test_g0b_native_runtime_and_offline_scripts usa BROWSER_ENVELOPE[\"max_variables\"] + 1 e passa em Chromium Wasm",
         "Documentacao das 3 referencias em ADR-010 e auditoria F9 da paridade com Clarabel"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE5-03-F6F8-UPDATE-BROWSER-ENVELOPE",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase5-Scalable-Native-SDP",
+      "title": "F6/F8: Atualizar BROWSER_ENVELOPE (max_variables=448, n<=28 em <10s Wasm) apos re-teste de stress do solver escalavel",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/",
+        "web/features/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE5-02-F9-SDP-SCALABILITY-AND-CI-FIX"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f6_f8_browser_envelope_448_n28_general_n20_hinf_and_unit_tests",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE5-03-F6F8-UPDATE-BROWSER-ENVELOPE.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE5-03-F6F8-UPDATE-BROWSER-ENVELOPE.md"
+      ],
+      "origin_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "acceptance_requirements": [
+        "BROWSER_ENVELOPE atualizado para max_variables=448 (validado em Chromium Pyodide Wasm ate n=28, 434 variaveis, 9.72s, validated_dual) em native.py e lmi_view.ts",
+        "Testes unitarios F6 e F8 atualizados para o novo limite sem regressoes"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE5-04-F9-ENVELOPE-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase5-Scalable-Native-SDP",
+      "title": "F9: Auditoria independente do novo BROWSER_ENVELOPE=448 em Wasm real, ADR-010 e governanca",
+      "allowed_paths": [
+        "docs/architecture/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE5-03-F6F8-UPDATE-BROWSER-ENVELOPE"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_envelope_448_wasm_real_runtime_adr010_benchmark_and_governance",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE5-04-F9-ENVELOPE-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE5-04-F9-ENVELOPE-AUDIT.md"
+      ],
+      "origin_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "acceptance_requirements": [
+        "ADR-010 atualizado com tabela do stress test em Chromium Pyodide Wasm real e limite max_variables=448",
+        "tests/wasm/test_real_runtime.py e tests/unit/f6/ 100% aprovados apos rebuild do wheel"
       ]
     }
   ],

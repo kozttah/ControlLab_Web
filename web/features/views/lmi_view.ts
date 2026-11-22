@@ -158,7 +158,7 @@ interface LmiSolveSnapshot {
 }
 
 export const BROWSER_ENVELOPE = {
-  max_variables: 256,
+  max_variables: 448,
   max_block_dimension: 64,
   max_cone_entries: 32768,
 } as const;
@@ -2197,14 +2197,14 @@ export class LmiView {
       const tpl = this.parsed.inferredTemplate;
       const isHinf = tpl === "hinf_brl" || tpl === "hinf_generalized_brl";
       const nVars = this.estimateDslVariables(dims);
-      const maxNForMode = isHinf ? 12 : 16;
+      const maxNForMode = isHinf ? 20 : 28;
       const exceedsEnvelope =
         dims.n > maxNForMode ||
         nVars > BROWSER_ENVELOPE.max_variables ||
         this.parsed.expandedBlockCount > 32;
       if (exceedsEnvelope) {
         setElHidden(this.envelopeBannerEl, false);
-        this.envelopeBannerEl.innerHTML = `<strong>Limite do motor navegador (ADR-010):</strong> Planta com n=${dims.n} estados, ~${nVars} variáveis (envelope validado: n ≤ 16 geral, n ≤ 12 H∞, max_variables=${BROWSER_ENVELOPE.max_variables}, max_block_dimension=${BROWSER_ENVELOPE.max_block_dimension}, max_cone_entries=${BROWSER_ENVELOPE.max_cone_entries}) e ${this.parsed.expandedBlockCount} bloco(s) LMI. Recomenda-se usar <strong>Exportar CVXPY / YALMIP</strong> para execução offline com MOSEK/SCS.`;
+        this.envelopeBannerEl.innerHTML = `<strong>Limite do motor navegador (ADR-010):</strong> Planta com n=${dims.n} estados, ~${nVars} variáveis (envelope validado: n ≤ 28 geral, n ≤ 20 H∞, max_variables=${BROWSER_ENVELOPE.max_variables}, max_block_dimension=${BROWSER_ENVELOPE.max_block_dimension}, max_cone_entries=${BROWSER_ENVELOPE.max_cone_entries}) e ${this.parsed.expandedBlockCount} bloco(s) LMI. Recomenda-se usar <strong>Exportar CVXPY / YALMIP</strong> para execução offline com MOSEK/SCS.`;
       } else {
         setElHidden(this.envelopeBannerEl, true);
         this.envelopeBannerEl.innerHTML = "";

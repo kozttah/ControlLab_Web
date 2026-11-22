@@ -127,18 +127,19 @@ def test_native_options_validation(options):
     assert result.status == 'failure' and result.error.code == 'VALIDATION_ERROR'
 
 
-def test_browser_envelope_256_and_n16_stabilization():
+def test_browser_envelope_448_and_n24_stabilization():
     assert BROWSER_ENVELOPE == {
-        'max_variables': 256,
+        'max_variables': 448,
         'max_block_dimension': 64,
         'max_cone_entries': 32768,
     }
-    n = 16
+    n = 24
     A = np.diag([-1.0 - 0.1 * i for i in range(n - 1)] + [0.5])
     B = np.zeros((n, 1))
     B[-1, 0] = 1.0
     problem = continuous_stabilization_lmi(A, B, alpha=0.2)
-    assert 128 < problem.n_vars <= BROWSER_ENVELOPE['max_variables']
+    assert problem.n_vars == 324
+    assert 256 < problem.n_vars <= BROWSER_ENVELOPE['max_variables']
     result = solve(problem, backend='native_primal_dual')
     assert result.status != 'failure', result.error
     assert result.data['certificate_status'] == 'validated_dual'

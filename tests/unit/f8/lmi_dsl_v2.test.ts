@@ -1137,3 +1137,142 @@ test("WP-ROADMAP-TS-UNMEASURED-OBS: Observador TS com premissas não medidas (DS
   app.destroy();
 });
 
+test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funções de Pertinência TS", async () => {
+  const capturedProblems: Array<{ blocks: Array<{ name: string; F0: { data: number[] }; F_k: Array<{ data: number[] }> }> }> = [];
+  class CaptureClient extends StubLmiClient {
+    public override async execute(req: RpcRequest): Promise<RpcResponse> {
+      if (req.operation === "optimization.solve" && req.payload.problem) {
+        capturedProblems.push(req.payload.problem as { blocks: Array<{ name: string; F0: { data: number[] }; F_k: Array<{ data: number[] }> }> });
+      }
+      return super.execute(req);
+    }
+  }
+
+  const client = new CaptureClient();
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client,
+    project_id: "proj-lmi-editable-vertices",
+  });
+  await app.client.init();
+  app.shell.switchTab("optimization_lmi");
+
+  // 1. Polytopic mode: edit A[1] and B[1] (idx=0) and verify invalid syntax marking + resize preservation + compiled problem
+  const tplSelect = root.querySelector<FakeElement>("#lmi-template-select")!;
+  tplSelect.value = "polytopic_robust";
+  tplSelect.dispatchEvent("change");
+
+  const polyA1 = root.querySelector<FakeElement>('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="A"]')!;
+  const polyB1 = root.querySelector<FakeElement>('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="B"]')!;
+  assert.ok(polyA1 !== null && polyB1 !== null);
+
+  // Invalid syntax marks aria-invalid="true" and .lmi-input-invalid without overwriting value
+  polyA1.value = "[[0, 1], [-5";
+  polyA1.dispatchEvent("input");
+  assert.equal(polyA1.getAttribute("aria-invalid"), "true");
+  assert.ok(polyA1.className.includes("lmi-input-invalid"));
+  assert.equal(polyA1.value, "[[0, 1], [-5");
+
+  // Valid edit to A[1] and B[1]
+  polyA1.value = "[[0, 1], [-7.5, -3.25]]";
+  polyA1.dispatchEvent("input");
+  assert.equal(polyA1.getAttribute("aria-invalid"), null);
+  assert.equal(polyA1.className.includes("lmi-input-invalid"), false);
+
+  polyB1.value = "[[0], [2.5]]";
+  polyB1.dispatchEvent("change");
+
+  // Resize N_v from 2 -> 3 preserves edited vertex 0 and initializes vertex 2 from active plant
+  const nvInput = root.querySelector<FakeElement>("#lmi-poly-vertices-count")!;
+  nvInput.value = "3";
+  nvInput.dispatchEvent("change");
+  const polyA1AfterResize = root.querySelector<FakeElement>('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="A"]')!;
+  assert.equal(polyA1AfterResize.value, "[[0, 1], [-7.5, -3.25]]");
+  const polyA3 = root.querySelector<FakeElement>('input[data-vertex-kind="poly"][data-vertex-idx="2"][data-vertex-mat="A"]')!;
+  assert.ok(polyA3 !== null);
+
+  // Restore N_v=2 and solve to verify compiled CanonicalSDPProblem reflects edited A[1] & B[1]
+  nvInput.value = "2";
+  nvInput.dispatchEvent("change");
+  root.querySelector('[data-action="lmi-solve"]')!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.equal(capturedProblems.length, 1);
+  // In He(A[1]*Q + B[1]*Y) < 0, F_k for Y[0] (var_id=3, row=0 of Y -> [1, 0]) has -B[1] = [[0], [-2.5]]
+  const polyBlock = capturedProblems[0].blocks[1];
+  assert.ok(
+    polyBlock.F_k.some((fk) => fk.data.some((val) => Math.abs(val - (-2.5)) < 1e-9 || Math.abs(val - 2.5) < 1e-9)),
+    "Esperado B[1]=[0; 2.5] refletido em F_k do CanonicalSDPProblem politópico",
+  );
+  // And F_k for Q00 (var_id=0, Q=[[1,0],[0,0]]) has -He(A[1]*E_00) -> off-diagonal -(-7.5) = 7.5
+  assert.ok(
+    polyBlock.F_k[0].data.some((val) => Math.abs(val - 7.5) < 1e-9),
+    "Esperado A[1][1][0]=-7.5 refletido em F_k[0] do CanonicalSDPProblem politópico",
+  );
+
+  // 2. Takagi-Sugeno mode: edit A[1]/B[1] in #lmi-ts-vertex-editor and verify compiled problem
+  tplSelect.value = "ts_pdc_relaxed";
+  tplSelect.dispatchEvent("change");
+
+  const tsA1 = root.querySelector<FakeElement>('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')!;
+  const tsB1 = root.querySelector<FakeElement>('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="B"]')!;
+  assert.ok(tsA1 !== null && tsB1 !== null);
+  tsA1.value = "[[0, 1], [-9.25, -4]]";
+  tsA1.dispatchEvent("input");
+  tsB1.value = "[[0], [3.5]]";
+  tsB1.dispatchEvent("input");
+
+  root.querySelector('[data-action="lmi-solve"]')!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.equal(capturedProblems.length, 2);
+  const tsBlock = capturedProblems[1].blocks[1];
+  assert.ok(
+    tsBlock.F_k[0].data.some((val) => Math.abs(val - 9.25) < 1e-9),
+    "Esperado A[1][1][0]=-9.25 refletido no CanonicalSDPProblem TS",
+  );
+  assert.ok(
+    tsBlock.F_k.some((fk) => fk.data.some((val) => Math.abs(val - (-3.5)) < 1e-9 || Math.abs(val - 3.5) < 1e-9)),
+    "Esperado B[1]=[0; 3.5] refletido no CanonicalSDPProblem TS",
+  );
+
+  // 3. TS Membership Functions editor (#lmi-ts-mf-editor): add, edit premise/type/params, preserve measured state, remove
+  const toggle0 = root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!;
+  toggle0.dispatchEvent("click");
+  assert.equal(
+    root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!.textContent,
+    "Não Medida (Estimada)",
+  );
+
+  root.querySelector("#btn-lmi-add-ts-mf")!.dispatchEvent("click");
+  const mfPremise2 = root.querySelector<FakeElement>('input[data-mf-field="premise"][data-mf-idx="2"]')!;
+  const mfType2 = root.querySelector<FakeElement>('select[data-mf-field="type"][data-mf-idx="2"]')!;
+  const mfParams2 = root.querySelector<FakeElement>('input[data-mf-field="params"][data-mf-idx="2"]')!;
+  assert.ok(mfPremise2 !== null && mfType2 !== null && mfParams2 !== null);
+
+  mfPremise2.value = "theta_3";
+  mfPremise2.dispatchEvent("input");
+  mfType2.value = "gaussian";
+  mfType2.dispatchEvent("change");
+  mfParams2.value = "[0, 2.5]";
+  mfParams2.dispatchEvent("input");
+
+  const mfSummaryText = root.querySelector("#lmi-ts-mf-summary")!.textContent;
+  assert.ok(mfSummaryText.includes("h₃(theta_3): gaussian [0, 2.5]"), `Resumo inesperado: ${mfSummaryText}`);
+  const premisesText = root.querySelector("#lmi-ts-premises-list")!.textContent;
+  assert.ok(premisesText.includes("theta_3"));
+  // Premise 0 should still be unmeasured
+  assert.equal(
+    root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!.textContent,
+    "Não Medida (Estimada)",
+  );
+
+  // Remove the added MF row
+  root.querySelector<FakeElement>('[data-action="lmi-remove-ts-mf"][data-mf-idx="2"]')!.dispatchEvent("click");
+  assert.equal(root.querySelector('input[data-mf-field="premise"][data-mf-idx="2"]'), null);
+
+  app.destroy();
+});
+
+

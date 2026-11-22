@@ -88,10 +88,31 @@ interface LmiPremiseVarState {
   measured: boolean;
 }
 
-interface LmiPolytopeVertexPreview {
+export type LmiTsMfType =
+  | "triangular"
+  | "trapezoidal"
+  | "gaussian"
+  | "bell"
+  | "sigmoid";
+
+export interface LmiTsMembershipRow {
+  id: string;
+  premiseName: string;
+  mfType: LmiTsMfType;
+  paramsText: string;
+}
+
+export interface LmiPolytopeVertexPreview {
   index: number;
   label: string;
   aMatrix: number[][];
+  bMatrix: number[][];
+  cMatrix: number[][];
+  dMatrix: number[][];
+  aText?: string;
+  bText?: string;
+  cText?: string;
+  dText?: string;
 }
 
 interface LmiSystemCharacterizationState {
@@ -108,7 +129,9 @@ interface LmiSystemCharacterizationState {
   polyVertices: LmiPolytopeVertexPreview[];
   tsRulesCount: number;
   tsIndexName: string;
+  tsVertices: LmiPolytopeVertexPreview[];
   tsPremises: LmiPremiseVarState[];
+  tsMemberships: LmiTsMembershipRow[];
   tsMfSummary: string[];
   tsObsMethod: "dmvt_nonlinearity" | "gradient_factorization";
   tsObsDaText: string;
@@ -150,6 +173,40 @@ function setElHidden(el: Element | null | undefined, hidden: boolean): void {
   if (!el) return;
   if (hidden) el.setAttribute("hidden", "true");
   else el.removeAttribute("hidden");
+}
+
+function toggleCssClass(
+  el: Element | null | undefined,
+  className: string,
+  active: boolean,
+): void {
+  if (!el) return;
+  const raw = el.getAttribute("class") ?? "";
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  const idx = tokens.indexOf(className);
+  if (active && idx < 0) tokens.push(className);
+  else if (!active && idx >= 0) tokens.splice(idx, 1);
+  el.setAttribute("class", tokens.join(" "));
+}
+
+function isValidMatrix2D(mat: number[][] | null): mat is number[][] {
+  if (!mat || mat.length === 0 || mat[0].length === 0) return false;
+  const cols = mat[0].length;
+  return mat.every(
+    (row) => row.length === cols && row.every((val) => Number.isFinite(val)),
+  );
+}
+
+function cloneMatrix2D(mat: number[][]): number[][] {
+  return mat.map((row) => [...row]);
+}
+
+function formatSubscript(num: number): string {
+  const digits = ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"];
+  return String(num)
+    .split("")
+    .map((ch) => digits[Number(ch)] ?? ch)
+    .join("");
 }
 
 function makeFloat64Tensor(shape: number[], data: number[]): RealTensor {
@@ -415,8 +472,16 @@ export function renderLmiViewHtml(): string {
     `<label>Índice das regras na DSL <input type="text" id="lmi-ts-index-name" class="touch-control" value="i" /></label>`,
     `<button type="button" id="btn-lmi-import-fuzzy" class="touch-control btn-secondary btn-small" data-action="lmi-import-fuzzy">Importar Pertinências da Aba 5</button>`,
     `</div>`,
+    `<div id="lmi-ts-mf-editor" class="lmi-ts-mf-editor">`,
+    `<div class="lmi-ts-mf-header">`,
+    `<strong>Funções de Pertinência (TS)</strong>`,
+    `<button type="button" id="btn-lmi-add-ts-mf" class="touch-control btn-secondary btn-small" data-action="lmi-add-ts-mf">+ Adicionar Pertinência</button>`,
+    `</div>`,
+    `<div id="lmi-ts-mf-rows" class="lmi-ts-mf-rows"></div>`,
+    `</div>`,
     `<div id="lmi-ts-mf-summary" class="lmi-ts-mf-summary"></div>`,
     `<div id="lmi-ts-premises-list" class="lmi-ts-premises-list"></div>`,
+    `<div id="lmi-ts-vertex-editor" class="lmi-vertex-preview"></div>`,
     `<div id="lmi-ts-unmeasured-panel" class="subcard lmi-ts-unmeasured-panel" hidden>`,
     `<h5>Observador TS com Premissas Não Medidas (DMVT / Gradiente)</h5>`,
     `<div class="lmi-sys-fields">`,
@@ -536,8 +601,11 @@ export class LmiView {
   private readonly polyVertexPreviewEl: HTMLElement | null;
   private readonly tsRulesCountEl: HTMLInputElement | null;
   private readonly tsIndexNameEl: HTMLInputElement | null;
+  private readonly tsMfEditorEl: HTMLElement | null;
+  private readonly tsMfRowsEl: HTMLElement | null;
   private readonly tsMfSummaryEl: HTMLElement | null;
   private readonly tsPremisesListEl: HTMLElement | null;
+  private readonly tsVertexEditorEl: HTMLElement | null;
   private readonly tsUnmeasuredPanelEl: HTMLElement | null;
   private readonly tsObsMethodEl: HTMLSelectElement | null;
   private readonly tsObsDaEl: HTMLInputElement | null;
@@ -552,6 +620,7 @@ export class LmiView {
   private lastBuildPayload: Record<string, unknown> | null = null;
   private liveIterations: SolverProgress[] = [];
   private sysState: LmiSystemCharacterizationState;
+  private mfIdCounter = 2;
 
   constructor(options: LmiViewOptions) {
     this.shell = options.shell;
@@ -574,13 +643,28 @@ export class LmiView {
       polyVertices: [],
       tsRulesCount: 2,
       tsIndexName: "i",
+      tsVertices: [],
       tsPremises: [
         { name: "z1 (x1)", measured: true },
         { name: "z2 (x2)", measured: true },
       ],
+      tsMemberships: [
+        {
+          id: "mf-1",
+          premiseName: "z1 (x1)",
+          mfType: "sigmoid",
+          paramsText: "[-10, 0, 10]",
+        },
+        {
+          id: "mf-2",
+          premiseName: "z2 (x2)",
+          mfType: "triangular",
+          paramsText: "[-10, 0, 10]",
+        },
+      ],
       tsMfSummary: [
-        "h₁(z) = (1 - tanh(z₁))/2",
-        "h₂(z) = (1 + tanh(z₁))/2",
+        "h₁(z1 (x1)): sigmoid [-10, 0, 10]",
+        "h₂(z2 (x2)): triangular [-10, 0, 10]",
       ],
       tsObsMethod: "dmvt_nonlinearity",
       tsObsDaText: "[[[0, 0.2], [0, 0]], [[0, -0.2], [0, 0]]]",
@@ -630,8 +714,11 @@ export class LmiView {
     this.polyVertexPreviewEl = this.container.querySelector<HTMLElement>("#lmi-poly-vertex-preview");
     this.tsRulesCountEl = this.container.querySelector<HTMLInputElement>("#lmi-ts-rules-count");
     this.tsIndexNameEl = this.container.querySelector<HTMLInputElement>("#lmi-ts-index-name");
+    this.tsMfEditorEl = this.container.querySelector<HTMLElement>("#lmi-ts-mf-editor");
+    this.tsMfRowsEl = this.container.querySelector<HTMLElement>("#lmi-ts-mf-rows");
     this.tsMfSummaryEl = this.container.querySelector<HTMLElement>("#lmi-ts-mf-summary");
     this.tsPremisesListEl = this.container.querySelector<HTMLElement>("#lmi-ts-premises-list");
+    this.tsVertexEditorEl = this.container.querySelector<HTMLElement>("#lmi-ts-vertex-editor");
     this.tsUnmeasuredPanelEl = this.container.querySelector<HTMLElement>("#lmi-ts-unmeasured-panel");
     this.tsObsMethodEl = this.container.querySelector<HTMLSelectElement>("#lmi-ts-obs-method");
     this.tsObsDaEl = this.container.querySelector<HTMLInputElement>("#lmi-ts-obs-da");
@@ -639,7 +726,9 @@ export class LmiView {
     this.extraIndicesEl = this.container.querySelector<HTMLInputElement>("#lmi-extra-indices");
     this.sysIndicesSummaryEl = this.container.querySelector<HTMLElement>("#lmi-sys-indices-summary");
 
+    this.syncTsFromMemberships();
     this.generatePolytopeVertices();
+    this.resizeTsVertices();
     this.bindEvents();
   }
 
@@ -680,11 +769,12 @@ export class LmiView {
       if (spec.nCount) this.sysState.polyVerticesCount = spec.nCount;
       if (spec.indices[0]) this.sysState.polyIndexName = spec.indices[0];
       if (spec.indices.length > 1) this.sysState.extraIndices = spec.indices.slice(1).join(", ");
-      this.generatePolytopeVertices();
+      this.resizePolyVertices();
     } else if (spec.systemClass === "ts") {
       if (spec.nCount) this.sysState.tsRulesCount = spec.nCount;
       if (spec.indices[0]) this.sysState.tsIndexName = spec.indices[0];
       if (spec.indices.length > 1) this.sysState.extraIndices = spec.indices.slice(1).join(", ");
+      this.resizeTsVertices();
       if (spec.premises === "measured") {
         this.sysState.tsPremises = this.sysState.tsPremises.map((p) => ({ ...p, measured: true }));
       } else if (spec.premises === "unmeasured") {
@@ -701,59 +791,171 @@ export class LmiView {
     }
   }
 
+  private getActivePlantMatrices2D(): {
+    A: number[][];
+    B: number[][];
+    C: number[][];
+    D: number[][];
+  } {
+    const lqrPlant = this.shell.getLqrWorkspace().getPlant();
+    const effPlant = this.shell.getTypedWorkspace().getEffectiveSelection("statespacePlant");
+    const mats =
+      effPlant && isPlainObject(effPlant.object.value.matrices)
+        ? (effPlant.object.value.matrices as Record<string, RealTensor>)
+        : lqrPlant.matrices;
+    return {
+      A: tensorTo2DArray(mats.A ?? lqrPlant.matrices.A),
+      B: tensorTo2DArray(mats.B ?? lqrPlant.matrices.B),
+      C: tensorTo2DArray(mats.C ?? lqrPlant.matrices.C),
+      D: tensorTo2DArray(mats.D ?? lqrPlant.matrices.D),
+    };
+  }
+
+  private resizeVertexList(
+    existing: LmiPolytopeVertexPreview[],
+    count: number,
+    kind: "poly" | "ts",
+  ): LmiPolytopeVertexPreview[] {
+    const plantMats = this.getActivePlantMatrices2D();
+    const next: LmiPolytopeVertexPreview[] = [];
+    for (let idx = 0; idx < count; idx += 1) {
+      if (idx < existing.length) {
+        const cur = existing[idx];
+        next.push({
+          ...cur,
+          index: idx + 1,
+          label: cur.label || (kind === "poly" ? `Vértice ${idx + 1}` : `Regra ${idx + 1}`),
+        });
+      } else {
+        next.push({
+          index: idx + 1,
+          label: kind === "poly" ? `Vértice ${idx + 1}` : `Regra ${idx + 1}`,
+          aMatrix: cloneMatrix2D(plantMats.A),
+          bMatrix: cloneMatrix2D(plantMats.B),
+          cMatrix: cloneMatrix2D(plantMats.C),
+          dMatrix: cloneMatrix2D(plantMats.D),
+        });
+      }
+    }
+    return next;
+  }
+
+  private resizePolyVertices(): void {
+    const nv = Math.max(2, Math.min(8, this.sysState.polyVerticesCount));
+    this.sysState.polyVerticesCount = nv;
+    this.sysState.polyVertices = this.resizeVertexList(this.sysState.polyVertices, nv, "poly");
+  }
+
+  private resizeTsVertices(): void {
+    const nr = Math.max(2, Math.min(6, this.sysState.tsRulesCount));
+    this.sysState.tsRulesCount = nr;
+    this.sysState.tsVertices = this.resizeVertexList(this.sysState.tsVertices, nr, "ts");
+  }
+
   private generatePolytopeVertices(): void {
-    const plant = this.shell.getLqrWorkspace().getPlant();
-    const a2d = tensorTo2DArray(plant.matrices.A);
+    const plantMats = this.getActivePlantMatrices2D();
     const nv = Math.max(2, Math.min(8, this.sysState.polyVerticesCount));
     const delta = Math.max(1, Math.min(80, this.sysState.polyDeltaPct)) / 100;
     const vertices: LmiPolytopeVertexPreview[] = [];
     for (let idx = 0; idx < nv; idx += 1) {
       const frac = nv === 1 ? 0 : -1 + (2 * idx) / (nv - 1);
       const scale = 1 + frac * delta;
-      const aVert = a2d.map((row) => row.map((v) => Number((v * scale).toFixed(4))));
+      const aVert = plantMats.A.map((row) =>
+        row.map((v) => Number((v * scale).toFixed(4))),
+      );
       vertices.push({
         index: idx + 1,
         label: `Vértice ${idx + 1} (escala ${(scale * 100).toFixed(0)}%)`,
         aMatrix: aVert,
+        bMatrix: cloneMatrix2D(plantMats.B),
+        cMatrix: cloneMatrix2D(plantMats.C),
+        dMatrix: cloneMatrix2D(plantMats.D),
       });
     }
     this.sysState.polyVertices = vertices;
   }
 
+  private syncTsFromMemberships(): void {
+    this.sysState.tsMfSummary = this.sysState.tsMemberships.map(
+      (row, idx) =>
+        `h${formatSubscript(idx + 1)}(${row.premiseName.trim() || `z${idx + 1}`}): ${row.mfType} ${row.paramsText}`,
+    );
+
+    const prevByName = new Map(
+      this.sysState.tsPremises.map((p) => [p.name, p.measured]),
+    );
+    const seen = new Set<string>();
+    const nextPremises: LmiPremiseVarState[] = [];
+    this.sysState.tsMemberships.forEach((row, idx) => {
+      const name = row.premiseName.trim() || `z${idx + 1}`;
+      if (seen.has(name)) return;
+      seen.add(name);
+      const measured =
+        prevByName.get(name) ?? this.sysState.tsPremises[idx]?.measured ?? true;
+      nextPremises.push({ name, measured });
+    });
+    this.sysState.tsPremises = nextPremises;
+  }
+
   private importFuzzyMembershipsFromTab5(): void {
     const typed = this.shell.getTypedWorkspace();
     const fuzzyObjs = typed.listRegisteredObjects(["FuzzySystem"]);
+    const validMfTypes = new Set<LmiTsMfType>([
+      "triangular",
+      "trapezoidal",
+      "gaussian",
+      "bell",
+      "sigmoid",
+    ]);
     if (fuzzyObjs.length > 0) {
       const latest = fuzzyObjs[fuzzyObjs.length - 1];
       const inputs = Array.isArray(latest.value.input_variables)
-        ? (latest.value.input_variables as Array<{ name?: string; terms?: Array<{ name?: string }> }>)
+        ? (latest.value.input_variables as Array<{
+            name?: string;
+            terms?: Array<{ name?: string; mf_type?: string; params?: unknown }>;
+          }>)
         : [];
       if (inputs.length > 0) {
-        this.sysState.tsPremises = inputs.map((inp, idx) => ({
-          name: String(inp.name ?? `z${idx + 1}`),
-          measured: true,
-        }));
-        const mfLines: string[] = [];
-        for (const inp of inputs) {
-          const termNames = Array.isArray(inp.terms)
-            ? inp.terms.map((t) => String(t.name ?? "MF")).join(", ")
-            : "N, Z, P";
-          mfLines.push(`h(${String(inp.name ?? "z")}): [${termNames}]`);
+        const nextRows: LmiTsMembershipRow[] = [];
+        for (let idx = 0; idx < inputs.length; idx += 1) {
+          const inp = inputs[idx];
+          const firstTerm = Array.isArray(inp.terms) ? inp.terms[0] : undefined;
+          const rawType = String(firstTerm?.mf_type ?? "triangular");
+          const mfType: LmiTsMfType = validMfTypes.has(rawType as LmiTsMfType)
+            ? (rawType as LmiTsMfType)
+            : "triangular";
+          const paramsText = Array.isArray(firstTerm?.params)
+            ? JSON.stringify(firstTerm.params)
+            : "[-10, 0, 10]";
+          nextRows.push({
+            id: `mf-${++this.mfIdCounter}`,
+            premiseName: String(inp.name ?? `z${idx + 1}`),
+            mfType,
+            paramsText,
+          });
         }
-        this.sysState.tsMfSummary = mfLines;
+        this.sysState.tsMemberships = nextRows;
         const firstTermCount = Array.isArray(inputs[0].terms) ? inputs[0].terms.length : 2;
         this.sysState.tsRulesCount = Math.max(2, Math.min(6, firstTermCount));
+        this.resizeTsVertices();
       }
     } else {
-      this.sysState.tsPremises = [
-        { name: "erro (z1)", measured: true },
-        { name: "d_erro (z2)", measured: true },
-      ];
-      this.sysState.tsMfSummary = [
-        "h₁(erro): N [-10,-10,0], Z [-5,0,5], P [0,10,10]",
-        "h₂(d_erro): N [-10,-10,0], Z [-5,0,5], P [0,10,10]",
+      this.sysState.tsMemberships = [
+        {
+          id: `mf-${++this.mfIdCounter}`,
+          premiseName: "erro (z1)",
+          mfType: "triangular",
+          paramsText: "[-10, -10, 0]",
+        },
+        {
+          id: `mf-${++this.mfIdCounter}`,
+          premiseName: "d_erro (z2)",
+          mfType: "triangular",
+          paramsText: "[-5, 0, 5]",
+        },
       ];
     }
+    this.syncTsFromMemberships();
     this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
     this.renderCharacterizationCard();
     this.renderEditorAndMath();
@@ -821,7 +1023,8 @@ export class LmiView {
       const val = this.sysClassSelectEl?.value;
       if (val === "lti" || val === "polytopic" || val === "ts") {
         this.sysState.systemClass = val;
-        if (val === "polytopic") this.generatePolytopeVertices();
+        if (val === "polytopic") this.resizePolyVertices();
+        if (val === "ts") this.resizeTsVertices();
         this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
         this.renderCharacterizationCard();
         this.renderEditorAndMath();
@@ -846,7 +1049,7 @@ export class LmiView {
     this.genDzuEl?.addEventListener("change", onGenToggle);
     this.genDzwEl?.addEventListener("change", onGenToggle);
 
-    const onPolyChange = (): void => {
+    const onPolyConfigChange = (regenerate: boolean): void => {
       if (this.polyVerticesCountEl) {
         const n = Number(this.polyVerticesCountEl.value);
         if (Number.isFinite(n)) this.sysState.polyVerticesCount = Math.max(2, Math.min(8, Math.round(n)));
@@ -859,18 +1062,22 @@ export class LmiView {
         const d = Number(this.polyDeltaEl.value);
         if (Number.isFinite(d)) this.sysState.polyDeltaPct = Math.max(1, Math.min(80, d));
       }
-      this.generatePolytopeVertices();
+      if (regenerate) {
+        this.generatePolytopeVertices();
+      } else {
+        this.resizePolyVertices();
+      }
       this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
       this.renderCharacterizationCard();
       this.renderEditorAndMath();
     };
-    this.polyVerticesCountEl?.addEventListener("change", onPolyChange);
-    this.polyVerticesCountEl?.addEventListener("input", onPolyChange);
-    this.polyIndexNameEl?.addEventListener("input", onPolyChange);
-    this.polyDeltaEl?.addEventListener("change", onPolyChange);
+    this.polyVerticesCountEl?.addEventListener("change", () => onPolyConfigChange(false));
+    this.polyVerticesCountEl?.addEventListener("input", () => onPolyConfigChange(false));
+    this.polyIndexNameEl?.addEventListener("input", () => onPolyConfigChange(false));
+    this.polyDeltaEl?.addEventListener("change", () => onPolyConfigChange(true));
     this.container
       .querySelector<HTMLElement>('[data-action="lmi-gen-polytope"]')
-      ?.addEventListener("click", onPolyChange);
+      ?.addEventListener("click", () => onPolyConfigChange(true));
 
     const onTsChange = (): void => {
       if (this.tsRulesCountEl) {
@@ -881,6 +1088,7 @@ export class LmiView {
         const idx = this.tsIndexNameEl.value.trim();
         if (idx) this.sysState.tsIndexName = idx;
       }
+      this.resizeTsVertices();
       this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
       this.renderCharacterizationCard();
       this.renderEditorAndMath();
@@ -893,6 +1101,22 @@ export class LmiView {
       .querySelector<HTMLElement>('[data-action="lmi-import-fuzzy"]')
       ?.addEventListener("click", () => {
         this.importFuzzyMembershipsFromTab5();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="lmi-add-ts-mf"]')
+      ?.addEventListener("click", () => {
+        const nextNum = this.sysState.tsMemberships.length + 1;
+        this.sysState.tsMemberships.push({
+          id: `mf-${++this.mfIdCounter}`,
+          premiseName: `z${nextNum}`,
+          mfType: "triangular",
+          paramsText: "[-10, 0, 10]",
+        });
+        this.syncTsFromMemberships();
+        this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+        this.renderCharacterizationCard();
+        this.renderEditorAndMath();
       });
 
     const onTsObsChange = (): void => {
@@ -1089,45 +1313,11 @@ export class LmiView {
     };
   }
 
-  private async buildBackendPayload(): Promise<Record<string, unknown>> {
-    if (this.codeEditorEl && this.codeEditorEl.value !== this.currentDsl) {
-      this.currentDsl = this.codeEditorEl.value;
-      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
-    }
-    if (!this.parsed.valid) {
-      throw new ControlLabBridgeError(
-        "VALIDATION_ERROR",
-        this.parsed.errors[0]?.message ?? "Corrija os erros de sintaxe na DSL LMI antes de continuar.",
-      );
-    }
-    if (this.parsed.bilinearWarnings.length > 0) {
-      throw new ControlLabBridgeError(
-        "VALIDATION_ERROR",
-        `${this.parsed.bilinearWarnings[0].message} ${this.parsed.bilinearWarnings[0].suggestion}`,
-      );
-    }
-
-    const typed = this.shell.getTypedWorkspace();
+  public buildCompileContext(): LmiCompileContext {
     const tpl = this.parsed.inferredTemplate;
-
-    if (tpl === "canonical_sdp_json" && this.parsed.canonicalSdpOverride) {
-      return { problem: this.parsed.canonicalSdpOverride };
-    }
-
-    const lqrPlant = this.shell.getLqrWorkspace().getPlant();
-    const effPlant = typed.getEffectiveSelection("statespacePlant");
-    const mats =
-      effPlant && isPlainObject(effPlant.object.value.matrices)
-        ? (effPlant.object.value.matrices as Record<string, RealTensor>)
-        : lqrPlant.matrices;
-
-    const A2d = tensorTo2DArray(mats.A ?? lqrPlant.matrices.A);
-    const B2d = tensorTo2DArray(mats.B ?? lqrPlant.matrices.B);
-    const C2d = tensorTo2DArray(mats.C ?? lqrPlant.matrices.C);
-    const D2d = tensorTo2DArray(mats.D ?? lqrPlant.matrices.D);
+    const { A: A2d, B: B2d, C: C2d, D: D2d } = this.getActivePlantMatrices2D();
     const n = A2d.length;
     const m = B2d[0]?.length ?? 1;
-    const p = C2d.length;
 
     const bwParsed = parseCompactMatrixJson(this.sysState.genBwText);
     const czParsed = parseCompactMatrixJson(this.sysState.genCzText);
@@ -1163,33 +1353,33 @@ export class LmiView {
       if (sysClass === "polytopic") {
         if (this.sysState.polyVertices.length !== effN) {
           this.sysState.polyVerticesCount = effN;
-          this.generatePolytopeVertices();
+          this.resizePolyVertices();
         }
         vertices = this.sysState.polyVertices.slice(0, effN).map((v) => ({
           A: v.aMatrix,
-          B: B2d,
-          C: C2d,
-          D: D2d,
+          B: v.bMatrix,
+          C: v.cMatrix,
+          D: v.dMatrix,
           Bw: Bw2d,
           Cz: Cz2d,
           Dzu: Dzu2d,
           Dzw: Dzw2d,
         }));
       } else {
-        vertices = Array.from({ length: effN }, (_, idx) => {
-          const frac = effN === 1 ? 0 : -1 + (2 * idx) / (effN - 1);
-          const scale = 1 + frac * 0.15;
-          return {
-            A: A2d.map((row) => row.map((val) => Number((val * scale).toFixed(6)))),
-            B: B2d,
-            C: C2d,
-            D: D2d,
-            Bw: Bw2d,
-            Cz: Cz2d,
-            Dzu: Dzu2d,
-            Dzw: Dzw2d,
-          };
-        });
+        if (this.sysState.tsVertices.length !== effN) {
+          this.sysState.tsRulesCount = effN;
+          this.resizeTsVertices();
+        }
+        vertices = this.sysState.tsVertices.slice(0, effN).map((v) => ({
+          A: v.aMatrix,
+          B: v.bMatrix,
+          C: v.cMatrix,
+          D: v.dMatrix,
+          Bw: Bw2d,
+          Cz: Cz2d,
+          Dzu: Dzu2d,
+          Dzw: Dzw2d,
+        }));
       }
     }
 
@@ -1205,7 +1395,7 @@ export class LmiView {
           }))
         : undefined;
 
-    const compileCtx: LmiCompileContext = {
+    return {
       A: A2d,
       B: B2d,
       C: C2d,
@@ -1220,6 +1410,32 @@ export class LmiView {
       deltaVertices,
       name: `dsl_${tpl}`,
     };
+  }
+
+  private async buildBackendPayload(): Promise<Record<string, unknown>> {
+    if (this.codeEditorEl && this.codeEditorEl.value !== this.currentDsl) {
+      this.currentDsl = this.codeEditorEl.value;
+      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+    }
+    if (!this.parsed.valid) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        this.parsed.errors[0]?.message ?? "Corrija os erros de sintaxe na DSL LMI antes de continuar.",
+      );
+    }
+    if (this.parsed.bilinearWarnings.length > 0) {
+      throw new ControlLabBridgeError(
+        "VALIDATION_ERROR",
+        `${this.parsed.bilinearWarnings[0].message} ${this.parsed.bilinearWarnings[0].suggestion}`,
+      );
+    }
+
+    const tpl = this.parsed.inferredTemplate;
+    if (tpl === "canonical_sdp_json" && this.parsed.canonicalSdpOverride) {
+      return { problem: this.parsed.canonicalSdpOverride };
+    }
+
+    const compileCtx = this.buildCompileContext();
 
     try {
       const compiled = compileLmiDslToCanonicalSdp(this.parsed, compileCtx);
@@ -1557,51 +1773,14 @@ export class LmiView {
     if (this.polyVerticesCountEl) this.polyVerticesCountEl.value = String(this.sysState.polyVerticesCount);
     if (this.polyIndexNameEl) this.polyIndexNameEl.value = this.sysState.polyIndexName;
     if (this.polyDeltaEl) this.polyDeltaEl.value = String(this.sysState.polyDeltaPct);
-    if (this.polyVertexPreviewEl) {
-      const chips = this.sysState.polyVertices.map(
-        (v) =>
-          `<div class="lmi-vertex-chip"><strong>A<sub>${v.index}</sub></strong> (${escapeHtml(v.label)}): <code>${escapeHtml(JSON.stringify(v.aMatrix))}</code></div>`,
-      );
-      this.polyVertexPreviewEl.innerHTML = chips.join("");
-    }
+    this.renderVertexEditor(this.polyVertexPreviewEl, this.sysState.polyVertices, "poly");
 
     if (this.tsRulesCountEl) this.tsRulesCountEl.value = String(this.sysState.tsRulesCount);
     if (this.tsIndexNameEl) this.tsIndexNameEl.value = this.sysState.tsIndexName;
-    if (this.tsMfSummaryEl) {
-      this.tsMfSummaryEl.innerHTML = this.sysState.tsMfSummary
-        .map((line) => `<span class="badge">${escapeHtml(line)}</span>`)
-        .join(" ");
-    }
-    if (this.tsPremisesListEl) {
-      const anyUnmeasured = this.sysState.tsPremises.some((p) => !p.measured);
-      const rows = this.sysState.tsPremises.map((p, idx) => {
-        const cls = p.measured ? "badge-stable" : "badge-beta";
-        const label = p.measured ? "Medida" : "Não Medida (Estimada)";
-        return `<div class="lmi-premise-row"><span>Premissa <strong>${escapeHtml(p.name)}</strong></span><button type="button" class="touch-control btn-small btn-secondary ${cls}" data-action="lmi-toggle-premise" data-premise-idx="${idx}">${escapeHtml(label)}</button></div>`;
-      });
-      if (anyUnmeasured) {
-        rows.push(
-          `<div class="warning-callout" role="status"><strong>ts_partially_observed:</strong> Há premissas não medidas (ẑ). Utilize observador TS ou termos de acoplamento Lipschitz γ_L na DSL.</div>`,
-        );
-      }
-      this.tsPremisesListEl.innerHTML = rows.join("");
-      const toggleBtns = Array.from(this.tsPremisesListEl.querySelectorAll<HTMLElement>('[data-action="lmi-toggle-premise"]'));
-      for (const btn of toggleBtns) {
-        btn.addEventListener("click", () => {
-          const idx = Number(btn.getAttribute("data-premise-idx"));
-          if (!Number.isInteger(idx) || idx < 0 || idx >= this.sysState.tsPremises.length) return;
-          this.sysState.tsPremises[idx].measured = !this.sysState.tsPremises[idx].measured;
-          this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
-          this.renderCharacterizationCard();
-          this.renderEditorAndMath();
-        });
-      }
-      setElHidden(
-        this.tsUnmeasuredPanelEl,
-        !(this.sysState.systemClass === "ts" && anyUnmeasured),
-      );
-      if (this.tsObsMethodEl) this.tsObsMethodEl.value = this.sysState.tsObsMethod;
-    }
+    this.renderTsMfEditor();
+    this.renderTsMfSummaryAndPremises();
+    this.renderVertexEditor(this.tsVertexEditorEl, this.sysState.tsVertices, "ts");
+    if (this.tsObsMethodEl) this.tsObsMethodEl.value = this.sysState.tsObsMethod;
 
     if (this.extraIndicesEl && this.extraIndicesEl.value !== this.sysState.extraIndices) {
       this.extraIndicesEl.value = this.sysState.extraIndices;
@@ -1622,6 +1801,210 @@ export class LmiView {
       this.sysIndicesSummaryEl.innerHTML = all.length > 0
         ? `<strong>Índices na DSL:</strong> ${escapeHtml(all.join(", "))} ∈ {1..${N}}`
         : `<strong>Modo LTI:</strong> Sem índice obrigatório (adicione se necessário).`;
+    }
+  }
+
+  private renderVertexEditor(
+    targetEl: HTMLElement | null,
+    vertices: LmiPolytopeVertexPreview[],
+    kind: "poly" | "ts",
+  ): void {
+    if (!targetEl) return;
+    const prefix = kind === "poly" ? "Vértice" : "Regra";
+    const matKeys: Array<"A" | "B" | "C" | "D"> = ["A", "B", "C", "D"];
+
+    const cards = vertices.map((v, idx) => {
+      const matInputs = matKeys.map((matKey) => {
+        const rawText =
+          matKey === "A"
+            ? (v.aText ?? JSON.stringify(v.aMatrix))
+            : matKey === "B"
+              ? (v.bText ?? JSON.stringify(v.bMatrix))
+              : matKey === "C"
+                ? (v.cText ?? JSON.stringify(v.cMatrix))
+                : (v.dText ?? JSON.stringify(v.dMatrix));
+        const valid = isValidMatrix2D(parseCompactMatrixJson(rawText));
+        const invalidCls = valid ? "" : " lmi-input-invalid";
+        const invalidAttr = valid ? "" : ' aria-invalid="true"';
+        return [
+          `<label class="lmi-vertex-mat-field">`,
+          `<span>${matKey}[${v.index}]</span>`,
+          `<input type="text" class="touch-control lmi-vertex-input${invalidCls}" data-vertex-kind="${kind}" data-vertex-idx="${idx}" data-vertex-mat="${matKey}" value="${escapeHtml(rawText)}"${invalidAttr} aria-label="${prefix} ${v.index} matriz ${matKey}" />`,
+          `</label>`,
+        ].join("");
+      });
+      return [
+        `<div class="lmi-vertex-editor-card" data-vertex-kind="${kind}" data-vertex-idx="${idx}">`,
+        `<div class="lmi-vertex-card-head"><strong>${prefix} ${v.index}</strong> <span class="lmi-vertex-card-sub">${escapeHtml(v.label)}</span></div>`,
+        `<div class="lmi-vertex-mat-grid">${matInputs.join("")}</div>`,
+        `</div>`,
+      ].join("");
+    });
+
+    targetEl.innerHTML = cards.join("");
+
+    const inputs = Array.from(
+      targetEl.querySelectorAll<HTMLInputElement>(".lmi-vertex-input"),
+    );
+    for (const inp of inputs) {
+      const handleEdit = (): void => {
+        const idx = Number(inp.getAttribute("data-vertex-idx"));
+        const matKey = inp.getAttribute("data-vertex-mat") as "A" | "B" | "C" | "D" | null;
+        const list =
+          kind === "poly" ? this.sysState.polyVertices : this.sysState.tsVertices;
+        if (!Number.isInteger(idx) || idx < 0 || idx >= list.length || !matKey) {
+          return;
+        }
+        const v = list[idx];
+        const raw = inp.value;
+        if (matKey === "A") v.aText = raw;
+        else if (matKey === "B") v.bText = raw;
+        else if (matKey === "C") v.cText = raw;
+        else v.dText = raw;
+
+        const parsedMat = parseCompactMatrixJson(raw);
+        if (isValidMatrix2D(parsedMat)) {
+          if (matKey === "A") v.aMatrix = parsedMat;
+          else if (matKey === "B") v.bMatrix = parsedMat;
+          else if (matKey === "C") v.cMatrix = parsedMat;
+          else v.dMatrix = parsedMat;
+          inp.removeAttribute("aria-invalid");
+          toggleCssClass(inp, "lmi-input-invalid", false);
+        } else {
+          inp.setAttribute("aria-invalid", "true");
+          toggleCssClass(inp, "lmi-input-invalid", true);
+        }
+      };
+      inp.addEventListener("input", handleEdit);
+      inp.addEventListener("change", handleEdit);
+    }
+  }
+
+  private renderTsMfEditor(): void {
+    if (!this.tsMfRowsEl) return;
+    const mfOptions: Array<{ value: LmiTsMfType; label: string }> = [
+      { value: "triangular", label: "triangular" },
+      { value: "trapezoidal", label: "trapezoidal" },
+      { value: "gaussian", label: "gaussian" },
+      { value: "bell", label: "bell" },
+      { value: "sigmoid", label: "sigmoid" },
+    ];
+    const rowsHtml = this.sysState.tsMemberships.map((row, idx) => {
+      const opts = mfOptions
+        .map(
+          (opt) =>
+            `<option value="${opt.value}"${opt.value === row.mfType ? " selected" : ""}>${opt.label}</option>`,
+        )
+        .join("");
+      return [
+        `<div class="lmi-mf-row" data-mf-idx="${idx}">`,
+        `<label class="lmi-mf-field">Premissa <input type="text" class="touch-control lmi-mf-input" data-mf-field="premise" data-mf-idx="${idx}" value="${escapeHtml(row.premiseName)}" aria-label="Nome da premissa ${idx + 1}" /></label>`,
+        `<label class="lmi-mf-field">Tipo MF <select class="touch-control lmi-mf-select" data-mf-field="type" data-mf-idx="${idx}" aria-label="Tipo de pertinência ${idx + 1}">${opts}</select></label>`,
+        `<label class="lmi-mf-field">Parâmetros <input type="text" class="touch-control lmi-mf-input" data-mf-field="params" data-mf-idx="${idx}" value="${escapeHtml(row.paramsText)}" aria-label="Parâmetros da pertinência ${idx + 1}" /></label>`,
+        `<button type="button" class="touch-control btn-secondary btn-small lmi-mf-remove-btn" data-action="lmi-remove-ts-mf" data-mf-idx="${idx}" aria-label="Remover pertinência ${idx + 1}">Remover</button>`,
+        `</div>`,
+      ].join("");
+    });
+    this.tsMfRowsEl.innerHTML = rowsHtml.join("");
+
+    const selects = Array.from(
+      this.tsMfRowsEl.querySelectorAll<HTMLSelectElement>('select[data-mf-field="type"]'),
+    );
+    for (const sel of selects) {
+      const idx = Number(sel.getAttribute("data-mf-idx"));
+      if (Number.isInteger(idx) && idx >= 0 && idx < this.sysState.tsMemberships.length) {
+        sel.value = this.sysState.tsMemberships[idx].mfType;
+      }
+    }
+
+    const fields = Array.from(
+      this.tsMfRowsEl.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-mf-field]"),
+    );
+    for (const fieldEl of fields) {
+      const onFieldEdit = (): void => {
+        const idx = Number(fieldEl.getAttribute("data-mf-idx"));
+        const field = fieldEl.getAttribute("data-mf-field");
+        if (!Number.isInteger(idx) || idx < 0 || idx >= this.sysState.tsMemberships.length) {
+          return;
+        }
+        const row = this.sysState.tsMemberships[idx];
+        if (field === "premise") {
+          row.premiseName = fieldEl.value;
+        } else if (field === "type") {
+          const v = fieldEl.value as LmiTsMfType;
+          if (
+            v === "triangular" ||
+            v === "trapezoidal" ||
+            v === "gaussian" ||
+            v === "bell" ||
+            v === "sigmoid"
+          ) {
+            row.mfType = v;
+          }
+        } else if (field === "params") {
+          row.paramsText = fieldEl.value;
+        }
+        this.syncTsFromMemberships();
+        this.renderTsMfSummaryAndPremises();
+      };
+      fieldEl.addEventListener("input", onFieldEdit);
+      fieldEl.addEventListener("change", onFieldEdit);
+    }
+
+    const removeBtns = Array.from(
+      this.tsMfRowsEl.querySelectorAll<HTMLElement>('[data-action="lmi-remove-ts-mf"]'),
+    );
+    for (const btn of removeBtns) {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.getAttribute("data-mf-idx"));
+        if (!Number.isInteger(idx) || idx < 0 || idx >= this.sysState.tsMemberships.length) {
+          return;
+        }
+        this.sysState.tsMemberships.splice(idx, 1);
+        this.syncTsFromMemberships();
+        this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+        this.renderCharacterizationCard();
+        this.renderEditorAndMath();
+      });
+    }
+  }
+
+  private renderTsMfSummaryAndPremises(): void {
+    if (this.tsMfSummaryEl) {
+      this.tsMfSummaryEl.innerHTML = this.sysState.tsMfSummary
+        .map((line) => `<span class="badge">${escapeHtml(line)}</span>`)
+        .join(" ");
+    }
+    if (this.tsPremisesListEl) {
+      const anyUnmeasured = this.sysState.tsPremises.some((p) => !p.measured);
+      const rows = this.sysState.tsPremises.map((p, idx) => {
+        const cls = p.measured ? "badge-stable" : "badge-beta";
+        const label = p.measured ? "Medida" : "Não Medida (Estimada)";
+        return `<div class="lmi-premise-row"><span>Premissa <strong>${escapeHtml(p.name)}</strong></span><button type="button" class="touch-control btn-small btn-secondary ${cls}" data-action="lmi-toggle-premise" data-premise-idx="${idx}">${escapeHtml(label)}</button></div>`;
+      });
+      if (anyUnmeasured) {
+        rows.push(
+          `<div class="warning-callout" role="status"><strong>ts_partially_observed:</strong> Há premissas não medidas (ẑ). Utilize observador TS ou termos de acoplamento Lipschitz γ_L na DSL.</div>`,
+        );
+      }
+      this.tsPremisesListEl.innerHTML = rows.join("");
+      const toggleBtns = Array.from(
+        this.tsPremisesListEl.querySelectorAll<HTMLElement>('[data-action="lmi-toggle-premise"]'),
+      );
+      for (const btn of toggleBtns) {
+        btn.addEventListener("click", () => {
+          const idx = Number(btn.getAttribute("data-premise-idx"));
+          if (!Number.isInteger(idx) || idx < 0 || idx >= this.sysState.tsPremises.length) return;
+          this.sysState.tsPremises[idx].measured = !this.sysState.tsPremises[idx].measured;
+          this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+          this.renderCharacterizationCard();
+          this.renderEditorAndMath();
+        });
+      }
+      setElHidden(
+        this.tsUnmeasuredPanelEl,
+        !(this.sysState.systemClass === "ts" && anyUnmeasured),
+      );
     }
   }
 

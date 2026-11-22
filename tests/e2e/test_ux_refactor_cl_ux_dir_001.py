@@ -1379,7 +1379,83 @@ def test_ux_phase5_ts_unmeasured_observer_e2e(browser_harness):
     )
 
 
+def test_ux_phase4_editable_vertices_and_ts_mf(browser_harness):
+    """Test 11: Editable A,B,C,D vertices (Polytopic & TS), TS membership function editor, LMI solve, and 390x844 mobile containment."""
+    page = mount_ui(browser_harness, "e2e-ux-phase4-editable-vertices", {"width": 1280, "height": 800})
 
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
 
+    # 1. Polytopic mode: select polytopic_robust, edit A[1] and B[1] (idx=0), solve, verify validated_dual / feasible
+    page.select_option("#lmi-template-select", "polytopic_robust")
+    assert page.locator("#lmi-sys-class-select").input_value() == "polytopic"
+    page.locator("#lmi-sys-panel-polytopic").wait_for(state="visible")
 
+    poly_a1 = page.locator('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="A"]')
+    poly_b1 = page.locator('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="B"]')
+    poly_a1.wait_for(state="visible")
+    poly_b1.wait_for(state="visible")
 
+    poly_a1.fill("[[0, 1], [-3.0, -2.0]]")
+    poly_b1.fill("[[0], [1.5]]")
+
+    page.locator("#btn-lmi-solve").click()
+    page.wait_for_function(
+        """() => {
+            const cert = document.querySelector('#lmi-certificate-panel')?.textContent || '';
+            const gain = document.querySelector('#lmi-recovered-gain')?.textContent || '';
+            return (cert.includes('validated_dual') || cert.toLowerCase().includes('feasible'))
+                && gain.includes('Ganho recuperado K');
+        }""",
+        timeout=45000,
+    )
+    poly_cert = page.locator("#lmi-certificate-panel").inner_text()
+    poly_cert_cf = poly_cert.casefold()
+    assert ("validated_dual" in poly_cert_cf) or ("feasible" in poly_cert_cf), (
+        f"Expected validated_dual or feasible in polytopic certificate, got: {poly_cert!r}"
+    )
+
+    # 2. TS mode: switch to ts_pdc_relaxed, edit A[1] (idx=0), add TS membership row, verify #lmi-ts-mf-summary updates
+    page.select_option("#lmi-template-select", "ts_pdc_relaxed")
+    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
+    page.locator("#lmi-sys-panel-ts").wait_for(state="visible")
+
+    ts_a1 = page.locator('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')
+    ts_a1.wait_for(state="visible")
+    ts_a1.fill("[[0, 1], [-2.5, -1.5]]")
+
+    mf_summary_before = page.locator("#lmi-ts-mf-summary").inner_text()
+    page.locator("#btn-lmi-add-ts-mf").click()
+
+    mf_premise_2 = page.locator('input[data-mf-field="premise"][data-mf-idx="2"]')
+    mf_type_2 = page.locator('select[data-mf-field="type"][data-mf-idx="2"]')
+    mf_params_2 = page.locator('input[data-mf-field="params"][data-mf-idx="2"]')
+    mf_premise_2.wait_for(state="visible")
+    mf_premise_2.fill("theta_e2e")
+    mf_type_2.select_option("gaussian")
+    mf_params_2.fill("[0, 1.5]")
+
+    mf_summary_after = page.locator("#lmi-ts-mf-summary").inner_text()
+    assert mf_summary_after != mf_summary_before
+    assert "theta_e2e" in mf_summary_after
+    assert "gaussian" in mf_summary_after
+
+    # 3. Mobile 390x844 viewport: zero horizontal overflow with TS vertex & MF editors visible
+    page.set_viewport_size({"width": 390, "height": 844})
+    overflow_metrics = page.evaluate(
+        "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
+    )
+    assert overflow_metrics["scrollWidth"] <= 390, (
+        f"Horizontal overflow at 390x844 on Tab 6 TS editor: "
+        f"scrollWidth={overflow_metrics['scrollWidth']} > 390"
+    )
+
+    browser_harness.record(
+        "e2e-ux-phase4-editable-vertices",
+        {
+            "polytopic_cert_verified": True,
+            "ts_mf_summary_after": mf_summary_after,
+            "mobile_390x844_overflow": overflow_metrics,
+        },
+    )

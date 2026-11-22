@@ -1886,6 +1886,128 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.lmi-vertex-editor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-vertex-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.lmi-vertex-card-sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.lmi-vertex-mat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-vertex-mat-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-vertex-input,
+.lmi-mf-input,
+.lmi-mf-select {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.lmi-input-invalid {
+  border-color: var(--danger, #c62828) !important;
+  outline: 2px solid rgba(198, 40, 40, 0.25);
+}
+
+.lmi-ts-mf-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-ts-mf-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.lmi-ts-mf-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-mf-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.2fr) auto;
+  gap: 0.4rem;
+  align-items: end;
+  padding: 0.45rem 0.55rem;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-mf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-mf-remove-btn {
+  min-height: 44px;
+}
+
 .lmi-quantifier-badge {
   display: inline-block;
   padding: 0.12rem 0.42rem;
@@ -2036,5 +2158,12 @@ textarea {
 
   .app-workbench-shell {
     padding: 0.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .lmi-vertex-mat-grid,
+  .lmi-mf-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

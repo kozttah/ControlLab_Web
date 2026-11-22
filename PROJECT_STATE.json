@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 2
+      "2026-11-22": 3
     }
   },
   "audit_reference": {
@@ -5471,6 +5471,78 @@
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "test_sw_release_update.py passa de forma deterministica em Chromium e Firefox no CI sem flakiness de reload"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE4-03-F8-EDITABLE-VERTICES-AND-MF",
+      "front": "f8-ui-charts",
+      "phase": "Phase4-Direct-DSL-Compiler",
+      "title": "F8: Edicao direta de matrizes (A, B, C, D) por vertice politopico/TS e funcoes de pertinencia TS na Aba 6",
+      "allowed_paths": [
+        "web/features/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-ROADMAP-TS-UNMEASURED-OBS"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f8_editable_vertices_and_ts_mf_unit_and_build",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE4-03-F8-EDITABLE-VERTICES-AND-MF.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE4-03-F8-EDITABLE-VERTICES-AND-MF.md"
+      ],
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Usuario edita livremente matrizes A[i], B[i], C[i], D[i] de cada vertice tanto no modo Politopico quanto no modo Takagi-Sugeno",
+        "Usuario edita e adiciona funcoes de pertinencia TS (premissa, tipo, parametros) diretamente na Aba 6"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE4-04-F9-EDITABLE-VERTICES-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase4-Direct-DSL-Compiler",
+      "title": "F9: Auditoria independente e E2E Chromium da edicao de vertices A,B,C,D e pertinencias TS na Aba 6",
+      "allowed_paths": [
+        "tests/e2e/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE4-03-F8-EDITABLE-VERTICES-AND-MF"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_chromium_e2e_editable_vertices_and_mobile_390x844",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE4-04-F9-EDITABLE-VERTICES-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE4-04-F9-EDITABLE-VERTICES-AUDIT.md"
+      ],
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "E2E Chromium edita A[1]/B[1] em vertice e funcao de pertinencia TS na Aba 6, resolve LMI e valida responsividade 390x844 sem overflow"
       ]
     }
   ],

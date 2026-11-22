@@ -1782,6 +1782,13 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.lmi-sys-mode-panel {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .lmi-sys-checks,
 .lmi-sys-fields,
 .lmi-gen-matrices-panel {
@@ -1789,6 +1796,63 @@ textarea {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-sys-fields > label {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.lmi-ts-unmeasured-panel,
+#lmi-ts-unmeasured-panel {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.lmi-ts-unmeasured-panel h5 {
+  margin: 0 0 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+
+.lmi-ts-unmeasured-panel .lmi-sys-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-ts-unmeasured-panel .lmi-sys-fields > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+#lmi-ts-obs-method,
+#lmi-ts-obs-da,
+#lmi-ts-obs-dc,
+#btn-lmi-generate-ts-observer {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
 }
 
 .lmi-check-label {

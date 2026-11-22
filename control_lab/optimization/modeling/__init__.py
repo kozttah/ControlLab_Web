@@ -28,8 +28,10 @@ from .templates import (
     continuous_stabilization_lmi,
     lqr_lmi,
     hinf_brl_lmi,
+    recover_ts_observer_gains,
     regional_pole_placement_lmi,
     ts_pdc_stabilization_lmi,
+    ts_unmeasured_observer_lmi,
 )
 
 __all__ = [
@@ -50,6 +52,7 @@ __all__ = [
     "linear_eq",
     "linear_ineq",
     "psd",
+    "recover_ts_observer_gains",
     "regional_pole_placement_lmi",
     "sdpvar",
     "smat",
@@ -60,4 +63,5 @@ __all__ = [
     "symmetry_error_rel",
     "trace",
     "ts_pdc_stabilization_lmi",
+    "ts_unmeasured_observer_lmi",
 ]

@@ -33,6 +33,7 @@ from .modeling import (
     linear_eq,
     linear_ineq,
     psd,
+    recover_ts_observer_gains,
     regional_pole_placement_lmi,
     sdpvar,
     smat,
@@ -43,6 +44,7 @@ from .modeling import (
     symmetry_error_rel,
     trace,
     ts_pdc_stabilization_lmi,
+    ts_unmeasured_observer_lmi,
 )
 from .verification import (
     AUDIT_FEASIBILITY_LEVELS,
@@ -92,6 +94,7 @@ __all__ = [
     "pack_variables_to_x",
     "psd",
     "recover_controller",
+    "recover_ts_observer_gains",
     "regional_pole_placement_lmi",
     "run_gate_0b_assay",
     "sdpvar",
@@ -107,6 +110,7 @@ __all__ = [
     "symmetry_error_rel",
     "trace",
     "ts_pdc_stabilization_lmi",
+    "ts_unmeasured_observer_lmi",
     "verify",
 ]
 

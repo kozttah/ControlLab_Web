@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 1
+      "2026-11-22": 2
     }
   },
   "audit_reference": {
@@ -5352,11 +5352,37 @@
         "T-SDP-C1"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/ tests/unit/f6/ -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "Suporte a DMVT aplicado diretamente nas nao-linearidades f(x), h(x) e fatoracao algebrica exata do gradiente (10.1016/j.fss.2020.04.012, hal-03425007, hal-04307213, 10.1007/s40313-025-01189-y)"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "dmvt_gradient_factorization_ts_unmeasured_observer_and_dsl_v2_e2e",
+      "handoff_ref": "docs/audits/handoffs/WP-ROADMAP-TS-UNMEASURED-OBS.md",
+      "reviewed_source_sha256": {
+        "control_lab/fuzzy/__init__.py": "0213337fcfc4cae8d7093ba42c753949204364020958e314354eff137352e3ca",
+        "control_lab/fuzzy/ts_observer.py": "d8971e022ecc34541281e99d316efaae3f5d50b061b27697a6bde5209b1863b2",
+        "control_lab/optimization/__init__.py": "8ebd8c275eb4fb6e927c652d2f28cc099f524e93a83d8da99ffd4cd07e03325b",
+        "control_lab/optimization/modeling/__init__.py": "00e519943076e07c2fd3d2394687b530e3362f4d5cbd0e2f3cb5bfc425378977",
+        "control_lab/optimization/modeling/templates.py": "1556332f5092b1c4ce81a4e463934834facd0bc9f67d891e3cd972da7376c4a0",
+        "web/app/styles.css": "ddfa080c5c5dd6b0ffb53fb2c909b1e60a1b7a537b93903bdedf427e6bcbfeda",
+        "web/features/views/lmi_dsl_compiler.ts": "d8ead6921b9d83b3a40b429c5de0cfafff502be8a858bf048bfc3f0b6ebe96c7",
+        "web/features/views/lmi_dsl_parser.ts": "62740bc667307c6781989b974f5705a59faecb9865d67f843bc5128c94fb5109",
+        "web/features/views/lmi_view.ts": "d167cad7f1b2a3b4bb47a6f6f71b32a6944966b194c548969a437b9797451317",
+        "tests/unit/f5/test_ts_unmeasured_observer.py": "355d08bfba7e2a09a130781d9861899055a4dea2396cbce2aed081e570536799",
+        "tests/unit/f6/test_ts_unmeasured_observer_lmi.py": "3e1f1a6de15541ab1d1af3d71220f2a214d3420ee6cdab609876892350c56cdd",
+        "tests/unit/f8/lmi_dsl_v2.test.ts": "54f8f21eb61e81606c7bad71b14e63548a54a3938ffddf03e95ee1128a252c06",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "ed7a91e810aabf4572803871dde0ccd56dc2b2ca8ad30aaba4c37949fa9134fa"
+      },
+      "acceptance_evidence": [
+        "npm --prefix web run typecheck (PASS)",
+        "node scripts/run_web_tests.mjs --scope all (143/143 PASS)",
+        "npm --prefix web run build (PASS)",
+        "pytest tests/unit/f5/ tests/unit/f6/ tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v (138/138 PASS)",
+        "python3 scripts/verify_fixtures.py (PASS)",
+        "python3 scripts/project_governance.py (PASS)"
       ]
     },
     {

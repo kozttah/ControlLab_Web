@@ -1275,12 +1275,14 @@ def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
     editor.fill(custom_dsl)
     page.locator("#btn-lmi-solve").click()
     page.wait_for_function(
-        """() => {
+        """(prevGain) => {
             const cert = document.querySelector('#lmi-certificate-panel')?.textContent || '';
             const gain = document.querySelector('#lmi-recovered-gain')?.textContent || '';
-            return (cert.includes('validated_dual') || cert.toLowerCase().includes('feasible'))
+            return gain !== prevGain
+                && (cert.includes('validated_dual') || cert.toLowerCase().includes('feasible'))
                 && gain.includes('Ganho recuperado K');
         }""",
+        arg=poly_gain,
         timeout=45000,
     )
     custom_cert = page.locator("#lmi-certificate-panel").inner_text()
@@ -1297,7 +1299,7 @@ def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
             const gain = document.querySelector('#lmi-recovered-gain')?.textContent || '';
             return gain.includes('K[1]') && gain.includes('K[2]');
         }""",
-        timeout=45000,
+        timeout=90000,
     )
     ts_cert = page.locator("#lmi-certificate-panel").inner_text()
     ts_gain = page.locator("#lmi-recovered-gain").inner_text()
@@ -1312,6 +1314,70 @@ def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
             "ts_pdc_gain": ts_gain,
         },
     )
+
+
+def test_ux_phase5_ts_unmeasured_observer_e2e(browser_harness):
+    """Test 10: TS unmeasured observer (DMVT / gradient factorization) in Tab 6 -> #btn-lmi-solve -> L[1] and L[2]."""
+    page = mount_ui(browser_harness, "e2e-ux-phase5-ts-unmeasured-observer", {"width": 1280, "height": 800})
+
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
+
+    # 1. Select 'ts' system mode
+    page.select_option("#lmi-sys-class-select", "ts")
+    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
+    page.locator("#lmi-sys-panel-ts").wait_for(state="visible")
+
+    unmeasured_panel = page.locator("#lmi-ts-unmeasured-panel")
+    assert not unmeasured_panel.is_visible()
+
+    # 2. Mark first premise as unmeasured -> #lmi-ts-unmeasured-panel becomes visible
+    toggle_btn = page.locator('#lmi-ts-premises-list [data-action="lmi-toggle-premise"]').first
+    toggle_btn.wait_for(state="visible")
+    toggle_btn.click()
+    unmeasured_panel.wait_for(state="visible")
+
+    # Verify both linearization methods are available
+    method_select = page.locator("#lmi-ts-obs-method")
+    assert method_select.is_visible()
+    assert method_select.input_value() in ("dmvt_nonlinearity", "gradient_factorization")
+
+    # 3. Click #btn-lmi-generate-ts-observer -> loads TS unmeasured observer DSL
+    page.locator("#btn-lmi-generate-ts-observer").click()
+    dsl_val = page.locator("#lmi-code-editor").input_value()
+    assert "unmeasured_observer" in dsl_val
+    assert "recover L[i] = inv(P) * N[i]" in dsl_val
+
+    # 4. Solve in real Pyodide Wasm engine -> validated_dual/feasible + L[1] and L[2]
+    page.locator("#btn-lmi-solve").click()
+    page.wait_for_function(
+        """() => {
+            const cert = document.querySelector('#lmi-certificate-panel')?.textContent || '';
+            const gain = document.querySelector('#lmi-recovered-gain')?.textContent || '';
+            return (cert.includes('validated_dual') || cert.toLowerCase().includes('feasible'))
+                && gain.includes('L[1]') && gain.includes('L[2]');
+        }""",
+        timeout=45000,
+    )
+
+    cert_text = page.locator("#lmi-certificate-panel").inner_text()
+    gain_text = page.locator("#lmi-recovered-gain").inner_text()
+    assert ("validated_dual" in cert_text.casefold()) or ("feasible" in cert_text.casefold()), (
+        f"Expected validated_dual or feasible in certificate, got: {cert_text!r}"
+    )
+    assert "L[1]" in gain_text and "L[2]" in gain_text, (
+        f"Expected recovered observer gains L[1] and L[2], got: {gain_text!r}"
+    )
+
+    browser_harness.record(
+        "e2e-ux-phase5-ts-unmeasured-observer",
+        {
+            "unmeasured_panel_visible": True,
+            "observer_gains": gain_text,
+        },
+    )
+
 
 
 

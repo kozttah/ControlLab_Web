@@ -53,6 +53,12 @@ from .ts_bridge import (
     to_ts_state_space,
     verify_convex_weights,
 )
+from .ts_observer import (
+    TSUnmeasuredObserverSpec,
+    build_dmvt_nonlinearity_spec,
+    build_gradient_factorization_spec,
+    simulate_ts_unmeasured_observer,
+)
 
 __all__ = [
     "DEFAULT_MAX_FML_BYTES",
@@ -67,9 +73,12 @@ __all__ = [
     "StateSpace",
     "TSClosedLoop",
     "TSStateSpace",
+    "TSUnmeasuredObserverSpec",
     "apply_s_norm",
     "apply_t_norm",
     "bell",
+    "build_dmvt_nonlinearity_spec",
+    "build_gradient_factorization_spec",
     "check_rule_coverage",
     "defuzzify_curve",
     "evaluate",
@@ -88,6 +97,7 @@ __all__ = [
     "normalize_mf_type",
     "s_shape",
     "sigmoid",
+    "simulate_ts_unmeasured_observer",
     "singleton",
     "to_ts_state_space",
     "trapezoidal",

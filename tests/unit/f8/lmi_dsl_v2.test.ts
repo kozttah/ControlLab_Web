@@ -969,3 +969,171 @@ test("WP-PHASE4-01: LmiView end-to-end TS PDC com compilador direto e recuperaç
 
   app.destroy();
 });
+
+test("WP-ROADMAP-TS-UNMEASURED-OBS: Observador TS com premissas não medidas (DSL, deltaVertices, solve CPython, L[1]/L[2] e LmiView)", async () => {
+  // 1. Parser + Compiler + CPython solve for 2-rule, 2-perturbation TS unmeasured-premise observer
+  const obsDsl = [
+    "system ts (unmeasured_observer)",
+    "index i in 1..2",
+    "index k in 1..2",
+    "param alpha = 0.2",
+    "var P sym(n)",
+    "var N[i] rect(n, p)",
+    "P > 0",
+    "forall i, k:",
+    "  He(P * (A[i] + dA[k]) - N[i] * (C[i] + dC[k])) + 2*alpha*P < 0",
+    "recover L[i] = inv(P) * N[i]",
+  ].join("\n");
+
+  const parsed = parseLmiDsl(obsDsl);
+  assert.equal(parsed.valid, true, `Erros inesperados: ${JSON.stringify(parsed.errors)}`);
+  assert.equal(parsed.systemSpec?.systemClass, "ts");
+  assert.equal(parsed.systemSpec?.premises, "unmeasured");
+  assert.equal(parsed.indices.length, 2);
+  assert.equal(parsed.bilinearWarnings.length, 0);
+  assert.equal(parsed.expandedBlockCount, 5, "P>0 (1) + 2x2 Cartesian product (4) = 5 blocos");
+
+  const obsCtx: LmiCompileContext = {
+    A: [
+      [0, 1],
+      [-2, -1],
+    ],
+    B: [[0], [1]],
+    C: [[1, 0]],
+    D: [[0]],
+    vertices: [
+      {
+        A: [
+          [0, 1],
+          [-1.8, -0.9],
+        ],
+        B: [[0], [1]],
+        C: [[1, 0]],
+      },
+      {
+        A: [
+          [0, 1],
+          [-2.2, -1.1],
+        ],
+        B: [[0], [1]],
+        C: [[1, 0]],
+      },
+    ],
+    deltaVertices: [
+      {
+        dA: [
+          [0, 0.2],
+          [0, 0],
+        ],
+        dC: [[0, 0]],
+      },
+      {
+        dA: [
+          [0, -0.2],
+          [0, 0],
+        ],
+        dC: [[0, 0]],
+      },
+    ],
+  };
+
+  const compiled = compileLmiDslToCanonicalSdp(parsed, obsCtx);
+  assert.equal(compiled.nVars, 7, "P sym(2)=3 + N[1] rect(2,1)=2 + N[2] rect(2,1)=2 -> 7");
+  assert.equal(compiled.blockCount, 5);
+  assert.ok("P" in compiled.problem.variable_map);
+  assert.ok("N[1]" in compiled.problem.variable_map);
+  assert.ok("N[2]" in compiled.problem.variable_map);
+
+  const loaded = await cpythonLoader({ indexURL: "", packages: [] });
+  const pyodide = loaded.pyodide;
+  if (!pyodide.pyimport || !pyodide.toPy) {
+    throw new Error("cpythonLoader não expôs pyimport/toPy.");
+  }
+  const rpcMod = pyodide.pyimport("control_lab.core.rpc") as {
+    dispatch: (arg: unknown) => RpcResponse;
+  };
+
+  const req: RpcRequest = {
+    api_version: RPC_API_VERSION,
+    request_id: "ts-obs-unmeasured-1",
+    project_id: "proj-ts-obs-test",
+    project_revision: 1,
+    operation: "optimization.solve",
+    payload: { problem: compiled.problem },
+    options: {},
+    timeout_policy: { hard_timeout_ms: 30000 },
+  };
+  const proxy = pyodide.toPy!({ request: req, payload: req.payload });
+  const resp = rpcMod.dispatch(proxy);
+  proxy.destroy();
+
+  assert.equal(resp.status, "success", JSON.stringify(resp.error));
+  const resObj = resp.result as Record<string, unknown>;
+  assert.equal(resObj.audit_feasibility, "strictly_feasible");
+  const vars = resObj.variables as Record<string, { shape: number[]; data: number[] }>;
+  assert.ok(vars?.P && vars?.["N[1]"] && vars?.["N[2]"]);
+
+  // 2. LmiView UI: #lmi-ts-unmeasured-panel visibility, #btn-lmi-generate-ts-observer, and E2E L[1]/L[2] display
+  let resolveDone: (() => void) | null = null;
+  const donePromise = new Promise<void>((r) => {
+    resolveDone = r;
+  });
+  class RealPythonObsClient extends StubLmiClient {
+    public override async execute(r: RpcRequest): Promise<RpcResponse> {
+      try {
+        const px = pyodide.toPy!({ request: r, payload: r.payload });
+        const out = rpcMod.dispatch(px);
+        px.destroy();
+        return out;
+      } finally {
+        if (r.operation === "optimization.solve") {
+          setTimeout(() => resolveDone?.(), 20);
+        }
+      }
+    }
+  }
+
+  const client = new RealPythonObsClient();
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client,
+    project_id: "proj-ts-obs-ui",
+  });
+  await app.client.init();
+  app.shell.switchTab("optimization_lmi");
+
+  const sysSelect = root.querySelector<FakeElement>("#lmi-sys-class-select")!;
+  sysSelect.value = "ts";
+  sysSelect.dispatchEvent("change");
+
+  const unmeasuredPanel = root.querySelector<FakeElement>("#lmi-ts-unmeasured-panel")!;
+  assert.equal(unmeasuredPanel.hasAttribute("hidden"), true, "Oculto enquanto todas as premissas são medidas");
+
+  const toggleBtn = root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!;
+  toggleBtn.dispatchEvent("click");
+  assert.equal(unmeasuredPanel.hasAttribute("hidden"), false, "Visível quando premissa não medida é selecionada");
+
+  const methodSel = root.querySelector<FakeElement>("#lmi-ts-obs-method")!;
+  assert.ok(methodSel !== null);
+  const daInput = root.querySelector<FakeElement>("#lmi-ts-obs-da")!;
+  const dcInput = root.querySelector<FakeElement>("#lmi-ts-obs-dc")!;
+  assert.ok(daInput !== null && dcInput !== null);
+
+  root.querySelector("#btn-lmi-generate-ts-observer")!.dispatchEvent("click");
+  const editorEl = root.querySelector<FakeElement>("#lmi-code-editor")!;
+  assert.ok(editorEl.value.includes("system ts (unmeasured_observer)"));
+  assert.ok(editorEl.value.includes("recover L[i] = inv(P) * N[i]"));
+  assert.equal(root.querySelector("#lmi-syntax-badge")!.textContent, "Sintaxe OK");
+  assert.ok(root.querySelector("#lmi-expanded-blocks-badge")!.textContent.includes("5 blocos LMI"));
+
+  root.querySelector('[data-action="lmi-solve"]')!.dispatchEvent("click");
+  await donePromise;
+
+  const gainText = root.querySelector("#lmi-recovered-gain")!.textContent;
+  assert.ok(gainText.includes("L[1]"), `Esperado L[1] em '${gainText}'`);
+  assert.ok(gainText.includes("L[2]"), `Esperado L[2] em '${gainText}'`);
+
+  app.destroy();
+});
+

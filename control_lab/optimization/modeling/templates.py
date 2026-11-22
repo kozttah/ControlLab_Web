@@ -16,7 +16,7 @@ import numpy as np
 
 from control_lab.core.controllers import _validate_feedback_sign
 from control_lab.core.models import StateSpace, TSStateSpace
-from control_lab.core.tensors import array_to_tensor, ensure_finite_float64
+from control_lab.core.tensors import array_to_tensor, ensure_finite_float64, tensor_to_array
 from control_lab.diagnostics import DimensionMismatchError, HypothesisViolatedError, UnsupportedModelError, ValidationError
 
 from .canonical import CanonicalSDPProblem, compile
@@ -522,3 +522,149 @@ def lqr_lmi(plant_or_A: Any, B: Any = None, *, Q_cost: Any = None, R_cost: Any =
                    recovery_plan={"template_kind":"continuous_stabilization", "controller_kind":"StateFeedbackController",
                      "feedback_sign":sign,"Q_var":"Q","Y_var":"Y", "alpha":0.0,"eps_lmi":eps,"eps_q":eps,"dt":None,
                      "A":array_to_tensor(A),"B":array_to_tensor(B)})
+
+
+def _validate_matrix_sequence(
+    seq: Any,
+    name: str,
+    *,
+    expected_shape: tuple[int, int] | None = None,
+) -> list[np.ndarray]:
+    if not isinstance(seq, Sequence) or isinstance(seq, (str, bytes)):
+        raise ValidationError(f"{name} deve ser uma sequência não vazia de matrizes.")
+    if len(seq) < 1:
+        raise ValidationError(f"{name} deve conter pelo menos 1 matriz.")
+    out: list[np.ndarray] = []
+    for idx, item in enumerate(seq):
+        mat = ensure_finite_float64(item, ndim=2, name=f"{name}[{idx}]")
+        if expected_shape is not None and mat.shape != expected_shape:
+            raise DimensionMismatchError(
+                f"{name}[{idx}] tem shape {mat.shape}, esperado {expected_shape}."
+            )
+        out.append(mat)
+    return out
+
+
+def ts_unmeasured_observer_lmi(
+    A_vertices: Sequence[Any],
+    C_vertices: Sequence[Any],
+    *,
+    delta_A_vertices: Sequence[Any] | None = None,
+    delta_C_vertices: Sequence[Any] | None = None,
+    alpha: float = 0.0,
+    eps_lmi: float = 1e-4,
+    eps_p: float = 1e-4,
+    method: str = "dmvt_nonlinearity",
+    name: str = "ts_unmeasured_observer_lmi",
+) -> CanonicalSDPProblem:
+    """LMI synthesis template for Takagi-Sugeno observers with unmeasured premises.
+
+    Supports both DMVT directly on system nonlinearities and exact algebraic
+    gradient factorization via perturbation vertices (delta_A_vertices, delta_C_vertices).
+    """
+    A_list_raw = _validate_matrix_sequence(A_vertices, "A_vertices")
+    r = len(A_list_raw)
+    n, n2 = A_list_raw[0].shape
+    if n != n2 or n < 1:
+        raise DimensionMismatchError(
+            f"A_vertices[0] deve ser quadrada n x n (n >= 1), recebido {A_list_raw[0].shape}."
+        )
+    A_list = _validate_matrix_sequence(A_vertices, "A_vertices", expected_shape=(n, n))
+
+    C_list_raw = _validate_matrix_sequence(C_vertices, "C_vertices")
+    if len(C_list_raw) != r:
+        raise DimensionMismatchError(
+            f"C_vertices deve ter o mesmo comprimento de A_vertices ({r}), recebido {len(C_list_raw)}."
+        )
+    p, c_cols = C_list_raw[0].shape
+    if p < 1 or c_cols != n:
+        raise DimensionMismatchError(
+            f"C_vertices[0] deve ter shape (p >= 1, {n}), recebido {C_list_raw[0].shape}."
+        )
+    C_list = _validate_matrix_sequence(C_vertices, "C_vertices", expected_shape=(p, n))
+
+    if delta_A_vertices is None and delta_C_vertices is None:
+        dA_list = [np.zeros((n, n), dtype=np.float64)]
+        dC_list = [np.zeros((p, n), dtype=np.float64)]
+    elif delta_A_vertices is not None and delta_C_vertices is None:
+        dA_list = _validate_matrix_sequence(delta_A_vertices, "delta_A_vertices", expected_shape=(n, n))
+        dC_list = [np.zeros((p, n), dtype=np.float64) for _ in dA_list]
+    elif delta_A_vertices is None and delta_C_vertices is not None:
+        dC_list = _validate_matrix_sequence(delta_C_vertices, "delta_C_vertices", expected_shape=(p, n))
+        dA_list = [np.zeros((n, n), dtype=np.float64) for _ in dC_list]
+    else:
+        dA_list = _validate_matrix_sequence(delta_A_vertices, "delta_A_vertices", expected_shape=(n, n))
+        dC_list = _validate_matrix_sequence(delta_C_vertices, "delta_C_vertices", expected_shape=(p, n))
+        if len(dA_list) != len(dC_list):
+            raise DimensionMismatchError(
+                f"delta_A_vertices ({len(dA_list)}) e delta_C_vertices ({len(dC_list)}) devem ter o mesmo comprimento."
+            )
+
+    n_pert = len(dA_list)
+    alpha_val = _validate_positive_scalar(alpha, "alpha", allow_zero=True)
+    eps_l = _validate_positive_scalar(eps_lmi, "eps_lmi")
+    eps_p_val = _validate_positive_scalar(eps_p, "eps_p")
+    if not isinstance(method, str) or not method.strip():
+        raise ValidationError(f"Parâmetro method deve ser string não vazia, recebido {method!r}.")
+
+    P = sdpvar((n, n), name="P", symmetric=True)
+    N_vars = [sdpvar((n, p), name=f"N_{i}", symmetric=False) for i in range(r)]
+    I_n = np.eye(n, dtype=np.float64)
+
+    cons: list[Any] = [P >= eps_p_val * I_n]
+
+    for i in range(r):
+        A_i = A_list[i]
+        C_i = C_list[i]
+        N_i = N_vars[i]
+        for k in range(n_pert):
+            A_ik = A_i + dA_list[k]
+            C_ik = C_i + dC_list[k]
+            M_ik = P @ A_ik - N_i @ C_ik
+            cons.append(M_ik + M_ik.T + 2.0 * alpha_val * P <= -eps_l * I_n)
+
+    c_varies = r > 1 and any(not np.allclose(C_list[i], C_list[0]) for i in range(1, r))
+    if c_varies:
+        for i in range(r):
+            A_i = A_list[i]
+            C_i = C_list[i]
+            N_i = N_vars[i]
+            for j in range(i + 1, r):
+                A_j = A_list[j]
+                C_j = C_list[j]
+                N_j = N_vars[j]
+                for k in range(n_pert):
+                    dA_k = dA_list[k]
+                    dC_k = dC_list[k]
+                    M_ijk = P @ (A_i + dA_k) - N_j @ (C_i + dC_k)
+                    M_jik = P @ (A_j + dA_k) - N_i @ (C_j + dC_k)
+                    cons.append(
+                        (M_ijk + M_ijk.T) + (M_jik + M_jik.T) + 4.0 * alpha_val * P <= -2.0 * eps_l * I_n
+                    )
+
+    return compile(
+        objective=None,
+        constraints=cons,
+        sense="minimize",
+        name=name,
+        recovery_plan=None,
+        metadata={
+            "template": "ts_unmeasured_observer_lmi",
+            "method": method,
+            "n": n,
+            "p": p,
+            "n_rules": r,
+            "n_perturbations": n_pert,
+            "alpha": alpha_val,
+        },
+    )
+
+
+def recover_ts_observer_gains(problem: CanonicalSDPProblem, x: np.ndarray | Mapping[str, Any]) -> list[np.ndarray]:
+    """Recover observer gains L_i = P^{-1} N_i from a solved ts_unmeasured_observer_lmi problem."""
+    x_arr = tensor_to_array(x) if isinstance(x, Mapping) else np.asarray(x, dtype=np.float64)
+    vals = problem.reconstruct_variables(x_arr)
+    P = vals["P"]
+    r = int(problem.metadata["n_rules"])
+    return [np.linalg.solve(P, vals[f"N_{i}"]) for i in range(r)]
+

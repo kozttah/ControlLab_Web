@@ -55,6 +55,7 @@ import {
 import {
   compileLmiDslToCanonicalSdp,
   type LmiCompileContext,
+  type LmiDeltaVertexMatrices,
   type LmiVertexMatrices,
 } from "./lmi_dsl_compiler.ts";
 
@@ -109,6 +110,9 @@ interface LmiSystemCharacterizationState {
   tsIndexName: string;
   tsPremises: LmiPremiseVarState[];
   tsMfSummary: string[];
+  tsObsMethod: "dmvt_nonlinearity" | "gradient_factorization";
+  tsObsDaText: string;
+  tsObsDcText: string;
   extraIndices: string;
 }
 
@@ -129,6 +133,7 @@ interface LmiSolveSnapshot {
   rawSolutionPayload: Record<string, unknown>;
   recoveredK: { rows: number; cols: number; data: number[] } | null;
   recoveredIndexedK?: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }>;
+  recoveredIndexedL?: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }>;
   recoveredScalars?: Array<{ name: string; value: number }>;
   warnings: string[];
   provenance: Provenance | null;
@@ -195,21 +200,33 @@ function parseCompactMatrixJson(text: string): number[][] | null {
   }
 }
 
-/**
- * Formata K = Y * Q^{-1} apenas para exibição visual quando `result.variables` traz `Q` e `Y`.
- * Nunca altera `controller_validity` retornado pelo auditor Python.
- */
-function formatGainFromQY(
-  qMat: { rows: number; cols: number; data: number[] },
-  yMat: { rows: number; cols: number; data: number[] },
-): { rows: number; cols: number; data: number[] } | null {
-  const n = qMat.rows;
-  const m = yMat.rows;
-  if (n !== qMat.cols || yMat.cols !== n || n < 1 || n > 16) return null;
+function parseDeltaMatrixListJson(text: string): number[][][] | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    const mats: number[][][] = [];
+    for (const item of parsed) {
+      if (!Array.isArray(item) || item.length === 0 || !Array.isArray(item[0])) {
+        return null;
+      }
+      mats.push((item as unknown[][]).map((row) => row.map((v) => Number(v))));
+    }
+    return mats;
+  } catch {
+    return null;
+  }
+}
 
+function invertMatrix(
+  mat: { rows: number; cols: number; data: number[] },
+): { rows: number; cols: number; data: number[] } | null {
+  const n = mat.rows;
+  if (n !== mat.cols || n < 1 || n > 16) return null;
   const aug: number[][] = Array.from({ length: n }, (_, i) => {
     const row: number[] = [];
-    for (let j = 0; j < n; j += 1) row.push(qMat.data[i * n + j]);
+    for (let j = 0; j < n; j += 1) row.push(mat.data[i * n + j]);
     for (let j = 0; j < n; j += 1) row.push(i === j ? 1 : 0);
     return row;
   });
@@ -242,18 +259,70 @@ function formatGainFromQY(
     }
   }
 
+  const invData: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    for (let j = 0; j < n; j += 1) {
+      const v = aug[i][n + j];
+      if (!Number.isFinite(v)) return null;
+      invData.push(v);
+    }
+  }
+  return { rows: n, cols: n, data: invData };
+}
+
+/**
+ * Formata K = Y * Q^{-1} apenas para exibição visual quando `result.variables` traz `Q` e `Y`.
+ * Nunca altera `controller_validity` retornado pelo auditor Python.
+ */
+function formatGainFromQY(
+  qMat: { rows: number; cols: number; data: number[] },
+  yMat: { rows: number; cols: number; data: number[] },
+): { rows: number; cols: number; data: number[] } | null {
+  const n = qMat.rows;
+  const m = yMat.rows;
+  if (n !== qMat.cols || yMat.cols !== n || n < 1 || n > 16) return null;
+  const qInv = invertMatrix(qMat);
+  if (!qInv) return null;
+
   const kData: number[] = [];
   for (let i = 0; i < m; i += 1) {
     for (let j = 0; j < n; j += 1) {
       let sum = 0;
       for (let k = 0; k < n; k += 1) {
-        sum += yMat.data[i * n + k] * aug[k][n + j];
+        sum += yMat.data[i * n + k] * qInv.data[k * n + j];
       }
       if (!Number.isFinite(sum)) return null;
       kData.push(sum);
     }
   }
   return { rows: m, cols: n, data: kData };
+}
+
+/**
+ * Formata ganho do observador L = P^{-1} * N apenas para exibição visual quando `result.variables` traz `P` e `N[i]`.
+ */
+function formatObserverGainFromPN(
+  pMat: { rows: number; cols: number; data: number[] },
+  nMat: { rows: number; cols: number; data: number[] },
+): { rows: number; cols: number; data: number[] } | null {
+  const n = pMat.rows;
+  const p = nMat.cols;
+  if (n !== pMat.cols || nMat.rows !== n || n < 1 || n > 16) return null;
+  const pInv = invertMatrix(pMat);
+  if (!pInv) return null;
+
+  const lData: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    for (let j = 0; j < p; j += 1) {
+      let sum = 0;
+      for (let k = 0; k < n; k += 1) {
+        sum += pInv.data[i * n + k] * nMat.data[k * p + j];
+      }
+      if (!Number.isFinite(sum)) return null;
+      lData.push(sum);
+    }
+  }
+  return { rows: n, cols: p, data: lData };
 }
 
 function tensorTo2DArray(t: RealTensor): number[][] {
@@ -348,6 +417,15 @@ export function renderLmiViewHtml(): string {
     `</div>`,
     `<div id="lmi-ts-mf-summary" class="lmi-ts-mf-summary"></div>`,
     `<div id="lmi-ts-premises-list" class="lmi-ts-premises-list"></div>`,
+    `<div id="lmi-ts-unmeasured-panel" class="subcard lmi-ts-unmeasured-panel" hidden>`,
+    `<h5>Observador TS com Premissas Não Medidas (DMVT / Gradiente)</h5>`,
+    `<div class="lmi-sys-fields">`,
+    `<label>Método de Linearização <select id="lmi-ts-obs-method" class="touch-control" aria-label="Método de linearização para premissas não medidas"><option value="dmvt_nonlinearity">DMVT Direto nas Não-Linearidades (f(x), h(x))</option><option value="gradient_factorization">Fatoração Algébrica Exata do Gradiente (FSS 2020)</option></select></label>`,
+    `<label>Vértices de Perturbação dA[k] <input type="text" id="lmi-ts-obs-da" class="touch-control" value="[[[0, 0.2], [0, 0]], [[0, -0.2], [0, 0]]]" aria-label="Vértices de perturbação dA" /></label>`,
+    `<label>Vértices de Perturbação dC[k] (opcional) <input type="text" id="lmi-ts-obs-dc" class="touch-control" value="" placeholder="[[[0, 0]], [[0, 0]]]" aria-label="Vértices de perturbação dC" /></label>`,
+    `<button type="button" id="btn-lmi-generate-ts-observer" class="touch-control btn-secondary btn-small" data-action="lmi-generate-ts-observer">Gerar DSL do Observador TS</button>`,
+    `</div>`,
+    `</div>`,
     `</div>`,
     `</div>`,
 
@@ -460,6 +538,10 @@ export class LmiView {
   private readonly tsIndexNameEl: HTMLInputElement | null;
   private readonly tsMfSummaryEl: HTMLElement | null;
   private readonly tsPremisesListEl: HTMLElement | null;
+  private readonly tsUnmeasuredPanelEl: HTMLElement | null;
+  private readonly tsObsMethodEl: HTMLSelectElement | null;
+  private readonly tsObsDaEl: HTMLInputElement | null;
+  private readonly tsObsDcEl: HTMLInputElement | null;
   private readonly extraIndicesEl: HTMLInputElement | null;
   private readonly sysIndicesSummaryEl: HTMLElement | null;
 
@@ -500,6 +582,9 @@ export class LmiView {
         "h₁(z) = (1 - tanh(z₁))/2",
         "h₂(z) = (1 + tanh(z₁))/2",
       ],
+      tsObsMethod: "dmvt_nonlinearity",
+      tsObsDaText: "[[[0, 0.2], [0, 0]], [[0, -0.2], [0, 0]]]",
+      tsObsDcText: "",
       extraIndices: "j",
     };
 
@@ -547,6 +632,10 @@ export class LmiView {
     this.tsIndexNameEl = this.container.querySelector<HTMLInputElement>("#lmi-ts-index-name");
     this.tsMfSummaryEl = this.container.querySelector<HTMLElement>("#lmi-ts-mf-summary");
     this.tsPremisesListEl = this.container.querySelector<HTMLElement>("#lmi-ts-premises-list");
+    this.tsUnmeasuredPanelEl = this.container.querySelector<HTMLElement>("#lmi-ts-unmeasured-panel");
+    this.tsObsMethodEl = this.container.querySelector<HTMLSelectElement>("#lmi-ts-obs-method");
+    this.tsObsDaEl = this.container.querySelector<HTMLInputElement>("#lmi-ts-obs-da");
+    this.tsObsDcEl = this.container.querySelector<HTMLInputElement>("#lmi-ts-obs-dc");
     this.extraIndicesEl = this.container.querySelector<HTMLInputElement>("#lmi-extra-indices");
     this.sysIndicesSummaryEl = this.container.querySelector<HTMLElement>("#lmi-sys-indices-summary");
 
@@ -571,9 +660,11 @@ export class LmiView {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+    const daList = parseDeltaMatrixListJson(this.tsObsDaEl ? this.tsObsDaEl.value : this.sysState.tsObsDaText);
     return {
       systemClass: this.sysState.systemClass,
       systemN,
+      deltaCount: daList?.length,
       indexName,
       extraIndices,
       premisesMeasured: this.sysState.tsPremises.every((p) => p.measured),
@@ -802,6 +893,43 @@ export class LmiView {
       .querySelector<HTMLElement>('[data-action="lmi-import-fuzzy"]')
       ?.addEventListener("click", () => {
         this.importFuzzyMembershipsFromTab5();
+      });
+
+    const onTsObsChange = (): void => {
+      const m = this.tsObsMethodEl?.value;
+      if (m === "dmvt_nonlinearity" || m === "gradient_factorization") {
+        this.sysState.tsObsMethod = m;
+      }
+      if (this.tsObsDaEl) this.sysState.tsObsDaText = this.tsObsDaEl.value;
+      if (this.tsObsDcEl) this.sysState.tsObsDcText = this.tsObsDcEl.value;
+      this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+      this.renderCharacterizationCard();
+      this.renderEditorAndMath();
+    };
+    this.tsObsMethodEl?.addEventListener("change", onTsObsChange);
+    this.tsObsDaEl?.addEventListener("input", onTsObsChange);
+    this.tsObsDaEl?.addEventListener("change", onTsObsChange);
+    this.tsObsDcEl?.addEventListener("input", onTsObsChange);
+    this.tsObsDcEl?.addEventListener("change", onTsObsChange);
+
+    this.container
+      .querySelector<HTMLElement>("#btn-lmi-generate-ts-observer")
+      ?.addEventListener("click", () => {
+        if (this.tsObsDaEl) this.sysState.tsObsDaText = this.tsObsDaEl.value;
+        if (this.tsObsDcEl) this.sysState.tsObsDcText = this.tsObsDcEl.value;
+        const obsDsl = [
+          "system ts (unmeasured_observer)",
+          "index i in 1..N",
+          "index k in 1..K",
+          "param alpha = 0.2",
+          "var P sym(n)",
+          "var N[i] rect(n, p)",
+          "P > 0",
+          "forall i, k:",
+          "  He(P * (A[i] + dA[k]) - N[i] * (C[i] + dC[k])) + 2*alpha*P < 0",
+          "recover L[i] = inv(P) * N[i]",
+        ].join("\n");
+        this.loadDsl(obsDsl);
       });
 
     this.extraIndicesEl?.addEventListener("input", () => {
@@ -1065,6 +1193,18 @@ export class LmiView {
       }
     }
 
+    const daRaw = this.tsObsDaEl ? this.tsObsDaEl.value : this.sysState.tsObsDaText;
+    const dcRaw = this.tsObsDcEl ? this.tsObsDcEl.value : this.sysState.tsObsDcText;
+    const daList = parseDeltaMatrixListJson(daRaw);
+    const dcList = parseDeltaMatrixListJson(dcRaw);
+    const deltaVertices: LmiDeltaVertexMatrices[] | undefined =
+      daList && daList.length > 0
+        ? daList.map((dA, idx) => ({
+            dA,
+            ...(dcList && dcList[idx] ? { dC: dcList[idx] } : {}),
+          }))
+        : undefined;
+
     const compileCtx: LmiCompileContext = {
       A: A2d,
       B: B2d,
@@ -1077,6 +1217,7 @@ export class LmiView {
       Q_cost,
       R_cost,
       vertices,
+      deltaVertices,
       name: `dsl_${tpl}`,
     };
 
@@ -1136,17 +1277,19 @@ export class LmiView {
 
     let recoveredK = extractRealTensor2D(res.K);
     const recoveredIndexedK: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }> = [];
+    const recoveredIndexedL: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }> = [];
     const recoveredScalars: Array<{ name: string; value: number }> = [];
 
     if (isPlainObject(res.variables)) {
       const vars = res.variables as Record<string, unknown>;
       const qMat = extractRealTensor2D(vars.Q);
+      const pMat = extractRealTensor2D(vars.P);
       const yMat = extractRealTensor2D(vars.Y) ?? extractRealTensor2D(vars.Y_i);
       if (!recoveredK && qMat && yMat) {
         recoveredK = formatGainFromQY(qMat, yMat);
       }
 
-      // Indexed gains K[i] = Y[i] * inv(Q) or Y[i] * inv(P[i])
+      // Indexed gains K[i] = Y[i] * inv(Q) or Y[i] * inv(P[i]), and observer gains L[i] = inv(P) * N[i]
       for (const [varKey, varVal] of Object.entries(vars)) {
         const idxMatch = /^Y\[(\d+)\]$/.exec(varKey);
         if (idxMatch) {
@@ -1157,6 +1300,17 @@ export class LmiView {
             const ki = formatGainFromQY(piMat, yiMat);
             if (ki) {
               recoveredIndexedK.push({ label: `K[${idx}]`, mat: ki });
+            }
+          }
+        }
+        const nIdxMatch = /^N\[(\d+)\]$/.exec(varKey);
+        if (nIdxMatch && pMat) {
+          const idx = nIdxMatch[1];
+          const niMat = extractRealTensor2D(varVal);
+          if (niMat) {
+            const li = formatObserverGainFromPN(pMat, niMat);
+            if (li) {
+              recoveredIndexedL.push({ label: `L[${idx}]`, mat: li });
             }
           }
         }
@@ -1219,6 +1373,7 @@ export class LmiView {
       rawSolutionPayload: rawSol,
       recoveredK,
       recoveredIndexedK,
+      recoveredIndexedL,
       recoveredScalars,
       warnings: resp.warnings.map((w) => (typeof w === "string" ? w : w.message)),
       provenance: resp.provenance as Provenance,
@@ -1441,6 +1596,11 @@ export class LmiView {
           this.renderEditorAndMath();
         });
       }
+      setElHidden(
+        this.tsUnmeasuredPanelEl,
+        !(this.sysState.systemClass === "ts" && anyUnmeasured),
+      );
+      if (this.tsObsMethodEl) this.tsObsMethodEl.value = this.sysState.tsObsMethod;
     }
 
     if (this.extraIndicesEl && this.extraIndicesEl.value !== this.sysState.extraIndices) {
@@ -1703,15 +1863,29 @@ export class LmiView {
 
     if (this.recoveredGainEl) {
       let kHtml: string;
+      const parts: string[] = [];
       if (s.recoveredIndexedK && s.recoveredIndexedK.length > 0) {
-        kHtml = s.recoveredIndexedK
-          .map((item) => {
+        parts.push(
+          ...s.recoveredIndexedK.map((item) => {
             const fmt = formatMatrixDisplay(item.mat.data, item.mat.rows, item.mat.cols, decimals)
               .map((r) => `[${r.join(", ")}]`)
               .join("; ");
             return `<strong>Ganho recuperado ${escapeHtml(item.label)}:</strong> <code>${escapeHtml(fmt)}</code>`;
-          })
-          .join(" | ");
+          }),
+        );
+      }
+      if (s.recoveredIndexedL && s.recoveredIndexedL.length > 0) {
+        parts.push(
+          ...s.recoveredIndexedL.map((item) => {
+            const fmt = formatMatrixDisplay(item.mat.data, item.mat.rows, item.mat.cols, decimals)
+              .map((r) => `[${r.join(", ")}]`)
+              .join("; ");
+            return `<strong>Ganho do observador ${escapeHtml(item.label)}:</strong> <code>${escapeHtml(fmt)}</code>`;
+          }),
+        );
+      }
+      if (parts.length > 0) {
+        kHtml = parts.join(" | ");
       } else {
         const kFormatted = s.recoveredK
           ? formatMatrixDisplay(s.recoveredK.data, s.recoveredK.rows, s.recoveredK.cols, decimals)

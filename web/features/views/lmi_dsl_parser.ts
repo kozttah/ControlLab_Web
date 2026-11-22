@@ -114,6 +114,7 @@ export interface LmiDslParseError {
 export interface LmiDslParseOptions {
   systemClass?: "lti" | "polytopic" | "ts";
   systemN?: number;
+  deltaCount?: number;
   indexName?: string;
   extraIndices?: string[];
   premisesMeasured?: boolean;
@@ -689,11 +690,21 @@ function computeQuantifierCardinality(
   vars: string[],
   condition: string | null,
   N: number,
+  indexRanges?: ReadonlyMap<string, { start: number; end: number }>,
 ): number {
-  const safeN = Math.max(1, N);
-  if (vars.length <= 1) return safeN;
-  if (!condition) return safeN * safeN;
+  const getSize = (v: string): number => {
+    const r = indexRanges?.get(v);
+    if (r) return Math.max(1, r.end - r.start + 1);
+    return Math.max(1, N);
+  };
+  if (vars.length <= 1) {
+    return vars.length === 1 ? getSize(vars[0]) : Math.max(1, N);
+  }
+  const n0 = getSize(vars[0]);
+  const n1 = getSize(vars[1]);
+  if (!condition) return n0 * n1;
 
+  const safeN = Math.max(1, Math.min(n0, n1));
   const norm = condition.replace(/\s+/g, "").toLowerCase();
   const [v1, v2] = [vars[0].toLowerCase(), vars[1].toLowerCase()];
   if (
@@ -715,23 +726,36 @@ function computeQuantifierCardinality(
   if (norm === `${v1}!=${v2}` || norm === `${v2}!=${v1}`) {
     return safeN * (safeN - 1);
   }
-  return safeN * safeN;
+  return n0 * n1;
 }
 
 function buildQuantifier(
   varsRaw: string,
   conditionRaw: string | undefined,
   systemN: number,
+  indexRanges?: ReadonlyMap<string, { start: number; end: number }>,
 ): LmiDslQuantifier {
   const vars = varsRaw
     .split(",")
     .map((v) => v.trim())
     .filter((v) => v.length > 0);
   const condition = conditionRaw ? conditionRaw.trim() : null;
-  const cardinality = computeQuantifierCardinality(vars, condition, systemN);
+  const cardinality = computeQuantifierCardinality(vars, condition, systemN, indexRanges);
   const varList = vars.join(", ");
   const condSuffix = condition ? `, ${condition}` : "";
-  const mathPrefix = `∀ ${varList} ∈ {1..${systemN}}${condSuffix}:`;
+
+  let mathPrefix: string;
+  const distinctRanges = vars.map((v) => indexRanges?.get(v) ?? { start: 1, end: systemN });
+  const allSameRange =
+    distinctRanges.length === 0 ||
+    distinctRanges.every((r) => r.start === distinctRanges[0].start && r.end === distinctRanges[0].end);
+  if (allSameRange) {
+    const r0 = distinctRanges[0] ?? { start: 1, end: systemN };
+    mathPrefix = `∀ ${varList} ∈ {${r0.start}..${r0.end}}${condSuffix}:`;
+  } else {
+    const parts = vars.map((v, idx) => `${v} ∈ {${distinctRanges[idx].start}..${distinctRanges[idx].end}}`);
+    mathPrefix = `∀ ${parts.join(", ")}${condSuffix}:`;
+  }
   return {
     vars,
     condition,
@@ -762,6 +786,8 @@ function parseSystemDirective(lineTxt: string, line: number): LmiDslSystemSpec |
   const premMatch = /\bpremises\s*=\s*(measured|unmeasured|partially_observed)\b/i.exec(rest);
   if (premMatch) {
     premises = premMatch[1].toLowerCase() === "measured" ? "measured" : "unmeasured";
+  } else if (/\bunmeasured_observer\b/i.test(rest)) {
+    premises = "unmeasured";
   }
 
   const generalized = /\bgeneralized\s*=\s*true\b/i.test(rest);
@@ -888,6 +914,7 @@ export function parseLmiDsl(
     1,
     systemSpec?.nCount ?? options?.systemN ?? (systemSpec?.systemClass === "lti" ? 1 : 2),
   );
+  const indexRanges = new Map<string, { start: number; end: number }>();
 
   let activeForall: { quantifier: LmiDslQuantifier; baseIndent: number; hasBody: boolean; line: number } | null = null;
 
@@ -934,15 +961,21 @@ export function parseLmiDsl(
       const names = indexMatch[1].split(",").map((s) => s.trim()).filter(Boolean);
       const startNum = Number(indexMatch[2]);
       const endExpr = indexMatch[3].trim();
-      const numericEnd = /^\d+$/.test(endExpr) ? Number(endExpr) : effectiveSystemN;
+      const numericEnd = /^\d+$/.test(endExpr)
+        ? Number(endExpr)
+        : endExpr.toUpperCase() === "K" && options?.deltaCount !== undefined
+          ? Math.max(1, options.deltaCount)
+          : effectiveSystemN;
+      const resolvedEnd = Math.max(startNum, numericEnd);
       for (const name of names) {
         indices.push({
           name,
           rangeStart: startNum,
           rangeEndExpr: endExpr,
-          resolvedEnd: Math.max(startNum, numericEnd),
+          resolvedEnd,
           line: stmt.line,
         });
+        indexRanges.set(name, { start: startNum, end: resolvedEnd });
       }
       continue;
     }
@@ -972,7 +1005,7 @@ export function parseLmiDsl(
     // forall <vars> [where <cond>]: [inline body]
     const forallMatch = /^forall\s+(.+?)(?:\s+where\s+(.+?))?\s*:\s*(.*)$/i.exec(lineTxt);
     if (forallMatch) {
-      const q = buildQuantifier(forallMatch[1], forallMatch[2], effectiveSystemN);
+      const q = buildQuantifier(forallMatch[1], forallMatch[2], effectiveSystemN, indexRanges);
       const inlineBody = forallMatch[3].trim();
       if (inlineBody.length > 0) {
         // Process inline body with quantifier attached

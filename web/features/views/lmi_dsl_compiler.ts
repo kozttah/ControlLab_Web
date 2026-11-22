@@ -29,6 +29,11 @@ export interface LmiVertexMatrices {
   Dzw?: number[][];
 }
 
+export interface LmiDeltaVertexMatrices {
+  dA: number[][];
+  dC?: number[][];
+}
+
 export interface LmiCompileContext {
   A: number[][];
   B: number[][];
@@ -42,6 +47,7 @@ export interface LmiCompileContext {
   Q_cost?: number[][];
   R_cost?: number[][];
   vertices?: LmiVertexMatrices[];
+  deltaVertices?: LmiDeltaVertexMatrices[];
   params?: Record<string, number>;
   strictMargin?: number;
   name?: string;
@@ -670,22 +676,29 @@ function resolveDimToken(
 function expandQuantifierBindings(
   q: LmiDslQuantifier | undefined,
   N: number,
+  indexRanges?: ReadonlyMap<string, { start: number; end: number }>,
 ): Array<Record<string, number>> {
   if (!q || q.vars.length === 0) return [{}];
+  const getRange = (v: string): { start: number; end: number } => {
+    return indexRanges?.get(v) ?? { start: 1, end: N };
+  };
   const bindings: Array<Record<string, number>> = [];
   if (q.vars.length === 1) {
     const v0 = q.vars[0];
-    for (let i = 1; i <= N; i += 1) {
+    const r0 = getRange(v0);
+    for (let i = r0.start; i <= r0.end; i += 1) {
       bindings.push({ [v0]: i });
     }
     return bindings;
   }
   const [v0, v1] = q.vars;
+  const r0 = getRange(v0);
+  const r1 = getRange(v1);
   const norm = (q.condition ?? "").replace(/\s+/g, "").toLowerCase();
   const l0 = v0.toLowerCase();
   const l1 = v1.toLowerCase();
-  for (let i = 1; i <= N; i += 1) {
-    for (let j = 1; j <= N; j += 1) {
+  for (let i = r0.start; i <= r0.end; i += 1) {
+    for (let j = r1.start; j <= r1.end; j += 1) {
       let ok = true;
       if (norm === `${l1}>${l0}` || norm === `${l0}<${l1}`) ok = j > i;
       else if (norm === `${l1}>=${l0}` || norm === `${l0}<=${l1}`) ok = j >= i;
@@ -895,6 +908,28 @@ class ExprEvaluator {
   }
 
   private lookupSystemMatrix(id: string, vertexIndex1Based: number | undefined): number[][] | null {
+    if (id === "dA" || id === "dC") {
+      if (vertexIndex1Based === undefined) return null;
+      const deltas = this.ctx.deltaVertices;
+      if (!deltas || deltas.length === 0) {
+        if (id === "dC") {
+          const p = this.ctx.C.length;
+          const n = this.ctx.A.length;
+          return Array.from({ length: p }, () => Array(n).fill(0));
+        }
+        throw new Error(`deltaVertices não fornecido no contexto para '${id}[${vertexIndex1Based}]'.`);
+      }
+      if (vertexIndex1Based < 1 || vertexIndex1Based > deltas.length) {
+        throw new Error(`Índice ${vertexIndex1Based} fora do intervalo 1..${deltas.length} para '${id}'.`);
+      }
+      const dv = deltas[vertexIndex1Based - 1];
+      if (id === "dA") return dv.dA;
+      if (dv.dC) return dv.dC;
+      const p = this.ctx.C.length;
+      const n = this.ctx.A.length;
+      return Array.from({ length: p }, () => Array(n).fill(0));
+    }
+
     const getFromSource = (
       src: Partial<LmiVertexMatrices> & Pick<LmiCompileContext, "Q_cost" | "R_cost">,
       sym: string,
@@ -1214,6 +1249,21 @@ export function compileLmiDslToCanonicalSdp(
 
   const strictMargin = ctx.strictMargin ?? paramMap.get("eps") ?? 1e-4;
   const systemN = Math.max(1, ctx.vertices?.length ?? parsed.effectiveSystemN);
+  const deltaN = Math.max(1, ctx.deltaVertices?.length ?? systemN);
+  const indexRanges = new Map<string, { start: number; end: number }>();
+  for (const decl of parsed.indices) {
+    let resolvedEnd: number;
+    if (/^\d+$/.test(decl.rangeEndExpr)) {
+      resolvedEnd = decl.resolvedEnd;
+    } else if (decl.rangeEndExpr.toUpperCase() === "K" && ctx.deltaVertices && ctx.deltaVertices.length > 0) {
+      resolvedEnd = deltaN;
+    } else if (paramMap.has(decl.rangeEndExpr)) {
+      resolvedEnd = Math.round(paramMap.get(decl.rangeEndExpr)!);
+    } else {
+      resolvedEnd = systemN;
+    }
+    indexRanges.set(decl.name, { start: decl.rangeStart, end: Math.max(decl.rangeStart, resolvedEnd) });
+  }
 
   // Allocate decision variables
   const variableMap: Record<string, CanonicalVariableMapEntry> = {};
@@ -1284,12 +1334,15 @@ export function compileLmiDslToCanonicalSdp(
   for (const v of parsed.variables) {
     if (v.indexedBy && v.indexedBy.length > 0) {
       if (v.indexedBy.length === 1) {
-        for (let idx = 1; idx <= systemN; idx += 1) {
+        const r = indexRanges.get(v.indexedBy[0]) ?? { start: 1, end: systemN };
+        for (let idx = r.start; idx <= r.end; idx += 1) {
           allocateSingleVar(`${v.name}[${idx}]`, v);
         }
       } else {
-        for (let i = 1; i <= systemN; i += 1) {
-          for (let j = 1; j <= systemN; j += 1) {
+        const r0 = indexRanges.get(v.indexedBy[0]) ?? { start: 1, end: systemN };
+        const r1 = indexRanges.get(v.indexedBy[1]) ?? { start: 1, end: systemN };
+        for (let i = r0.start; i <= r0.end; i += 1) {
+          for (let j = r1.start; j <= r1.end; j += 1) {
             allocateSingleVar(`${v.name}[${i},${j}]`, v);
           }
         }
@@ -1329,7 +1382,7 @@ export function compileLmiDslToCanonicalSdp(
   let blockCounter = 0;
 
   for (const con of parsed.constraints) {
-    const bindings = expandQuantifierBindings(con.quantifier, systemN);
+    const bindings = expandQuantifierBindings(con.quantifier, systemN, indexRanges);
     for (const binding of bindings) {
       const lhs = evalExpr(con.lhsRaw, binding);
       const rhs = evalExpr(con.rhsRaw, binding);

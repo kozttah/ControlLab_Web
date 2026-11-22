@@ -1873,17 +1873,38 @@ textarea {
 
 .lmi-vertex-chip,
 .lmi-premise-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.7fr) auto;
+  align-items: end;
   gap: 0.4rem;
-  padding: 0.35rem 0.55rem;
+  padding: 0.45rem 0.55rem;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   font-size: 0.86rem;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
   overflow-wrap: anywhere;
+}
+
+.lmi-premise-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.lmi-ts-premises-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .lmi-vertex-editor-card {
@@ -1981,9 +2002,9 @@ textarea {
 
 .lmi-mf-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.2fr) auto;
-  gap: 0.4rem;
-  align-items: end;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
   padding: 0.45rem 0.55rem;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
@@ -1992,6 +2013,13 @@ textarea {
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
+}
+
+.lmi-mf-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  font-size: 0.86rem;
+  white-space: nowrap;
 }
 
 .lmi-mf-field {
@@ -2006,6 +2034,32 @@ textarea {
 
 .lmi-mf-remove-btn {
   min-height: 44px;
+}
+
+.lmi-ts-mf-validation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.lmi-ts-mf-validation.is-valid {
+  border-color: var(--success, #2e7d32);
+  background: rgba(46, 125, 50, 0.08);
+}
+
+.lmi-ts-mf-validation.is-invalid {
+  border-color: var(--danger, #c62828);
+  background: rgba(198, 40, 40, 0.08);
 }
 
 .lmi-quantifier-badge {
@@ -2163,7 +2217,8 @@ textarea {
 
 @media (max-width: 640px) {
   .lmi-vertex-mat-grid,
-  .lmi-mf-row {
+  .lmi-mf-row,
+  .lmi-premise-row {
     grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 3
+      "2026-11-22": 4
     }
   },
   "audit_reference": {
@@ -5543,6 +5543,79 @@
       "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "E2E Chromium edita A[1]/B[1] em vertice e funcao de pertinencia TS na Aba 6, resolve LMI e valida responsividade 390x844 sem overflow"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE4-05-F8-TS-SECTOR-MF-EXPRESSIONS",
+      "front": "f8-ui-charts",
+      "phase": "Phase4-Direct-DSL-Compiler",
+      "title": "F8: Funcoes de pertinencia analiticas arbitrarias (nao-linearidade de setor) com verificacao h_i(z)>=0 e sum(h_i)=1 na Aba 6",
+      "allowed_paths": [
+        "web/features/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE4-04-F9-EDITABLE-VERTICES-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-TS-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f8_ts_sector_mf_expressions_unit_and_build",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE4-05-F8-TS-SECTOR-MF-EXPRESSIONS.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE4-05-F8-TS-SECTOR-MF-EXPRESSIONS.md"
+      ],
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Remove importacao de pertinencias linguisticas da Aba 5 na Aba 6",
+        "Usuario escreve expressoes analiticas arbitrarias h_i(z) por regra e define universo de discurso [z_min, z_max] por premissa",
+        "Avaliador matematico puro (zero eval/new Function) valida h_i(z) >= 0 e sum_i h_i(z) == 1 em todo o universo de discurso"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE4-06-F9-TS-SECTOR-MF-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase4-Direct-DSL-Compiler",
+      "title": "F9: Auditoria independente e E2E Chromium das pertinencias analiticas TS (setor) e soma convexa na Aba 6",
+      "allowed_paths": [
+        "tests/e2e/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE4-05-F8-TS-SECTOR-MF-EXPRESSIONS"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-TS-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_chromium_e2e_ts_sector_mf_and_mobile_390x844",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE4-06-F9-TS-SECTOR-MF-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE4-06-F9-TS-SECTOR-MF-AUDIT.md"
+      ],
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "E2E Chromium edita expressoes h_1(z), h_2(z) e universo de discurso, valida soma convexa = 1 e nao-negatividade >= 0, e verifica responsividade 390x844"
       ]
     }
   ],

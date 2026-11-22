@@ -42,6 +42,10 @@ import {
   compileLmiDslToCanonicalSdp,
   type LmiCompileContext,
 } from "../../../web/features/views/lmi_dsl_compiler.ts";
+import {
+  evaluateMathExpression,
+  validateConvexMembershipFunctions,
+} from "../../../web/features/views/lmi_ts_mf_eval.ts";
 import { cpythonLoader } from "../f7/cpython_runtime.mjs";
 
 class FakeElement {
@@ -534,14 +538,16 @@ test("WP-LMI-V2-02: Zona 2 Caracterização do Sistema (LTI generalizada, Polit�
   assert.ok(modalPre.textContent.includes("for i in range(N):"));
   root.querySelector("#export-modal-close")!.dispatchEvent("click");
 
-  // 3. Switch to TS mode, import memberships from Tab 5, toggle premise measured <-> unmeasured
+  // 3. Switch to TS mode, verify Tab 5 import is removed, verify default analytical h_i(z), toggle premise measured <-> unmeasured
   tplSelect.value = "ts_pdc_relaxed";
   tplSelect.dispatchEvent("change");
   assert.equal(sysSelect.value, "ts");
   assert.equal(root.querySelector<FakeElement>("#lmi-sys-panel-ts")!.hasAttribute("hidden"), false);
 
-  root.querySelector('[data-action="lmi-import-fuzzy"]')!.dispatchEvent("click");
-  assert.ok(root.querySelector("#lmi-ts-mf-summary")!.textContent.includes("h₁"));
+  assert.equal(root.querySelector("#btn-lmi-import-fuzzy"), null);
+  assert.equal(root.querySelector('[data-action="lmi-import-fuzzy"]'), null);
+  assert.ok(root.querySelector("#lmi-ts-mf-summary")!.textContent.includes("h₁(z) = (1 + sin(z1)) / 2"));
+  assert.ok(root.querySelector("#lmi-ts-mf-validation")!.textContent.includes("Soma convexa válida"));
 
   const toggleBtn = root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!;
   assert.equal(toggleBtn.textContent, "Medida");
@@ -1237,7 +1243,9 @@ test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funçõ
     "Esperado B[1]=[0; 3.5] refletido no CanonicalSDPProblem TS",
   );
 
-  // 3. TS Membership Functions editor (#lmi-ts-mf-editor): add, edit premise/type/params, preserve measured state, remove
+  // 3. TS Analytical Weighting Functions editor (#lmi-ts-mf-editor) & Premise Universe [z_min, z_max]:
+  assert.equal(root.querySelector("#btn-lmi-import-fuzzy"), null);
+
   const toggle0 = root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!;
   toggle0.dispatchEvent("click");
   assert.equal(
@@ -1245,34 +1253,114 @@ test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funçõ
     "Não Medida (Estimada)",
   );
 
+  // Add a second premise and edit its name and universe [z_min, z_max]
+  root.querySelector("#btn-lmi-add-ts-premise")!.dispatchEvent("click");
+  const premName1 = root.querySelector<FakeElement>('input[data-premise-field="name"][data-premise-idx="1"]')!;
+  const premMin1 = root.querySelector<FakeElement>('input[data-premise-field="min"][data-premise-idx="1"]')!;
+  const premMax1 = root.querySelector<FakeElement>('input[data-premise-field="max"][data-premise-idx="1"]')!;
+  assert.ok(premName1 !== null && premMin1 !== null && premMax1 !== null);
+  premName1.value = "theta_2";
+  premName1.dispatchEvent("input");
+  premMin1.value = "0";
+  premMin1.dispatchEvent("input");
+  premMax1.value = "2";
+  premMax1.dispatchEvent("input");
+
+  // Add a third h_3(z) function -> initially "0" (valid sum since h1+h2=1), then edit to invalid "-0.5"
   root.querySelector("#btn-lmi-add-ts-mf")!.dispatchEvent("click");
-  const mfPremise2 = root.querySelector<FakeElement>('input[data-mf-field="premise"][data-mf-idx="2"]')!;
-  const mfType2 = root.querySelector<FakeElement>('select[data-mf-field="type"][data-mf-idx="2"]')!;
-  const mfParams2 = root.querySelector<FakeElement>('input[data-mf-field="params"][data-mf-idx="2"]')!;
-  assert.ok(mfPremise2 !== null && mfType2 !== null && mfParams2 !== null);
+  const mfExpr2 = root.querySelector<FakeElement>('input[data-mf-field="expression"][data-mf-idx="2"]')!;
+  assert.ok(mfExpr2 !== null);
 
-  mfPremise2.value = "theta_3";
-  mfPremise2.dispatchEvent("input");
-  mfType2.value = "gaussian";
-  mfType2.dispatchEvent("change");
-  mfParams2.value = "[0, 2.5]";
-  mfParams2.dispatchEvent("input");
-
+  mfExpr2.value = "theta_2 * 0.25";
+  mfExpr2.dispatchEvent("input");
   const mfSummaryText = root.querySelector("#lmi-ts-mf-summary")!.textContent;
-  assert.ok(mfSummaryText.includes("h₃(theta_3): gaussian [0, 2.5]"), `Resumo inesperado: ${mfSummaryText}`);
-  const premisesText = root.querySelector("#lmi-ts-premises-list")!.textContent;
-  assert.ok(premisesText.includes("theta_3"));
+  assert.ok(mfSummaryText.includes("h₃(z) = theta_2 * 0.25"), `Resumo inesperado: ${mfSummaryText}`);
+
+  const validationInvalid = root.querySelector("#lmi-ts-mf-validation")!.textContent;
+  assert.ok(validationInvalid.includes("Inválido"), `Esperado inválido quando soma != 1, obtido: ${validationInvalid}`);
+
   // Premise 0 should still be unmeasured
   assert.equal(
     root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!.textContent,
     "Não Medida (Estimada)",
   );
 
-  // Remove the added MF row
+  // Remove the added MF row -> back to h1 + h2 = 1 -> valid
   root.querySelector<FakeElement>('[data-action="lmi-remove-ts-mf"][data-mf-idx="2"]')!.dispatchEvent("click");
-  assert.equal(root.querySelector('input[data-mf-field="premise"][data-mf-idx="2"]'), null);
+  assert.equal(root.querySelector('input[data-mf-field="expression"][data-mf-idx="2"]'), null);
+  assert.ok(root.querySelector("#lmi-ts-mf-validation")!.textContent.includes("Soma convexa válida"));
 
   app.destroy();
 });
+
+test("WP-PHASE4-05-F8: Avaliador analítico h_i(z) e validateConvexMembershipFunctions", () => {
+  // 1. Valid sector-nonlinearity functions (1 + sin(z1))/2 and (1 - sin(z1))/2 on [-1, 1]
+  const validRes = validateConvexMembershipFunctions(
+    [{ name: "z1", min: -1, max: 1 }],
+    [
+      { label: "h1", expression: "(1 + sin(z1)) / 2" },
+      { label: "h2", expression: "(1 - sin(z1)) / 2" },
+    ],
+  );
+  assert.equal(validRes.valid, true, validRes.message);
+  assert.ok(validRes.minWeight >= 0);
+  assert.ok(validRes.maxSumError <= 1e-6);
+
+  // 2. Valid 2D sector-nonlinearity on [-1, 1] x [-1, 1]
+  const valid2D = validateConvexMembershipFunctions(
+    [
+      { name: "z1", min: -1, max: 1 },
+      { name: "z2", min: -1, max: 1 },
+    ],
+    [
+      { label: "h1", expression: "((1 + z1) * (1 + z2)) / 4" },
+      { label: "h2", expression: "((1 + z1) * (1 - z2)) / 4" },
+      { label: "h3", expression: "((1 - z1) * (1 + z2)) / 4" },
+      { label: "h4", expression: "((1 - z1) * (1 - z2)) / 4" },
+    ],
+  );
+  assert.equal(valid2D.valid, true, valid2D.message);
+
+  // 3. Invalid negative weight: z1 and 1 - z1 on [-1, 1]
+  const negRes = validateConvexMembershipFunctions(
+    [{ name: "z1", min: -1, max: 1 }],
+    [
+      { label: "h1", expression: "z1" },
+      { label: "h2", expression: "1 - z1" },
+    ],
+  );
+  assert.equal(negRes.valid, false);
+  assert.ok(negRes.counterexample !== undefined);
+  assert.ok(negRes.counterexample.z1 < 0, `Esperado z1 < 0 no contraexemplo: ${JSON.stringify(negRes.counterexample)}`);
+
+  // 4. Invalid sum != 1: 0.4 and 0.4 on [-1, 1]
+  const sumRes = validateConvexMembershipFunctions(
+    [{ name: "z1", min: -1, max: 1 }],
+    [
+      { label: "h1", expression: "0.4" },
+      { label: "h2", expression: "0.4" },
+    ],
+  );
+  assert.equal(sumRes.valid, false);
+  assert.ok(sumRes.counterexample !== undefined);
+  assert.ok(sumRes.maxSumError > 0.19);
+
+  // 5. Division by zero on domain [-1, 1] (z1 = 0 is in 11-point grid)
+  const divZeroRes = validateConvexMembershipFunctions(
+    [{ name: "z1", min: -1, max: 1 }],
+    [
+      { label: "h1", expression: "1 / z1" },
+      { label: "h2", expression: "1 - 1 / z1" },
+    ],
+  );
+  assert.equal(divZeroRes.valid, false);
+  assert.equal(divZeroRes.counterexample?.z1, 0);
+
+  // 6. Direct expression evaluation: scientific notation, pi, e, power, functions
+  assert.ok(Math.abs(evaluateMathExpression("1e-2 + cos(pi) + log(e^2) - 2^3^1", {}) - (0.01 - 1 + 2 - 8)) < 1e-12);
+  assert.equal(evaluateMathExpression("min(abs(-3), max(1, sqrt(16)))", {}), 3);
+  assert.equal(evaluateMathExpression("-x^2 + 1", { x: 3 }), -8);
+});
+
 
 

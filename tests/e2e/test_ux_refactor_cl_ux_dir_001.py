@@ -1416,30 +1416,51 @@ def test_ux_phase4_editable_vertices_and_ts_mf(browser_harness):
         f"Expected validated_dual or feasible in polytopic certificate, got: {poly_cert!r}"
     )
 
-    # 2. TS mode: switch to ts_pdc_relaxed, edit A[1] (idx=0), add TS membership row, verify #lmi-ts-mf-summary updates
+    # 2. TS mode: switch to ts_pdc_relaxed, edit A[1] (idx=0), verify Tab 5 fuzzy import removed,
+    #    validate default analytical h_i(z) convex sum, test invalid h_1(z) = z1, then restore valid convex sum
     page.select_option("#lmi-template-select", "ts_pdc_relaxed")
     assert page.locator("#lmi-sys-class-select").input_value() == "ts"
     page.locator("#lmi-sys-panel-ts").wait_for(state="visible")
+
+    assert page.locator("#btn-lmi-import-fuzzy").count() == 0
+    assert page.locator('[data-action="lmi-import-fuzzy"]').count() == 0
 
     ts_a1 = page.locator('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')
     ts_a1.wait_for(state="visible")
     ts_a1.fill("[[0, 1], [-2.5, -1.5]]")
 
-    mf_summary_before = page.locator("#lmi-ts-mf-summary").inner_text()
-    page.locator("#btn-lmi-add-ts-mf").click()
+    validation_el = page.locator("#lmi-ts-mf-validation")
+    validation_el.wait_for(state="visible")
+    default_validation_text = validation_el.inner_text()
+    assert "Válido" in default_validation_text and "Soma convexa válida" in default_validation_text, (
+        f"Expected valid default convex sum in #lmi-ts-mf-validation, got: {default_validation_text!r}"
+    )
+    default_summary = page.locator("#lmi-ts-mf-summary").inner_text()
+    assert "(1 + sin(z1)) / 2" in default_summary and "(1 - sin(z1)) / 2" in default_summary
 
-    mf_premise_2 = page.locator('input[data-mf-field="premise"][data-mf-idx="2"]')
-    mf_type_2 = page.locator('select[data-mf-field="type"][data-mf-idx="2"]')
-    mf_params_2 = page.locator('input[data-mf-field="params"][data-mf-idx="2"]')
-    mf_premise_2.wait_for(state="visible")
-    mf_premise_2.fill("theta_e2e")
-    mf_type_2.select_option("gaussian")
-    mf_params_2.fill("[0, 1.5]")
+    mf_expr_0 = page.locator('input[data-mf-field="expression"][data-mf-idx="0"]')
+    mf_expr_1 = page.locator('input[data-mf-field="expression"][data-mf-idx="1"]')
+    mf_expr_0.wait_for(state="visible")
+    mf_expr_1.wait_for(state="visible")
+
+    # Edit h_1(z) to z1 -> invalid on [-1, 1] because z1 < 0 and sum != 1
+    mf_expr_0.fill("z1")
+    invalid_validation_text = validation_el.inner_text()
+    assert "Inválido" in invalid_validation_text, (
+        f"Expected violation in #lmi-ts-mf-validation when h_1(z)=z1, got: {invalid_validation_text!r}"
+    )
+
+    # Restore valid convex-sum expressions (1 + z1) / 2 and (1 - z1) / 2
+    mf_expr_0.fill("(1 + z1) / 2")
+    mf_expr_1.fill("(1 - z1) / 2")
+    restored_validation_text = validation_el.inner_text()
+    assert "Válido" in restored_validation_text and "Soma convexa válida" in restored_validation_text, (
+        f"Expected valid convex sum after restoring (1+z1)/2 and (1-z1)/2, got: {restored_validation_text!r}"
+    )
 
     mf_summary_after = page.locator("#lmi-ts-mf-summary").inner_text()
-    assert mf_summary_after != mf_summary_before
-    assert "theta_e2e" in mf_summary_after
-    assert "gaussian" in mf_summary_after
+    assert mf_summary_after != default_summary
+    assert "(1 + z1) / 2" in mf_summary_after and "(1 - z1) / 2" in mf_summary_after
 
     # 3. Mobile 390x844 viewport: zero horizontal overflow with TS vertex & MF editors visible
     page.set_viewport_size({"width": 390, "height": 844})
@@ -1455,6 +1476,10 @@ def test_ux_phase4_editable_vertices_and_ts_mf(browser_harness):
         "e2e-ux-phase4-editable-vertices",
         {
             "polytopic_cert_verified": True,
+            "import_fuzzy_removed": True,
+            "default_validation": default_validation_text,
+            "invalid_validation": invalid_validation_text,
+            "restored_validation": restored_validation_text,
             "ts_mf_summary_after": mf_summary_after,
             "mobile_390x844_overflow": overflow_metrics,
         },

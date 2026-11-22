@@ -58,6 +58,7 @@ import {
   type LmiDeltaVertexMatrices,
   type LmiVertexMatrices,
 } from "./lmi_dsl_compiler.ts";
+import { validateConvexMembershipFunctions } from "./lmi_ts_mf_eval.ts";
 
 export interface LmiExportModalPayload {
   title: string;
@@ -85,21 +86,14 @@ export interface SavedLmiPreset {
 
 interface LmiPremiseVarState {
   name: string;
+  min: number;
+  max: number;
   measured: boolean;
 }
 
-export type LmiTsMfType =
-  | "triangular"
-  | "trapezoidal"
-  | "gaussian"
-  | "bell"
-  | "sigmoid";
-
 export interface LmiTsMembershipRow {
   id: string;
-  premiseName: string;
-  mfType: LmiTsMfType;
-  paramsText: string;
+  expression: string;
 }
 
 export interface LmiPolytopeVertexPreview {
@@ -470,17 +464,23 @@ export function renderLmiViewHtml(): string {
     `<div class="lmi-sys-fields">`,
     `<label>Nº de Regras N_r <input type="number" id="lmi-ts-rules-count" class="touch-control" min="2" max="6" value="2" /></label>`,
     `<label>Índice das regras na DSL <input type="text" id="lmi-ts-index-name" class="touch-control" value="i" /></label>`,
-    `<button type="button" id="btn-lmi-import-fuzzy" class="touch-control btn-secondary btn-small" data-action="lmi-import-fuzzy">Importar Pertinências da Aba 5</button>`,
+    `</div>`,
+    `<div class="lmi-ts-premises-section">`,
+    `<div class="lmi-ts-mf-header">`,
+    `<strong>Premissas e Universo de Discurso (Ω)</strong>`,
+    `<button type="button" id="btn-lmi-add-ts-premise" class="touch-control btn-secondary btn-small" data-action="lmi-add-ts-premise">+ Adicionar Premissa</button>`,
+    `</div>`,
+    `<div id="lmi-ts-premises-list" class="lmi-ts-premises-list"></div>`,
     `</div>`,
     `<div id="lmi-ts-mf-editor" class="lmi-ts-mf-editor">`,
     `<div class="lmi-ts-mf-header">`,
-    `<strong>Funções de Pertinência (TS)</strong>`,
-    `<button type="button" id="btn-lmi-add-ts-mf" class="touch-control btn-secondary btn-small" data-action="lmi-add-ts-mf">+ Adicionar Pertinência</button>`,
+    `<strong>Funções de Ponderação Convexa (Setor Não Linear h_i(z))</strong>`,
+    `<button type="button" id="btn-lmi-add-ts-mf" class="touch-control btn-secondary btn-small" data-action="lmi-add-ts-mf">+ Adicionar Função h_i(z)</button>`,
     `</div>`,
     `<div id="lmi-ts-mf-rows" class="lmi-ts-mf-rows"></div>`,
+    `<div id="lmi-ts-mf-validation" class="lmi-ts-mf-validation" role="status" aria-live="polite"></div>`,
     `</div>`,
     `<div id="lmi-ts-mf-summary" class="lmi-ts-mf-summary"></div>`,
-    `<div id="lmi-ts-premises-list" class="lmi-ts-premises-list"></div>`,
     `<div id="lmi-ts-vertex-editor" class="lmi-vertex-preview"></div>`,
     `<div id="lmi-ts-unmeasured-panel" class="subcard lmi-ts-unmeasured-panel" hidden>`,
     `<h5>Observador TS com Premissas Não Medidas (DMVT / Gradiente)</h5>`,
@@ -603,6 +603,7 @@ export class LmiView {
   private readonly tsIndexNameEl: HTMLInputElement | null;
   private readonly tsMfEditorEl: HTMLElement | null;
   private readonly tsMfRowsEl: HTMLElement | null;
+  private readonly tsMfValidationEl: HTMLElement | null;
   private readonly tsMfSummaryEl: HTMLElement | null;
   private readonly tsPremisesListEl: HTMLElement | null;
   private readonly tsVertexEditorEl: HTMLElement | null;
@@ -645,26 +646,21 @@ export class LmiView {
       tsIndexName: "i",
       tsVertices: [],
       tsPremises: [
-        { name: "z1 (x1)", measured: true },
-        { name: "z2 (x2)", measured: true },
+        { name: "z1", min: -1, max: 1, measured: true },
       ],
       tsMemberships: [
         {
           id: "mf-1",
-          premiseName: "z1 (x1)",
-          mfType: "sigmoid",
-          paramsText: "[-10, 0, 10]",
+          expression: "(1 + sin(z1)) / 2",
         },
         {
           id: "mf-2",
-          premiseName: "z2 (x2)",
-          mfType: "triangular",
-          paramsText: "[-10, 0, 10]",
+          expression: "(1 - sin(z1)) / 2",
         },
       ],
       tsMfSummary: [
-        "h₁(z1 (x1)): sigmoid [-10, 0, 10]",
-        "h₂(z2 (x2)): triangular [-10, 0, 10]",
+        "h₁(z) = (1 + sin(z1)) / 2",
+        "h₂(z) = (1 - sin(z1)) / 2",
       ],
       tsObsMethod: "dmvt_nonlinearity",
       tsObsDaText: "[[[0, 0.2], [0, 0]], [[0, -0.2], [0, 0]]]",
@@ -716,6 +712,7 @@ export class LmiView {
     this.tsIndexNameEl = this.container.querySelector<HTMLInputElement>("#lmi-ts-index-name");
     this.tsMfEditorEl = this.container.querySelector<HTMLElement>("#lmi-ts-mf-editor");
     this.tsMfRowsEl = this.container.querySelector<HTMLElement>("#lmi-ts-mf-rows");
+    this.tsMfValidationEl = this.container.querySelector<HTMLElement>("#lmi-ts-mf-validation");
     this.tsMfSummaryEl = this.container.querySelector<HTMLElement>("#lmi-ts-mf-summary");
     this.tsPremisesListEl = this.container.querySelector<HTMLElement>("#lmi-ts-premises-list");
     this.tsVertexEditorEl = this.container.querySelector<HTMLElement>("#lmi-ts-vertex-editor");
@@ -877,91 +874,8 @@ export class LmiView {
 
   private syncTsFromMemberships(): void {
     this.sysState.tsMfSummary = this.sysState.tsMemberships.map(
-      (row, idx) =>
-        `h${formatSubscript(idx + 1)}(${row.premiseName.trim() || `z${idx + 1}`}): ${row.mfType} ${row.paramsText}`,
+      (row, idx) => `h${formatSubscript(idx + 1)}(z) = ${row.expression.trim() || "0"}`,
     );
-
-    const prevByName = new Map(
-      this.sysState.tsPremises.map((p) => [p.name, p.measured]),
-    );
-    const seen = new Set<string>();
-    const nextPremises: LmiPremiseVarState[] = [];
-    this.sysState.tsMemberships.forEach((row, idx) => {
-      const name = row.premiseName.trim() || `z${idx + 1}`;
-      if (seen.has(name)) return;
-      seen.add(name);
-      const measured =
-        prevByName.get(name) ?? this.sysState.tsPremises[idx]?.measured ?? true;
-      nextPremises.push({ name, measured });
-    });
-    this.sysState.tsPremises = nextPremises;
-  }
-
-  private importFuzzyMembershipsFromTab5(): void {
-    const typed = this.shell.getTypedWorkspace();
-    const fuzzyObjs = typed.listRegisteredObjects(["FuzzySystem"]);
-    const validMfTypes = new Set<LmiTsMfType>([
-      "triangular",
-      "trapezoidal",
-      "gaussian",
-      "bell",
-      "sigmoid",
-    ]);
-    if (fuzzyObjs.length > 0) {
-      const latest = fuzzyObjs[fuzzyObjs.length - 1];
-      const inputs = Array.isArray(latest.value.input_variables)
-        ? (latest.value.input_variables as Array<{
-            name?: string;
-            terms?: Array<{ name?: string; mf_type?: string; params?: unknown }>;
-          }>)
-        : [];
-      if (inputs.length > 0) {
-        const nextRows: LmiTsMembershipRow[] = [];
-        for (let idx = 0; idx < inputs.length; idx += 1) {
-          const inp = inputs[idx];
-          const firstTerm = Array.isArray(inp.terms) ? inp.terms[0] : undefined;
-          const rawType = String(firstTerm?.mf_type ?? "triangular");
-          const mfType: LmiTsMfType = validMfTypes.has(rawType as LmiTsMfType)
-            ? (rawType as LmiTsMfType)
-            : "triangular";
-          const paramsText = Array.isArray(firstTerm?.params)
-            ? JSON.stringify(firstTerm.params)
-            : "[-10, 0, 10]";
-          nextRows.push({
-            id: `mf-${++this.mfIdCounter}`,
-            premiseName: String(inp.name ?? `z${idx + 1}`),
-            mfType,
-            paramsText,
-          });
-        }
-        this.sysState.tsMemberships = nextRows;
-        const firstTermCount = Array.isArray(inputs[0].terms) ? inputs[0].terms.length : 2;
-        this.sysState.tsRulesCount = Math.max(2, Math.min(6, firstTermCount));
-        this.resizeTsVertices();
-      }
-    } else {
-      this.sysState.tsMemberships = [
-        {
-          id: `mf-${++this.mfIdCounter}`,
-          premiseName: "erro (z1)",
-          mfType: "triangular",
-          paramsText: "[-10, -10, 0]",
-        },
-        {
-          id: `mf-${++this.mfIdCounter}`,
-          premiseName: "d_erro (z2)",
-          mfType: "triangular",
-          paramsText: "[-5, 0, 5]",
-        },
-      ];
-    }
-    this.syncTsFromMemberships();
-    this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
-    this.renderCharacterizationCard();
-    this.renderEditorAndMath();
-    this.shell
-      .getAnnouncer()
-      .announce("Pertinências e premissas Takagi-Sugeno importadas da Aba 5.", "polite", "status");
   }
 
   private syncSystemDirectiveToDsl(): void {
@@ -1098,20 +1012,28 @@ export class LmiView {
     this.tsIndexNameEl?.addEventListener("input", onTsChange);
 
     this.container
-      .querySelector<HTMLElement>('[data-action="lmi-import-fuzzy"]')
+      .querySelector<HTMLElement>('[data-action="lmi-add-ts-premise"]')
       ?.addEventListener("click", () => {
-        this.importFuzzyMembershipsFromTab5();
+        const nextNum = this.sysState.tsPremises.length + 1;
+        this.sysState.tsPremises.push({
+          name: `z${nextNum}`,
+          min: -1,
+          max: 1,
+          measured: true,
+        });
+        this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+        this.renderCharacterizationCard();
+        this.renderEditorAndMath();
       });
 
     this.container
       .querySelector<HTMLElement>('[data-action="lmi-add-ts-mf"]')
       ?.addEventListener("click", () => {
         const nextNum = this.sysState.tsMemberships.length + 1;
+        const defaultPremise = this.sysState.tsPremises[0]?.name.trim() || "z1";
         this.sysState.tsMemberships.push({
           id: `mf-${++this.mfIdCounter}`,
-          premiseName: `z${nextNum}`,
-          mfType: "triangular",
-          paramsText: "[-10, 0, 10]",
+          expression: nextNum === 1 ? `(1 + sin(${defaultPremise})) / 2` : "0",
         });
         this.syncTsFromMemberships();
         this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
@@ -1882,70 +1804,31 @@ export class LmiView {
 
   private renderTsMfEditor(): void {
     if (!this.tsMfRowsEl) return;
-    const mfOptions: Array<{ value: LmiTsMfType; label: string }> = [
-      { value: "triangular", label: "triangular" },
-      { value: "trapezoidal", label: "trapezoidal" },
-      { value: "gaussian", label: "gaussian" },
-      { value: "bell", label: "bell" },
-      { value: "sigmoid", label: "sigmoid" },
-    ];
     const rowsHtml = this.sysState.tsMemberships.map((row, idx) => {
-      const opts = mfOptions
-        .map(
-          (opt) =>
-            `<option value="${opt.value}"${opt.value === row.mfType ? " selected" : ""}>${opt.label}</option>`,
-        )
-        .join("");
+      const sub = formatSubscript(idx + 1);
       return [
         `<div class="lmi-mf-row" data-mf-idx="${idx}">`,
-        `<label class="lmi-mf-field">Premissa <input type="text" class="touch-control lmi-mf-input" data-mf-field="premise" data-mf-idx="${idx}" value="${escapeHtml(row.premiseName)}" aria-label="Nome da premissa ${idx + 1}" /></label>`,
-        `<label class="lmi-mf-field">Tipo MF <select class="touch-control lmi-mf-select" data-mf-field="type" data-mf-idx="${idx}" aria-label="Tipo de pertinência ${idx + 1}">${opts}</select></label>`,
-        `<label class="lmi-mf-field">Parâmetros <input type="text" class="touch-control lmi-mf-input" data-mf-field="params" data-mf-idx="${idx}" value="${escapeHtml(row.paramsText)}" aria-label="Parâmetros da pertinência ${idx + 1}" /></label>`,
-        `<button type="button" class="touch-control btn-secondary btn-small lmi-mf-remove-btn" data-action="lmi-remove-ts-mf" data-mf-idx="${idx}" aria-label="Remover pertinência ${idx + 1}">Remover</button>`,
+        `<span class="lmi-mf-label">h${sub}(z) =</span>`,
+        `<label class="lmi-mf-field lmi-mf-expr-field"><span class="sr-only">Expressão analítica de h${sub}(z)</span><input type="text" class="touch-control lmi-mf-input" data-mf-field="expression" data-mf-idx="${idx}" value="${escapeHtml(row.expression)}" aria-label="Expressão analítica de h_${idx + 1}(z)" /></label>`,
+        `<button type="button" class="touch-control btn-secondary btn-small lmi-mf-remove-btn" data-action="lmi-remove-ts-mf" data-mf-idx="${idx}" aria-label="Remover função h_${idx + 1}(z)">Remover</button>`,
         `</div>`,
       ].join("");
     });
     this.tsMfRowsEl.innerHTML = rowsHtml.join("");
 
-    const selects = Array.from(
-      this.tsMfRowsEl.querySelectorAll<HTMLSelectElement>('select[data-mf-field="type"]'),
+    const exprFields = Array.from(
+      this.tsMfRowsEl.querySelectorAll<HTMLInputElement>('input[data-mf-field="expression"]'),
     );
-    for (const sel of selects) {
-      const idx = Number(sel.getAttribute("data-mf-idx"));
-      if (Number.isInteger(idx) && idx >= 0 && idx < this.sysState.tsMemberships.length) {
-        sel.value = this.sysState.tsMemberships[idx].mfType;
-      }
-    }
-
-    const fields = Array.from(
-      this.tsMfRowsEl.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-mf-field]"),
-    );
-    for (const fieldEl of fields) {
+    for (const fieldEl of exprFields) {
       const onFieldEdit = (): void => {
         const idx = Number(fieldEl.getAttribute("data-mf-idx"));
-        const field = fieldEl.getAttribute("data-mf-field");
         if (!Number.isInteger(idx) || idx < 0 || idx >= this.sysState.tsMemberships.length) {
           return;
         }
-        const row = this.sysState.tsMemberships[idx];
-        if (field === "premise") {
-          row.premiseName = fieldEl.value;
-        } else if (field === "type") {
-          const v = fieldEl.value as LmiTsMfType;
-          if (
-            v === "triangular" ||
-            v === "trapezoidal" ||
-            v === "gaussian" ||
-            v === "bell" ||
-            v === "sigmoid"
-          ) {
-            row.mfType = v;
-          }
-        } else if (field === "params") {
-          row.paramsText = fieldEl.value;
-        }
+        this.sysState.tsMemberships[idx].expression = fieldEl.value;
         this.syncTsFromMemberships();
-        this.renderTsMfSummaryAndPremises();
+        this.renderTsMfSummaryOnly();
+        this.renderTsConvexityValidation();
       };
       fieldEl.addEventListener("input", onFieldEdit);
       fieldEl.addEventListener("change", onFieldEdit);
@@ -1967,20 +1850,58 @@ export class LmiView {
         this.renderEditorAndMath();
       });
     }
+
+    this.renderTsConvexityValidation();
   }
 
-  private renderTsMfSummaryAndPremises(): void {
+  private renderTsMfSummaryOnly(): void {
     if (this.tsMfSummaryEl) {
       this.tsMfSummaryEl.innerHTML = this.sysState.tsMfSummary
         .map((line) => `<span class="badge">${escapeHtml(line)}</span>`)
         .join(" ");
     }
+  }
+
+  private renderTsConvexityValidation(): void {
+    if (!this.tsMfValidationEl) return;
+    const result = validateConvexMembershipFunctions(
+      this.sysState.tsPremises.map((p) => ({
+        name: p.name,
+        min: p.min,
+        max: p.max,
+      })),
+      this.sysState.tsMemberships.map((row, idx) => ({
+        label: `h${formatSubscript(idx + 1)}(z)`,
+        expression: row.expression,
+      })),
+    );
+    toggleCssClass(this.tsMfValidationEl, "is-valid", result.valid);
+    toggleCssClass(this.tsMfValidationEl, "is-invalid", !result.valid);
+    const badgeCls = result.valid ? "badge-stable" : "badge-unstable";
+    const badgeLabel = result.valid ? "Válido" : "Inválido";
+    this.tsMfValidationEl.innerHTML = `<span class="badge ${badgeCls}">${badgeLabel}</span> <span>${escapeHtml(result.message)}</span>`;
+  }
+
+  private renderTsMfSummaryAndPremises(): void {
+    this.renderTsMfSummaryOnly();
+    this.renderTsConvexityValidation();
     if (this.tsPremisesListEl) {
       const anyUnmeasured = this.sysState.tsPremises.some((p) => !p.measured);
+      const canRemove = this.sysState.tsPremises.length > 1;
       const rows = this.sysState.tsPremises.map((p, idx) => {
         const cls = p.measured ? "badge-stable" : "badge-beta";
         const label = p.measured ? "Medida" : "Não Medida (Estimada)";
-        return `<div class="lmi-premise-row"><span>Premissa <strong>${escapeHtml(p.name)}</strong></span><button type="button" class="touch-control btn-small btn-secondary ${cls}" data-action="lmi-toggle-premise" data-premise-idx="${idx}">${escapeHtml(label)}</button></div>`;
+        return [
+          `<div class="lmi-premise-row" data-premise-idx="${idx}">`,
+          `<label class="lmi-mf-field">Variável <input type="text" class="touch-control lmi-mf-input" data-premise-field="name" data-premise-idx="${idx}" value="${escapeHtml(p.name)}" aria-label="Nome da premissa ${idx + 1}" /></label>`,
+          `<label class="lmi-mf-field">z_min <input type="number" step="any" class="touch-control lmi-mf-input" data-premise-field="min" data-premise-idx="${idx}" value="${escapeHtml(String(p.min))}" aria-label="Limite inferior z_min da premissa ${idx + 1}" /></label>`,
+          `<label class="lmi-mf-field">z_max <input type="number" step="any" class="touch-control lmi-mf-input" data-premise-field="max" data-premise-idx="${idx}" value="${escapeHtml(String(p.max))}" aria-label="Limite superior z_max da premissa ${idx + 1}" /></label>`,
+          `<div class="lmi-premise-actions">`,
+          `<button type="button" class="touch-control btn-small btn-secondary ${cls}" data-action="lmi-toggle-premise" data-premise-idx="${idx}">${escapeHtml(label)}</button>`,
+          `<button type="button" class="touch-control btn-small btn-secondary lmi-mf-remove-btn" data-action="lmi-remove-ts-premise" data-premise-idx="${idx}" aria-label="Remover premissa ${idx + 1}"${!canRemove ? ' disabled aria-disabled="true"' : ""}>Remover</button>`,
+          `</div>`,
+          `</div>`,
+        ].join("");
       });
       if (anyUnmeasured) {
         rows.push(
@@ -1988,6 +1909,29 @@ export class LmiView {
         );
       }
       this.tsPremisesListEl.innerHTML = rows.join("");
+
+      const premiseInputs = Array.from(
+        this.tsPremisesListEl.querySelectorAll<HTMLInputElement>("input[data-premise-field]"),
+      );
+      for (const inp of premiseInputs) {
+        const onPremiseEdit = (): void => {
+          const idx = Number(inp.getAttribute("data-premise-idx"));
+          const field = inp.getAttribute("data-premise-field");
+          if (!Number.isInteger(idx) || idx < 0 || idx >= this.sysState.tsPremises.length) return;
+          const p = this.sysState.tsPremises[idx];
+          if (field === "name") {
+            p.name = inp.value;
+          } else if (field === "min") {
+            p.min = inp.value.trim() === "" ? Number.NaN : Number(inp.value);
+          } else if (field === "max") {
+            p.max = inp.value.trim() === "" ? Number.NaN : Number(inp.value);
+          }
+          this.renderTsConvexityValidation();
+        };
+        inp.addEventListener("input", onPremiseEdit);
+        inp.addEventListener("change", onPremiseEdit);
+      }
+
       const toggleBtns = Array.from(
         this.tsPremisesListEl.querySelectorAll<HTMLElement>('[data-action="lmi-toggle-premise"]'),
       );
@@ -2001,6 +1945,22 @@ export class LmiView {
           this.renderEditorAndMath();
         });
       }
+
+      const removePremiseBtns = Array.from(
+        this.tsPremisesListEl.querySelectorAll<HTMLElement>('[data-action="lmi-remove-ts-premise"]'),
+      );
+      for (const btn of removePremiseBtns) {
+        btn.addEventListener("click", () => {
+          if (this.sysState.tsPremises.length <= 1) return;
+          const idx = Number(btn.getAttribute("data-premise-idx"));
+          if (!Number.isInteger(idx) || idx < 0 || idx >= this.sysState.tsPremises.length) return;
+          this.sysState.tsPremises.splice(idx, 1);
+          this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+          this.renderCharacterizationCard();
+          this.renderEditorAndMath();
+        });
+      }
+
       setElHidden(
         this.tsUnmeasuredPanelEl,
         !(this.sysState.systemClass === "ts" && anyUnmeasured),

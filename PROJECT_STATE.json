@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 6
+      "2026-11-22": 7
     }
   },
   "audit_reference": {
@@ -5475,7 +5475,13 @@
         "T-PWA-01"
       ],
       "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_sw_release_update.py -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f7_f9_sw_release_update_chromium_firefox_deterministic",
+      "handoff_ref": "docs/audits/handoffs/WP-ROADMAP-SW-FIREFOX-CI.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-ROADMAP-SW-FIREFOX-CI.md"
+      ],
       "origin_ref": "docs/ControlLab_Web_Documento_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [

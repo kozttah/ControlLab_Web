@@ -256,6 +256,15 @@ export class ServiceWorkerController {
     }
   }
 
+  public async hasPendingPromotion(storage: CacheStorageLike): Promise<boolean> {
+    if (!await storage.has(this.metadata)) return false;
+    const meta = await storage.open(this.metadata);
+    const pending = await (await meta.match(this.url("pending")))?.text();
+    if (!pending) return false;
+    const active = await (await meta.match(this.url("active")))?.text();
+    return pending !== active;
+  }
+
   public async activate(storage: CacheStorageLike): Promise<string> {
     const release = await this.getRelease(storage, "pending");
     const report = await this.verifyRelease(storage, release);
@@ -297,20 +306,53 @@ export class ServiceWorkerController {
 
 export function attachServiceWorker(scope: ServiceWorkerGlobalScope): ServiceWorkerController {
   const controller = new ServiceWorkerController(scope.registration.scope);
+  let promoted = false;
+  let activationInFlight: Promise<void> | null = null;
+  const ensureActivatedIfNeeded = async (): Promise<void> => {
+    if (promoted) return;
+    const reg = scope.registration;
+    if (reg.installing || reg.waiting || reg.active?.state !== "activated") {
+      return;
+    }
+    if (!activationInFlight) {
+      activationInFlight = (async () => {
+        try {
+          if (await controller.hasPendingPromotion(scope.caches)) {
+            await controller.activate(scope.caches);
+          }
+          promoted = true;
+        } finally {
+          activationInFlight = null;
+        }
+      })();
+    }
+    await activationInFlight;
+  };
   scope.addEventListener("install", (event) => {
     event.waitUntil(controller.install(scope.caches, scope.fetch.bind(scope)));
   });
   scope.addEventListener("activate", (event) => {
     // Aguardar o fim dos clientes antigos pela política nativa de waiting/activate.
-    event.waitUntil(controller.activate(scope.caches).then(() => scope.clients.claim()));
+    event.waitUntil(
+      controller.activate(scope.caches).then(() => {
+        promoted = true;
+        return scope.clients.claim();
+      }),
+    );
   });
   scope.addEventListener("fetch", (event) => {
-    event.respondWith(controller.handleFetch(event.request, scope.caches));
+    event.respondWith(
+      ensureActivatedIfNeeded().then(() => controller.handleFetch(event.request, scope.caches)),
+    );
   });
   scope.addEventListener("message", (event) => {
     const port = event.ports[0];
     if (port && event.data?.type === "controllab.checkOfflineReadiness") {
-      event.waitUntil(controller.checkOfflineReadiness(scope.caches).then((report) => port.postMessage(report)));
+      event.waitUntil(
+        ensureActivatedIfNeeded()
+          .then(() => controller.checkOfflineReadiness(scope.caches))
+          .then((report) => port.postMessage(report)),
+      );
     }
   });
   return controller;

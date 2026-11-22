@@ -1362,5 +1362,174 @@ test("WP-PHASE4-05-F8: Avaliador analítico h_i(z) e validateConvexMembershipFun
   assert.equal(evaluateMathExpression("-x^2 + 1", { x: 3 }), -8);
 });
 
+test("WP-ROADMAP-CTRLAB-LMI-PERSISTENCE: roundtrip .ctrlab preserva e restaura estado completo da Aba 6 LMI", async () => {
+  const loaded = await cpythonLoader({ indexURL: "", packages: [] });
+  const pyodide = loaded.pyodide;
+  if (!pyodide.pyimport || !pyodide.toPy) {
+    throw new Error("cpythonLoader não expôs pyimport/toPy.");
+  }
+  const rpcMod = pyodide.pyimport("control_lab.core.rpc") as {
+    dispatch: (arg: unknown) => RpcResponse;
+  };
+
+  class RealPythonRoundtripClient extends StubLmiClient {
+    private readonly objects = new Map<string, Record<string, unknown>>();
+
+    public override async registerObject(
+      project_id: string,
+      id: string,
+      revision: number,
+      value: Record<string, unknown>,
+      _options?: RegisterObjectOptions,
+    ): Promise<RegisteredObjectRef> {
+      this.objects.set(`${project_id}::${id}#${revision}`, structuredClone(value));
+      return { project_id, object_id: id, revision, persisted: false, cached_in_worker: true };
+    }
+
+    public override async execute(req: RpcRequest): Promise<RpcResponse> {
+      const payload = structuredClone(req.payload);
+      if (payload.plant_ref && !payload.plant) {
+        const ref = payload.plant_ref as { id: string; revision: number };
+        const found = this.objects.get(`${req.project_id}::${ref.id}#${ref.revision}`);
+        if (found) {
+          payload.plant = found;
+          delete payload.plant_ref;
+        }
+      }
+      const proxy = pyodide.toPy!({ request: req, payload });
+      const resp = rpcMod.dispatch(proxy);
+      proxy.destroy();
+      return resp;
+    }
+  }
+
+  const client1 = new RealPythonRoundtripClient();
+  const doc1 = new FakeDocument();
+  const root1 = doc1.createElement("div");
+
+  const app1 = mountControlLabApp(root1 as unknown as HTMLElement, {
+    client: client1,
+    project_id: "proj-lmi-persistence",
+  });
+  await app1.client.init();
+
+  // Garante projeto LQR comitado para liberar exportação .ctrlab
+  await app1.shell.getLqrWorkspace().pointerUp({ qScale: 1.0, rScale: 1.0 });
+  assert.equal(
+    app1.shell.getLqrWorkspace().canExport().allowed,
+    true,
+    JSON.stringify({
+      guard: app1.shell.getLqrWorkspace().canExport(),
+      err: app1.shell.getLqrWorkspace().getLastError(),
+    }),
+  );
+
+  app1.shell.switchTab("optimization_lmi");
+
+  // 1. Mudar para Takagi-Sugeno, editar A[1], h_1(z), premissas [z_min, z_max], unmeasured + dA/dC, extraIndices e DSL customizada
+  const sysClassEl = root1.querySelector<FakeElement>("#lmi-sys-class-select")!;
+  sysClassEl.value = "ts";
+  sysClassEl.dispatchEvent("change");
+
+  const tsA1 = root1.querySelector<FakeElement>('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')!;
+  tsA1.value = "[[0, 1], [-8.75, -3.25]]";
+  tsA1.dispatchEvent("input");
+
+  const mf0 = root1.querySelector<FakeElement>('input[data-mf-field="expression"][data-mf-idx="0"]')!;
+  mf0.value = "(1 + cos(z1)) / 2";
+  mf0.dispatchEvent("input");
+
+  const premMin0 = root1.querySelector<FakeElement>('input[data-premise-field="min"][data-premise-idx="0"]')!;
+  premMin0.value = "-2.5";
+  premMin0.dispatchEvent("input");
+  const premMax0 = root1.querySelector<FakeElement>('input[data-premise-field="max"][data-premise-idx="0"]')!;
+  premMax0.value = "2.5";
+  premMax0.dispatchEvent("input");
+
+  root1.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!.dispatchEvent("click");
+
+  const daEl = root1.querySelector<FakeElement>("#lmi-ts-obs-da")!;
+  daEl.value = "[[[0, 0.35], [0, 0]], [[0, -0.35], [0, 0]]]";
+  daEl.dispatchEvent("input");
+
+  const dcEl = root1.querySelector<FakeElement>("#lmi-ts-obs-dc")!;
+  dcEl.value = "[[[0.1, 0]], [[-0.1, 0]]]";
+  dcEl.dispatchEvent("input");
+
+  const extraIdxEl = root1.querySelector<FakeElement>("#lmi-extra-indices")!;
+  extraIdxEl.value = "j, k";
+  extraIdxEl.dispatchEvent("input");
+
+  const customDsl = [
+    "system ts rules=2 index=i,j,k premises=unmeasured",
+    "var Q symmetric(n, n) > 0",
+    "var Y[i] matrix(m, n)",
+    "forall i in 1..N:",
+    "  He(A[i]*Q + B[i]*Y[i]) + 0.1*I < 0",
+    "minimize trace(Q)",
+  ].join("\n");
+  const codeEl = root1.querySelector<FakeElement>("#lmi-code-editor")!;
+  codeEl.value = customDsl;
+  codeEl.dispatchEvent("input");
+
+  // 2. Exportar .ctrlab via Python real
+  const exported = await app1.shell.exportCtrlLab();
+  assert.ok(exported.bytes.length > 0);
+  app1.destroy();
+
+  // 3. Montar app totalmente nova (LmiView limpa) e importar .ctrlab
+  const client2 = new RealPythonRoundtripClient();
+  const doc2 = new FakeDocument();
+  const root2 = doc2.createElement("div");
+
+  const app2 = mountControlLabApp(root2 as unknown as HTMLElement, {
+    client: client2,
+    project_id: "proj-lmi-persistence-2",
+  });
+  await app2.client.init();
+
+  // Antes do import, não está em 'ts'
+  assert.notEqual(root2.querySelector<FakeElement>("#lmi-sys-class-select")!.value, "ts");
+
+  await app2.shell.importCtrlLab(exported.bytes);
+  app2.shell.switchTab("optimization_lmi");
+
+  // 4. Verificar restauração 100% fiel de toda a Aba 6
+  assert.equal(root2.querySelector<FakeElement>("#lmi-sys-class-select")!.value, "ts");
+  assert.equal(
+    root2.querySelector<FakeElement>('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')!.value,
+    "[[0, 1], [-8.75, -3.25]]",
+  );
+  assert.equal(
+    root2.querySelector<FakeElement>('input[data-mf-field="expression"][data-mf-idx="0"]')!.value,
+    "(1 + cos(z1)) / 2",
+  );
+  assert.equal(
+    root2.querySelector<FakeElement>('input[data-premise-field="min"][data-premise-idx="0"]')!.value,
+    "-2.5",
+  );
+  assert.equal(
+    root2.querySelector<FakeElement>('input[data-premise-field="max"][data-premise-idx="0"]')!.value,
+    "2.5",
+  );
+  assert.equal(
+    root2.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!.textContent,
+    "Não Medida (Estimada)",
+  );
+  assert.equal(
+    root2.querySelector<FakeElement>("#lmi-ts-obs-da")!.value,
+    "[[[0, 0.35], [0, 0]], [[0, -0.35], [0, 0]]]",
+  );
+  assert.equal(
+    root2.querySelector<FakeElement>("#lmi-ts-obs-dc")!.value,
+    "[[[0.1, 0]], [[-0.1, 0]]]",
+  );
+  assert.equal(root2.querySelector<FakeElement>("#lmi-extra-indices")!.value, "j, k");
+  assert.equal(root2.querySelector<FakeElement>("#lmi-code-editor")!.value, customDsl);
+
+  app2.destroy();
+});
+
+
 
 

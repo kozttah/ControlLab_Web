@@ -301,6 +301,9 @@ export class ControlLabShell {
   private readonly eventsLog: EngineClientEvent[] = [];
   private readonly listeners = new Set<() => void>();
   private readonly unsubscribeClient: () => void;
+  private lmiStateGetter: (() => Record<string, unknown> | null) | null = null;
+  private lmiStateSetter: ((state: Record<string, unknown>) => void) | null = null;
+  private pendingRestoredLmiState: Record<string, unknown> | null = null;
 
   constructor(options: ShellOptions) {
     this.client = options.client;
@@ -868,7 +871,8 @@ export class ControlLabShell {
       controller_ref: committed.controller_ref,
       parameters: { workspace: this.lqr.getWeights(), snapshot: committed,
         comparisons: structuredClone(this.experiments),
-        pvm_export_options: structuredClone(this.pvmExportOptions) },
+        pvm_export_options: structuredClone(this.pvmExportOptions),
+        lmi_state: this.lmiStateGetter ? structuredClone(this.lmiStateGetter()) : null },
       tolerances: {}, results: null, data_source: null,
       provenance: structuredClone(committed.provenance), created_at: committed.committed_at,
     };
@@ -878,6 +882,19 @@ export class ControlLabShell {
       created_at: committed.committed_at, provenance: structuredClone(committed.provenance),
     };
     return this.exportFile("io.export_ctrlab", { project }, "ctrlab", this.pvmExportRevision);
+  }
+
+  public registerLmiPersistence(
+    getter: () => Record<string, unknown> | null,
+    setter: (state: Record<string, unknown>) => void,
+  ): void {
+    this.lmiStateGetter = getter;
+    this.lmiStateSetter = setter;
+    if (this.pendingRestoredLmiState !== null) {
+      const pending = this.pendingRestoredLmiState;
+      this.pendingRestoredLmiState = null;
+      setter(pending);
+    }
   }
 
   public getPvmExportOptions(): PvmExportOptions | null {
@@ -1039,6 +1056,15 @@ export class ControlLabShell {
       this.experiments.length = 0;
       if (Array.isArray(parameters.comparisons)) {
         this.experiments.push(...structuredClone(parameters.comparisons) as CommittedExperimentEntry[]);
+      }
+      this.pendingRestoredLmiState = null;
+      if (isPlainObject(parameters.lmi_state)) {
+        this.pendingRestoredLmiState = structuredClone(parameters.lmi_state);
+        if (this.lmiStateSetter) {
+          const pending = this.pendingRestoredLmiState;
+          this.pendingRestoredLmiState = null;
+          this.lmiStateSetter(pending);
+        }
       }
       this.notify();
     } finally {

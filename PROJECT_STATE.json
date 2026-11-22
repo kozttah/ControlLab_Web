@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 5
+      "2026-11-22": 6
     }
   },
   "audit_reference": {
@@ -5441,7 +5441,13 @@
         "T-UI-01"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f8_f9_ctrlab_lmi_persistence_roundtrip_and_chromium_e2e",
+      "handoff_ref": "docs/audits/handoffs/WP-ROADMAP-CTRLAB-LMI-PERSISTENCE.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-ROADMAP-CTRLAB-LMI-PERSISTENCE.md"
+      ],
       "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
       "acceptance_requirements": [

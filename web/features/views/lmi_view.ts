@@ -195,6 +195,53 @@ function cloneMatrix2D(mat: number[][]): number[][] {
   return mat.map((row) => [...row]);
 }
 
+function sanitizeMatrix2D(raw: unknown, fallback: number[][]): number[][] {
+  if (!Array.isArray(raw) || raw.length === 0) return cloneMatrix2D(fallback);
+  const rows: number[][] = [];
+  let cols = -1;
+  for (const r of raw) {
+    if (!Array.isArray(r) || r.length === 0) return cloneMatrix2D(fallback);
+    if (cols === -1) cols = r.length;
+    else if (r.length !== cols) return cloneMatrix2D(fallback);
+    const numRow: number[] = [];
+    for (const v of r) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return cloneMatrix2D(fallback);
+      numRow.push(n);
+    }
+    rows.push(numRow);
+  }
+  return rows;
+}
+
+function sanitizeVertexList(raw: unknown): LmiPolytopeVertexPreview[] {
+  if (!Array.isArray(raw)) return [];
+  const out: LmiPolytopeVertexPreview[] = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const item = raw[i];
+    if (!isPlainObject(item)) continue;
+    const index =
+      typeof item.index === "number" && Number.isInteger(item.index) && item.index >= 1
+        ? item.index
+        : i + 1;
+    const label = typeof item.label === "string" ? item.label : `Vértice ${index}`;
+    const entry: LmiPolytopeVertexPreview = {
+      index,
+      label,
+      aMatrix: sanitizeMatrix2D(item.aMatrix, [[0]]),
+      bMatrix: sanitizeMatrix2D(item.bMatrix, [[0]]),
+      cMatrix: sanitizeMatrix2D(item.cMatrix, [[1]]),
+      dMatrix: sanitizeMatrix2D(item.dMatrix, [[0]]),
+    };
+    if (typeof item.aText === "string") entry.aText = item.aText;
+    if (typeof item.bText === "string") entry.bText = item.bText;
+    if (typeof item.cText === "string") entry.cText = item.cText;
+    if (typeof item.dText === "string") entry.dText = item.dText;
+    out.push(entry);
+  }
+  return out;
+}
+
 function formatSubscript(num: number): string {
   const digits = ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"];
   return String(num)
@@ -727,6 +774,145 @@ export class LmiView {
     this.generatePolytopeVertices();
     this.resizeTsVertices();
     this.bindEvents();
+    this.shell.registerLmiPersistence(
+      () => this.exportSerializableState(),
+      (state) => this.restoreSerializableState(state),
+    );
+  }
+
+  public exportSerializableState(): Record<string, unknown> {
+    if (this.codeEditorEl && this.codeEditorEl.value !== this.currentDsl) {
+      this.currentDsl = this.codeEditorEl.value;
+    }
+    return {
+      sysState: {
+        systemClass: this.sysState.systemClass,
+        genEnableW: this.sysState.genEnableW,
+        genEnableZ: this.sysState.genEnableZ,
+        genBwText: this.sysState.genBwText,
+        genCzText: this.sysState.genCzText,
+        genDzuText: this.sysState.genDzuText,
+        genDzwText: this.sysState.genDzwText,
+        polyVerticesCount: this.sysState.polyVerticesCount,
+        polyIndexName: this.sysState.polyIndexName,
+        polyDeltaPct: this.sysState.polyDeltaPct,
+        polyVertices: structuredClone(this.sysState.polyVertices),
+        tsRulesCount: this.sysState.tsRulesCount,
+        tsIndexName: this.sysState.tsIndexName,
+        tsPremises: structuredClone(this.sysState.tsPremises),
+        tsMemberships: structuredClone(this.sysState.tsMemberships),
+        tsVertices: structuredClone(this.sysState.tsVertices),
+        tsObsMethod: this.sysState.tsObsMethod,
+        tsObsDaText: this.sysState.tsObsDaText,
+        tsObsDcText: this.sysState.tsObsDcText,
+        extraIndices: this.sysState.extraIndices,
+      },
+      currentDsl: this.currentDsl,
+    };
+  }
+
+  public restoreSerializableState(raw: unknown): void {
+    if (!isPlainObject(raw)) return;
+
+    if (isPlainObject(raw.sysState)) {
+      const s = raw.sysState;
+      if (s.systemClass === "lti" || s.systemClass === "polytopic" || s.systemClass === "ts") {
+        this.sysState.systemClass = s.systemClass;
+      }
+      if (typeof s.genEnableW === "boolean") this.sysState.genEnableW = s.genEnableW;
+      if (typeof s.genEnableZ === "boolean") this.sysState.genEnableZ = s.genEnableZ;
+      if (typeof s.genBwText === "string") this.sysState.genBwText = s.genBwText;
+      if (typeof s.genCzText === "string") this.sysState.genCzText = s.genCzText;
+      if (typeof s.genDzuText === "string") this.sysState.genDzuText = s.genDzuText;
+      if (typeof s.genDzwText === "string") this.sysState.genDzwText = s.genDzwText;
+
+      if (typeof s.polyVerticesCount === "number" && Number.isFinite(s.polyVerticesCount)) {
+        this.sysState.polyVerticesCount = Math.max(2, Math.min(8, Math.round(s.polyVerticesCount)));
+      }
+      if (typeof s.polyIndexName === "string" && s.polyIndexName.trim()) {
+        this.sysState.polyIndexName = s.polyIndexName.trim();
+      }
+      if (typeof s.polyDeltaPct === "number" && Number.isFinite(s.polyDeltaPct)) {
+        this.sysState.polyDeltaPct = Math.max(1, Math.min(80, s.polyDeltaPct));
+      }
+      const restoredPolyVertices = sanitizeVertexList(s.polyVertices);
+      if (restoredPolyVertices.length > 0) {
+        this.sysState.polyVertices = restoredPolyVertices;
+      } else {
+        this.generatePolytopeVertices();
+      }
+
+      if (typeof s.tsRulesCount === "number" && Number.isFinite(s.tsRulesCount)) {
+        this.sysState.tsRulesCount = Math.max(2, Math.min(6, Math.round(s.tsRulesCount)));
+      }
+      if (typeof s.tsIndexName === "string" && s.tsIndexName.trim()) {
+        this.sysState.tsIndexName = s.tsIndexName.trim();
+      }
+      if (Array.isArray(s.tsPremises)) {
+        const sanitizedPremises: LmiPremiseVarState[] = [];
+        for (const item of s.tsPremises) {
+          if (!isPlainObject(item)) continue;
+          const name =
+            typeof item.name === "string" && item.name.trim()
+              ? item.name.trim()
+              : `z${sanitizedPremises.length + 1}`;
+          const min = typeof item.min === "number" && Number.isFinite(item.min) ? item.min : -1;
+          const max = typeof item.max === "number" && Number.isFinite(item.max) ? item.max : 1;
+          const measured = typeof item.measured === "boolean" ? item.measured : true;
+          sanitizedPremises.push({ name, min, max, measured });
+        }
+        if (sanitizedPremises.length > 0) {
+          this.sysState.tsPremises = sanitizedPremises;
+        }
+      }
+      if (Array.isArray(s.tsMemberships)) {
+        const sanitizedMfs: LmiTsMembershipRow[] = [];
+        for (let i = 0; i < s.tsMemberships.length; i += 1) {
+          const item = s.tsMemberships[i];
+          if (!isPlainObject(item)) continue;
+          const id =
+            typeof item.id === "string" && item.id.trim() ? item.id.trim() : `mf-${i + 1}`;
+          const expression = typeof item.expression === "string" ? item.expression : "0";
+          sanitizedMfs.push({ id, expression });
+        }
+        this.sysState.tsMemberships = sanitizedMfs;
+        this.mfIdCounter = Math.max(this.mfIdCounter, sanitizedMfs.length + 1);
+      }
+      const restoredTsVertices = sanitizeVertexList(s.tsVertices);
+      if (restoredTsVertices.length > 0) {
+        this.sysState.tsVertices = restoredTsVertices;
+      } else {
+        this.resizeTsVertices();
+      }
+
+      if (s.tsObsMethod === "dmvt_nonlinearity" || s.tsObsMethod === "gradient_factorization") {
+        this.sysState.tsObsMethod = s.tsObsMethod;
+      }
+      if (typeof s.tsObsDaText === "string") this.sysState.tsObsDaText = s.tsObsDaText;
+      if (typeof s.tsObsDcText === "string") this.sysState.tsObsDcText = s.tsObsDcText;
+      if (typeof s.extraIndices === "string") this.sysState.extraIndices = s.extraIndices;
+
+      this.syncTsFromMemberships();
+    }
+
+    if (typeof raw.currentDsl === "string") {
+      this.currentDsl = raw.currentDsl;
+    }
+
+    if (this.codeEditorEl) {
+      this.codeEditorEl.value = this.currentDsl;
+    }
+    if (this.genBwEl) this.genBwEl.value = this.sysState.genBwText;
+    if (this.genCzEl) this.genCzEl.value = this.sysState.genCzText;
+    if (this.genDzuEl) this.genDzuEl.value = this.sysState.genDzuText;
+    if (this.genDzwEl) this.genDzwEl.value = this.sysState.genDzwText;
+    if (this.tsObsDaEl) this.tsObsDaEl.value = this.sysState.tsObsDaText;
+    if (this.tsObsDcEl) this.tsObsDcEl.value = this.sysState.tsObsDcText;
+
+    this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
+    this.renderCharacterizationCard();
+    this.renderEditorAndMath();
+    this.onRequestRender?.();
   }
 
   private buildParseOptions(): LmiDslParseOptions {
@@ -1687,6 +1873,10 @@ export class LmiView {
 
     if (this.genEnableWEl) this.genEnableWEl.checked = this.sysState.genEnableW;
     if (this.genEnableZEl) this.genEnableZEl.checked = this.sysState.genEnableZ;
+    if (this.genBwEl && this.genBwEl.value !== this.sysState.genBwText) this.genBwEl.value = this.sysState.genBwText;
+    if (this.genCzEl && this.genCzEl.value !== this.sysState.genCzText) this.genCzEl.value = this.sysState.genCzText;
+    if (this.genDzuEl && this.genDzuEl.value !== this.sysState.genDzuText) this.genDzuEl.value = this.sysState.genDzuText;
+    if (this.genDzwEl && this.genDzwEl.value !== this.sysState.genDzwText) this.genDzwEl.value = this.sysState.genDzwText;
     setElHidden(
       this.genMatricesPanelEl,
       !(this.sysState.genEnableW || this.sysState.genEnableZ),
@@ -1703,6 +1893,8 @@ export class LmiView {
     this.renderTsMfSummaryAndPremises();
     this.renderVertexEditor(this.tsVertexEditorEl, this.sysState.tsVertices, "ts");
     if (this.tsObsMethodEl) this.tsObsMethodEl.value = this.sysState.tsObsMethod;
+    if (this.tsObsDaEl && this.tsObsDaEl.value !== this.sysState.tsObsDaText) this.tsObsDaEl.value = this.sysState.tsObsDaText;
+    if (this.tsObsDcEl && this.tsObsDcEl.value !== this.sysState.tsObsDcText) this.tsObsDcEl.value = this.sysState.tsObsDcText;
 
     if (this.extraIndicesEl && this.extraIndicesEl.value !== this.sysState.extraIndices) {
       this.extraIndicesEl.value = this.sysState.extraIndices;

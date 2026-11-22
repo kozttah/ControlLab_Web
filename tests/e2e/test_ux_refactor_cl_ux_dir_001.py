@@ -1536,3 +1536,100 @@ def test_ux_phase5_anfis_tab5_training(browser_harness):
         },
     )
 
+
+def test_ux_phase5_ctrlab_lmi_persistence(browser_harness, tmp_path):
+    """Test 13: Phase 5 .ctrlab persistence roundtrip for Tab 6 (LMI) system characterization & DSL v2.0."""
+    from control_lab.io import load_ctrlab
+
+    page = mount_ui(browser_harness, "e2e-ux-phase5-ctrlab-lmi", {"width": 1280, "height": 800})
+
+    # 1. Commit LQR in Tab 3 (statespace) so .ctrlab export is enabled
+    page.locator('button[data-tab-id="statespace"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'statespace'")
+    page.locator('[data-action="commit-lqr"]').click()
+    wait_committed(page)
+
+    btn_export_ctrlab = page.locator("#btn-header-export-ctrlab")
+    assert btn_export_ctrlab.is_enabled()
+
+    # 2. Switch to Tab 6 (optimization_lmi), select 'ts' mode, edit A[1], h_1(z), and currentDsl
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
+
+    page.select_option("#lmi-sys-class-select", "ts")
+    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
+    page.locator("#lmi-sys-panel-ts").wait_for(state="visible")
+
+    ts_a1_val = "[[0, 1], [-8.75, -3.25]]"
+    ts_a1 = page.locator('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')
+    ts_a1.wait_for(state="visible")
+    ts_a1.fill(ts_a1_val)
+
+    h1_expr_val = "(1 + cos(z1)) / 2"
+    mf_expr_0 = page.locator('input[data-mf-field="expression"][data-mf-idx="0"]')
+    mf_expr_0.wait_for(state="visible")
+    mf_expr_0.fill(h1_expr_val)
+
+    custom_dsl = "\n".join([
+        "system ts rules=2 index=i",
+        "var Q symmetric(n, n) > 0",
+        "var Y[i] matrix(m, n)",
+        "forall i in 1..N:",
+        "  He(A[i]*Q + B[i]*Y[i]) + 0.15*I < 0",
+        "minimize trace(Q)",
+    ])
+    editor = page.locator("#lmi-code-editor")
+    editor.fill(custom_dsl)
+
+    # 3. Export .ctrlab via Topbar UI button -> Export Modal -> Download, and verify passive archive structure
+    archive_path = tmp_path / "lmi_persistence.ctrlab"
+    btn_export_ctrlab.click()
+    export_modal = page.locator("#controllab-export-modal")
+    export_modal.wait_for(state="visible", timeout=20000)
+    with page.expect_download() as dl_info:
+        page.locator("#export-modal-download").click()
+    download = dl_info.value
+    assert download.suggested_filename.endswith(".ctrlab")
+    download.save_as(str(archive_path))
+    page.locator("#export-modal-close").click()
+    export_modal.wait_for(state="hidden")
+
+    raw_bytes = archive_path.read_bytes()
+    assert len(raw_bytes) > 0
+    loaded = load_ctrlab(raw_bytes)
+    assert loaded.status in {"success", "warning"}, loaded.error
+    assert loaded.diagnostics.get("code_executed") is False
+    assert loaded.data["code_executed"] is False
+    lmi_state = loaded.data["experiments"][0]["parameters"]["lmi_state"]
+    assert lmi_state["sysState"]["systemClass"] == "ts"
+    assert lmi_state["sysState"]["tsMemberships"][0]["expression"] == h1_expr_val
+    assert lmi_state["currentDsl"] == custom_dsl
+
+    # 4. Reload a clean UI session, import .ctrlab via #ctrlab-file-input, and verify Tab 6 restoration
+    page = mount_ui(browser_harness, "e2e-ux-phase5-ctrlab-lmi-reopened", {"width": 1280, "height": 800})
+    assert page.evaluate("() => app.shell.getLqrWorkspace().getCommittedSnapshot()") is None
+
+    page.locator("#ctrlab-file-input").set_input_files(str(archive_path))
+    page.wait_for_function("() => app.shell.getLqrWorkspace().getCommittedSnapshot() !== null")
+
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
+
+    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
+    assert page.locator('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]').input_value() == ts_a1_val
+    assert page.locator('input[data-mf-field="expression"][data-mf-idx="0"]').input_value() == h1_expr_val
+    assert page.locator("#lmi-code-editor").input_value() == custom_dsl
+
+    browser_harness.record(
+        "e2e-ux-phase5-ctrlab-lmi",
+        {
+            "code_executed": loaded.diagnostics.get("code_executed"),
+            "restored_system_class": "ts",
+            "restored_h1_expr": h1_expr_val,
+            "restored_dsl_lines": len(custom_dsl.splitlines()),
+        },
+    )
+
+

@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 11
+      "2026-11-22": 12
     }
   },
   "audit_reference": {
@@ -5898,6 +5898,164 @@
         "100% dos testes E2E (test_ux_refactor_cl_ux_dir_001, test_id_siso_verticals), Wasm (test_real_runtime) e 149+ Web aprovados sem regressao",
         "Zero overflow horizontal em 1440x900 e 390x844 e melhoria mensuravel na altura da Top Bar e limpeza visual"
       ]
+    },
+    {
+      "wp_id": "WP-PHASE7-01-F3-HINF-STABLE-PROOF",
+      "front": "f3-frequency",
+      "phase": "Phase7-DEC-OPEN-06-07",
+      "title": "F3: Certificado matematico exato (residuos Riccati + Hamiltoniano Bruinsma-Steinbuch) para subclasse estavel Hinf DGKF (DEC-OPEN-06)",
+      "allowed_paths": [
+        "control_lab/frequency/",
+        "tests/unit/f3/"
+      ],
+      "dependencies": [
+        "WP-PHASE6-02-F9-UX-HYGIENE-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-08",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-MIMO-01"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f3/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "continuous_regular_dgkf_mixed_sensitivity_riccati_residuals_hamiltonian_brl_and_clarabel_oracle",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE7-01-F3-HINF-STABLE-PROOF.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE7-01-F3-HINF-STABLE-PROOF.md",
+        "tests/oracles/test_hinf_dgkf_oracle.py"
+      ],
+      "origin_ref": "docs/ControlLab_Web_Documento_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-012-hinf-riccati-stable-subclass.md",
+      "acceptance_requirements": [
+        "design_hinf_mixed_sensitivity retorna residuos relativos X/Y de Riccati, margem espectral gamma^2 - rho(XY) e verificacao Hamiltoniana exata da norma Hinf",
+        "Subclasse regular continua S/KS/T promovida com evidencias numericas e rejeicao rigorosa de hipoteses fora da subclasse"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE7-02-F1-PVM-PATHSIM-DEC07",
+      "front": "f1-core-io",
+      "phase": "Phase7-DEC-OPEN-06-07",
+      "title": "F1: Gerador PathSim 0.31.0 completo para TS-PDC/Fuzzy, RPC io.export_pathsim_script e prova .pvm para Hinf dinamico (DEC-OPEN-07)",
+      "allowed_paths": [
+        "control_lab/io/",
+        "control_lab/core/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-PHASE6-02-F9-UX-HYGIENE-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-20",
+        "R-21",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-IO-01",
+        "T-PVM-01"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f1/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "pathsim_0310_ts_pdc_fuzzy_generator_rpc_export_and_hinf_pvm_pathview_0210_verified",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE7-02-F1-PVM-PATHSIM-DEC07.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE7-02-F1-PVM-PATHSIM-DEC07.md",
+        "tests/unit/f1/test_dec_open_07_pathsim.py"
+      ],
+      "origin_ref": "docs/ControlLab_Web_Documento_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
+      "acceptance_requirements": [
+        "generate_pathsim_script gera scripts PathSim 0.31.0 completos e executaveis (sem executar na importacao) para TSStateSpace+PDC e FuzzySystem, validados contra solve_ivp / fuzzy.evaluate",
+        "RPC io.export_pathsim_script exposto em control_lab/core/rpc.py; DynamicController Hinf exportado para .pvm validado no PathView 0.21.0 + PathSim 0.31.0"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE7-03-F8-FUZZY-PATHSIM-EXPORT",
+      "front": "f8-ui-charts",
+      "phase": "Phase7-DEC-OPEN-06-07",
+      "title": "F8: Botao Exportar Script PathSim (.py) na Aba 5 (Fuzzy) conectado a io.export_pathsim_script (DEC-OPEN-07)",
+      "allowed_paths": [
+        "web/features/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE7-02-F1-PVM-PATHSIM-DEC07"
+      ],
+      "requirement_ids": [
+        "R-20",
+        "R-21",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "tab5_fuzzy_pathsim_passive_export_modal_and_tab4_hinf_certificate_badges",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE7-03-F8-FUZZY-PATHSIM-EXPORT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE7-03-F8-FUZZY-PATHSIM-EXPORT.md"
+      ],
+      "origin_ref": "docs/ControlLab_Web_Documento_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
+      "acceptance_requirements": [
+        "Botao #btn-fuzzy-export-pathsim na Aba 5 dispara io.export_pathsim_script e abre modal passivo de exportacao (.py) com aviso de execucao manual"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE7-04-F9-DEC-OPEN-06-07-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase7-DEC-OPEN-06-07",
+      "title": "F9: Oraculo independente Hinf DGKF vs Clarabel BRL, ADRs 012/013, adendo Documento Diretor e auditoria completa DEC-OPEN-06/07",
+      "allowed_paths": [
+        "tests/oracles/",
+        "tests/e2e/",
+        "docs/architecture/",
+        "docs/audits/",
+        "docs/ControlLab_Web_Documento_Diretor_v1.0.md",
+        "ControlLab_Web_Documento_Diretor_v1.0.md",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE7-01-F3-HINF-STABLE-PROOF",
+        "WP-PHASE7-02-F1-PVM-PATHSIM-DEC07",
+        "WP-PHASE7-03-F8-FUZZY-PATHSIM-EXPORT"
+      ],
+      "requirement_ids": [
+        "R-08",
+        "R-20",
+        "R-21",
+        "R-23",
+        "R-24"
+      ],
+      "normative_tests": [
+        "T-MIMO-01",
+        "T-PVM-01",
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f1/ tests/unit/f3/ tests/oracles/test_hinf_dgkf_oracle.py tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_independent_hinf_clarabel_brl_oracle_adr012_adr013_director_addendum_and_full_gates",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE7-04-F9-DEC-OPEN-06-07-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE7-04-F9-DEC-OPEN-06-07-AUDIT.md",
+        "docs/architecture/ADR-012-hinf-riccati-stable-subclass.md",
+        "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
+        "tests/oracles/test_hinf_dgkf_oracle.py"
+      ],
+      "origin_ref": "docs/ControlLab_Web_Documento_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-012-hinf-riccati-stable-subclass.md",
+      "acceptance_requirements": [
+        "Oraculo independente testa design_hinf_mixed_sensitivity contra BRL LMI (Clarabel) e Hamiltoniano exato",
+        "ADR-012 e ADR-013 formalizadas e registradas em PROJECT_STATE.json e no adendo normativo do Documento Diretor"
+      ]
     }
   ],
   "audit_history": [
@@ -5958,6 +6116,30 @@
       "scope": "original_project_code_only_not_third_party_relicensing_or_stable_release",
       "evidence_ref": "docs/architecture/ADR-011-mit-license-and-third-party-notices.md",
       "review_ref": "docs/audits/handoffs/LICENSE-MIT-2026-11-17.md"
+    },
+    "ADR-012": {
+      "status": "ACCEPTED",
+      "authority": "project_coordinator",
+      "decision_date": "2026-11-22",
+      "decision": "Promote continuous regular 2-Riccati DGKF mixed-sensitivity H-infinity subclass (continuous_regular_dgkf_mixed_sensitivity) to stable with mandatory Riccati residuals (<1e-8), spectral coupling margin, exact Bruinsma-Steinbuch Hamiltonian BRL certificate, and independent Clarabel BRL oracle",
+      "resolves": [
+        "DEC-OPEN-06"
+      ],
+      "scope": "continuous_regular_dgkf_mixed_sensitivity_only_exclusions_routed_to_lmi_sdp",
+      "evidence_ref": "docs/architecture/ADR-012-hinf-riccati-stable-subclass.md",
+      "review_ref": "docs/audits/handoffs/WP-PHASE7-04-F9-DEC-OPEN-06-07-AUDIT.md"
+    },
+    "ADR-013": {
+      "status": "ACCEPTED",
+      "authority": "project_coordinator",
+      "decision_date": "2026-11-22",
+      "decision": "Keep passive .pvm (PathView 0.21.0) strictly linear/saturation-only (including StateSpace, StateFeedbackController, and continuous/discrete DynamicController including MIMO Hinf) to preserve R-21, and officially serve FuzzySystem and TSStateSpace+PDCController via deterministic passive PathSim 0.31.0 script generation (generate_pathsim_script, io.export_pathsim_script, Tab 5 button) while preserving ADR-006 polytopic_uncertain+PDC block",
+      "resolves": [
+        "DEC-OPEN-07"
+      ],
+      "scope": "pathview_0210_passive_pvm_boundary_and_pathsim_0310_offline_script_export",
+      "evidence_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
+      "review_ref": "docs/audits/handoffs/WP-PHASE7-04-F9-DEC-OPEN-06-07-AUDIT.md"
     }
   }
 }

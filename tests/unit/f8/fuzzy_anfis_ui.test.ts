@@ -37,7 +37,13 @@ import {
 } from "../../../web/bridge/client.ts";
 import type { PortableProjectSnapshot } from "../../../web/storage/indexeddb_store.ts";
 import { mountControlLabApp } from "../../../web/app/main.ts";
-import { parseAnfisDataset } from "../../../web/features/views/fuzzy_view.ts";
+import { ControlLabShell } from "../../../web/app/shell.ts";
+import {
+  FuzzyView,
+  parseAnfisDataset,
+  renderFuzzyViewHtml,
+  type FuzzyExportModalPayload,
+} from "../../../web/features/views/fuzzy_view.ts";
 import { cpythonLoader } from "../f7/cpython_runtime.mjs";
 
 class FakeElement {
@@ -293,6 +299,7 @@ class PythonAnfisClient implements ControlLabEngineClient {
   private readonly store = new Map<string, { kind: string; value: Record<string, unknown> }>();
   private readonly listeners = new Set<EngineEventListener>();
   public readonly executedRequests: RpcRequest[] = [];
+  public readonly executedResponses: RpcResponse[] = [];
 
   public async init(): Promise<CapabilityDescriptor> {
     this.state = "ready";
@@ -314,6 +321,7 @@ class PythonAnfisClient implements ControlLabEngineClient {
         "fuzzy.evaluate",
         "fuzzy.evaluate_surface",
         "fuzzy.fit_anfis",
+        "io.export_pathsim_script",
       ],
       backends: {
         numpy_scipy: { available: true, maturity: "beta" },
@@ -322,6 +330,7 @@ class PythonAnfisClient implements ControlLabEngineClient {
         "fuzzy.evaluate": "beta",
         "fuzzy.evaluate_surface": "beta",
         "fuzzy.fit_anfis": "beta",
+        "io.export_pathsim_script": "stable",
       },
       supports_transferables: true,
       supports_cooperative_cancel: true,
@@ -406,6 +415,7 @@ class PythonAnfisClient implements ControlLabEngineClient {
     const rawResp = rpcMod.dispatch(proxy);
     proxy.destroy();
     rpcMod.destroy?.();
+    this.executedResponses.push(structuredClone(rawResp));
     return rawResp;
   }
 
@@ -593,6 +603,109 @@ test("WP-ROADMAP-ANFIS-TAB5: card ANFIS na Aba 5 treina via fuzzy.fit_anfis, ren
   trainBtn.dispatchEvent("click");
   await new Promise((r) => setTimeout(r, 400));
   assert.ok(root.querySelector<FakeElement>("#fuzzy-coverage-status")!.textContent.includes("9 regras"));
+
+  app.destroy();
+});
+
+test("WP-PHASE7-03-F8-FUZZY-PATHSIM-EXPORT: #btn-fuzzy-export-pathsim exporta script PathSim (.py) passivo via io.export_pathsim_script", async () => {
+  // 1. Teste unitário direto em FuzzyView com spy onOpenExportModal contra CPython real (dispatch_rpc)
+  const client = new PythonAnfisClient();
+  await client.init();
+  const shell = new ControlLabShell({
+    client,
+    project_id: "proj-fuzzy-pathsim-export",
+    initialTab: "fuzzy_ts",
+  });
+  const doc = new FakeDocument();
+  const container = doc.createElement("div");
+  container.innerHTML = renderFuzzyViewHtml();
+
+  const openedModals: Array<{ payload: FuzzyExportModalPayload; trigger: HTMLElement | null }> = [];
+  const view = new FuzzyView({
+    shell,
+    client,
+    container: container as unknown as HTMLElement,
+    onOpenExportModal: (payload, trigger) => {
+      openedModals.push({ payload, trigger });
+    },
+  });
+  view.render();
+
+  const btn = container.querySelector<FakeElement>("#btn-fuzzy-export-pathsim");
+  assert.ok(btn, "#btn-fuzzy-export-pathsim deve existir na Aba 5");
+  assert.equal(btn.getAttribute("data-action"), "fuzzy-export-pathsim");
+  assert.ok(btn.className.includes("touch-control"), "Botão deve possuir classe touch-control");
+  assert.ok(btn.className.includes("btn-secondary"), "Botão deve possuir classe btn-secondary");
+  assert.equal(btn.textContent.trim(), "Exportar Script PathSim (.py)");
+
+  btn.dispatchEvent("click");
+  for (let i = 0; i < 40 && openedModals.length === 0; i += 1) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+
+  const req = client.executedRequests.find((r) => r.operation === "io.export_pathsim_script");
+  assert.ok(req, "Clique em #btn-fuzzy-export-pathsim deve disparar RPC io.export_pathsim_script");
+  assert.equal(req.payload.filename, "controllab_fuzzy_pathsim.py");
+  const sentFuzzy = req.payload.fuzzy_system as Record<string, unknown>;
+  assert.equal(sentFuzzy.kind, "FuzzySystem");
+
+  const resp = client.executedResponses.find((r) => r.request_id === req.request_id);
+  assert.ok(resp, "Resposta RPC de io.export_pathsim_script deve existir");
+  assert.notEqual(resp.status, "failure", "Exportação PathSim não deve falhar");
+  assert.equal(resp.result?.code_executed, false, "code_executed deve ser estritamente false (ADR-013)");
+  assert.equal(resp.result?.requires_explicit_user_execution, true);
+
+  assert.equal(openedModals.length, 1, "onOpenExportModal deve ser chamado uma vez");
+  const modalCall = openedModals[0];
+  assert.equal(
+    modalCall.payload.title,
+    "Script PathSim Offline (Execução Manual Explícita — ADR-013)",
+  );
+  assert.equal(modalCall.payload.filename, "controllab_fuzzy_pathsim.py");
+  assert.equal(modalCall.payload.mimeType, "text/x-python;charset=utf-8");
+  assert.equal(modalCall.payload.offlineDesign, true);
+  assert.ok(
+    modalCall.payload.content.includes("run_pathsim_simulation"),
+    "Script Python exportado deve conter run_pathsim_simulation",
+  );
+  assert.ok(
+    modalCall.payload.content.includes("eval_fuzzy_point"),
+    "Script Python exportado deve conter eval_fuzzy_point",
+  );
+  assert.equal(modalCall.trigger, btn as unknown as HTMLElement);
+
+  // 2. Verificação de integração no shell montado (mountControlLabApp -> #controllab-export-modal)
+  const appClient = new PythonAnfisClient();
+  const appDoc = new FakeDocument();
+  const appRoot = appDoc.createElement("div");
+  const app = mountControlLabApp(appRoot as unknown as HTMLElement, {
+    client: appClient,
+    project_id: "proj-fuzzy-pathsim-app",
+  });
+  await app.client.init();
+  app.shell.switchTab("fuzzy_ts");
+
+  const appBtn = appRoot.querySelector<FakeElement>("#btn-fuzzy-export-pathsim");
+  assert.ok(appBtn, "#btn-fuzzy-export-pathsim deve estar presente em mountControlLabApp");
+  appBtn.dispatchEvent("click");
+  for (let i = 0; i < 40 && appClient.executedResponses.length === 0; i += 1) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  await new Promise((r) => setTimeout(r, 50));
+
+  const modalEl = appRoot.querySelector<FakeElement>("#controllab-export-modal");
+  const modalTitleEl = appRoot.querySelector<FakeElement>("#export-modal-title");
+  const modalContentEl = appRoot.querySelector<FakeElement>("#export-modal-content");
+  assert.ok(modalEl && !modalEl.hasAttribute("hidden"), "Modal passivo de exportação deve abrir");
+  assert.ok(
+    modalTitleEl?.textContent.includes("ADR-013"),
+    "Título do modal deve indicar execução manual explícita ADR-013",
+  );
+  assert.ok(
+    modalContentEl?.textContent.includes("run_pathsim_simulation") &&
+      modalContentEl?.textContent.includes("eval_fuzzy_point"),
+    "Conteúdo do modal deve exibir o script PathSim completo",
+  );
 
   app.destroy();
 });

@@ -1145,8 +1145,342 @@ def _build_mixed_sensitivity_generalized_plant(
     }
 
 
-def _try_solve_hinf_gamma(P: dict[str, Any], gamma: float) -> StateSpace | None:
-    """Tenta sintetizar controlador subótimo H-infinito K(s) para um dado gamma via 2-Riccati (Glover-Doyle)."""
+def _build_closed_loop_tzw(
+    P: dict[str, Any],
+    K: StateSpace,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Constrói realização (A_cl, B_cl, C_cl, D_cl) de T_zw = F_l(P, K)."""
+    A, B1, B2 = P["A"], P["B1"], P["B2"]
+    C1, C2 = P["C1"], P["C2"]
+    D11, D12, D21, D22 = P["D11"], P["D12"], P["D21"], P["D22"]
+    nu = P["n_u"]
+
+    # Fechamento u = K y_meas com y_meas = C2 x + D21 w + D22 u
+    S_u = np.eye(nu, dtype=np.float64) - K.D @ D22
+    s_su = np.linalg.svd(S_u, compute_uv=False)
+    if s_su.size > 0 and float(s_su[-1]) <= 1e-12 * max(1.0, float(s_su[0])):
+        raise NumericalInconclusiveError(
+            message="Interconexão LFT algebricamente mal posta: det(I - D_K D_22) == 0.",
+            parameters={"sigma_min": float(s_su[-1])},
+        )
+
+    C_k_cl = np.linalg.solve(S_u, K.C)
+    D_k_cl = np.linalg.solve(S_u, K.D)
+
+    A_cl = np.block([
+        [A + B2 @ D_k_cl @ C2, B2 @ C_k_cl],
+        [K.B @ (C2 + D22 @ D_k_cl @ C2), K.A + K.B @ D22 @ C_k_cl],
+    ])
+    B_cl = np.vstack([
+        B1 + B2 @ D_k_cl @ D21,
+        K.B @ (D21 + D22 @ D_k_cl @ D21),
+    ])
+    C_cl = np.hstack([C1 + D12 @ D_k_cl @ C2, D12 @ C_k_cl])
+    D_cl = D11 + D12 @ D_k_cl @ D21
+    return A_cl, B_cl, C_cl, D_cl
+
+
+def _eval_sv_max_at_omega(
+    A_cl: np.ndarray,
+    B_cl: np.ndarray,
+    C_cl: np.ndarray,
+    D_cl: np.ndarray,
+    w: float,
+) -> float:
+    """Avalia sigma_max(C_cl (jw I - A_cl)^{-1} B_cl + D_cl) para uma frequência w >= 0."""
+    n_cl = A_cl.shape[0]
+    if n_cl == 0:
+        return float(np.linalg.svd(D_cl, compute_uv=False)[0]) if D_cl.size > 0 else 0.0
+    M_w = 1j * float(w) * np.eye(n_cl, dtype=np.complex128) - A_cl
+    try:
+        T_w = C_cl @ np.linalg.solve(M_w, B_cl) + D_cl
+    except np.linalg.LinAlgError:
+        return float("inf")
+    return float(np.linalg.svd(T_w, compute_uv=False)[0])
+
+
+def _hamiltonian_brl_check(
+    A_cl: np.ndarray,
+    B_cl: np.ndarray,
+    C_cl: np.ndarray,
+    D_cl: np.ndarray,
+    gamma: float,
+    *,
+    imag_tol: float = 1e-8,
+) -> tuple[bool, float, np.ndarray]:
+    """Testa ||T_zw||_inf < gamma pelo Lema Real Limitado usando o Hamiltoniano H(gamma).
+
+    Retorna (no_imag_axis_eigs, min_abs_real, imag_omegas_nonneg).
+    """
+    n_cl = A_cl.shape[0]
+    nw = B_cl.shape[1]
+    sigma_D = float(np.linalg.svd(D_cl, compute_uv=False)[0]) if D_cl.size > 0 else 0.0
+    if not math.isfinite(gamma) or gamma <= sigma_D * (1.0 + 1e-12):
+        return False, 0.0, np.array([], dtype=np.float64)
+
+    if n_cl == 0:
+        return True, float(gamma - sigma_D), np.array([], dtype=np.float64)
+
+    R_gamma = (gamma**2) * np.eye(nw, dtype=np.float64) - D_cl.T @ D_cl
+    R_gamma = 0.5 * (R_gamma + R_gamma.T)
+    min_eig_R = float(np.min(np.linalg.eigvalsh(R_gamma)))
+    if not math.isfinite(min_eig_R) or min_eig_R <= 1e-12 * max(1.0, gamma**2):
+        return False, 0.0, np.array([], dtype=np.float64)
+
+    try:
+        M_B = np.linalg.solve(R_gamma, B_cl.T)
+        M_DC = np.linalg.solve(R_gamma, D_cl.T @ C_cl)
+    except np.linalg.LinAlgError:
+        return False, 0.0, np.array([], dtype=np.float64)
+
+    A_tilde = A_cl + B_cl @ M_DC
+    G_blk = B_cl @ M_B
+    G_blk = 0.5 * (G_blk + G_blk.T)
+    Q_blk = C_cl.T @ (C_cl + D_cl @ M_DC)
+    Q_blk = 0.5 * (Q_blk + Q_blk.T)
+
+    H = np.block([
+        [A_tilde, G_blk],
+        [-Q_blk, -A_tilde.T],
+    ])
+    if not np.all(np.isfinite(H)):
+        return False, 0.0, np.array([], dtype=np.float64)
+
+    eigs = np.linalg.eigvals(H)
+    abs_real = np.abs(np.real(eigs))
+    min_abs_real = float(np.min(abs_real))
+
+    imag_mask = abs_real <= imag_tol * np.maximum(1.0, np.abs(np.imag(eigs)))
+    no_imag = bool(not np.any(imag_mask))
+
+    if np.any(imag_mask):
+        im_vals = np.imag(eigs[imag_mask])
+        nonneg = im_vals[im_vals >= -1e-9]
+        omegas = np.sort(np.maximum(nonneg, 0.0))
+    else:
+        omegas = np.array([], dtype=np.float64)
+
+    return no_imag, min_abs_real, omegas
+
+
+def _compute_exact_hinf_norm_hamiltonian(
+    A_cl: np.ndarray,
+    B_cl: np.ndarray,
+    C_cl: np.ndarray,
+    D_cl: np.ndarray,
+    *,
+    gamma_upper: float,
+    tol: float = 1e-6,
+    hinf_norm_grid: float = 0.0,
+) -> dict[str, Any]:
+    """Certifica ||T_zw||_inf < gamma_upper e calcula ||T_zw||_inf exata via Hamiltoniano (Bruinsma-Steinbuch 1990)."""
+    A_cl = ensure_finite_float64(A_cl, name="A_cl")
+    B_cl = ensure_finite_float64(B_cl, name="B_cl")
+    C_cl = ensure_finite_float64(C_cl, name="C_cl")
+    D_cl = ensure_finite_float64(D_cl, name="D_cl")
+    if not math.isfinite(float(gamma_upper)) or float(gamma_upper) <= 0.0:
+        raise ValidationError("gamma_upper deve ser positivo e finito.")
+    if not math.isfinite(float(tol)) or float(tol) <= 0.0:
+        raise ValidationError("tol deve ser positivo e finito.")
+
+    n_cl = A_cl.shape[0]
+    sigma_D = float(np.linalg.svd(D_cl, compute_uv=False)[0]) if D_cl.size > 0 else 0.0
+
+    if n_cl > 0:
+        cl_eigs = np.linalg.eigvals(A_cl)
+        is_hurwitz = bool(np.all(np.real(cl_eigs) < -1e-9))
+    else:
+        cl_eigs = np.array([], dtype=np.complex128)
+        is_hurwitz = True
+
+    if not is_hurwitz:
+        return {
+            "hamiltonian_exact_verified": False,
+            "hamiltonian_min_abs_real": 0.0,
+            "hinf_norm_exact": float("nan"),
+            "sigma_max_D_cl": sigma_D,
+            "iterations": 0,
+        }
+
+    verified_upper, min_abs_real_upper, omegas_upper = _hamiltonian_brl_check(
+        A_cl, B_cl, C_cl, D_cl, float(gamma_upper), imag_tol=1e-8
+    )
+
+    if n_cl == 0:
+        return {
+            "hamiltonian_exact_verified": bool(verified_upper),
+            "hamiltonian_min_abs_real": float(min_abs_real_upper),
+            "hinf_norm_exact": sigma_D,
+            "sigma_max_D_cl": sigma_D,
+            "iterations": 0,
+        }
+
+    # Limite inferior garantido: max(sigma_max(D_cl), grid, omega=0, frequências dos polos)
+    gamma_lb = sigma_D
+    if math.isfinite(float(hinf_norm_grid)) and float(hinf_norm_grid) > gamma_lb:
+        gamma_lb = float(hinf_norm_grid)
+
+    init_omegas: list[float] = [0.0]
+    for eig in cl_eigs:
+        im_abs = abs(float(np.imag(eig)))
+        mag = abs(complex(eig))
+        if im_abs > 0.0:
+            init_omegas.append(im_abs)
+        if mag > 0.0:
+            init_omegas.append(mag)
+    if omegas_upper.size > 0:
+        init_omegas.extend(float(w) for w in omegas_upper)
+        for idx in range(omegas_upper.size - 1):
+            w0, w1 = float(omegas_upper[idx]), float(omegas_upper[idx + 1])
+            init_omegas.append(0.5 * (w0 + w1))
+            if w0 > 0.0 and w1 > 0.0:
+                init_omegas.append(math.sqrt(w0 * w1))
+
+    for w_init in init_omegas:
+        sv_w = _eval_sv_max_at_omega(A_cl, B_cl, C_cl, D_cl, w_init)
+        if math.isfinite(sv_w) and sv_w > gamma_lb:
+            gamma_lb = sv_w
+
+    # Limite superior inicial certificado
+    if verified_upper:
+        gamma_ub = float(gamma_upper)
+    else:
+        gamma_ub = max(float(gamma_upper), gamma_lb) * 1.1 + 1e-6
+        for _ in range(30):
+            ok_ub, _, _ = _hamiltonian_brl_check(A_cl, B_cl, C_cl, D_cl, gamma_ub, imag_tol=1e-8)
+            if ok_ub:
+                break
+            gamma_ub *= 2.0
+
+    # Iteração híbrida Bruinsma-Steinbuch + bisseção
+    use_bs = True
+    n_iter = 0
+    eff_tol = min(float(tol), 1e-5)
+    for it in range(1, 61):
+        n_iter = it
+        if (gamma_ub - gamma_lb) <= eff_tol * max(1.0, gamma_ub):
+            break
+
+        if use_bs:
+            gamma_bs = gamma_lb * (1.0 + 0.5 * eff_tol)
+            if gamma_bs < gamma_ub and gamma_bs > sigma_D * (1.0 + 1e-10):
+                gamma_test = gamma_bs
+            else:
+                gamma_test = 0.5 * (gamma_lb + gamma_ub)
+        else:
+            gamma_test = 0.5 * (gamma_lb + gamma_ub)
+
+        no_imag, _, omegas = _hamiltonian_brl_check(A_cl, B_cl, C_cl, D_cl, gamma_test, imag_tol=1e-8)
+        if no_imag:
+            gamma_ub = min(gamma_ub, gamma_test)
+            use_bs = True
+        else:
+            prev_lb = gamma_lb
+            if gamma_test > gamma_lb:
+                gamma_lb = gamma_test
+            if omegas.size > 0:
+                dedup: list[float] = [float(omegas[0])]
+                for w_val in omegas[1:]:
+                    wf = float(w_val)
+                    if wf - dedup[-1] > 1e-9 * max(1.0, wf):
+                        dedup.append(wf)
+                candidates: list[float] = list(dedup)
+                for idx in range(len(dedup) - 1):
+                    w0, w1 = dedup[idx], dedup[idx + 1]
+                    candidates.append(0.5 * (w0 + w1))
+                    if w0 > 0.0 and w1 > 0.0:
+                        candidates.append(math.sqrt(w0 * w1))
+                for w_c in candidates:
+                    sv_c = _eval_sv_max_at_omega(A_cl, B_cl, C_cl, D_cl, w_c)
+                    if math.isfinite(sv_c) and sv_c > gamma_lb:
+                        gamma_lb = sv_c
+
+            if gamma_lb >= gamma_ub:
+                gamma_ub = gamma_lb
+                break
+            use_bs = bool(gamma_lb > prev_lb * (1.0 + eff_tol))
+
+    hinf_norm_exact = 0.5 * (gamma_lb + gamma_ub)
+    return {
+        "hamiltonian_exact_verified": bool(verified_upper),
+        "hamiltonian_min_abs_real": float(min_abs_real_upper),
+        "hinf_norm_exact": float(hinf_norm_exact),
+        "sigma_max_D_cl": sigma_D,
+        "iterations": n_iter,
+    }
+
+
+def _solve_hinf_care(
+    A: np.ndarray,
+    B: np.ndarray,
+    Q: np.ndarray,
+    R: np.ndarray,
+    S: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, float] | None:
+    """Resolve ARE contínua indefinida H-infinito com seleção de menor resíduo (balanced=False/True) e refinamento de Newton."""
+
+    def _eval_care_candidate(X_raw: np.ndarray) -> tuple[np.ndarray, np.ndarray, float] | None:
+        X_sym = 0.5 * (X_raw + X_raw.T)
+        if not np.all(np.isfinite(X_sym)):
+            return None
+        try:
+            K_mat = np.linalg.solve(R, B.T @ X_sym + S.T)
+        except np.linalg.LinAlgError:
+            return None
+        A_cl = A - B @ K_mat
+        if not np.all(np.isfinite(A_cl)):
+            return None
+        if np.max(np.real(np.linalg.eigvals(A_cl))) >= -1e-9:
+            return None
+        res_mat = A.T @ X_sym + X_sym @ A - (X_sym @ B + S) @ K_mat + Q
+        denom = max(
+            1.0,
+            float(
+                np.linalg.norm(Q, ord="fro")
+                + np.linalg.norm(A.T @ X_sym, ord="fro")
+                + np.linalg.norm(X_sym @ A, ord="fro")
+            ),
+        )
+        res_rel = float(np.linalg.norm(res_mat, ord="fro") / denom)
+        if not math.isfinite(res_rel):
+            return None
+        return X_sym, K_mat, res_rel
+
+    best: tuple[np.ndarray, np.ndarray, float] | None = None
+    for balanced_flag in (False, True):
+        try:
+            X_try = scipy.linalg.solve_continuous_are(A, B, Q, R, s=S, balanced=balanced_flag)
+        except Exception:
+            continue
+        cand = _eval_care_candidate(X_try)
+        if cand is not None and (best is None or cand[2] < best[2]):
+            best = cand
+
+    if best is None:
+        return None
+
+    # Refinamento de Newton-Kleinman (até 2 passos) se o resíduo ainda estiver acima de 1e-12
+    X_cur, K_cur, res_cur = best
+    for _ in range(2):
+        if res_cur <= 1e-12:
+            break
+        res_mat = A.T @ X_cur + X_cur @ A - (X_cur @ B + S) @ K_cur + Q
+        A_cl = A - B @ K_cur
+        try:
+            dX = scipy.linalg.solve_continuous_lyapunov(A_cl.T, -res_mat)
+        except Exception:
+            break
+        cand_ref = _eval_care_candidate(X_cur + dX)
+        if cand_ref is not None and cand_ref[2] < res_cur:
+            X_cur, K_cur, res_cur = cand_ref
+        else:
+            break
+
+    return X_cur, K_cur, res_cur
+
+
+def _try_solve_hinf_gamma_detailed(P: dict[str, Any], gamma: float) -> dict[str, Any] | None:
+    """Tenta sintetizar controlador subótimo H-infinito K(s) via 2-Riccati DGKF e emite certificados numéricos."""
     A = P["A"]
     B1, B2 = P["B1"], P["B2"]
     C1, C2 = P["C1"], P["C2"]
@@ -1197,7 +1531,10 @@ def _try_solve_hinf_gamma(P: dict[str, Any], gamma: float) -> StateSpace | None:
     # Feedthrough central D_K0 para zerar D1122 via loop-shifting
     if nw1 > 0 and nz1 > 0:
         M_11 = (gamma**2) * np.eye(nw1) - D1111.T @ D1111
-        D_K0 = -D1122 - D1121 @ np.linalg.solve(M_11, D1111.T @ D1112)
+        try:
+            D_K0 = -D1122 - D1121 @ np.linalg.solve(M_11, D1111.T @ D1112)
+        except np.linalg.LinAlgError:
+            return None
     else:
         D_K0 = -D1122
 
@@ -1219,48 +1556,68 @@ def _try_solve_hinf_gamma(P: dict[str, Any], gamma: float) -> StateSpace | None:
     S_y = B1_t @ D_yall.T
     Q_y = B1_t @ B1_t.T
 
-    try:
-        X = scipy.linalg.solve_continuous_are(A_t, B_all, Q_x, R_x, s=S_x)
-        Y = scipy.linalg.solve_continuous_are(A_t.T, C_all.T, Q_y, R_y, s=S_y)
-    except Exception:
-        return None
+    if n > 0:
+        sol_X = _solve_hinf_care(A_t, B_all, Q_x, R_x, S_x)
+        sol_Y = _solve_hinf_care(A_t.T, C_all.T, Q_y, R_y, S_y)
+        if sol_X is None or sol_Y is None:
+            return None
+        X, K_x, riccati_X_residual_rel = sol_X
+        Y, K_y, riccati_Y_residual_rel = sol_Y
 
-    X = 0.5 * (X + X.T)
-    Y = 0.5 * (Y + Y.T)
-    if not (np.all(np.isfinite(X)) and np.all(np.isfinite(Y))):
-        return None
+        # Verificar PSD (tolerância numérica pequena)
+        if np.min(np.linalg.eigvalsh(X)) < -1e-7 or np.min(np.linalg.eigvalsh(Y)) < -1e-7:
+            return None
 
-    # Verificar PSD (tolerância numérica pequena)
-    if np.min(np.linalg.eigvalsh(X)) < -1e-7 or np.min(np.linalg.eigvalsh(Y)) < -1e-7:
-        return None
+        if riccati_X_residual_rel > 1e-6 or riccati_Y_residual_rel > 1e-6:
+            return None
 
-    # Verificar autovalores dos Hamiltonianos fora do eixo imaginário
-    H_x = np.block([
-        [A_t - B_all @ np.linalg.solve(R_x, S_x.T), -B_all @ np.linalg.solve(R_x, B_all.T)],
-        [-Q_x + S_x @ np.linalg.solve(R_x, S_x.T), -(A_t - B_all @ np.linalg.solve(R_x, S_x.T)).T],
-    ])
-    H_y = np.block([
-        [A_t.T - C_all.T @ np.linalg.solve(R_y, S_y.T), -C_all.T @ np.linalg.solve(R_y, C_all)],
-        [-Q_y + S_y @ np.linalg.solve(R_y, S_y.T), -(A_t.T - C_all.T @ np.linalg.solve(R_y, S_y.T)).T],
-    ])
-    if np.min(np.abs(np.real(np.linalg.eigvals(H_x)))) < 1e-8 or np.min(np.abs(np.real(np.linalg.eigvals(H_y)))) < 1e-8:
-        return None
+        # Verificar autovalores dos Hamiltonianos fora do eixo imaginário
+        try:
+            Rx_SxT = np.linalg.solve(R_x, S_x.T)
+            Rx_BallT = np.linalg.solve(R_x, B_all.T)
+            Ry_SyT = np.linalg.solve(R_y, S_y.T)
+            Ry_Call = np.linalg.solve(R_y, C_all)
+        except np.linalg.LinAlgError:
+            return None
 
-    # Verificar raio espectral rho(X Y) < gamma^2
-    rho = float(np.max(np.abs(np.linalg.eigvals(X @ Y)))) if n > 0 else 0.0
-    if rho >= (gamma**2) * (1.0 - 1e-7):
-        return None
+        H_x = np.block([
+            [A_t - B_all @ Rx_SxT, -B_all @ Rx_BallT],
+            [-Q_x + S_x @ Rx_SxT, -(A_t - B_all @ Rx_SxT).T],
+        ])
+        H_y = np.block([
+            [A_t.T - C_all.T @ Ry_SyT, -C_all.T @ Ry_Call],
+            [-Q_y + S_y @ Ry_SyT, -(A_t.T - C_all.T @ Ry_SyT).T],
+        ])
+        if np.min(np.abs(np.real(np.linalg.eigvals(H_x)))) < 1e-8 or np.min(np.abs(np.real(np.linalg.eigvals(H_y)))) < 1e-8:
+            return None
 
-    F = -np.linalg.solve(R_x, B_all.T @ X + S_x.T)
-    F1 = F[:nw, :]
-    F2 = F[nw:, :]
-    L = -(Y @ C_all.T + S_y) @ np.linalg.solve(R_y, np.eye(nz + ny))
-    L2 = L[:, nz:]
+        # Verificar raio espectral rho(X Y) < gamma^2
+        rho_XY = float(np.max(np.abs(np.linalg.eigvals(X @ Y))))
+        coupling_margin = float(gamma**2 - rho_XY)
+        if not math.isfinite(rho_XY) or rho_XY >= (gamma**2) * (1.0 - 1e-7):
+            return None
 
-    Z = np.linalg.solve(np.eye(n) - (gamma**-2) * (Y @ X), np.eye(n))
-    B_K_s = -Z @ L2
-    C_K_s = F2
-    A_K_s = A_t + B_all @ F - B_K_s @ (C2_s + D21_r @ F1)
+        F = -K_x
+        F1 = F[:nw, :]
+        F2 = F[nw:, :]
+        L = -(K_y.T)
+        L2 = L[:, nz:]
+
+        try:
+            Z = np.linalg.solve(np.eye(n) - (gamma**-2) * (Y @ X), np.eye(n))
+        except np.linalg.LinAlgError:
+            return None
+        B_K_s = -Z @ L2
+        C_K_s = F2
+        A_K_s = A_t + B_all @ F - B_K_s @ (C2_s + D21_r @ F1)
+    else:
+        riccati_X_residual_rel = 0.0
+        riccati_Y_residual_rel = 0.0
+        rho_XY = 0.0
+        coupling_margin = float(gamma**2)
+        A_K_s = np.zeros((0, 0), dtype=np.float64)
+        B_K_s = np.zeros((0, ny), dtype=np.float64)
+        C_K_s = np.zeros((nu, 0), dtype=np.float64)
 
     # Desfazer escalonamento de entrada/saída e adicionar D_K0: K_0(s) = T_u * (K_s + D_K0) * T_y
     A_k = A_K_s
@@ -1274,57 +1631,61 @@ def _try_solve_hinf_gamma(P: dict[str, Any], gamma: float) -> StateSpace | None:
         s_md = np.linalg.svd(M_d, compute_uv=False)
         if float(s_md[-1]) <= 1e-10 * max(1.0, float(s_md[0])):
             return None
-        # (I + D22 D_k)^{-1} D22 C_k, etc.
-        C_k_new = np.linalg.solve(np.eye(nu) + D_k @ D22, C_k)
-        D_k_new = np.linalg.solve(np.eye(nu) + D_k @ D22, D_k)
+        try:
+            C_k_new = np.linalg.solve(np.eye(nu) + D_k @ D22, C_k)
+            D_k_new = np.linalg.solve(np.eye(nu) + D_k @ D22, D_k)
+        except np.linalg.LinAlgError:
+            return None
         A_k = A_k - B_k @ D22 @ C_k_new
         B_k = B_k @ (np.eye(ny) - D22 @ D_k_new)
         C_k = C_k_new
         D_k = D_k_new
 
-    # Verificar estabilidade em malha fechada com P original
+    if not (np.all(np.isfinite(A_k)) and np.all(np.isfinite(B_k)) and np.all(np.isfinite(C_k)) and np.all(np.isfinite(D_k))):
+        return None
+
+    K_cand = StateSpace(A=A_k, B=B_k, C=C_k, D=D_k, dt=None)
+
+    # Verificar estabilidade em malha fechada e Lema Real Limitado exato com P original
     M_cl = np.eye(ny) - D22 @ D_k
     s_mcl = np.linalg.svd(M_cl, compute_uv=False)
     if float(s_mcl[-1]) <= 1e-10 * max(1.0, float(s_mcl[0])):
         return None
-    D_k_cl = np.linalg.solve(np.eye(nu) - D_k @ D22, D_k)
-    C_k_cl = np.linalg.solve(np.eye(nu) - D_k @ D22, C_k)
-    A_cl = np.block([
-        [A + B2 @ D_k_cl @ C2, B2 @ C_k_cl],
-        [B_k @ (C2 + D22 @ D_k_cl @ C2), A_k + B_k @ D22 @ C_k_cl],
-    ])
-    cl_eigs = np.linalg.eigvals(A_cl)
-    if not np.all(np.real(cl_eigs) < -1e-7):
+    try:
+        A_cl, B_cl, C_cl, D_cl = _build_closed_loop_tzw(P, K_cand)
+    except ControlLabError:
+        return None
+    if A_cl.size > 0:
+        cl_eigs = np.linalg.eigvals(A_cl)
+        if not np.all(np.real(cl_eigs) < -1e-7):
+            return None
+
+    brl_ok, min_abs_real, _ = _hamiltonian_brl_check(A_cl, B_cl, C_cl, D_cl, gamma, imag_tol=1e-8)
+    if not brl_ok:
         return None
 
-    return StateSpace(A=A_k, B=B_k, C=C_k, D=D_k, dt=None)
+    return {
+        "controller": K_cand,
+        "riccati_X_residual_rel": riccati_X_residual_rel,
+        "riccati_Y_residual_rel": riccati_Y_residual_rel,
+        "rho_XY": rho_XY,
+        "coupling_margin": coupling_margin,
+        "hamiltonian_min_abs_real": min_abs_real,
+    }
+
+
+def _try_solve_hinf_gamma(P: dict[str, Any], gamma: float) -> StateSpace | None:
+    """Wrapper compatível que retorna apenas StateSpace K(s) ou None para um dado gamma."""
+    res = _try_solve_hinf_gamma_detailed(P, gamma)
+    return res["controller"] if res is not None else None
 
 
 def _eval_closed_loop_tzw_norm(P: dict[str, Any], K: StateSpace, omega: np.ndarray) -> float:
     """Avalia ||T_zw(jw)||_inf na grade omega."""
-    A, B1, B2 = P["A"], P["B1"], P["B2"]
-    C1, C2 = P["C1"], P["C2"]
-    D11, D12, D21, D22 = P["D11"], P["D12"], P["D21"], P["D22"]
-    ny = P["n_y"]
-    nu = P["n_u"]
-
-    # Fechamento u = K y_meas com y_meas = C2 x + D21 w + D22 u
-    S_u = np.eye(nu) - K.D @ D22
-    C_k_cl = np.linalg.solve(S_u, K.C)
-    D_k_cl = np.linalg.solve(S_u, K.D)
-
-    A_cl = np.block([
-        [A + B2 @ D_k_cl @ C2, B2 @ C_k_cl],
-        [K.B @ (C2 + D22 @ D_k_cl @ C2), K.A + K.B @ D22 @ C_k_cl],
-    ])
-    B_cl = np.vstack([
-        B1 + B2 @ D_k_cl @ D21,
-        K.B @ (D21 + D22 @ D_k_cl @ D21),
-    ])
-    C_cl = np.hstack([C1 + D12 @ D_k_cl @ C2, D12 @ C_k_cl])
-    D_cl = D11 + D12 @ D_k_cl @ D21
-
+    A_cl, B_cl, C_cl, D_cl = _build_closed_loop_tzw(P, K)
     n_cl = A_cl.shape[0]
+    if n_cl == 0:
+        return float(np.linalg.svd(D_cl, compute_uv=False)[0]) if D_cl.size > 0 else 0.0
     eye_cl = np.eye(n_cl, dtype=np.complex128)
     max_sv = 0.0
     for w_val in omega:
@@ -1346,7 +1707,7 @@ def design_hinf_mixed_sensitivity(
     gamma_tol: float = 1e-2,
     raise_on_error: bool = True,
 ) -> Result:
-    """Síntese H-infinito de sensibilidade mista (S/KS/T) via bisseção em gamma e 2-Riccati (Glover-Doyle)."""
+    """Síntese H-infinito de sensibilidade mista (S/KS/T) via bisseção em gamma, 2-Riccati DGKF e prova Hamiltoniana BRL."""
     prov = build_provenance("frequency.mimo.design_hinf_mixed_sensitivity", model_revision=getattr(plant, "revision", None))
     assumptions: dict[str, Any] = {}
     diagnostics: dict[str, Any] = {}
@@ -1373,21 +1734,49 @@ def design_hinf_mixed_sensitivity(
         W_U = _expand_weight_to_ss(w_u, m, "wu")
         W_T = _expand_weight_to_ss(w_t, p, "wt")
 
+        # Validar estabilidade assintótica dos pesos (subclasse regular contínua DGKF)
+        for w_name, W_ss in (("w_s", W_S), ("w_u", W_U), ("w_t", W_T)):
+            if W_ss.n_states > 0:
+                w_poles = np.linalg.eigvals(W_ss.A)
+                if not np.all(np.real(w_poles) < -1e-12):
+                    raise ValidationError(
+                        message=f"Peso {w_name} deve ser assintoticamente estável (Hurwitz) na subclasse regular DGKF.",
+                        parameters={"weight": w_name, "max_real_pole": float(np.max(np.real(w_poles)))},
+                        next_step=f"Desloque polos em jw/RHP de {w_name} para o semiplano esquerdo aberto.",
+                    )
+
         P = _build_mixed_sensitivity_generalized_plant(G_ss, W_S, W_U, W_T)
+
+        # Verificar regularidade DGKF: D12 posto completo por coluna e D21 posto completo por linha
+        s12_check = np.linalg.svd(P["D12"], compute_uv=False)
+        if s12_check.size < m or float(s12_check[-1]) <= 1e-12 * max(1.0, float(s12_check[0])):
+            raise ValidationError(
+                message="Problema H-infinito singular: D12 não possui posto completo por coluna (ex.: W_U estritamente própria com ganho nulo em alta frequência).",
+                parameters={"sigma_min_D12": float(s12_check[-1]) if s12_check.size > 0 else 0.0, "n_u": m},
+                next_step="Forneça um peso de controle W_U bipróprio com ganho não-nulo em alta frequência.",
+            )
+        s21_check = np.linalg.svd(P["D21"], compute_uv=False)
+        if s21_check.size < p or float(s21_check[-1]) <= 1e-12 * max(1.0, float(s21_check[0])):
+            raise ValidationError(
+                message="Problema H-infinito singular: D21 não possui posto completo por linha.",
+                parameters={"sigma_min_D21": float(s21_check[-1]) if s21_check.size > 0 else 0.0, "n_y": p},
+                next_step="Verifique a regularidade da planta generalizada.",
+            )
+
         w_grid, w_warns = resolve_omega_grid(omega, dt=None, n_points=300)
         warnings_out.extend(w_warns)
 
         # Encontrar limite superior viável gamma_hi por duplicação
         gamma_hi = 1.0
-        K_best: StateSpace | None = None
+        best_sol: dict[str, Any] | None = None
         for _ in range(30):
-            K_cand = _try_solve_hinf_gamma(P, gamma_hi)
-            if K_cand is not None:
-                K_best = K_cand
+            cand = _try_solve_hinf_gamma_detailed(P, gamma_hi)
+            if cand is not None:
+                best_sol = cand
                 break
             gamma_hi *= 2.0
 
-        if K_best is None:
+        if best_sol is None:
             raise NumericalInconclusiveError(
                 message="Não foi possível encontrar gamma viável para o problema H-infinito (verifique estabilizabilidade/detectabilidade e pesos).",
                 next_step="Verifique se a planta é estabilizável/detectável e se W_U possui ganho não-nulo em alta frequência.",
@@ -1399,9 +1788,12 @@ def design_hinf_mixed_sensitivity(
             gamma_lo = 0.1 * gamma_hi
 
         # Garantir que gamma_lo é inviável ou reduzir
-        while _try_solve_hinf_gamma(P, gamma_lo) is not None and gamma_lo > 1e-4:
+        while gamma_lo > 1e-4:
+            cand_lo = _try_solve_hinf_gamma_detailed(P, gamma_lo)
+            if cand_lo is None:
+                break
             gamma_hi = gamma_lo
-            K_best = _try_solve_hinf_gamma(P, gamma_hi)
+            best_sol = cand_lo
             gamma_lo *= 0.5
 
         gamma_achieved = gamma_hi
@@ -1409,16 +1801,48 @@ def design_hinf_mixed_sensitivity(
             if (gamma_hi - gamma_lo) <= float(gamma_tol) * max(1.0, gamma_hi):
                 break
             gamma_mid = 0.5 * (gamma_lo + gamma_hi)
-            K_cand = _try_solve_hinf_gamma(P, gamma_mid)
-            if K_cand is not None:
-                K_best = K_cand
+            cand_mid = _try_solve_hinf_gamma_detailed(P, gamma_mid)
+            if cand_mid is not None:
+                best_sol = cand_mid
                 gamma_hi = gamma_mid
                 gamma_achieved = gamma_mid
             else:
                 gamma_lo = gamma_mid
 
-        assert K_best is not None
+        assert best_sol is not None
+        K_best: StateSpace = best_sol["controller"]
+        riccati_X_residual_rel = float(best_sol["riccati_X_residual_rel"])
+        riccati_Y_residual_rel = float(best_sol["riccati_Y_residual_rel"])
+        rho_XY = float(best_sol["rho_XY"])
+        coupling_margin = float(best_sol["coupling_margin"])
+
+        A_cl_tzw, B_cl_tzw, C_cl_tzw, D_cl_tzw = _build_closed_loop_tzw(P, K_best)
         hinf_norm_grid = _eval_closed_loop_tzw_norm(P, K_best, w_grid)
+
+        # Verificação exata em todo w in [0, inf) via Lema Real Limitado Hamiltoniano (Bruinsma-Steinbuch 1990)
+        ham_proof = _compute_exact_hinf_norm_hamiltonian(
+            A_cl_tzw,
+            B_cl_tzw,
+            C_cl_tzw,
+            D_cl_tzw,
+            gamma_upper=float(gamma_achieved),
+            tol=1e-6,
+            hinf_norm_grid=float(hinf_norm_grid),
+        )
+        hamiltonian_exact_verified = bool(ham_proof["hamiltonian_exact_verified"])
+        hamiltonian_min_abs_real = float(ham_proof["hamiltonian_min_abs_real"])
+        hinf_norm_exact = float(ham_proof["hinf_norm_exact"])
+
+        if not hamiltonian_exact_verified or not math.isfinite(hinf_norm_exact):
+            raise NumericalInconclusiveError(
+                message="Prova Hamiltoniana do Lema Real Limitado falhou na certificação de ||T_zw||_inf < gamma_achieved.",
+                parameters={
+                    "gamma_achieved": float(gamma_achieved),
+                    "hamiltonian_min_abs_real": hamiltonian_min_abs_real,
+                    "hinf_norm_grid": float(hinf_norm_grid),
+                },
+                next_step="Relaxe gamma_tol ou revise o condicionamento dos filtros de ponderação.",
+            )
 
         # Avaliar S(jw), T(jw), 1/|W_S(jw)|, 1/|W_T(jw)| na grade
         G_eval = _eval_model_matrix_at_omega(G_ss, w_grid)["G"]
@@ -1445,13 +1869,22 @@ def design_hinf_mixed_sensitivity(
             inv_ws_bound[idx] = float(gamma_achieved / max(sv_ws_min, 1e-12))
             inv_wt_bound[idx] = float(gamma_achieved / max(sv_wt_min, 1e-12))
 
-        # Verificar estabilidade em malha fechada de (I + G K)^{-1}
+        # Verificar estabilidade em malha fechada de (I + G K)^{-1} e da planta generalizada
         GK_ss = _series_ss(G_ss, K_best)
-        M_cl = eye_p + GK_ss.D
-        C_cl = np.linalg.solve(M_cl, GK_ss.C) if GK_ss.n_states > 0 else np.zeros((p, 0))
-        A_cl = GK_ss.A - GK_ss.B @ C_cl if GK_ss.n_states > 0 else np.zeros((0, 0))
-        cl_poles = np.linalg.eigvals(A_cl) if A_cl.size > 0 else np.array([], dtype=np.complex128)
-        is_stable = bool(np.all(np.real(cl_poles) < -1e-7)) if cl_poles.size > 0 else True
+        M_cl = np.eye(p, dtype=np.float64) + GK_ss.D
+        C_cl_gk = np.linalg.solve(M_cl, GK_ss.C) if GK_ss.n_states > 0 else np.zeros((p, 0), dtype=np.float64)
+        A_cl_gk = GK_ss.A - GK_ss.B @ C_cl_gk if GK_ss.n_states > 0 else np.zeros((0, 0), dtype=np.float64)
+        cl_poles = sort_complex_roots(np.linalg.eigvals(A_cl_gk)) if A_cl_gk.size > 0 else np.array([], dtype=np.complex128)
+        is_stable_gk = bool(np.all(np.real(cl_poles) < -1e-7)) if cl_poles.size > 0 else True
+        tzw_poles = np.linalg.eigvals(A_cl_tzw) if A_cl_tzw.size > 0 else np.array([], dtype=np.complex128)
+        is_stable_tzw = bool(np.all(np.real(tzw_poles) < -1e-7)) if tzw_poles.size > 0 else True
+        is_stable = bool(is_stable_gk and is_stable_tzw)
+
+        if not is_stable:
+            raise NumericalInconclusiveError(
+                message="Controlador sintetizado não atingiu estabilidade estrita em malha fechada.",
+                next_step="Verifique estabilizabilidade/detectabilidade da planta e pesos.",
+            )
 
         gp_summary = {
             "n_states": int(P["n_states"]),
@@ -1461,18 +1894,31 @@ def design_hinf_mixed_sensitivity(
             "n_y": int(P["n_y"]),
         }
 
+        stable_subclass = "continuous_regular_dgkf_mixed_sensitivity"
+        maturity = "stable"
+
         assumptions = {
             "domain": "continuous",
             "dt": None,
             "n_channels": p,
             "gamma_tol": float(gamma_tol),
+            "stable_subclass": stable_subclass,
         }
         diagnostics = {
             "gamma_achieved": float(gamma_achieved),
             "hinf_norm_grid": float(hinf_norm_grid),
+            "hinf_norm_exact": hinf_norm_exact,
             "is_stable": is_stable,
             "controller_states": K_best.n_states,
             "generalized_plant_summary": gp_summary,
+            "riccati_X_residual_rel": riccati_X_residual_rel,
+            "riccati_Y_residual_rel": riccati_Y_residual_rel,
+            "rho_XY": rho_XY,
+            "coupling_margin": coupling_margin,
+            "hamiltonian_exact_verified": hamiltonian_exact_verified,
+            "hamiltonian_min_abs_real": hamiltonian_min_abs_real,
+            "stable_subclass": stable_subclass,
+            "maturity": maturity,
         }
 
         return Result(
@@ -1482,12 +1928,22 @@ def design_hinf_mixed_sensitivity(
                 "generalized_plant_summary": gp_summary,
                 "gamma_achieved": float(gamma_achieved),
                 "hinf_norm_grid": float(hinf_norm_grid),
+                "hinf_norm_exact": hinf_norm_exact,
                 "is_stable": is_stable,
+                "closed_loop_poles": complex_to_pair(cl_poles),
                 "omega": w_grid,
                 "sigma_S": sigma_S,
                 "sigma_T": sigma_T,
                 "inv_ws_bound": inv_ws_bound,
                 "inv_wt_bound": inv_wt_bound,
+                "riccati_X_residual_rel": riccati_X_residual_rel,
+                "riccati_Y_residual_rel": riccati_Y_residual_rel,
+                "rho_XY": rho_XY,
+                "coupling_margin": coupling_margin,
+                "hamiltonian_exact_verified": hamiltonian_exact_verified,
+                "hamiltonian_min_abs_real": hamiltonian_min_abs_real,
+                "stable_subclass": stable_subclass,
+                "maturity": maturity,
                 "units": {"frequency": "rad/s"},
                 "series_semantics": "numeric_verified",
             },

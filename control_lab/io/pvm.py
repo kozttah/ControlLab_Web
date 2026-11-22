@@ -109,6 +109,7 @@ PATHVIEW_BLOCK_REGISTRY: dict[str, Any] = {
         name: {"params": params, "external_verified": False}
         for name, params in OFFICIAL_PARAMS.items()
     },
+    "dec_open_07_decision": "ADR-013",
     "unsupported_pending_dec_open_07": ["PDCController", "FuzzySystem", "TSStateSpace"],
 }
 
@@ -2507,6 +2508,612 @@ def simulate_pvm_graph(
         )
 
 
+def _emit_ts_pdc_pathsim_script(
+    plant: TSStateSpace,
+    controller: PDCController | None,
+    *,
+    duration: float,
+    dt_sim: float,
+    x0: list[float],
+    sign_convention: str | None = None,
+) -> list[str]:
+    """Gera linhas de script CPython/PathSim 0.31.0 determinístico para TSStateSpace (+ PDC opcional)."""
+    n_states = plant.n_states
+    n_inputs = plant.n_inputs
+    n_vertices = plant.n_vertices
+    state_labels = list(plant.state_names)
+
+    lines: list[str] = [
+        f"# TSStateSpace kind={plant.kind!r}, dt={plant.dt!r}, vertices={n_vertices}",
+        "# Decision ref: DEC-OPEN-07 -> ADR-013 (passive .pvm remains linear/saturation-only; PathSim script is official runtime export).",
+        f"dt = {plant.dt!r}",
+        f"DEFAULT_DURATION = {float(duration)!r}",
+        f"DEFAULT_DT = {float(dt_sim)!r}",
+        f"N_STATES = {n_states!r}",
+        f"N_INPUTS = {n_inputs!r}",
+        f"N_VERTICES = {n_vertices!r}",
+        f"STATE_LABELS = {state_labels!r}",
+        f"DEFAULT_X0 = np.array({x0!r}, dtype=np.float64)",
+        "A_vertices = [",
+    ]
+    for v in plant.vertices:
+        lines.append(f"    np.array({v['A'].tolist()!r}, dtype=np.float64),")
+    lines.append("]")
+    lines.append("B_vertices = [")
+    for v in plant.vertices:
+        lines.append(f"    np.array({v['B'].tolist()!r}, dtype=np.float64),")
+    lines.append("]")
+    lines.append("C_vertices = [")
+    for v in plant.vertices:
+        lines.append(f"    np.array({v['C'].tolist()!r}, dtype=np.float64),")
+    lines.append("]")
+    lines.append("D_vertices = [")
+    for v in plant.vertices:
+        lines.append(f"    np.array({v['D'].tolist()!r}, dtype=np.float64),")
+    lines.append("]")
+
+    has_pdc = isinstance(controller, PDCController)
+    if has_pdc:
+        assert isinstance(controller, PDCController)
+        sign_str = sign_convention or controller.feedback_sign
+        s_val = -1.0 if sign_str == "negative" else 1.0
+        lines.append(f"feedback_sign = {sign_str!r}")
+        lines.append(f"sign_factor = {s_val!r}")
+        lines.append("K_vertices = [")
+        for k_mat in controller.K_i:
+            lines.append(f"    np.array({k_mat.tolist()!r}, dtype=np.float64),")
+        lines.append("]")
+        lines.extend(
+            [
+                "",
+                "def ts_pdc_rhs(x: np.ndarray, h: np.ndarray, u_ff: np.ndarray) -> np.ndarray:",
+                "    x_vec = np.atleast_1d(np.asarray(x, dtype=np.float64)).reshape(N_STATES)",
+                "    h_vec = np.atleast_1d(np.asarray(h, dtype=np.float64)).reshape(N_VERTICES)",
+                "    u_vec = np.atleast_1d(np.asarray(u_ff, dtype=np.float64)).reshape(N_INPUTS)",
+                "    dx = np.zeros(N_STATES, dtype=np.float64)",
+                "    for i, (Ai, Bi) in enumerate(zip(A_vertices, B_vertices)):",
+                "        dx += h_vec[i] * (Ai @ x_vec + Bi @ u_vec)",
+                "        for j, Kj in enumerate(K_vertices):",
+                "            dx += h_vec[i] * h_vec[j] * (sign_factor * (Bi @ (Kj @ x_vec)))",
+                "    return dx",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "",
+                "def ts_open_loop_rhs(x: np.ndarray, h: np.ndarray, u_ff: np.ndarray) -> np.ndarray:",
+                "    x_vec = np.atleast_1d(np.asarray(x, dtype=np.float64)).reshape(N_STATES)",
+                "    h_vec = np.atleast_1d(np.asarray(h, dtype=np.float64)).reshape(N_VERTICES)",
+                "    u_vec = np.atleast_1d(np.asarray(u_ff, dtype=np.float64)).reshape(N_INPUTS)",
+                "    dx = np.zeros(N_STATES, dtype=np.float64)",
+                "    for i, (Ai, Bi) in enumerate(zip(A_vertices, B_vertices)):",
+                "        dx += h_vec[i] * (Ai @ x_vec + Bi @ u_vec)",
+                "    return dx",
+            ]
+        )
+
+    rhs_name = "ts_pdc_rhs" if has_pdc else "ts_open_loop_rhs"
+    lines.extend(
+        [
+            "",
+            "def default_h_fn(x: np.ndarray, t: float = 0.0) -> np.ndarray:",
+            "    del x, t",
+            "    return np.full(N_VERTICES, 1.0 / N_VERTICES, dtype=np.float64)",
+            "",
+            "def _eval_h(h_fn, x_vec: np.ndarray, t_val: float) -> np.ndarray:",
+            "    try:",
+            "        raw = h_fn(x_vec, t_val)",
+            "    except TypeError:",
+            "        raw = h_fn(x_vec)",
+            "    arr = np.atleast_1d(np.asarray(raw, dtype=np.float64)).reshape(-1)",
+            "    if arr.shape != (N_VERTICES,):",
+            "        raise ValueError(f'h_fn must return {N_VERTICES} convex weights, got shape {arr.shape}.')",
+            "    return arr",
+            "",
+            "def _eval_u_ff(u_ff_fn, t_val: float) -> np.ndarray:",
+            "    if u_ff_fn is None:",
+            "        return np.zeros(N_INPUTS, dtype=np.float64)",
+            "    raw = u_ff_fn(t_val) if callable(u_ff_fn) else u_ff_fn",
+            "    return np.atleast_1d(np.asarray(raw, dtype=np.float64)).reshape(N_INPUTS)",
+            "",
+            "def run_pathsim_simulation(",
+            "    duration: float = DEFAULT_DURATION,",
+            "    dt: float = DEFAULT_DT,",
+            "    x0=None,",
+            "    h_fn=None,",
+            "    u_ff_fn=None,",
+            "    adaptive: bool = False,",
+            ") -> tuple[np.ndarray, np.ndarray]:",
+            '    """Run closed-loop TS-PDC (or open-loop TS) simulation with PathSim 0.31.0."""',
+            "    from pathsim import Simulation, Connection",
+            "    from pathsim.blocks import ODE, Scope",
+            "    from pathsim.solvers import RKCK54",
+            "",
+            "    x0_arr = DEFAULT_X0.copy() if x0 is None else np.atleast_1d(np.asarray(x0, dtype=np.float64)).reshape(N_STATES)",
+            "    active_h_fn = default_h_fn if h_fn is None else h_fn",
+            "    dt_step = float(dt)",
+            "    dur = float(duration)",
+            "",
+            "    if globals()['dt'] is not None:",
+            "        n_steps = max(0, int(round(dur / dt_step)))",
+            "        t_out = np.arange(n_steps + 1, dtype=np.float64) * dt_step",
+            "        x_traj = np.zeros((n_steps + 1, N_STATES), dtype=np.float64)",
+            "        x_traj[0, :] = x0_arr",
+            "        for k in range(n_steps):",
+            "            h_k = _eval_h(active_h_fn, x_traj[k, :], float(t_out[k]))",
+            "            u_k = _eval_u_ff(u_ff_fn, float(t_out[k]))",
+            f"            x_traj[k + 1, :] = {rhs_name}(x_traj[k, :], h_k, u_k)",
+            "        return t_out, x_traj",
+            "",
+            "    def _ode_func(x, u, t):",
+            "        del u",
+            "        x_vec = np.atleast_1d(np.asarray(x, dtype=np.float64)).reshape(N_STATES)",
+            "        h_vec = _eval_h(active_h_fn, x_vec, float(t))",
+            "        u_vec = _eval_u_ff(u_ff_fn, float(t))",
+            f"        return {rhs_name}(x_vec, h_vec, u_vec)",
+            "",
+            "    ode = ODE(func=_ode_func, initial_value=x0_arr)",
+            "    scope = Scope(labels=list(STATE_LABELS))",
+            "    connections = [Connection(ode[i], scope[i]) for i in range(N_STATES)]",
+            "    sim = Simulation(",
+            "        blocks=[ode, scope],",
+            "        connections=connections,",
+            "        dt=dt_step,",
+            "        Solver=RKCK54,",
+            "        tolerance_lte_rel=1e-7,",
+            "        tolerance_lte_abs=1e-9,",
+            "        log=False,",
+            "    )",
+            "    sim.run(duration=dur, adaptive=bool(adaptive))",
+            "    t_raw, x_raw = scope.read()",
+            "    t_out = np.asarray(t_raw, dtype=np.float64).reshape(-1)",
+            "    x_arr = np.asarray(x_raw, dtype=np.float64)",
+            "    x_traj = x_arr.reshape(-1, 1) if x_arr.ndim == 1 else x_arr.T",
+            "    return t_out, x_traj",
+            "",
+            'if __name__ == "__main__":',
+            "    t_sim, x_sim = run_pathsim_simulation()",
+            "    print(f'Completed PathSim TS simulation: samples={len(t_sim)}, final_state={x_sim[-1].tolist()}')",
+        ]
+    )
+    return lines
+
+
+def _emit_fuzzy_pathsim_script(
+    fz: FuzzySystem,
+    *,
+    duration: float,
+    dt_sim: float,
+    grid_resolution: int = 201,
+) -> list[str]:
+    """Gera script CPython/PathSim 0.31.0 autossuficiente (NumPy puro + PathSim) para FuzzySystem."""
+    lines: list[str] = [
+        f"# FuzzySystem id={fz.id!r}, inference_type={fz.inference_type!r}, is_dynamic_model={fz.is_dynamic_model!r}",
+        "# Decision ref: DEC-OPEN-07 -> ADR-013 (self-contained pure-NumPy evaluator + PathSim 0.31.0 runner).",
+        f"DEFAULT_DURATION = {float(duration)!r}",
+        f"DEFAULT_DT = {float(dt_sim)!r}",
+        f"GRID_RESOLUTION = {int(grid_resolution)!r}",
+        f"fuzzy_spec = {fz.to_dict()!r}",
+        "",
+        "_EPS = 1e-12",
+        "_MF_ALIASES = {",
+        "    'tri': 'triangular', 'trimf': 'triangular', 'triangle': 'triangular', 'triangular': 'triangular', 'triangularshape': 'triangular',",
+        "    'trap': 'trapezoidal', 'trapmf': 'trapezoidal', 'trapezoid': 'trapezoidal', 'trapezoidal': 'trapezoidal', 'trapezoidshape': 'trapezoidal',",
+        "    'gauss': 'gaussian', 'gaussmf': 'gaussian', 'gaussian': 'gaussian', 'gaussianshape': 'gaussian',",
+        "    'bell': 'bell', 'gbell': 'bell', 'gbellmf': 'bell', 'generalizedbell': 'bell', 'bellshape': 'bell',",
+        "    'sig': 'sigmoid', 'sigmf': 'sigmoid', 'sigmoid': 'sigmoid', 'sigmoidshape': 'sigmoid',",
+        "    'singleton': 'singleton', 'singletonshape': 'singleton', 'pointsetshape': 'singleton',",
+        "    'z': 'z_shape', 'zmf': 'z_shape', 'z_shape': 'z_shape', 'zshape': 'z_shape',",
+        "    's': 's_shape', 'smf': 's_shape', 's_shape': 's_shape', 'sshape': 's_shape',",
+        "    'linear': 'linear', 'affine': 'linear', 'tsk_linear': 'linear',",
+        "    'constant': 'constant', 'const': 'constant', 'zero_order': 'constant',",
+        "}",
+        "_DEFUZZ_ALIASES = {",
+        "    'centroid': 'centroid', 'cog': 'centroid', 'coa': 'centroid', 'cg': 'centroid', 'center_of_gravity': 'centroid',",
+        "    'bisector': 'bisector', 'boa': 'bisector',",
+        "    'mom': 'mom', 'mean_of_maxima': 'mom',",
+        "    'som': 'som', 'lm': 'som', 'smallest_of_maxima': 'som',",
+        "    'lom': 'lom', 'rm': 'lom', 'largest_of_maxima': 'lom',",
+        "    'wtaver': 'wtaver', 'weighted_average': 'wtaver',",
+        "    'wtsum': 'wtsum', 'weighted_sum': 'wtsum',",
+        "}",
+        "",
+        "def _normalize_mf_type(raw_type: str) -> str:",
+        "    key = str(raw_type).strip().lower().replace('-', '_')",
+        "    if key not in _MF_ALIASES:",
+        "        raise ValueError(f'Unsupported membership function type: {raw_type!r}')",
+        "    return _MF_ALIASES[key]",
+        "",
+        "def _extract_term_spec(term: dict) -> tuple[str, list[float], bool]:",
+        "    complement = bool(term.get('complement', False))",
+        "    raw_type = term.get('mf') or term.get('type')",
+        "    raw_params = term.get('params')",
+        "    if raw_params is None and 'coefficients' in term:",
+        "        raw_params = term.get('coefficients')",
+        "    if isinstance(raw_type, dict):",
+        "        nested = raw_type",
+        "        raw_type = nested.get('type') or nested.get('mf') or nested.get('shape')",
+        "        if raw_params is None:",
+        "            raw_params = nested.get('params') or nested.get('coefficients')",
+        "    if raw_type is None:",
+        "        if 'coefficients' in term:",
+        "            coeffs = term['coefficients']",
+        "            if isinstance(coeffs, (int, float)):",
+        "                return 'constant', [float(coeffs)], complement",
+        "            arr = np.asarray(coeffs, dtype=np.float64).reshape(-1)",
+        "            return ('constant' if arr.size == 1 else 'linear'), arr.tolist(), complement",
+        "        raise ValueError(f\"Term {term.get('name', '?')!r} missing 'mf'/'type'.\")",
+        "    mf_type = _normalize_mf_type(raw_type)",
+        "    if raw_params is None:",
+        "        if 'value' in term:",
+        "            raw_params = [term['value']]",
+        "        else:",
+        "            raise ValueError(f\"Term {term.get('name', '?')!r} missing 'params'.\")",
+        "    if isinstance(raw_params, (int, float)):",
+        "        params_list = [float(raw_params)]",
+        "    else:",
+        "        params_list = [float(v) for v in np.asarray(raw_params, dtype=np.float64).reshape(-1).tolist()]",
+        "    return mf_type, params_list, complement",
+        "",
+        "def _eval_mf(mf_type: str, params: list[float], x, complement: bool = False):",
+        "    is_scalar = np.ndim(x) == 0",
+        "    arr = np.atleast_1d(np.asarray(x, dtype=np.float64))",
+        "    out = np.zeros_like(arr, dtype=np.float64)",
+        "    if mf_type == 'triangular':",
+        "        a, b, c = float(params[0]), float(params[1]), float(params[2])",
+        "        mask_in = (arr >= a) & (arr <= c)",
+        "        if np.any(mask_in):",
+        "            xv = arr[mask_in]",
+        "            res = np.zeros_like(xv, dtype=np.float64)",
+        "            at_peak = np.abs(xv - b) <= _EPS",
+        "            left_side = (xv < b) & (~at_peak)",
+        "            right_side = (xv > b) & (~at_peak)",
+        "            res[at_peak] = 1.0",
+        "            if np.any(left_side):",
+        "                res[left_side] = 1.0 if abs(b - a) <= _EPS else np.clip((xv[left_side] - a) / (b - a), 0.0, 1.0)",
+        "            if np.any(right_side):",
+        "                res[right_side] = 1.0 if abs(c - b) <= _EPS else np.clip((c - xv[right_side]) / (c - b), 0.0, 1.0)",
+        "            out[mask_in] = res",
+        "    elif mf_type == 'trapezoidal':",
+        "        a, b, c, d = float(params[0]), float(params[1]), float(params[2]), float(params[3])",
+        "        mask_in = (arr >= a) & (arr <= d)",
+        "        if np.any(mask_in):",
+        "            xv = arr[mask_in]",
+        "            res = np.zeros_like(xv, dtype=np.float64)",
+        "            core = (xv >= b) & (xv <= c)",
+        "            left_side = xv < b",
+        "            right_side = xv > c",
+        "            res[core] = 1.0",
+        "            if np.any(left_side):",
+        "                res[left_side] = 1.0 if abs(b - a) <= _EPS else np.clip((xv[left_side] - a) / (b - a), 0.0, 1.0)",
+        "            if np.any(right_side):",
+        "                res[right_side] = 1.0 if abs(d - c) <= _EPS else np.clip((d - xv[right_side]) / (d - c), 0.0, 1.0)",
+        "            out[mask_in] = res",
+        "    elif mf_type == 'gaussian':",
+        "        c, sigma = float(params[0]), float(params[1])",
+        "        out = np.clip(np.exp(-0.5 * np.square((arr - c) / sigma)), 0.0, 1.0)",
+        "    elif mf_type == 'bell':",
+        "        a, b, c = float(params[0]), float(params[1]), float(params[2])",
+        "        dist = np.abs((arr - c) / a)",
+        "        with np.errstate(over='ignore'):",
+        "            out = np.clip(1.0 / (1.0 + np.power(dist, 2.0 * b)), 0.0, 1.0)",
+        "    elif mf_type == 'sigmoid':",
+        "        a, c = float(params[0]), float(params[1])",
+        "        z = np.clip(-a * (arr - c), -500.0, 500.0)",
+        "        out = np.clip(1.0 / (1.0 + np.exp(z)), 0.0, 1.0)",
+        "    elif mf_type == 'singleton':",
+        "        c = float(params[0])",
+        "        out = np.where(np.abs(arr - c) <= 1e-9, 1.0, 0.0).astype(np.float64)",
+        "    elif mf_type == 'z_shape':",
+        "        a, b = float(params[0]), float(params[1])",
+        "        if abs(b - a) <= _EPS:",
+        "            out = np.where(arr <= a, 1.0, 0.0).astype(np.float64)",
+        "        else:",
+        "            mid = 0.5 * (a + b)",
+        "            span = b - a",
+        "            out[arr <= a] = 1.0",
+        "            m2 = (arr > a) & (arr <= mid)",
+        "            m3 = (arr > mid) & (arr < b)",
+        "            out[m2] = 1.0 - 2.0 * np.square((arr[m2] - a) / span)",
+        "            out[m3] = 2.0 * np.square((arr[m3] - b) / span)",
+        "            out = np.clip(out, 0.0, 1.0)",
+        "    elif mf_type == 's_shape':",
+        "        a, b = float(params[0]), float(params[1])",
+        "        if abs(b - a) <= _EPS:",
+        "            out = np.where(arr >= b, 1.0, 0.0).astype(np.float64)",
+        "        else:",
+        "            mid = 0.5 * (a + b)",
+        "            span = b - a",
+        "            m2 = (arr > a) & (arr <= mid)",
+        "            m3 = (arr > mid) & (arr < b)",
+        "            out[m2] = 2.0 * np.square((arr[m2] - a) / span)",
+        "            out[m3] = 1.0 - 2.0 * np.square((arr[m3] - b) / span)",
+        "            out[arr >= b] = 1.0",
+        "            out = np.clip(out, 0.0, 1.0)",
+        "    elif mf_type == 'constant':",
+        "        out = np.full_like(arr, np.clip(float(params[0]), 0.0, 1.0), dtype=np.float64)",
+        "    else:",
+        "        raise ValueError(f'Unsupported scalar MF type: {mf_type!r}')",
+        "    if complement:",
+        "        out = 1.0 - out",
+        "    return float(out[0]) if is_scalar else out",
+        "",
+        "def _eval_linear(x_vec: np.ndarray, params: list[float], bias_last: bool = True) -> float:",
+        "    p_vec = np.asarray(params, dtype=np.float64).reshape(-1)",
+        "    n_in = x_vec.size",
+        "    if p_vec.size == 1:",
+        "        return float(p_vec[0])",
+        "    if p_vec.size == n_in + 1:",
+        "        return float(np.dot(p_vec[:-1], x_vec) + p_vec[-1]) if bias_last else float(p_vec[0] + np.dot(p_vec[1:], x_vec))",
+        "    if p_vec.size == n_in:",
+        "        return float(np.dot(p_vec, x_vec))",
+        "    raise ValueError(f'Linear TS params length {p_vec.size} incompatible with {n_in} inputs.')",
+        "",
+        "def _apply_t_norm(a, b, method: str = 'min'):",
+        "    key = str(method or 'min').strip().lower()",
+        "    ac = np.clip(a, 0.0, 1.0)",
+        "    bc = np.clip(b, 0.0, 1.0)",
+        "    if key in ('min', 'minimum'):",
+        "        return np.minimum(ac, bc)",
+        "    if key in ('prod', 'product', 'algebraic_product'):",
+        "        return ac * bc",
+        "    if key in ('eprod', 'eins', 'einstein', 'einstein_prod'):",
+        "        return (ac * bc) / np.maximum(_EPS, 2.0 - (ac + bc - ac * bc))",
+        "    if key in ('lukasiewicz', 'bounded_diff'):",
+        "        return np.maximum(0.0, ac + bc - 1.0)",
+        "    raise ValueError(f'Unsupported T-norm: {method!r}')",
+        "",
+        "def _apply_s_norm(a, b, method: str = 'max'):",
+        "    key = str(method or 'max').strip().lower()",
+        "    ac = np.clip(a, 0.0, 1.0)",
+        "    bc = np.clip(b, 0.0, 1.0)",
+        "    if key in ('max', 'maximum'):",
+        "        return np.maximum(ac, bc)",
+        "    if key in ('prob', 'probor', 'prob_or', 'algebraic_sum'):",
+        "        return ac + bc - ac * bc",
+        "    if key in ('esum', 'eins', 'einstein', 'einstein_sum'):",
+        "        return (ac + bc) / np.maximum(_EPS, 1.0 + ac * bc)",
+        "    if key in ('sum', 'bounded_sum', 'lukasiewicz'):",
+        "        return np.minimum(1.0, ac + bc)",
+        "    raise ValueError(f'Unsupported S-norm: {method!r}')",
+        "",
+        "def _defuzzify_curve(grid: np.ndarray, mu: np.ndarray, method: str = 'centroid', default_value: float = 0.0) -> float:",
+        "    key = _DEFUZZ_ALIASES.get(str(method or 'centroid').strip().lower().replace('-', '_'), 'centroid')",
+        "    m = np.clip(np.asarray(mu, dtype=np.float64), 0.0, 1.0)",
+        "    mass = float(np.sum(m))",
+        "    max_mu = float(np.max(m)) if m.size > 0 else 0.0",
+        "    if grid.size == 0 or mass <= _EPS or max_mu <= _EPS or not np.isfinite(mass):",
+        "        return float(default_value)",
+        "    if key == 'centroid':",
+        "        return float(np.sum(grid * m) / mass)",
+        "    if key == 'bisector':",
+        "        if grid.size == 1:",
+        "            return float(grid[0])",
+        "        seg = 0.5 * (m[:-1] + m[1:]) * np.diff(grid)",
+        "        cum = np.concatenate(([0.0], np.cumsum(seg)))",
+        "        total = float(cum[-1])",
+        "        if total <= _EPS:",
+        "            return float(np.sum(grid * m) / mass)",
+        "        half = 0.5 * total",
+        "        idx = int(np.searchsorted(cum, half, side='left'))",
+        "        if idx <= 0:",
+        "            return float(grid[0])",
+        "        if idx >= grid.size:",
+        "            return float(grid[-1])",
+        "        a0, a1 = float(cum[idx - 1]), float(cum[idx])",
+        "        if abs(a1 - a0) <= _EPS:",
+        "            return float(grid[idx])",
+        "        return float(grid[idx - 1] + ((half - a0) / (a1 - a0)) * (grid[idx] - grid[idx - 1]))",
+        "    max_pts = grid[np.abs(m - max_mu) <= 1e-12]",
+        "    if max_pts.size == 0:",
+        "        max_pts = np.array([grid[int(np.argmax(m))]], dtype=np.float64)",
+        "    if key == 'som':",
+        "        return float(np.min(max_pts))",
+        "    if key == 'lom':",
+        "        return float(np.max(max_pts))",
+        "    return float(np.mean(max_pts))",
+        "",
+        "def eval_fuzzy_point(*u):",
+        '    """Self-contained pure-NumPy evaluator for fuzzy_spec (Mamdani & Takagi-Sugeno)."""',
+        "    in_vars = fuzzy_spec['input_variables']",
+        "    out_vars = fuzzy_spec['output_variables']",
+        "    rules = fuzzy_spec['rules']",
+        "    ops = fuzzy_spec.get('operators') or {}",
+        "    n_in = len(in_vars)",
+        "",
+        "    if len(u) == 1 and isinstance(u[0], (list, tuple, np.ndarray)):",
+        "        u_vals = np.asarray(u[0], dtype=np.float64).reshape(-1)",
+        "    else:",
+        "        u_vals = np.asarray(u, dtype=np.float64).reshape(-1)",
+        "    if u_vals.size != n_in:",
+        "        raise ValueError(f'Expected {n_in} fuzzy input(s), got {u_vals.size}.')",
+        "",
+        "    eval_map = {}",
+        "    input_vec = np.zeros(n_in, dtype=np.float64)",
+        "    for idx, var in enumerate(in_vars):",
+        "        lo, hi = float(var['universe'][0]), float(var['universe'][1])",
+        "        val = float(np.clip(u_vals[idx], lo, hi))",
+        "        eval_map[var['name']] = val",
+        "        input_vec[idx] = val",
+        "",
+        "    memberships = {}",
+        "    for var in in_vars:",
+        "        vname = var['name']",
+        "        x_val = eval_map[vname]",
+        "        memberships[vname] = {}",
+        "        for term in var['terms']:",
+        "            mf_type, params, comp = _extract_term_spec(term)",
+        "            mu_val = float(_eval_mf(mf_type, params, x_val, complement=comp))",
+        "            memberships[vname][term['name']] = float(np.clip(mu_val, 0.0, 1.0))",
+        "",
+        "    default_and = ops.get('and', 'min')",
+        "    default_or = ops.get('or', 'max')",
+        "    w_list = []",
+        "    for rule in rules:",
+        "        ants = rule['antecedents']",
+        "        connector = str(rule.get('connector', 'and')).strip().lower()",
+        "        and_m = str(rule.get('and_method', default_and))",
+        "        or_m = str(rule.get('or_method', default_or))",
+        "        weight = float(rule.get('weight', 1.0))",
+        "        degs = [float(memberships[vn][tn]) for vn, tn in ants.items()]",
+        "        if not degs:",
+        "            firing = 0.0",
+        "        else:",
+        "            firing = degs[0]",
+        "            for d in degs[1:]:",
+        "                firing = float(_apply_s_norm(firing, d, or_m) if connector == 'or' else _apply_t_norm(firing, d, and_m))",
+        "        w_list.append(float(np.clip(firing * weight, 0.0, 1.0)))",
+        "    w_arr = np.asarray(w_list, dtype=np.float64)",
+        "    sum_w = float(np.sum(w_arr))",
+        "",
+        "    outputs = []",
+        "    if fuzzy_spec.get('inference_type') == 'ts':",
+        "        defuzz = _DEFUZZ_ALIASES.get(str(ops.get('defuzzification', 'wtaver')).strip().lower().replace('-', '_'), 'wtaver')",
+        "        for var in out_vars:",
+        "            vname = var['name']",
+        "            default_val = float(var.get('default_value', 0.0))",
+        "            if len(rules) == 0 or sum_w <= _EPS:",
+        "                outputs.append(default_val)",
+        "                continue",
+        "            term_lookup = {t['name']: t for t in var['terms']}",
+        "            y_rules = []",
+        "            w_used = []",
+        "            for r_idx, rule in enumerate(rules):",
+        "                cons = rule['consequents']",
+        "                if vname not in cons:",
+        "                    continue",
+        "                term = term_lookup[cons[vname]]",
+        "                mf_type, params, _ = _extract_term_spec(term)",
+        "                if mf_type in ('constant', 'singleton'):",
+        "                    y_r = float(params[0])",
+        "                elif mf_type == 'linear':",
+        "                    y_r = _eval_linear(input_vec, params, bias_last=bool(term.get('bias_last', True)))",
+        "                elif mf_type == 'triangular':",
+        "                    y_r = float(params[1])",
+        "                elif mf_type == 'trapezoidal':",
+        "                    y_r = float(0.5 * (params[1] + params[2]))",
+        "                elif mf_type == 'gaussian':",
+        "                    y_r = float(params[0])",
+        "                elif mf_type == 'bell':",
+        "                    y_r = float(params[2])",
+        "                else:",
+        "                    raise ValueError(f'Unsupported TS consequent MF type: {mf_type!r}')",
+        "                y_rules.append(y_r)",
+        "                w_used.append(float(w_arr[r_idx]))",
+        "            w_u = np.asarray(w_used, dtype=np.float64)",
+        "            y_u = np.asarray(y_rules, dtype=np.float64)",
+        "            denom = float(np.sum(w_u))",
+        "            if denom <= _EPS:",
+        "                outputs.append(default_val)",
+        "            elif defuzz == 'wtsum':",
+        "                outputs.append(float(np.dot(w_u, y_u)))",
+        "            else:",
+        "                outputs.append(float(np.dot(w_u / denom, y_u)))",
+        "    else:",
+        "        imp_m = str(ops.get('implication', 'min'))",
+        "        agg_m = str(ops.get('aggregation', ops.get('or', 'max')))",
+        "        base_defuzz = str(ops.get('defuzzification', 'centroid'))",
+        "        for var in out_vars:",
+        "            vname = var['name']",
+        "            lo, hi = float(var['universe'][0]), float(var['universe'][1])",
+        "            default_val = float(var.get('default_value', 0.0))",
+        "            v_defuzz = str(var.get('defuzzifier', base_defuzz))",
+        "            v_agg = str(var.get('accumulation', agg_m))",
+        "            grid = np.linspace(lo, hi, GRID_RESOLUTION, dtype=np.float64)",
+        "            term_curves = {}",
+        "            for term in var['terms']:",
+        "                mf_type, params, comp = _extract_term_spec(term)",
+        "                if mf_type == 'singleton':",
+        "                    curve = np.zeros_like(grid, dtype=np.float64)",
+        "                    curve[int(np.argmin(np.abs(grid - float(params[0]))))] = 1.0",
+        "                    if comp:",
+        "                        curve = 1.0 - curve",
+        "                    term_curves[term['name']] = curve",
+        "                else:",
+        "                    term_curves[term['name']] = np.asarray(_eval_mf(mf_type, params, grid, complement=comp), dtype=np.float64)",
+        "            agg_curve = np.zeros_like(grid, dtype=np.float64)",
+        "            first = True",
+        "            for r_idx, rule in enumerate(rules):",
+        "                cons = rule['consequents']",
+        "                if vname not in cons:",
+        "                    continue",
+        "                implied = np.asarray(_apply_t_norm(w_arr[r_idx], term_curves[cons[vname]], imp_m), dtype=np.float64)",
+        "                if first:",
+        "                    agg_curve = implied",
+        "                    first = False",
+        "                else:",
+        "                    agg_curve = np.asarray(_apply_s_norm(agg_curve, implied, v_agg), dtype=np.float64)",
+        "            outputs.append(_defuzzify_curve(grid, agg_curve, method=v_defuzz, default_value=default_val))",
+        "",
+        "    if len(outputs) == 1:",
+        "        return float(outputs[0])",
+        "    return tuple(float(v) for v in outputs)",
+        "",
+        "def run_pathsim_simulation(",
+        "    duration: float = DEFAULT_DURATION,",
+        "    dt: float = DEFAULT_DT,",
+        "    inputs_fn=None,",
+        ") -> tuple[np.ndarray, np.ndarray]:",
+        '    """Run static FuzzySystem evaluation over time using PathSim 0.31.0."""',
+        "    from pathsim import Simulation, Connection",
+        "    from pathsim.blocks import Source, Function, Scope",
+        "",
+        "    in_vars = fuzzy_spec['input_variables']",
+        "    out_vars = fuzzy_spec['output_variables']",
+        "    n_in = len(in_vars)",
+        "    n_out = len(out_vars)",
+        "    dur = float(duration)",
+        "    dt_step = float(dt)",
+        "",
+        "    if inputs_fn is None:",
+        "        def _default_inputs(t: float):",
+        "            frac = float(np.clip(t / max(dur, 1e-9), 0.0, 1.0))",
+        "            return [",
+        "                float(v['universe'][0]) + frac * (float(v['universe'][1]) - float(v['universe'][0]))",
+        "                for v in in_vars",
+        "            ]",
+        "        active_inputs = _default_inputs",
+        "    else:",
+        "        active_inputs = inputs_fn",
+        "",
+        "    def _make_source_func(idx: int, var_name: str):",
+        "        if isinstance(active_inputs, (list, tuple)):",
+        "            ch_fn = active_inputs[idx]",
+        "            return lambda t, _f=ch_fn: float(_f(float(t)))",
+        "        def _src(t, _i=idx, _nm=var_name, _f=active_inputs):",
+        "            val = _f(float(t))",
+        "            if isinstance(val, dict):",
+        "                return float(val[_nm])",
+        "            arr = np.atleast_1d(np.asarray(val, dtype=np.float64)).reshape(-1)",
+        "            return float(arr[_i])",
+        "        return _src",
+        "",
+        "    sources = [Source(func=_make_source_func(i, v['name'])) for i, v in enumerate(in_vars)]",
+        "    fuzzy_block = Function(func=eval_fuzzy_point)",
+        "    scope = Scope(labels=[v['name'] for v in out_vars])",
+        "    connections = [Connection(sources[i], fuzzy_block[i]) for i in range(n_in)]",
+        "    connections.extend(Connection(fuzzy_block[j], scope[j]) for j in range(n_out))",
+        "    sim = Simulation(",
+        "        blocks=[*sources, fuzzy_block, scope],",
+        "        connections=connections,",
+        "        dt=dt_step,",
+        "        log=False,",
+        "    )",
+        "    sim.run(duration=dur, adaptive=False)",
+        "    t_raw, y_raw = scope.read()",
+        "    t_out = np.asarray(t_raw, dtype=np.float64).reshape(-1)",
+        "    y_arr = np.asarray(y_raw, dtype=np.float64)",
+        "    y_traj = y_arr.reshape(-1, 1) if y_arr.ndim == 1 else y_arr.T",
+        "    return t_out, y_traj",
+        "",
+        'if __name__ == "__main__":',
+        "    t_sim, y_sim = run_pathsim_simulation()",
+        "    print(f'Completed PathSim FuzzySystem simulation: samples={len(t_sim)}, final_output={y_sim[-1].tolist()}')",
+    ]
+    return lines
+
+
 def generate_pathsim_script(
     plant: Any,
     controller: Any = None,
@@ -2514,7 +3121,7 @@ def generate_pathsim_script(
     *,
     raise_on_error: bool = False,
 ) -> Result:
-    """Gera script CPython/PathSim determinístico sem executá-lo (fallback oficial DEC-OPEN-07)."""
+    """Gera script CPython/PathSim 0.31.0 determinístico sem executá-lo (DEC-OPEN-07 -> ADR-013)."""
     prov: Provenance = build_provenance(
         "control_lab.io.generate_pathsim_script",
         model_revision=getattr(plant, "revision", None),
@@ -2522,20 +3129,33 @@ def generate_pathsim_script(
     assumptions: dict[str, Any] = {
         "requires_explicit_user_execution": True,
         "code_executed": False,
+        "dec_open_07_decision": "ADR-013",
+        "pathsim_target_version": "0.31.0",
     }
     diagnostics: dict[str, Any] = {
         "plant_type": type(plant).__name__,
         "controller_type": type(controller).__name__ if controller is not None else None,
         "code_executed": False,
+        "dec_open_07_decision": "ADR-013",
     }
     warnings_out: list[WarningItem] = []
 
     try:
+        if scenario is not None and not isinstance(scenario, Mapping):
+            raise ValidationError("scenario deve ser um Mapping ou None.")
         sc = ensure_json_finite(dict(scenario), path="$.scenario") if scenario is not None else {}
-        duration = float(sc.get("duration", 10.0))
-        dt_sim = float(sc.get("dt", getattr(plant, "dt", None) or 0.01))
+        duration_raw = sc.get("duration", 10.0)
+        dt_raw = sc.get("dt", getattr(plant, "dt", None) or 0.01)
+        if not _is_real_number(duration_raw) or float(duration_raw) <= 0.0:
+            raise ValidationError(f"scenario.duration deve ser finito e > 0, recebido {duration_raw!r}.")
+        if not _is_real_number(dt_raw) or float(dt_raw) <= 0.0:
+            raise ValidationError(f"scenario.dt deve ser finito e > 0, recebido {dt_raw!r}.")
+        duration = float(duration_raw)
+        dt_sim = float(dt_raw)
         lines: list[str] = [
-            '"""Script de referência CPython/PathSim gerado pelo ControlLab Web (execução manual explícita)."""',
+            '"""Script de referência CPython/PathSim 0.31.0 gerado pelo ControlLab Web (ADR-013; execução manual explícita)."""',
+            "from __future__ import annotations",
+            "",
             "import numpy as np",
             "import scipy.integrate",
             "",
@@ -2558,51 +3178,46 @@ def generate_pathsim_script(
             warnings_out.append(
                 WarningItem(
                     code="DEC_OPEN_07_FALLBACK_SCRIPT",
-                    message="Script CPython gerado como fallback para TSStateSpace/PDC (DEC-OPEN-07).",
+                    message=(
+                        "Script CPython/PathSim 0.31.0 gerado para TSStateSpace/PDC "
+                        "conforme ADR-013 (DEC-OPEN-07)."
+                    ),
                 )
             )
-            lines.append(f"# TSStateSpace kind={plant.kind!r}, dt={plant.dt!r}, vertices={plant.n_vertices}")
-            lines.append(f"dt = {plant.dt!r}")
-            lines.append("A_vertices = [")
-            for v in plant.vertices:
-                lines.append(f"    np.array({v['A'].tolist()!r}, dtype=np.float64),")
-            lines.append("]")
-            lines.append("B_vertices = [")
-            for v in plant.vertices:
-                lines.append(f"    np.array({v['B'].tolist()!r}, dtype=np.float64),")
-            lines.append("]")
-            if isinstance(controller, PDCController):
-                sign_str = sc.get("sign_convention") or controller.feedback_sign
-                s_val = -1.0 if sign_str == "negative" else 1.0
-                lines.append(f"feedback_sign = {sign_str!r}")
-                lines.append(f"sign_factor = {s_val!r}")
-                lines.append("K_vertices = [")
-                for k_mat in controller.K_i:
-                    lines.append(f"    np.array({k_mat.tolist()!r}, dtype=np.float64),")
-                lines.append("]")
-                lines.extend(
-                    [
-                        "",
-                        "def ts_pdc_rhs(x: np.ndarray, h: np.ndarray, u_ff: np.ndarray) -> np.ndarray:",
-                        "    dx = np.zeros_like(x, dtype=np.float64)",
-                        "    for i, (Ai, Bi) in enumerate(zip(A_vertices, B_vertices)):",
-                        "        dx += h[i] * (Ai @ x + Bi @ u_ff)",
-                        "        for j, Kj in enumerate(K_vertices):",
-                        "            dx += h[i] * h[j] * (sign_factor * (Bi @ (Kj @ x)))",
-                        "    return dx",
-                    ]
+            x0_vec = _resolve_initial_state(sc, plant.n_states)
+            lines.extend(
+                _emit_ts_pdc_pathsim_script(
+                    plant,
+                    controller,
+                    duration=duration,
+                    dt_sim=dt_sim,
+                    x0=x0_vec,
+                    sign_convention=sc.get("sign_convention"),
                 )
+            )
         elif isinstance(plant, FuzzySystem) or isinstance(controller, FuzzySystem):
             fz = plant if isinstance(plant, FuzzySystem) else controller
             assert isinstance(fz, FuzzySystem)
+            grid_res_raw = sc.get("grid_resolution", 201)
+            if isinstance(grid_res_raw, bool) or not isinstance(grid_res_raw, (int, np.integer)) or int(grid_res_raw) < 11:
+                raise ValidationError("scenario.grid_resolution deve ser inteiro >= 11.")
             warnings_out.append(
                 WarningItem(
                     code="DEC_OPEN_07_FALLBACK_SCRIPT",
-                    message="Script CPython gerado como fallback para FuzzySystem (DEC-OPEN-07).",
+                    message=(
+                        "Script CPython/PathSim 0.31.0 gerado para FuzzySystem "
+                        "conforme ADR-013 (DEC-OPEN-07)."
+                    ),
                 )
             )
-            lines.append(f"# FuzzySystem id={fz.id!r}, inference_type={fz.inference_type!r}, is_dynamic_model={fz.is_dynamic_model!r}")
-            lines.append(f"fuzzy_spec = {fz.to_dict()!r}")
+            lines.extend(
+                _emit_fuzzy_pathsim_script(
+                    fz,
+                    duration=duration,
+                    dt_sim=dt_sim,
+                    grid_resolution=int(grid_res_raw),
+                )
+            )
         elif isinstance(plant, StateSpace):
             pvm_res = make_pvm(plant, controller=controller, scenario=sc, return_result=True, raise_on_error=True)
             assert pvm_res.data is not None

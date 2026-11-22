@@ -258,6 +258,78 @@ def test_simulate_mimo_closed_loop_with_and_without_decoupler() -> None:
         simulate_mimo_closed_loop(bad_plant, controller=np.eye(2), raise_on_error=True)
 
 
+def _assert_hinf_stable_proof_certificates(res) -> None:
+    """Valida todos os certificados matemáticos (Riccati + BRL Hamiltoniano) em data e diagnostics."""
+    assert res.status in ("success", "warning")
+    assert res.data is not None
+    d = res.data
+    diag = res.diagnostics
+
+    expected_keys = (
+        "controller",
+        "generalized_plant_summary",
+        "gamma_achieved",
+        "hinf_norm_grid",
+        "hinf_norm_exact",
+        "is_stable",
+        "closed_loop_poles",
+        "omega",
+        "sigma_S",
+        "sigma_T",
+        "inv_ws_bound",
+        "inv_wt_bound",
+        "riccati_X_residual_rel",
+        "riccati_Y_residual_rel",
+        "rho_XY",
+        "coupling_margin",
+        "hamiltonian_exact_verified",
+        "hamiltonian_min_abs_real",
+        "stable_subclass",
+        "maturity",
+    )
+    for key in expected_keys:
+        assert key in d, f"Chave ausente em data: {key}"
+
+    cert_keys = (
+        "riccati_X_residual_rel",
+        "riccati_Y_residual_rel",
+        "rho_XY",
+        "coupling_margin",
+        "hamiltonian_exact_verified",
+        "hamiltonian_min_abs_real",
+        "hinf_norm_exact",
+        "stable_subclass",
+        "maturity",
+    )
+    for key in cert_keys:
+        assert key in diag, f"Chave ausente em diagnostics: {key}"
+        assert d[key] == diag[key]
+
+    assert d["controller"]["kind"] == "StateSpace"
+    assert d["is_stable"] is True
+    assert d["stable_subclass"] == "continuous_regular_dgkf_mixed_sensitivity"
+    assert d["maturity"] == "stable"
+    assert d["hamiltonian_exact_verified"] is True
+    assert float(d["hamiltonian_min_abs_real"]) > 1e-8
+    assert float(d["riccati_X_residual_rel"]) < 1e-8
+    assert float(d["riccati_Y_residual_rel"]) < 1e-8
+    assert float(d["rho_XY"]) >= 0.0
+    assert float(d["coupling_margin"]) > 0.0
+
+    gamma = float(d["gamma_achieved"])
+    norm_grid = float(d["hinf_norm_grid"])
+    norm_exact = float(d["hinf_norm_exact"])
+    assert np.isfinite(gamma) and gamma > 0.0
+    assert np.isfinite(norm_exact) and norm_exact > 0.0
+    assert norm_grid <= norm_exact * (1.0 + 1e-4) <= gamma * (1.0 + 1e-4)
+    np.testing.assert_allclose(float(d["coupling_margin"]), gamma**2 - float(d["rho_XY"]), rtol=1e-12, atol=1e-12)
+
+    cl_poles_pair = d["closed_loop_poles"]
+    poles_re = np.asarray(cl_poles_pair["real"], dtype=np.float64)
+    assert poles_re.size > 0
+    assert np.all(poles_re < -1e-7)
+
+
 def test_design_hinf_mixed_sensitivity_siso() -> None:
     # Planta SISO G(s) = 1 / (s + 1)
     plant = TransferFunction(num=[1.0], den=[1.0, 1.0], dt=None)
@@ -266,15 +338,9 @@ def test_design_hinf_mixed_sensitivity_siso() -> None:
     w_t = {"wt": 10.0, "m_t": 2.0, "at": 0.01}
 
     res = design_hinf_mixed_sensitivity(plant, w_s=w_s, w_u=w_u, w_t=w_t, gamma_tol=1e-2)
-    assert res.status in ("success", "warning")
+    _assert_hinf_stable_proof_certificates(res)
     assert res.data is not None
-
     d = res.data
-    assert d["controller"]["kind"] == "StateSpace"
-    assert d["is_stable"] is True
-    gamma = float(d["gamma_achieved"])
-    assert np.isfinite(gamma) and gamma > 0.0
-    assert float(d["hinf_norm_grid"]) <= gamma * 1.02
 
     gp = d["generalized_plant_summary"]
     assert gp["n_w"] == 1 and gp["n_u"] == 1 and gp["n_y"] == 1 and gp["n_z"] == 3
@@ -294,14 +360,9 @@ def test_design_hinf_mixed_sensitivity_mimo_2x2() -> None:
         w_t={"wt": 10.0, "m_t": 2.0, "at": 0.05},
         gamma_tol=2e-2,
     )
-    assert res.status in ("success", "warning")
+    _assert_hinf_stable_proof_certificates(res)
     assert res.data is not None
-
     d = res.data
-    assert d["is_stable"] is True
-    gamma = float(d["gamma_achieved"])
-    assert np.isfinite(gamma) and gamma > 0.0
-    assert float(d["hinf_norm_grid"]) <= gamma * 1.05
 
     gp = d["generalized_plant_summary"]
     assert gp["n_w"] == 2 and gp["n_u"] == 2 and gp["n_y"] == 2 and gp["n_z"] == 6
@@ -310,7 +371,130 @@ def test_design_hinf_mixed_sensitivity_mimo_2x2() -> None:
     inv_ws = tensor_to_array(d["inv_ws_bound"], expected_ndim=1)
     assert np.all(sigma_S <= inv_ws * 1.05)
 
-    # Planta discreta deve ser rejeitada honestamente
-    plant_d = StateSpace(A=np.array([[0.5]]), B=np.array([[1.0]]), C=np.array([[1.0]]), D=np.array([[0.0]]), dt=0.1)
+
+def test_design_hinf_mixed_sensitivity_unstable_siso_and_mimo_stabilization() -> None:
+    # Planta SISO instável: G(s) = 1 / (s - 1)
+    plant_u_siso = TransferFunction(num=[1.0], den=[1.0, -1.0], dt=None)
+    res_siso = design_hinf_mixed_sensitivity(
+        plant_u_siso,
+        w_s={"dc_gain": 50.0, "wb": 0.5, "m_s": 2.0},
+        w_u={"gain": 0.1},
+        w_t={"wt": 15.0, "m_t": 2.0, "at": 0.05},
+        gamma_tol=1e-2,
+    )
+    _assert_hinf_stable_proof_certificates(res_siso)
+    assert res_siso.data is not None
+    assert float(res_siso.data["rho_XY"]) > 0.0
+
+    # Planta MIMO 2x2 acoplada com polo instável em malha aberta
+    plant_u_mimo = StateSpace(
+        A=np.array([[0.5, 0.2], [0.1, -1.0]]),
+        B=np.array([[1.0, 0.3], [0.2, 1.0]]),
+        C=np.eye(2),
+        D=np.zeros((2, 2)),
+        dt=None,
+    )
+    assert np.max(np.real(np.linalg.eigvals(plant_u_mimo.A))) > 0.0
+
+    res_mimo = design_hinf_mixed_sensitivity(
+        plant_u_mimo,
+        w_s={"dc_gain": 40.0, "wb": 0.5, "m_s": 2.0},
+        w_u={"gain": 0.1},
+        w_t={"wt": 15.0, "m_t": 2.0, "at": 0.05},
+        gamma_tol=2e-2,
+    )
+    _assert_hinf_stable_proof_certificates(res_mimo)
+    assert res_mimo.data is not None
+    assert float(res_mimo.data["rho_XY"]) > 0.0
+
+    # Verificar estabilização também via simulação em malha fechada
+    k_ss = StateSpace.from_dict(res_mimo.data["controller"])
+    sim_res = simulate_mimo_closed_loop(plant_u_mimo, controller=k_ss, t_final=8.0, n_points=100)
+    assert sim_res.status in ("success", "warning")
+    assert sim_res.data is not None
+    assert sim_res.data["is_stable"] is True
+
+
+def test_design_hinf_mixed_sensitivity_out_of_subclass_rejections() -> None:
+    # 1. Planta discreta deve ser rejeitada com UnsupportedModelError
+    plant_d = StateSpace(
+        A=np.array([[0.5]]),
+        B=np.array([[1.0]]),
+        C=np.array([[1.0]]),
+        D=np.array([[0.0]]),
+        dt=0.1,
+    )
     with pytest.raises(UnsupportedModelError):
         design_hinf_mixed_sensitivity(plant_d, raise_on_error=True)
+
+    # 2. Planta não quadrada (1x2 e 2x1) deve ser rejeitada com DimensionMismatchError
+    plant_1x2 = StateSpace(
+        A=np.array([[-1.0]]),
+        B=np.array([[1.0, 2.0]]),
+        C=np.array([[1.0]]),
+        D=np.zeros((1, 2)),
+        dt=None,
+    )
+    with pytest.raises(DimensionMismatchError):
+        design_hinf_mixed_sensitivity(plant_1x2, raise_on_error=True)
+
+    plant_2x1 = StateSpace(
+        A=np.array([[-1.0]]),
+        B=np.array([[1.0]]),
+        C=np.array([[1.0], [0.5]]),
+        D=np.zeros((2, 1)),
+        dt=None,
+    )
+    with pytest.raises(DimensionMismatchError):
+        design_hinf_mixed_sensitivity(plant_2x1, raise_on_error=True)
+
+    # 3. D12 singular: W_U(s) = 1 / (s + 1) estritamente própria com ganho zero em alta frequência
+    plant_siso = TransferFunction(num=[1.0], den=[1.0, 1.0], dt=None)
+    wu_strictly_proper = TransferFunction(num=[1.0], den=[1.0, 1.0], dt=None)
+    with pytest.raises((ValidationError, NumericalInconclusiveError)):
+        design_hinf_mixed_sensitivity(plant_siso, w_u=wu_strictly_proper, raise_on_error=True)
+
+    res_err = design_hinf_mixed_sensitivity(plant_siso, w_u=wu_strictly_proper, raise_on_error=False)
+    assert res_err.status == "failure"
+    assert res_err.error is not None
+
+    # Também em MIMO 2x2 com W_U estritamente própria
+    with pytest.raises((ValidationError, NumericalInconclusiveError)):
+        design_hinf_mixed_sensitivity(_coupled_2x2_tf(), w_u=wu_strictly_proper, raise_on_error=True)
+
+    # 4. Peso com polo no eixo imaginário (integrador puro) fora da subclasse regular
+    ws_integrator = TransferFunction(num=[1.0], den=[1.0, 0.0], dt=None)
+    with pytest.raises(ValidationError):
+        design_hinf_mixed_sensitivity(plant_siso, w_s=ws_integrator, raise_on_error=True)
+
+
+def test_hamiltonian_exact_hinf_norm_analytical_oracles() -> None:
+    from control_lab.frequency.mimo.synthesis import _compute_exact_hinf_norm_hamiltonian
+
+    # Sistema ressonante de 2a ordem: G(s) = 1 / (s^2 + 2*zeta*s + 1), norma H-inf analítica exata
+    zeta = 0.05
+    exact_res_norm = 1.0 / (2.0 * zeta * np.sqrt(1.0 - zeta**2))
+    ss_res = TransferFunction(num=[1.0], den=[1.0, 2.0 * zeta, 1.0], dt=None).to_state_space()
+
+    cert_ok = _compute_exact_hinf_norm_hamiltonian(
+        ss_res.A, ss_res.B, ss_res.C, ss_res.D, gamma_upper=exact_res_norm * 1.25, tol=1e-6
+    )
+    assert cert_ok["hamiltonian_exact_verified"] is True
+    assert cert_ok["hamiltonian_min_abs_real"] > 1e-8
+    assert abs(cert_ok["hinf_norm_exact"] - exact_res_norm) / exact_res_norm < 1e-5
+
+    # Para gamma abaixo da norma exata, o BRL Hamiltoniano deve detectar falha
+    cert_fail = _compute_exact_hinf_norm_hamiltonian(
+        ss_res.A, ss_res.B, ss_res.C, ss_res.D, gamma_upper=exact_res_norm * 0.99, tol=1e-6
+    )
+    assert cert_fail["hamiltonian_exact_verified"] is False
+    assert abs(cert_fail["hinf_norm_exact"] - exact_res_norm) / exact_res_norm < 1e-5
+
+    # Passa-alta G(s) = s / (s + 1): supremo atingido em omega -> infinito (||G||_inf = 1)
+    ss_hp = TransferFunction(num=[1.0, 0.0], den=[1.0, 1.0], dt=None).to_state_space()
+    cert_hp = _compute_exact_hinf_norm_hamiltonian(
+        ss_hp.A, ss_hp.B, ss_hp.C, ss_hp.D, gamma_upper=1.5, tol=1e-6
+    )
+    assert cert_hp["hamiltonian_exact_verified"] is True
+    assert abs(cert_hp["hinf_norm_exact"] - 1.0) < 1e-5
+

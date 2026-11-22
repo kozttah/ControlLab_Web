@@ -1517,6 +1517,22 @@ def test_ux_phase5_anfis_tab5_training(browser_harness):
     assert "val_rmse:" in results_text
     assert page.locator("#fuzzy-anfis-results svg.fuzzy-anfis-rmse-svg").is_visible()
 
+    # ADR-013 (DEC-OPEN-07): passive PathSim (.py) script export via #btn-fuzzy-export-pathsim
+    export_pathsim_btn = page.locator("#btn-fuzzy-export-pathsim")
+    export_pathsim_btn.wait_for(state="visible")
+    export_pathsim_btn.click()
+    export_modal = page.locator("#controllab-export-modal")
+    export_modal.wait_for(state="visible", timeout=20000)
+    modal_content = page.locator("#export-modal-content").inner_text()
+    assert "run_pathsim_simulation" in modal_content, (
+        "Expected 'run_pathsim_simulation' in PathSim export modal content"
+    )
+    assert "eval_fuzzy_point" in modal_content, (
+        "Expected 'eval_fuzzy_point' in PathSim export modal content"
+    )
+    page.locator("#export-modal-close").click()
+    export_modal.wait_for(state="hidden")
+
     # Mobile 390x844 viewport: zero horizontal overflow with ANFIS results & SVG visible
     page.set_viewport_size({"width": 390, "height": 844})
     overflow_metrics = page.evaluate(
@@ -1532,6 +1548,7 @@ def test_ux_phase5_anfis_tab5_training(browser_harness):
         {
             "anfis_results_text": results_text,
             "rmse_svg_visible": True,
+            "pathsim_export_modal_verified": True,
             "mobile_390x844_overflow": overflow_metrics,
         },
     )

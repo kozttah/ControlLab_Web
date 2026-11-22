@@ -126,6 +126,10 @@ interface MimoClosedLoopSnapshot {
 interface MimoHinfSnapshot {
   gammaAchieved: number | null;
   hinfNormGrid: number | null;
+  hinfNormExact: number | null;
+  hamiltonianExactVerified: boolean | null;
+  riccatiXResidualRel: number | null;
+  riccatiYResidualRel: number | null;
   isStable: boolean;
   gpSummary: {
     n_states: number;
@@ -1453,10 +1457,28 @@ export class MimoView {
       const rawGp = isPlainObject(res.generalized_plant_summary)
         ? (res.generalized_plant_summary as Record<string, unknown>)
         : null;
+      const diag = isPlainObject(resp.diagnostics)
+        ? (resp.diagnostics as Record<string, unknown>)
+        : {};
+      const pickFiniteNum = (a: unknown, b: unknown): number | null => {
+        if (typeof a === "number" && Number.isFinite(a)) return a;
+        if (typeof b === "number" && Number.isFinite(b)) return b;
+        return null;
+      };
+      const rawHamVerified =
+        typeof res.hamiltonian_exact_verified === "boolean"
+          ? res.hamiltonian_exact_verified
+          : typeof diag.hamiltonian_exact_verified === "boolean"
+            ? diag.hamiltonian_exact_verified
+            : null;
 
       this.hinfSnapshot = {
         gammaAchieved: typeof res.gamma_achieved === "number" ? res.gamma_achieved : null,
         hinfNormGrid: typeof res.hinf_norm_grid === "number" ? res.hinf_norm_grid : null,
+        hinfNormExact: pickFiniteNum(res.hinf_norm_exact, diag.hinf_norm_exact),
+        hamiltonianExactVerified: rawHamVerified,
+        riccatiXResidualRel: pickFiniteNum(res.riccati_X_residual_rel, diag.riccati_X_residual_rel),
+        riccatiYResidualRel: pickFiniteNum(res.riccati_Y_residual_rel, diag.riccati_Y_residual_rel),
         isStable: Boolean(res.is_stable),
         gpSummary: rawGp
           ? {
@@ -2042,8 +2064,35 @@ export class MimoView {
       const gpStr = h.gpSummary
         ? `n_states=${h.gpSummary.n_states}, n_w=${h.gpSummary.n_w}, n_u=${h.gpSummary.n_u}, n_z=${h.gpSummary.n_z}, n_y=${h.gpSummary.n_y}`
         : "N/D";
+      const proofParts: string[] = [];
+      if (h.hamiltonianExactVerified !== null) {
+        const hamBadge = h.hamiltonianExactVerified
+          ? `<span class="badge badge-stable">Hamiltoniana Exata ✓</span>`
+          : `<span class="badge badge-beta">Hamiltoniana Não Verificada</span>`;
+        proofParts.push(hamBadge);
+      }
+      if (h.hinfNormExact !== null) {
+        proofParts.push(
+          `<strong>||T_zw||∞ (exata):</strong> <code>${escapeHtml(formatNumericDisplay(h.hinfNormExact, decimals))}</code>`,
+        );
+      }
+      if (h.riccatiXResidualRel !== null || h.riccatiYResidualRel !== null) {
+        const rxStr =
+          h.riccatiXResidualRel !== null
+            ? formatNumericDisplay(h.riccatiXResidualRel, decimals)
+            : "N/D";
+        const ryStr =
+          h.riccatiYResidualRel !== null
+            ? formatNumericDisplay(h.riccatiYResidualRel, decimals)
+            : "N/D";
+        proofParts.push(
+          `<strong>Resíduos Riccati (rel.):</strong> <code>r_X=${escapeHtml(rxStr)}</code>, <code>r_Y=${escapeHtml(ryStr)}</code>`,
+        );
+      }
+
       this.hinfSummaryEl.innerHTML = [
         `<p>${badge} <strong>γ atingido:</strong> <code>${escapeHtml(gammaStr)}</code> | <strong>||T_zw||∞ (grade):</strong> <code>${escapeHtml(normStr)}</code></p>`,
+        proofParts.length > 0 ? `<p id="mimo-hinf-status">${proofParts.join(" | ")}</p>` : "",
         `<p><strong>Planta Generalizada P(s):</strong> <code>${escapeHtml(gpStr)}</code></p>`,
       ].join("");
     }

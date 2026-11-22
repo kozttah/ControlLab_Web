@@ -441,6 +441,7 @@ export function renderFuzzyViewHtml(): string {
     `<button type="button" id="btn-fuzzy-reset-starter" class="touch-control btn-secondary" data-action="fuzzy-reset-starter">Restaurar Exemplo PD</button>`,
     `<button type="button" id="btn-fuzzy-export-fml" class="touch-control btn-secondary" data-action="fuzzy-export-fml">Exportar FML (IEEE 1855-2016)</button>`,
     `<button type="button" id="btn-fuzzy-import-fml" class="touch-control btn-secondary" data-action="fuzzy-import-fml">Importar FML (XML)</button>`,
+    `<button type="button" id="btn-fuzzy-export-pathsim" class="touch-control btn-secondary" data-action="fuzzy-export-pathsim">Exportar Script PathSim (.py)</button>`,
     `</div>`,
     `<div class="fuzzy-main-grid fuzzy-workbench-grid">`,
     `<div class="subcard fuzzy-mf-panel">`,
@@ -680,6 +681,12 @@ export class FuzzyView {
       .querySelector<HTMLElement>('[data-action="fuzzy-import-fml"]')
       ?.addEventListener("click", () => {
         void this.importFml();
+      });
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="fuzzy-export-pathsim"]')
+      ?.addEventListener("click", (ev) => {
+        void this.exportPathSimScript(ev.currentTarget as HTMLElement | null);
       });
 
     this.anfisPresetEl?.addEventListener("change", () => {
@@ -1127,6 +1134,55 @@ export class FuzzyView {
         trigger,
       );
       this.shell.getAnnouncer().announce("FML IEEE 1855-2016 exportado.", "polite", "status");
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
+  public async exportPathSimScript(trigger: HTMLElement | null): Promise<void> {
+    try {
+      if (this.mfParamError) {
+        throw new ControlLabBridgeError("VALIDATION_ERROR", this.mfParamError);
+      }
+      const canonicalFuzzy = this.getSystemDraft();
+      const resp = await this.executeRpc("io.export_pathsim_script", {
+        fuzzy_system: canonicalFuzzy,
+        filename: "controllab_fuzzy_pathsim.py",
+      });
+      if (resp.status === "failure" || !resp.result) {
+        throw new ControlLabBridgeError(
+          resp.error?.code ?? "INTERNAL_ERROR",
+          resp.error?.message ?? "Falha ao exportar script PathSim (.py).",
+        );
+      }
+      const res = resp.result as Record<string, unknown>;
+      if (res.code_executed !== false || typeof res.script !== "string") {
+        throw new ControlLabBridgeError(
+          "INTERNAL_ERROR",
+          "Resposta inválida de io.export_pathsim_script: esperado script Python passivo com code_executed=false.",
+        );
+      }
+      const filename =
+        typeof res.filename === "string" && res.filename.trim().length > 0
+          ? res.filename.trim()
+          : "controllab_fuzzy_pathsim.py";
+      this.onOpenExportModal?.(
+        {
+          title: "Script PathSim Offline (Execução Manual Explícita — ADR-013)",
+          filename,
+          mimeType: "text/x-python;charset=utf-8",
+          content: res.script,
+          offlineDesign: true,
+        },
+        trigger,
+      );
+      this.shell
+        .getAnnouncer()
+        .announce(
+          `Script PathSim (.py) '${filename}' exportado em modo passivo (execução manual explícita, ADR-013).`,
+          "polite",
+          "status",
+        );
     } catch (err: unknown) {
       this.shell.presentError(err);
     }

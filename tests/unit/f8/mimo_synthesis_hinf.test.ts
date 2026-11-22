@@ -581,6 +581,9 @@ test("WP-PHASE2-B3-F8-MIMO-SYNTHESIS-HINF-UI: Desacoplador SVD, Malha Fechada ca
   const hinfSummaryHtml = root.querySelector<FakeElement>("#mimo-hinf-summary")?.innerHTML ?? "";
   assert.ok(hinfSummaryHtml.includes("γ atingido:"), "Resumo H∞ deve exibir gamma_achieved");
   assert.ok(hinfSummaryHtml.includes("||T_zw||∞ (grade):"), "Resumo H∞ deve exibir hinf_norm_grid");
+  assert.ok(hinfSummaryHtml.includes("||T_zw||∞ (exata):"), "Resumo H∞ deve exibir hinf_norm_exact");
+  assert.ok(hinfSummaryHtml.includes("Hamiltoniana"), "Resumo H∞ deve exibir verificação Hamiltoniana");
+  assert.ok(hinfSummaryHtml.includes("Resíduos Riccati (rel.):"), "Resumo H∞ deve exibir resíduos Riccati X/Y");
   assert.ok(hinfSummaryHtml.includes("n_states="), "Resumo H∞ deve exibir generalized_plant_summary");
 
   const hinfSvgHtml = root.querySelector<FakeElement>("#mimo-hinf-chart-slot")?.innerHTML ?? "";

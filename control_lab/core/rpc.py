@@ -76,6 +76,7 @@ SUPPORTED_OPERATIONS: frozenset[str] = frozenset(
         "io.import_ctrlab",
         "io.export_pvm",
         "io.import_pvm",
+        "io.export_pathsim_script",
         "core.interconnect",
         "core.validate_interconnection",
         "statespace.design_lqr",
@@ -2215,12 +2216,102 @@ def _handle_file(req: dict[str, Any], store: Any) -> dict[str, Any]:
     )
 
 
+def _handle_export_pathsim_script(req: dict[str, Any], store: Any) -> dict[str, Any]:
+    from dataclasses import replace
+
+    from control_lab.io.pvm import generate_pathsim_script
+
+    payload = req["payload"]
+    allowed_keys = {
+        "plant",
+        "plant_ref",
+        "fuzzy_system",
+        "fuzzy_system_ref",
+        "system",
+        "system_ref",
+        "model",
+        "model_ref",
+        "controller",
+        "controller_ref",
+        "scenario",
+        "filename",
+    }
+    extra = set(payload.keys()) - allowed_keys
+    if extra:
+        raise ValidationError(
+            message=f"Campos extras não suportados em io.export_pathsim_script: {sorted(extra)}.",
+            parameters={"extra_fields": sorted(extra)},
+        )
+
+    plant_obj = _resolve_from_store_or_inline(
+        payload,
+        inline_keys=("plant", "fuzzy_system", "system", "model"),
+        ref_keys=("plant_ref", "fuzzy_system_ref", "system_ref", "model_ref"),
+        store=store,
+        project_id=req["project_id"],
+    )
+    if plant_obj is None:
+        raise ValidationError(
+            message=(
+                "io.export_pathsim_script exige 'plant'/'plant_ref' ou "
+                "'fuzzy_system'/'system_ref'."
+            ),
+            next_step="Envie um modelo canônico (TSStateSpace, FuzzySystem ou StateSpace) no payload ou via store.",
+        )
+
+    ctrl_obj = _resolve_from_store_or_inline(
+        payload,
+        inline_keys=("controller",),
+        ref_keys=("controller_ref",),
+        store=store,
+        project_id=req["project_id"],
+    )
+
+    scenario = payload.get("scenario")
+    if scenario is not None and not isinstance(scenario, Mapping):
+        raise ValidationError("payload.scenario deve ser um objeto JSON (Mapping) ou null.")
+
+    raw_filename = payload.get("filename")
+    if raw_filename is not None:
+        if not isinstance(raw_filename, str) or not raw_filename.strip():
+            raise ValidationError("payload.filename deve ser string não vazia quando fornecido.")
+        filename = raw_filename.strip()
+        if not filename.endswith(".py"):
+            filename = f"{filename}.py"
+    else:
+        filename = "controllab_pathsim_simulation.py"
+
+    res = generate_pathsim_script(
+        plant_obj,
+        controller=ctrl_obj,
+        scenario=scenario,
+        raise_on_error=False,
+    )
+    if res.status != "failure" and res.data is not None:
+        enriched = dict(res.data)
+        enriched["filename"] = filename
+        enriched["media_type"] = "text/x-python"
+        enriched["code_executed"] = False
+        enriched["requires_explicit_user_execution"] = True
+        enriched["language"] = "python"
+        res = replace(res, data=enriched)
+
+    return _result_to_rpc_response(
+        res,
+        request_id=req["request_id"],
+        project_id=req["project_id"],
+        project_revision=req["project_revision"],
+        fallback_algorithm="io.export_pathsim_script",
+    )
+
+
 _DISPATCH_TABLE = {
     "core.reuse_model": _handle_core_reuse_model,
     "io.export_ctrlab": _handle_file,
     "io.import_ctrlab": _handle_file,
     "io.export_pvm": _handle_file,
     "io.import_pvm": _handle_file,
+    "io.export_pathsim_script": _handle_export_pathsim_script,
     "worker.ping": _handle_worker_ping,
     "rpc.ping": _handle_worker_ping,
     "worker.get_stats": _handle_capabilities,

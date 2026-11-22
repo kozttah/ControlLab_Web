@@ -25,7 +25,7 @@ class NativePrimalDualBackend(SDPBackend):
     def capabilities(self) -> dict[str, Any]:
         return dict(name=self.name, maturity=self.maturity, available=True, experimental=False,
                     psd=True, lp=True, dual=True, infeasibility_certificate=True,
-                    unboundedness_certificate=True, warm_start=False, cancellation=False,
+                    unboundedness_certificate=True, warm_start=True, cancellation=False,
                     tolerances={"configurable": True}, reason=None,
                     browser_envelope=dict(BROWSER_ENVELOPE),
                     lib_versions={"numpy": np.__version__, "scipy": scipy.__version__})

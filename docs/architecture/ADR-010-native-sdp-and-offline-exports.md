@@ -13,3 +13,12 @@ Os exportadores determinísticos geram o mesmo problema canônico, suas matrizes
 G-0B passa a exigir a escada T-SDP-A1/A2/A3/B1/C1/D1/D2 no runtime Pyodide com native_primal_dual, certificados auditados e exportações sintaticamente válidas para contingências mal-condicionadas/acima do envelope. Mantém-se a matriz de dois navegadores da Seção 14.1. Uma prova em um navegador deve ser registrada como evidência parcial, sem aceite automático do gate.
 
 Esta ADR substitui a exigência de empacotamento binário Wasm da Seção 6.2/14.1 e a exclusão do núcleo promovido de auto. O adaptador educacional permanece experimental. R-13/ADR-008 seguem aplicáveis à interface didática.
+
+## Referências Algorítmicas do Solver SDP Nativo
+
+Na Fase 5 (`WP-PHASE5-01-F6-SCALABLE-NATIVE-SDP`), o núcleo `native_core.py` foi otimizado para ampliar o envelope operacional no navegador para 256 variáveis, dimensão máxima de bloco 64 e 32768 entradas cônicas (`BROWSER_ENVELOPE`), incorporando técnicas de três referências da literatura sem abrir mão de certificados duais auditados independentemente:
+
+- **Fujisawa et al. (IEEE IPDPS 2014, `https://doi.org/10.1109/IPDPS.2014.121`)**: exploração de esparsidade em matrizes de restrição `F_k` na congruência de Nesterov–Todd e na montagem vetorizada (BLAS) do complemento de Schur `H`, combinada com fatoração de Cholesky regularizada única por iteração Mehrotra (reutilizada nos passos preditor e corretor com refino iterativo e estimativa de condicionamento $O(m)$).
+- **Yurtsever, Tropp, Fercoq, Udell, Cevher (SIAM J. Matrix Anal. Appl. 2021, `https://web.stanford.edu/~udell/doc/yurtsever21_scalable.pdf` — SketchyCGAL §7.1.1)**: equilibração/escalonamento por bloco via norma de Frobenius máxima com desescalonamento exato dos multiplicadores duais `Z_b = Z'_b / s_b` antes da verificação independente no problema original. Registra-se explicitamente que o *sketching* de posto baixo de 1ª ordem (CGAL/SketchyCGAL) não substitui o método de pontos interiores (IPM) de 2ª ordem em LMIs de Lyapunov/estabilização de posto cheio que exigem certificado dual estrito (`1e-8`).
+- **Ding et al. (`https://arxiv.org/abs/2312.11801` — SpecBM / USBS)**: suporte a `warm_start_x` interior para pular a Fase I em varreduras paramétricas (ex.: taxa de decaimento $\alpha$ ou minimização $\mathcal{H}_\infty$/BRL), com recuo automático (*fallback*) para Fase I caso o ponto inicial não seja estritamente factível e manutenção integral da validação independente primal/dual.
+

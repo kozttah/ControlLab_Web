@@ -88,13 +88,14 @@ def test_g0b_native_runtime_and_offline_scripts(browser_harness):
     report = browser_harness.python("""import json, sys, ast
 import numpy as np
 from control_lab.optimization import solve, export_to_cvxpy_script, export_to_yalmip_script, CanonicalSDPProblem, SDPBlock
+from control_lab.optimization.backends.native import BROWSER_ENVELOPE
 from control_lab.optimization.verification.gate0b import run_gate_0b_assay, _build_gate_0b_suite
 assay = run_gate_0b_assay(track_memory=False)
 suite = _build_gate_0b_suite()
 auto_lp = solve(suite['LP_A1']['problem'])
 auto_psd = solve(suite['PSD_2x2_B1']['problem'])
 scaled = CanonicalSDPProblem(c=[1.], blocks=[SDPBlock('scaled',np.diag([-1.,1e-8]),[np.diag([1.,0.])])])
-large = CanonicalSDPProblem(c=np.ones(129))
+large = CanonicalSDPProblem(c=np.ones(BROWSER_ENVELOPE['max_variables'] + 1))
 exports = []
 for problem in (scaled, large):
     solution = solve(problem, backend='native_primal_dual')

@@ -2,10 +2,21 @@
 
 Canonical primal/dual signs and certificates are checked by the separate verifier.
 The educational API delegates to this same numerical kernel.
+
+Algorithmic enhancements incorporated for scalable control LMIs:
+- Sparsity-exploiting Nesterov-Todd congruence, vectorized Schur Complement Matrix
+  (SCM) assembly, and regularized Cholesky factorization (Fujisawa et al., IEEE IPDPS
+  2014, doi:10.1109/IPDPS.2014.121).
+- Block-level Frobenius data equilibration with exact dual unscaling so the
+  independent verifier audits the unscaled original problem (Yurtsever, Tropp,
+  Fercoq, Udell, Cevher, SIAM J. Matrix Anal. Appl. 2021, SketchyCGAL §7.1.1).
+- Interior-point warm-start support (`warm_start_x`) allowing Phase 1 to be bypassed
+  when a strictly feasible interior point is supplied (Ding et al., arXiv:2312.11801,
+  SpecBM).
 """
 from __future__ import annotations
 import contextvars
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 import time
 from typing import Any, Callable, Mapping, Sequence
@@ -89,6 +100,7 @@ class NativeSolverConfig:
     sigma_max: float = 0.90
     unbounded_norm_threshold: float = 1e7
     record_history: bool = True
+    warm_start_x: tuple[float, ...] | None = None
 
     @classmethod
     def from_options(cls, options: Mapping[str, Any] | None = None) -> NativeSolverConfig:
@@ -108,6 +120,7 @@ class NativeSolverConfig:
             "sigma_max",
             "unbounded_norm_threshold",
             "record_history",
+            "warm_start_x",
         }
         kwargs: dict[str, Any] = {}
         for k, v in options.items():
@@ -115,7 +128,18 @@ class NativeSolverConfig:
                 continue
             if k not in allowed:
                 raise ValidationError(f"Opção desconhecida para solver SDP educacional: {k!r}.")
-            kwargs[k] = v
+            if k == "warm_start_x" and v is not None:
+                if isinstance(v, (str, bytes, bool)):
+                    raise ValidationError("warm_start_x deve ser um vetor numérico 1D finito.")
+                try:
+                    ws_arr = np.asarray(v, dtype=np.float64)
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError("warm_start_x deve ser um vetor numérico 1D finito.") from exc
+                if ws_arr.ndim != 1 or not np.all(np.isfinite(ws_arr)):
+                    raise ValidationError("warm_start_x deve ser um vetor numérico 1D finito.")
+                kwargs[k] = tuple(float(val) for val in ws_arr)
+            else:
+                kwargs[k] = v
         cfg = cls(**kwargs)
         for key in ("max_iter", "phase1_max_iter"):
             value = getattr(cfg, key)
@@ -140,7 +164,12 @@ class NativeSolverConfig:
 
 @dataclass(frozen=True)
 class _InternalConeBlock:
-    """Bloco simétrico interno (bloco PSD original ou desigualdade escalar 1x1)."""
+    """Bloco simétrico interno (bloco PSD original ou desigualdade escalar 1x1).
+
+    Pré-computa metadados esparsos `(rows, cols, vals)` para matrizes `F_k` com baixa
+    densidade (Fujisawa et al., IEEE IPDPS 2014) e colunas vetorizadas `_F_cols` para
+    avaliações BLAS sem laços Python.
+    """
 
     name: str
     dim: int
@@ -148,21 +177,52 @@ class _InternalConeBlock:
     F_terms: dict[int, np.ndarray]
     is_ineq_slack: bool = False
     ineq_index: int | None = None
+    _active_keys: np.ndarray = field(init=False, repr=False, compare=False)
+    _F_cols: np.ndarray = field(init=False, repr=False, compare=False)
+    _f_norm_sum: float = field(init=False, repr=False, compare=False)
+    _sparse_terms: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = field(
+        init=False, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        keys = sorted(self.F_terms.keys())
+        active_keys = np.asarray(keys, dtype=np.intp)
+        n2 = self.dim * self.dim
+        if keys:
+            f_cols = np.empty((n2, len(keys)), dtype=np.float64)
+            f_norm_sum = 0.0
+            sparse_terms: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+            # Sparse congruence G^{-T} F_k G^{-1} via G_invT[rows].T @ (vals[:,None]*G_invT[cols])
+            # costs nnz * n^2 flops vs 2 * n^3 dense; strictly faster when nnz <= min(0.25*n^2, n).
+            nnz_limit = min(int(0.25 * n2), self.dim) if self.dim >= 4 else 0
+            for idx, j in enumerate(keys):
+                fj = self.F_terms[j]
+                f_cols[:, idx] = fj.ravel()
+                f_norm_sum += float(np.linalg.norm(fj, "fro"))
+                if nnz_limit > 0:
+                    rows, cols = np.nonzero(np.abs(fj) > 0.0)
+                    if 0 < rows.size <= nnz_limit:
+                        sparse_terms[j] = (rows, cols, fj[rows, cols])
+        else:
+            f_cols = np.zeros((n2, 0), dtype=np.float64)
+            f_norm_sum = 0.0
+            sparse_terms = {}
+        object.__setattr__(self, "_active_keys", active_keys)
+        object.__setattr__(self, "_F_cols", f_cols)
+        object.__setattr__(self, "_f_norm_sum", f_norm_sum)
+        object.__setattr__(self, "_sparse_terms", sparse_terms)
 
     def evaluate(self, z: np.ndarray) -> np.ndarray:
-        res = self.F0.copy()
-        for j, fj in self.F_terms.items():
-            zj = float(z[j])
-            if zj != 0.0:
-                res = res + zj * fj
+        if self._active_keys.size == 0:
+            return 0.5 * (self.F0 + self.F0.T)
+        lin = (self._F_cols @ z[self._active_keys]).reshape((self.dim, self.dim))
+        res = self.F0 + lin
         return 0.5 * (res + res.T)
 
     def evaluate_linear(self, dz: np.ndarray) -> np.ndarray:
-        res = np.zeros((self.dim, self.dim), dtype=np.float64)
-        for j, fj in self.F_terms.items():
-            dzj = float(dz[j])
-            if dzj != 0.0:
-                res = res + dzj * fj
+        if self._active_keys.size == 0:
+            return np.zeros((self.dim, self.dim), dtype=np.float64)
+        res = (self._F_cols @ dz[self._active_keys]).reshape((self.dim, self.dim))
         return 0.5 * (res + res.T)
 
 
@@ -213,50 +273,125 @@ def _max_step_to_psd_boundary(cho_M: tuple[np.ndarray, bool], dM: np.ndarray) ->
     return float(-1.0 / min_eig)
 
 
-def _solve_symmetric_system(H: np.ndarray, rhs: np.ndarray) -> tuple[np.ndarray, float]:
-    """Resolve H dx = rhs com precondicionamento diagonal de Jacobi + Cholesky + refino iterativo."""
+@dataclass(frozen=True)
+class _FactoredSymmetricSystem:
+    """Fatoração em cache do sistema de Schur simétrico pré-condicionado por Jacobi."""
+
+    n: int
+    H_scaled: np.ndarray
+    inv_d: np.ndarray
+    cho: tuple[np.ndarray, bool] | None
+    cond: float
+    regularized: bool
+
+
+def _factor_symmetric_system(H: np.ndarray) -> _FactoredSymmetricSystem:
+    """Fatora H uma única vez por iteração com Jacobi + Cholesky regularizado (Fujisawa et al., IPDPS 2014).
+
+    Estima o condicionamento em O(m) pela razão dos elementos diagonais do fator de Cholesky
+    `(max(diag(L)) / max(min(diag(L)), 1e-15)) ** 2`, evitando SVD O(m^3) a cada iteração.
+    """
     H_sym = _sym(H)
     n = H_sym.shape[0]
     if n == 0:
-        return np.zeros((0,), dtype=np.float64), 1.0
+        return _FactoredSymmetricSystem(
+            n=0,
+            H_scaled=np.zeros((0, 0), dtype=np.float64),
+            inv_d=np.zeros((0,), dtype=np.float64),
+            cho=None,
+            cond=1.0,
+            regularized=False,
+        )
 
     # Escalonamento simétrico de Jacobi D^{-1} H D^{-1} para equilibrar blocos perto/longe da fronteira
     diag_h = np.diag(H_sym)
     d_scale = np.sqrt(np.maximum(np.abs(diag_h), 1e-30))
     inv_d = 1.0 / d_scale
     H_scaled = _sym((inv_d[:, None] * H_sym) * inv_d[None, :])
-    rhs_scaled = inv_d * rhs
 
-    svals = scipy.linalg.svd(H_scaled, compute_uv=False, check_finite=True)
-    s_max = float(svals[0]) if svals.size > 0 else 0.0
-    s_min = float(svals[-1]) if svals.size > 0 else 0.0
-    cond = float(s_max / s_min) if s_min > 1e-16 * max(1.0, s_max) else 1e16
+    def _cond_from_cho(cho_fac: tuple[np.ndarray, bool]) -> float:
+        diag_l = np.abs(np.diag(cho_fac[0]))
+        if diag_l.size == 0:
+            return 1.0
+        l_max = float(np.max(diag_l))
+        l_min = float(np.min(diag_l))
+        if l_max <= 0.0:
+            return 1e16
+        ratio = l_max / max(l_min, 1e-15)
+        return float(min(1e16, ratio * ratio))
 
     cho = _safe_cholesky(H_scaled)
     if cho is not None:
-        sol_s = scipy.linalg.cho_solve(cho, rhs_scaled, check_finite=True)
-        # Até 2 passos de refino iterativo para restaurar dígitos perdidos perto da fronteira
+        return _FactoredSymmetricSystem(
+            n=n,
+            H_scaled=H_scaled,
+            inv_d=inv_d,
+            cho=cho,
+            cond=_cond_from_cho(cho),
+            regularized=False,
+        )
+
+    # Regularização diagonal adaptativa no espaço escalonado caso H seja quase singular/indefinida
+    h_scale = max(1.0, float(np.max(np.abs(H_scaled))))
+    eye_n = np.eye(n, dtype=np.float64)
+    for reg_exp in (1e-13, 1e-11, 1e-9, 1e-7):
+        cho_reg = _safe_cholesky(H_scaled + (reg_exp * h_scale) * eye_n)
+        if cho_reg is not None:
+            return _FactoredSymmetricSystem(
+                n=n,
+                H_scaled=H_scaled,
+                inv_d=inv_d,
+                cho=cho_reg,
+                cond=_cond_from_cho(cho_reg),
+                regularized=True,
+            )
+
+    return _FactoredSymmetricSystem(
+        n=n,
+        H_scaled=H_scaled,
+        inv_d=inv_d,
+        cho=None,
+        cond=1e16,
+        regularized=True,
+    )
+
+
+def _solve_factored_symmetric(fac: _FactoredSymmetricSystem, rhs: np.ndarray) -> np.ndarray:
+    """Resolve H dx = rhs usando a fatoração em cache + até 2 passos de refino iterativo."""
+    if fac.n == 0:
+        return np.zeros((0,), dtype=np.float64)
+
+    rhs_scaled = fac.inv_d * rhs
+    if fac.cho is not None:
+        sol_s = scipy.linalg.cho_solve(fac.cho, rhs_scaled, check_finite=True)
+        res_s = rhs_scaled - fac.H_scaled @ sol_s
+        res_norm = float(np.linalg.norm(res_s))
+        rhs_norm = float(np.linalg.norm(rhs_scaled))
         for _ in range(2):
-            res_s = rhs_scaled - H_scaled @ sol_s
-            corr_s = scipy.linalg.cho_solve(cho, res_s, check_finite=True)
+            if res_norm <= 1e-15 * (1.0 + rhs_norm):
+                break
+            corr_s = scipy.linalg.cho_solve(fac.cho, res_s, check_finite=True)
             if not np.all(np.isfinite(corr_s)):
                 break
             cand_s = sol_s + corr_s
-            if float(np.linalg.norm(H_scaled @ cand_s - rhs_scaled)) < float(np.linalg.norm(res_s)):
+            new_res_s = rhs_scaled - fac.H_scaled @ cand_s
+            new_res_norm = float(np.linalg.norm(new_res_s))
+            if new_res_norm < res_norm:
                 sol_s = cand_s
+                res_s = new_res_s
+                res_norm = new_res_norm
             else:
                 break
-        return np.asarray(inv_d * sol_s, dtype=np.float64), cond
+        return np.asarray(fac.inv_d * sol_s, dtype=np.float64)
 
-    # Regularização modificada apenas no espaço escalonado unitário caso H seja singular/indefinida
-    for reg_exp in (1e-13, 1e-11, 1e-9):
-        cho_reg = _safe_cholesky(H_scaled + reg_exp * max(1.0, s_max) * np.eye(n, dtype=np.float64))
-        if cho_reg is not None:
-            sol_s = scipy.linalg.cho_solve(cho_reg, rhs_scaled, check_finite=True)
-            return np.asarray(inv_d * sol_s, dtype=np.float64), cond
+    sol_s, _, _, _ = scipy.linalg.lstsq(fac.H_scaled, rhs_scaled, cond=1e-13, check_finite=True)
+    return np.asarray(fac.inv_d * sol_s, dtype=np.float64)
 
-    sol_s, _, _, _ = scipy.linalg.lstsq(H_scaled, rhs_scaled, cond=1e-13, check_finite=True)
-    return np.asarray(inv_d * sol_s, dtype=np.float64), cond
+
+def _solve_symmetric_system(H: np.ndarray, rhs: np.ndarray) -> tuple[np.ndarray, float]:
+    """Resolve H dx = rhs com precondicionamento diagonal de Jacobi + Cholesky + refino iterativo."""
+    fac = _factor_symmetric_system(H)
+    return _solve_factored_symmetric(fac, rhs), fac.cond
 
 
 def _project_dual_onto_subspace(
@@ -510,10 +645,9 @@ def _run_primal_dual_cone_loop(
         adj = np.zeros((m,), dtype=np.float64)
         dual_scale = 1.0 + float(np.linalg.norm(c_vec))
         for blk, Z_b in zip(blocks, Z_list, strict=True):
-            znorm = float(np.linalg.norm(Z_b, "fro"))
-            for j, fj in blk.F_terms.items():
-                adj[j] += float(np.sum(fj * Z_b))
-                dual_scale += float(np.linalg.norm(fj, "fro")) * znorm
+            if blk._active_keys.size > 0:
+                adj[blk._active_keys] += blk._F_cols.T @ Z_b.ravel()
+                dual_scale += blk._f_norm_sum * float(np.linalg.norm(Z_b, "fro"))
 
         r_d = c_vec - adj
         r_d_rel = float(np.linalg.norm(r_d) / dual_scale)
@@ -663,31 +797,44 @@ def _run_primal_dual_cone_loop(
             break
 
         # 2. Escalonamento de Nesterov-Todd (NT) por bloco e matriz de Schur simétrica SPD
-        nt_data: list[tuple[np.ndarray, np.ndarray, np.ndarray, dict[int, np.ndarray], np.ndarray]] = []
+        # Explora esparsidade de F_k na congruência G^{-1} F_k G^{-T} e montagem BLAS (Fujisawa et al., IPDPS 2014)
+        nt_data: list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []
         H = np.zeros((m, m), dtype=np.float64)
 
         for blk, cho_S, cho_Z, R_p in zip(blocks, cho_S_list, cho_Z_list, R_p_list, strict=True):
             G_b, G_invT_b, lam_b = _nt_scaling_factors(cho_S, cho_Z)
-            F_hat_dict: dict[int, np.ndarray] = {}
-            active_keys = sorted(blk.F_terms.keys())
-            for j in active_keys:
-                F_hat_dict[j] = _sym(G_invT_b.T @ blk.F_terms[j] @ G_invT_b)
+            active_keys = blk._active_keys
+            n_act = active_keys.size
+            cols = np.empty((blk.dim * blk.dim, n_act), dtype=np.float64)
+            sparse_terms = blk._sparse_terms
+            for idx, j_raw in enumerate(active_keys):
+                j = int(j_raw)
+                sp = sparse_terms.get(j)
+                if sp is not None:
+                    rows, c_idx, vals = sp
+                    fhat = _sym(G_invT_b[rows, :].T @ (vals[:, None] * G_invT_b[c_idx, :]))
+                else:
+                    fhat = _sym(G_invT_b.T @ blk.F_terms[j] @ G_invT_b)
+                cols[:, idx] = fhat.ravel()
             R_p_hat = _sym(G_invT_b.T @ R_p @ G_invT_b)
-            nt_data.append((G_b, G_invT_b, lam_b, F_hat_dict, R_p_hat))
+            nt_data.append((G_b, G_invT_b, lam_b, active_keys, cols, R_p_hat))
 
-            if active_keys:
-                cols = np.column_stack([F_hat_dict[j].ravel() for j in active_keys])
+            if n_act > 0:
                 gram = cols.T @ cols
                 H[np.ix_(active_keys, active_keys)] += gram
 
+        # Fatorar o sistema de Schur uma única vez por iteração (reutilizado no preditor e no corretor)
+        fac_H = _factor_symmetric_system(H)
+        cond_H = fac_H.cond
+
         # 3. Passo Preditor Afim de Mehrotra (sigma = 0): dS_tilde + dZ_tilde = -diag(lam)
         rhs_aff = -r_d.copy()
-        for blk, (_, _, lam_b, F_hat_dict, R_p_hat) in zip(blocks, nt_data, strict=True):
-            M_aff_b = -np.diag(lam_b) + R_p_hat
-            for j, fhat_j in F_hat_dict.items():
-                rhs_aff[j] += float(np.sum(fhat_j * M_aff_b))
+        for blk, (_, _, lam_b, active_keys, cols, R_p_hat) in zip(blocks, nt_data, strict=True):
+            if active_keys.size > 0:
+                M_aff_b = -np.diag(lam_b) + R_p_hat
+                rhs_aff[active_keys] += cols.T @ M_aff_b.ravel()
 
-        dz_aff, cond_H = _solve_symmetric_system(H, rhs_aff)
+        dz_aff = _solve_factored_symmetric(fac_H, rhs_aff)
 
         # Checar se dz_aff revela direção recessiva ilimitada (c^T dz_aff < 0 e F_lin >= 0)
         if check_farkas_on_blocks is None and float(np.dot(c_vec, dz_aff)) < -1e-7 * c_scale * float(np.linalg.norm(dz_aff)):
@@ -724,13 +871,11 @@ def _run_primal_dual_cone_loop(
         alpha_p_aff = 1.0
         alpha_d_aff = 1.0
 
-        for _, _, lam_b, F_hat_dict, R_p_hat in nt_data:
-            ds_t = -R_p_hat
-            for j, fhat_j in F_hat_dict.items():
-                dzj = float(dz_aff[j])
-                if dzj != 0.0:
-                    ds_t = ds_t + dzj * fhat_j
-            ds_t = _sym(ds_t)
+        for blk, (_, _, lam_b, active_keys, cols, R_p_hat) in zip(blocks, nt_data, strict=True):
+            if active_keys.size > 0:
+                ds_t = _sym(-R_p_hat + (cols @ dz_aff[active_keys]).reshape((blk.dim, blk.dim)))
+            else:
+                ds_t = _sym(-R_p_hat)
             dz_t = _sym(-np.diag(lam_b) - ds_t)
             dS_tilde_aff.append(ds_t)
             dZ_tilde_aff.append(dz_t)
@@ -739,7 +884,7 @@ def _run_primal_dual_cone_loop(
 
         gap_aff = sum(
             float(np.sum((np.diag(lam_b) + alpha_p_aff * ds_t) * (np.diag(lam_b) + alpha_d_aff * dz_t)))
-            for (_, _, lam_b, _, _), ds_t, dz_t in zip(nt_data, dS_tilde_aff, dZ_tilde_aff, strict=True)
+            for (_, _, lam_b, _, _, _), ds_t, dz_t in zip(nt_data, dS_tilde_aff, dZ_tilde_aff, strict=True)
         )
         mu_aff = max(0.0, gap_aff / max(1, total_order))
         if r_d_rel > 1e-6:
@@ -754,7 +899,7 @@ def _run_primal_dual_cone_loop(
         eta_meh = 1.0 if min(alpha_p_aff, alpha_d_aff) >= 0.05 else 0.0
         rhs_cor = -r_d.copy()
         M_cor_list: list[np.ndarray] = []
-        for (blk, (_, _, lam_b, F_hat_dict, R_p_hat), ds_t, dz_t) in zip(
+        for (blk, (_, _, lam_b, active_keys, cols, R_p_hat), ds_t, dz_t) in zip(
             blocks, nt_data, dS_tilde_aff, dZ_tilde_aff, strict=True
         ):
             second_order = _sym(ds_t @ dz_t) if eta_meh != 0.0 else 0.0
@@ -762,11 +907,11 @@ def _run_primal_dual_cone_loop(
             lam_sum = lam_b[:, None] + lam_b[None, :]
             M_cor_b = _sym((2.0 * rhs_lyap) / np.maximum(lam_sum, 1e-30))
             M_cor_list.append(M_cor_b)
-            eff_b = M_cor_b + R_p_hat
-            for j, fhat_j in F_hat_dict.items():
-                rhs_cor[j] += float(np.sum(fhat_j * eff_b))
+            if active_keys.size > 0:
+                eff_b = M_cor_b + R_p_hat
+                rhs_cor[active_keys] += cols.T @ eff_b.ravel()
 
-        dz, _ = _solve_symmetric_system(H, rhs_cor)
+        dz = _solve_factored_symmetric(fac_H, rhs_cor)
 
         dS_tilde_list: list[np.ndarray] = []
         dZ_tilde_list: list[np.ndarray] = []
@@ -774,13 +919,13 @@ def _run_primal_dual_cone_loop(
         alpha_p_max = float("inf")
         alpha_d_max = float("inf")
 
-        for (G_b, G_invT_b, lam_b, F_hat_dict, R_p_hat), M_cor_b in zip(nt_data, M_cor_list, strict=True):
-            ds_t = -R_p_hat
-            for j, fhat_j in F_hat_dict.items():
-                dzj = float(dz[j])
-                if dzj != 0.0:
-                    ds_t = ds_t + dzj * fhat_j
-            ds_t = _sym(ds_t)
+        for blk, (G_b, G_invT_b, lam_b, active_keys, cols, R_p_hat), M_cor_b in zip(
+            blocks, nt_data, M_cor_list, strict=True
+        ):
+            if active_keys.size > 0:
+                ds_t = _sym(-R_p_hat + (cols @ dz[active_keys]).reshape((blk.dim, blk.dim)))
+            else:
+                ds_t = _sym(-R_p_hat)
             dz_t = _sym(M_cor_b - ds_t)
             dS_tilde_list.append(ds_t)
             dZ_tilde_list.append(dz_t)
@@ -891,10 +1036,9 @@ def _run_primal_dual_cone_loop(
         adj = np.zeros((m,), dtype=np.float64)
         dual_scale = 1.0 + float(np.linalg.norm(c_vec))
         for blk, Z_b in zip(blocks, Z_list, strict=True):
-            znorm = float(np.linalg.norm(Z_b, "fro"))
-            for j, fj in blk.F_terms.items():
-                adj[j] += float(np.sum(fj * Z_b))
-                dual_scale += float(np.linalg.norm(fj, "fro")) * znorm
+            if blk._active_keys.size > 0:
+                adj[blk._active_keys] += blk._F_cols.T @ Z_b.ravel()
+                dual_scale += blk._f_norm_sum * float(np.linalg.norm(Z_b, "fro"))
         r_d_rel = float(np.linalg.norm(c_vec - adj) / dual_scale)
         if min_eig_p >= -1e-7 and r_d_rel <= 1e-6 and rel_gap <= 1e-6:
             solver_status = "optimal"
@@ -1138,58 +1282,156 @@ def solve_native_raw(
         }
 
     # -----------------------------------------------------------------------
-    # Passo 3: Decompor e ortonormalizar o operador cônico via SVD
+    # Passo 2.5: Equilíbrio de dados por bloco (Yurtsever et al., SIMAX 2021, §7.1.1)
+    # Normaliza cada bloco pela sua norma de Frobenius máxima s_b e desescala Z_b = Z'_b / s_b
+    # ao retornar, preservando tr(Z_b F_b(x)) = tr(Z'_b F'_b(x)) para auditoria no problema original.
     # -----------------------------------------------------------------------
-    total_entries = sum(b.dim * b.dim for b in y_blocks)
+    block_scales: list[float] = []
+    y_blocks_eq: list[_InternalConeBlock] = []
+    for b in y_blocks:
+        f0_norm = float(np.linalg.norm(b.F0, "fro"))
+        fk_max = max((float(np.linalg.norm(fj, "fro")) for fj in b.F_terms.values()), default=0.0)
+        s_b = max(f0_norm, fk_max)
+        if s_b > 1e-12:
+            block_scales.append(s_b)
+            inv_sb = 1.0 / s_b
+            y_blocks_eq.append(
+                _InternalConeBlock(
+                    name=b.name,
+                    dim=b.dim,
+                    F0=b.F0 * inv_sb,
+                    F_terms={j: fj * inv_sb for j, fj in b.F_terms.items()},
+                    is_ineq_slack=b.is_ineq_slack,
+                    ineq_index=b.ineq_index,
+                )
+            )
+        else:
+            block_scales.append(1.0)
+            y_blocks_eq.append(b)
+
+    def _unscale_duals(Z_all_scaled: Sequence[np.ndarray]) -> list[np.ndarray]:
+        return [_sym(Z_b / s_b) for Z_b, s_b in zip(Z_all_scaled, block_scales, strict=True)]
+
+    # -----------------------------------------------------------------------
+    # Passo 3: Equilíbrio de colunas preservando esparsidade ou SVD se rank-deficiente
+    # -----------------------------------------------------------------------
+    total_entries = sum(b.dim * b.dim for b in y_blocks_eq)
     A_cone = np.zeros((total_entries, m_y), dtype=np.float64)
     row_ofs = 0
-    for b in y_blocks:
+    for b in y_blocks_eq:
         bsz = b.dim * b.dim
-        for j, fj in b.F_terms.items():
-            A_cone[row_ofs : row_ofs + bsz, j] = fj.ravel()
+        if b._active_keys.size > 0:
+            A_cone[row_ofs : row_ofs + bsz, b._active_keys] = b._F_cols
         row_ofs += bsz
 
-    _, s_cone, Vt_cone = scipy.linalg.svd(A_cone, full_matrices=(total_entries < m_y), check_finite=True)
-    s_cone_max = float(s_cone[0]) if s_cone.size > 0 else 0.0
-    rank_cone = int(np.sum(s_cone > 1e-12 * max(1.0, s_cone_max)))
-    # Escalar pelas inversas dos valores singulares para que as matrizes base em z sejam ortonormais
-    Q_R = Vt_cone[:rank_cone, :].T / s_cone[:rank_cone]  # (m_y, rank_cone)
-    Q_N = Vt_cone[rank_cone:, :].T                       # (m_y, m_y - rank_cone)
+    col_norms = np.linalg.norm(A_cone, axis=0)
+    use_sparse_col_scaling = False
+    if m_y > 0 and float(np.min(col_norms)) > 1e-12:
+        A_col_scaled = A_cone / col_norms[None, :]
+        G_cone = _sym(A_col_scaled.T @ A_col_scaled)
+        cho_cone = _safe_cholesky(G_cone)
+        if cho_cone is not None:
+            diag_lc = np.abs(np.diag(cho_cone[0]))
+            if diag_lc.size > 0 and float(np.max(diag_lc)) / max(float(np.min(diag_lc)), 1e-15) < 1e5:
+                use_sparse_col_scaling = True
 
-    m_z = rank_cone
-    c_z = Q_R.T @ c_y
-    c_null = Q_N.T @ c_y
-
-    z_blocks: list[_InternalConeBlock] = []
-    for b in y_blocks:
-        F_terms_z: dict[int, np.ndarray] = {}
-        for j in range(m_z):
-            mat_j = b.evaluate_linear(Q_R[:, j])
-            if float(np.linalg.norm(mat_j, "fro")) > 1e-15:
-                F_terms_z[j] = mat_j
-        z_blocks.append(
+    if use_sparse_col_scaling:
+        col_inv = 1.0 / col_norms
+        Q_R = np.diag(col_inv)
+        Q_N = np.zeros((m_y, 0), dtype=np.float64)
+        m_z = m_y
+        c_z = col_inv * c_y
+        c_null = np.zeros((0,), dtype=np.float64)
+        z_blocks = [
             _InternalConeBlock(
                 name=b.name,
                 dim=b.dim,
                 F0=b.F0,
-                F_terms=F_terms_z,
+                F_terms={j: fj * col_inv[j] for j, fj in b.F_terms.items()},
                 is_ineq_slack=b.is_ineq_slack,
                 ineq_index=b.ineq_index,
             )
-        )
+            for b in y_blocks_eq
+        ]
+
+        def _project_y_to_z(y_vec: np.ndarray) -> np.ndarray:
+            return col_norms * y_vec
+    else:
+        _, s_cone, Vt_cone = scipy.linalg.svd(A_cone, full_matrices=(total_entries < m_y), check_finite=True)
+        s_cone_max = float(s_cone[0]) if s_cone.size > 0 else 0.0
+        rank_cone = int(np.sum(s_cone > 1e-12 * max(1.0, s_cone_max)))
+        # Escalar pelas inversas dos valores singulares para que as matrizes base em z sejam ortonormais
+        Q_R = Vt_cone[:rank_cone, :].T / s_cone[:rank_cone]  # (m_y, rank_cone)
+        Q_N = Vt_cone[rank_cone:, :].T                       # (m_y, m_y - rank_cone)
+
+        m_z = rank_cone
+        c_z = Q_R.T @ c_y
+        c_null = Q_N.T @ c_y
+
+        z_blocks = []
+        for b in y_blocks_eq:
+            F_terms_z: dict[int, np.ndarray] = {}
+            for j in range(m_z):
+                mat_j = b.evaluate_linear(Q_R[:, j])
+                if float(np.linalg.norm(mat_j, "fro")) > 1e-15:
+                    F_terms_z[j] = mat_j
+            z_blocks.append(
+                _InternalConeBlock(
+                    name=b.name,
+                    dim=b.dim,
+                    F0=b.F0,
+                    F_terms=F_terms_z,
+                    is_ineq_slack=b.is_ineq_slack,
+                    ineq_index=b.ineq_index,
+                )
+            )
+
+        def _project_y_to_z(y_vec: np.ndarray) -> np.ndarray:
+            return s_cone[:rank_cone] * (Vt_cone[:rank_cone, :] @ y_vec)
 
     all_history: list[IterationRecord] = []
-    phase1_summary: dict[str, Any] = {"executed": False, "iterations": 0, "status": "skipped"}
+    phase1_summary: dict[str, Any] = {"executed": False, "iterations": 0, "status": "skipped", "warm_start_used": False}
     phase2_summary: dict[str, Any] = {"executed": False, "iterations": 0, "status": "skipped"}
 
     # -----------------------------------------------------------------------
-    # Passo 4: Fase I (encontrar ponto estritamente factível z0 ou Farkas)
+    # Passo 4: Warm-Start (Ding et al., arXiv:2312.11801) ou Fase I
     # -----------------------------------------------------------------------
     z0 = np.zeros((m_z,), dtype=np.float64)
+    warm_start_used = False
+    if cfg.warm_start_x is not None:
+        if len(cfg.warm_start_x) != n_vars:
+            raise ValidationError(
+                f"warm_start_x deve ter comprimento {n_vars}, recebido {len(cfg.warm_start_x)}."
+            )
+        x_ws = np.asarray(cfg.warm_start_x, dtype=np.float64)
+        eq_err_ws = (
+            float(np.linalg.norm(problem.E @ x_ws - problem.d)) / (1.0 + float(np.linalg.norm(problem.d)))
+            if n_eq > 0
+            else 0.0
+        )
+        min_eig_psd_ws = min(
+            (float(np.min(np.linalg.eigvalsh(blk.evaluate(x_ws)))) for blk in problem.blocks),
+            default=float("inf"),
+        )
+        min_slack_ineq_ws = float(np.min(problem.h - problem.H @ x_ws)) if n_ineq > 0 else float("inf")
+        if eq_err_ws <= 1e-8 and min(min_eig_psd_ws, min_slack_ineq_ws) > 1e-8:
+            y_ws = N_eq.T @ (x_ws - x_eq)
+            z_ws = _project_y_to_z(y_ws)
+            min_eig_z_ws = min(float(np.min(np.linalg.eigvalsh(b.evaluate(z_ws)))) for b in z_blocks)
+            if min_eig_z_ws > 1e-8:
+                z0 = z_ws
+                warm_start_used = True
+                phase1_summary = {
+                    "executed": False,
+                    "iterations": 0,
+                    "status": "skipped_warm_start",
+                    "warm_start_used": True,
+                }
+
     init_min_eig = min(float(np.min(np.linalg.eigvalsh(b.evaluate(z0)))) for b in z_blocks)
     is_pure_feasibility = float(np.linalg.norm(c_z)) <= 1e-12 and float(np.linalg.norm(c_null)) <= 1e-12
 
-    if init_min_eig <= cfg.strict_margin or is_pure_feasibility:
+    if not warm_start_used and (init_min_eig <= cfg.strict_margin or is_pure_feasibility):
         # Construir problema auxiliar de Fase I:
         #   min_{z, t}  t   s.t.   F_b(z) + t I_{n_b} >= 0,  t_cap + t >= 0
         # Se for problema de pura factibilidade (c=0), adicionar caixa suave sobre z para centralizar bem Q
@@ -1242,6 +1484,7 @@ def solve_native_raw(
             "iterations": len(p1_out["history"]),
             "status": p1_out["solver_status"],
             "final_t": float(p1_out["z"][m_z]),
+            "warm_start_used": False,
         }
 
         z_cand = p1_out["z"][:m_z]
@@ -1265,8 +1508,9 @@ def solve_native_raw(
                         farkas_Z_internal = Z_strict
 
             if farkas_Z_internal is not None:
-                fZ, f_ineq = _split_duals(farkas_Z_internal)
-                adj_f = _full_adjoint_x(farkas_Z_internal, f_ineq)
+                farkas_Z_unscaled = _unscale_duals(farkas_Z_internal)
+                fZ, f_ineq = _split_duals(farkas_Z_unscaled)
+                adj_f = _full_adjoint_x(farkas_Z_unscaled, f_ineq)
                 f_eq = _recover_eq_dual(adj_f, np.zeros((n_vars,), dtype=np.float64))
                 return {
                     "backend": "native_primal_dual",
@@ -1426,7 +1670,7 @@ def solve_native_raw(
 
     z_final = p2_out["z"]
     x_final = x_eq + N_eq @ (Q_R @ z_final)
-    Z_final_all = p2_out["Z_list"]
+    Z_final_all = _unscale_duals(p2_out["Z_list"])
     dZ, d_ineq = _split_duals(Z_final_all)
     adj_x = _full_adjoint_x(Z_final_all, d_ineq)
     d_eq = _recover_eq_dual(adj_x, c_orig)

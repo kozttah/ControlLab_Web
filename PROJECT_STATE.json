@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 7
+      "2026-11-22": 8
     }
   },
   "audit_reference": {
@@ -5631,6 +5631,82 @@
       "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "E2E Chromium edita expressoes h_1(z), h_2(z) e universo de discurso, valida soma convexa = 1 e nao-negatividade >= 0, e verifica responsividade 390x844"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE5-01-F6-SCALABLE-NATIVE-SDP",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase5-Scalable-Native-SDP",
+      "title": "F6: Escalabilidade e robustez do solver SDP nativo (Schur esparso IPDPS 2014, equilibracao SketchyCGAL 2021, warm-start SpecBM 2023/2024, fatoracao unica Mehrotra)",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-ROADMAP-SW-FIREFOX-CI"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f6_scalable_native_sdp_ipdps14_simax21_specbm_clarabel_parity",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE5-01-F6-SCALABLE-NATIVE-SDP.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE5-01-F6-SCALABLE-NATIVE-SDP.md"
+      ],
+      "origin_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "acceptance_requirements": [
+        "Fatoracao unica da matriz de Schur H por iteracao Mehrotra (eliminando duplo Cholesky e duplo SVD O(m^3))",
+        "Montagem esparsa de congruencia NT e complemento de Schur (Fujisawa et al., IPDPS 2014, 10.1109/IPDPS.2014.121)",
+        "Equilibracao de blocos com desescalonamento exato (Yurtsever et al., SIMAX 2021, SketchyCGAL §7.1.1) e suporte a warm-start interior (arXiv:2312.11801)",
+        "Validacao cruzada contra Clarabel em testes unitarios cobrindo problemas maiores e mal-condicionados com speedup comprovado"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE5-02-F9-SDP-SCALABILITY-AND-CI-FIX",
+      "front": "f9-integration-qa",
+      "phase": "Phase5-Scalable-Native-SDP",
+      "title": "F9: Correcao CI Gate G-0B (test_real_runtime.py envelope dinamico), auditoria do solver SDP escalavel e validacao Wasm + Clarabel",
+      "allowed_paths": [
+        "tests/wasm/",
+        "tests/e2e/",
+        "docs/audits/",
+        "docs/architecture/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE5-01-F6-SCALABLE-NATIVE-SDP"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_g0b_dynamic_envelope_adr010_references_wasm_and_clarabel_audit",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE5-02-F9-SDP-SCALABILITY-AND-CI-FIX.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE5-02-F9-SDP-SCALABILITY-AND-CI-FIX.md"
+      ],
+      "origin_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "acceptance_requirements": [
+        "test_g0b_native_runtime_and_offline_scripts usa BROWSER_ENVELOPE[\"max_variables\"] + 1 e passa em Chromium Wasm",
+        "Documentacao das 3 referencias em ADR-010 e auditoria F9 da paridade com Clarabel"
       ]
     }
   ],

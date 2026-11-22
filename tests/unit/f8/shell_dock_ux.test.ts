@@ -993,8 +993,9 @@ test("WP-PHASE6-01-F8-UX-HYGIENE-P0P1: cabeçalhos limpos, badge espaçado, Work
     root.querySelector<FakeElement>("#lmi-certificate-panel")!.querySelector<FakeElement>("h4")!.textContent,
     "Certificado de Auditoria Independente (5 Dimensões)",
   );
-  for (const id of ["#lmi-gen-enable-w", "#lmi-gen-enable-z"]) {
+  for (const id of ["#new-ss-enable-w", "#new-ss-enable-z"]) {
     const cb = root.querySelector<FakeElement>(id)!;
+    assert.ok(cb !== null, `Missing generalized checkbox ${id}`);
     assert.equal(cb.className.split(/\s+/).includes("touch-control"), false);
     assert.ok(cb.parentNode?.className.split(/\s+/).includes("lmi-check-label"));
   }
@@ -1033,5 +1034,187 @@ test("WP-PHASE6-01-F8-UX-HYGIENE-P0P1: cabeçalhos limpos, badge espaçado, Work
 
   app.destroy();
 });
+
+test("WP-PHASE8-01-F8-WORKSPACE-SYSTEM-EDITOR: Create/Edit 5 modos (TF, SS Generalizado, Politópico 10 vértices, TS não medida), Editar/→LMIs no Dock, exemplos rápidos e atalhos Aba 3/Aba 6", async () => {
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client: new MockWorkerAdapter(),
+    project_id: "proj-phase8-ws-editor",
+  });
+  await app.client.init();
+
+  const modal = root.querySelector<FakeElement>("#workspace-new-object-modal")!;
+  const typed = app.shell.getTypedWorkspace();
+
+  // 1. Verify all 5 mode buttons exist in modal
+  for (const btnId of [
+    "#btn-new-mode-tf",
+    "#btn-new-mode-ss",
+    "#btn-new-mode-polytopic",
+    "#btn-new-mode-ts",
+    "#btn-new-mode-csv",
+  ]) {
+    assert.ok(root.querySelector(btnId) !== null, `Missing modal mode button ${btnId}`);
+  }
+
+  // 2. Create and Edit a TransferFunction (rev 1 -> rev 2)
+  root.querySelector("#btn-open-new-object-modal")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-tf-id")!.value = "tf-edit-demo";
+  root.querySelector<FakeElement>("#new-tf-num")!.value = "3";
+  root.querySelector<FakeElement>("#new-tf-den")!.value = "1, 2";
+  root.querySelector<FakeElement>("#new-tf-dt")!.value = "";
+  root.querySelector("#btn-new-tf-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+
+  const tfRev1 = typed.listRegisteredObjects(["TransferFunction"]).find((o) => o.id === "tf-edit-demo")!;
+  assert.ok(tfRev1 !== undefined);
+  assert.equal(tfRev1.revision, 1);
+
+  // Edit via Dock 'Editar' button
+  const editTfBtn = root.querySelector<FakeElement>(
+    `[data-action="dock-edit-plant"][data-object-key="${tfRev1.key}"]`,
+  )!;
+  assert.ok(editTfBtn !== null);
+  editTfBtn.dispatchEvent("click");
+  assert.equal(modal.hasAttribute("hidden"), false);
+  assert.equal(root.querySelector<FakeElement>("#new-tf-id")!.value, "tf-edit-demo");
+  assert.equal(root.querySelector<FakeElement>("#new-tf-num")!.value, "3");
+  root.querySelector<FakeElement>("#new-tf-num")!.value = "7";
+  root.querySelector("#btn-new-tf-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+
+  const tfRev2 = typed
+    .listRegisteredObjects(["TransferFunction"])
+    .find((o) => o.id === "tf-edit-demo" && o.revision === 2);
+  assert.ok(tfRev2 !== undefined, "Editar TF deve registrar revisão 2 preservando ID");
+
+  // 3. Create Generalized StateSpace with Bw, Dyw, Cz, Dzu, Dzw stored in provenance.generalized_channels
+  root.querySelector("#btn-open-new-object-modal")!.dispatchEvent("click");
+  root.querySelector("#btn-new-mode-ss")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-ss-id")!.value = "ss-gen-demo";
+  root.querySelector<FakeElement>("#new-ss-a")!.value = "[[0, 1], [-2, -1]]";
+  root.querySelector<FakeElement>("#new-ss-b")!.value = "[[0], [1]]";
+  root.querySelector<FakeElement>("#new-ss-c")!.value = "[[1, 0]]";
+  root.querySelector<FakeElement>("#new-ss-d")!.value = "[[0]]";
+  const cbW = root.querySelector<FakeElement>("#new-ss-enable-w")!;
+  const cbZ = root.querySelector<FakeElement>("#new-ss-enable-z")!;
+  cbW.checked = true;
+  cbW.dispatchEvent("change");
+  cbZ.checked = true;
+  cbZ.dispatchEvent("change");
+  assert.equal(root.querySelector("#new-ss-gen-panel")!.hasAttribute("hidden"), false);
+  root.querySelector<FakeElement>("#new-ss-bw")!.value = "[[0], [2]]";
+  root.querySelector<FakeElement>("#new-ss-dyw")!.value = "[[0]]";
+  root.querySelector<FakeElement>("#new-ss-cz")!.value = "[[1, 0], [0, 0.5]]";
+  root.querySelector<FakeElement>("#new-ss-dzu")!.value = "[[0], [0.2]]";
+  root.querySelector<FakeElement>("#new-ss-dzw")!.value = "[[0], [0]]";
+  root.querySelector("#btn-new-ss-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+
+  const ssGen = typed.listRegisteredObjects(["StateSpace"]).find((o) => o.id === "ss-gen-demo")!;
+  assert.ok(ssGen !== undefined);
+  assert.equal("Bw" in (ssGen.value.matrices as Record<string, unknown>), false, "matrices não pode conter Bw");
+  const provGen = (ssGen.value.provenance as Record<string, unknown>).generalized_channels as Record<string, unknown>;
+  assert.equal(provGen.enable_w, true);
+  assert.equal(provGen.enable_z, true);
+  assert.deepEqual(provGen.Bw, [[0], [2]]);
+  assert.ok(formatDockObjectSummary(ssGen, 2).includes("Generalizada (w/z)"));
+
+  // 4. Create Polytopic Uncertain with 10 vertices (> 8 unlimited!)
+  root.querySelector("#btn-open-new-object-modal")!.dispatchEvent("click");
+  root.querySelector("#btn-new-mode-polytopic")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-poly-id")!.value = "poly-10v-demo";
+  // Starts with 2 vertices -> click + Adicionar Vértice 8 times -> 10 vertices!
+  for (let k = 0; k < 8; k += 1) {
+    root.querySelector("#btn-new-poly-add-vertex")!.dispatchEvent("click");
+  }
+  assert.equal(root.querySelectorAll('[data-poly-mat="A"]').length, 10);
+  root.querySelector("#btn-new-poly-gen-delta")!.dispatchEvent("click");
+  root.querySelector("#btn-new-poly-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+
+  const poly10 = typed.listRegisteredObjects(["polytopic_uncertain"]).find((o) => o.id === "poly-10v-demo")!;
+  assert.ok(poly10 !== undefined);
+  assert.equal((poly10.value.vertices as unknown[]).length, 10);
+  assert.ok(formatDockObjectSummary(poly10, 2).includes("Politópico 10 vértices"));
+
+  // 5. Create Takagi-Sugeno with unmeasured premise & live h_i(z) convexity validation
+  root.querySelector("#btn-open-new-object-modal")!.dispatchEvent("click");
+  root.querySelector("#btn-new-mode-ts")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-ts-id")!.value = "ts-unmeas-modal";
+  assert.ok(root.querySelector("#new-ts-mf-validation")!.textContent.includes("Soma convexa válida"));
+
+  // Mark premise 0 as unmeasured
+  const premCb0 = root.querySelector<FakeElement>('input[data-ts-premise-field="measured"][data-ts-premise-idx="0"]')!;
+  premCb0.checked = false;
+  premCb0.dispatchEvent("change");
+  // Add a 3rd rule (no limit) and verify
+  root.querySelector("#btn-new-ts-add-rule")!.dispatchEvent("click");
+  assert.equal(root.querySelectorAll('[data-ts-rule-mat="A"]').length, 3);
+  // Test invalid h_1(z) -> validation flags Inválido, then restore valid
+  const mf0 = root.querySelector<FakeElement>('input[data-ts-mf-field="expression"][data-ts-mf-idx="0"]')!;
+  mf0.value = "z1";
+  mf0.dispatchEvent("input");
+  assert.ok(root.querySelector("#new-ts-mf-validation")!.textContent.includes("Inválido"));
+  mf0.value = "(1 + sin(z1)) / 2";
+  mf0.dispatchEvent("input");
+  assert.ok(root.querySelector("#new-ts-mf-validation")!.textContent.includes("Soma convexa válida"));
+
+  root.querySelector("#btn-new-ts-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+
+  const tsObj = typed.listRegisteredObjects(["ts_partially_observed"]).find((o) => o.id === "ts-unmeas-modal")!;
+  assert.ok(tsObj !== undefined);
+  assert.equal((tsObj.value.vertices as unknown[]).length, 3);
+  assert.ok(formatDockObjectSummary(tsObj, 2).includes("TS 3 regras"));
+  assert.ok(formatDockObjectSummary(tsObj, 2).includes("Premissa não medida"));
+
+  // 6. Click '→ LMIs' on TS card routes to Tab 6 and selects it
+  const routeLmiBtn = root.querySelector<FakeElement>(
+    `[data-action="dock-route-lmi"][data-object-key="${tsObj.key}"]`,
+  )!;
+  assert.ok(routeLmiBtn !== null);
+  routeLmiBtn.dispatchEvent("click");
+  assert.equal(app.shell.getActiveTab(), "optimization_lmi");
+  assert.equal(root.querySelector<FakeElement>("#lmi-workspace-system-select")!.value, tsObj.key);
+
+  // 7. Clicking #btn-lmi-edit-system-workspace opens modal pre-populated with active TS system
+  root.querySelector("#btn-lmi-edit-system-workspace")!.dispatchEvent("click");
+  assert.equal(modal.hasAttribute("hidden"), false);
+  assert.equal(root.querySelector<FakeElement>("#new-ts-id")!.value, "ts-unmeas-modal");
+  assert.equal(root.querySelector("#new-obj-panel-ts")!.hasAttribute("hidden"), false);
+  root.querySelector("#new-object-modal-close")!.dispatchEvent("click");
+  assert.equal(modal.hasAttribute("hidden"), true);
+
+  // 8. Switch to Tab 3, verify #ss-workspace-plant-bar and clicking #btn-ss-edit-plant-workspace opens modal pre-populated
+  app.shell.switchTab("statespace");
+  assert.ok(root.querySelector("#ss-workspace-plant-bar") !== null);
+  root.querySelector("#btn-ss-edit-plant-workspace")!.dispatchEvent("click");
+  assert.equal(modal.hasAttribute("hidden"), false);
+  assert.equal(root.querySelector("#new-obj-panel-ss")!.hasAttribute("hidden"), false);
+  assert.equal(
+    root.querySelector<FakeElement>("#new-ss-id")!.value,
+    app.shell.getLqrWorkspace().getPlant().id,
+  );
+  root.querySelector("#new-object-modal-close")!.dispatchEvent("click");
+
+  // 9. Quick examples: polytopic_2v and ts_unmeasured_2r
+  const exSelect = root.querySelector<FakeElement>("#dock-example-select")!;
+  exSelect.value = "polytopic_2v";
+  root.querySelector("#btn-dock-load-example")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(typed.listRegisteredObjects(["polytopic_uncertain"]).some((o) => o.id === "poly-2v-demo"));
+
+  exSelect.value = "ts_unmeasured_2r";
+  root.querySelector("#btn-dock-load-example")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(
+    typed.listRegisteredObjects(["ts_partially_observed"]).some((o) => o.id === "ts-unmeasured-2r-demo"),
+  );
+
+  app.destroy();
+});
+
 
 

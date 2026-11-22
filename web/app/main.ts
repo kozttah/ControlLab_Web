@@ -479,12 +479,21 @@ export function mountControlLabApp(
     initialOpen: false,
   });
 
+  let handleWorkspaceSystemRegistered: (refKey: string, kind: string) => void = () => {};
+  let handleRouteSystemToLmi: (refKey: string) => void = () => {};
+
   const workspaceDock = new WorkspaceDockController({
     shell,
     container,
     initialCollapsed: false,
     onInspectObject: (target) => {
       inspectorDrawer.inspectTarget(target);
+    },
+    onSystemRegistered: (refKey, kind) => {
+      handleWorkspaceSystemRegistered(refKey, kind);
+    },
+    onRouteToLmi: (refKey) => {
+      handleRouteSystemToLmi(refKey);
     },
   });
 
@@ -494,6 +503,8 @@ export function mountControlLabApp(
     shell,
     container,
     onOpenExportModal: openExportModal,
+    onOpenEditPlantModal: (refKey) => workspaceDock.openEditSystemModal(refKey),
+    onOpenNewPlantModal: () => workspaceDock.openNewSystemModal("ss"),
   });
   let requestAppRender: () => void = () => {};
   const mimoView = new MimoView({
@@ -515,7 +526,15 @@ export function mountControlLabApp(
     container,
     onRequestRender: () => requestAppRender(),
     onOpenExportModal: openExportModal,
+    onOpenNewSystemModal: (mode) => workspaceDock.openNewSystemModal(mode ?? "ss"),
+    onOpenEditSystemModal: (refKey) => workspaceDock.openEditSystemModal(refKey),
   });
+  handleWorkspaceSystemRegistered = (refKey, kind) => {
+    lmiView.handleWorkspaceSystemRegistered(refKey, kind);
+  };
+  handleRouteSystemToLmi = (refKey) => {
+    lmiView.selectSystemByRefKey(refKey);
+  };
 
   const render = (): void => {
     const activeTab = shell.getActiveTab();
@@ -940,6 +959,104 @@ export function mountControlLabApp(
           },
           { selectRole: "frequencyPlant" },
         );
+        return;
+      }
+      if (exampleKey === "polytopic_2v") {
+        const reg = await typedWorkspace.registerTypedObject(
+          {
+            schema_version: "1.0.0",
+            id: "poly-2v-demo",
+            revision: 1,
+            kind: "polytopic_uncertain",
+            dt: null,
+            membership_spec: {
+              version: "1.0.0",
+              premise_variables: ["alpha"],
+              sum_to_one_domain: true,
+            },
+            premise_availability: {
+              mode: "unknown_uncertain",
+              measured_premises: [],
+              unmeasured_premises: ["alpha"],
+              estimator_required_for_pdc: true,
+            },
+            domain: { bounds: { alpha: [0, 1] } },
+            vertices: [
+              {
+                vertex_id: "v1",
+                A: makeFloat64Tensor([2, 2], [0, 1, -1.7, -0.85]),
+                B: makeFloat64Tensor([2, 1], [0, 1]),
+                C: makeFloat64Tensor([1, 2], [1, 0]),
+                D: makeFloat64Tensor([1, 1], [0]),
+              },
+              {
+                vertex_id: "v2",
+                A: makeFloat64Tensor([2, 2], [0, 1, -2.3, -1.15]),
+                B: makeFloat64Tensor([2, 1], [0, 1]),
+                C: makeFloat64Tensor([1, 2], [1, 0]),
+                D: makeFloat64Tensor([1, 1], [0]),
+              },
+            ],
+            state_names: ["x1", "x2"],
+            input_names: ["u1"],
+            output_names: ["y1"],
+            units: { time: "s", states: ["", ""], inputs: [""], outputs: [""] },
+            provenance: { source: "dock_example_loader", delta_pct: 15 },
+          },
+          { selectRole: "tsModel" },
+        );
+        lmiView.selectSystemByRefKey(reg.key);
+        return;
+      }
+      if (exampleKey === "ts_unmeasured_2r") {
+        const reg = await typedWorkspace.registerTypedObject(
+          {
+            schema_version: "1.0.0",
+            id: "ts-unmeasured-2r-demo",
+            revision: 1,
+            kind: "ts_partially_observed",
+            dt: null,
+            membership_spec: {
+              version: "1.0.0",
+              premise_variables: ["z1"],
+              sum_to_one_domain: true,
+              functions: [
+                { id: "mf-1", label: "h_1(z)", expression: "(1 + sin(z1)) / 2" },
+                { id: "mf-2", label: "h_2(z)", expression: "(1 - sin(z1)) / 2" },
+              ],
+            },
+            premise_availability: {
+              mode: "partially_observed",
+              measured_premises: [],
+              unmeasured_premises: ["z1"],
+              estimator_required_for_pdc: true,
+            },
+            domain: { bounds: { z1: [-1, 1] } },
+            vertices: [
+              {
+                vertex_id: "r1",
+                A: makeFloat64Tensor([2, 2], [0, 1, -1.8, -0.9]),
+                B: makeFloat64Tensor([2, 1], [0, 1]),
+                C: makeFloat64Tensor([1, 2], [1, 0]),
+                D: makeFloat64Tensor([1, 1], [0]),
+              },
+              {
+                vertex_id: "r2",
+                A: makeFloat64Tensor([2, 2], [0, 1, -2.2, -1.1]),
+                B: makeFloat64Tensor([2, 1], [0, 1]),
+                C: makeFloat64Tensor([1, 2], [1, 0]),
+                D: makeFloat64Tensor([1, 1], [0]),
+              },
+            ],
+            state_names: ["x1", "x2"],
+            input_names: ["u1"],
+            output_names: ["y1"],
+            units: { time: "s", states: ["", ""], inputs: [""], outputs: [""] },
+            provenance: { source: "dock_example_loader" },
+          },
+          { selectRole: "tsModel" },
+        );
+        lmiView.selectSystemByRefKey(reg.key);
         return;
       }
       if (exampleKey === "mimo_2x2") {

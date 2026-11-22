@@ -483,7 +483,7 @@ test("WP-LMI-V2-01: DSL Parser v2.0 (system, index, var[i], macro, He, bmat *, f
   assert.ok(mSnippet.includes("Y{i} = sdpvar(m, n, 'full')"));
 });
 
-test("WP-LMI-V2-02: Zona 2 Caracterização do Sistema (LTI generalizada, Politópica e TS) + Bidirecionalidade", async () => {
+test("WP-LMI-V2-02: Zona 2 Workspace-First (LTI generalizada, Politópica 10 vértices e TS) + Resumo + Sync DSL + Edit Modal", async () => {
   const client = new StubLmiClient();
   const doc = new FakeDocument();
   const root = doc.createElement("div");
@@ -494,67 +494,89 @@ test("WP-LMI-V2-02: Zona 2 Caracterização do Sistema (LTI generalizada, Polit�
   await app.client.init();
   app.shell.switchTab("optimization_lmi");
 
-  // 1. Zona 2 card exists and starts in LTI mode
   const z2Card = root.querySelector<FakeElement>("#lmi-system-characterization-card")!;
   assert.ok(z2Card !== null);
-  const sysSelect = root.querySelector<FakeElement>("#lmi-sys-class-select")!;
-  assert.equal(sysSelect.value, "lti");
-  assert.equal(root.querySelector<FakeElement>("#lmi-sys-panel-lti")!.hasAttribute("hidden"), false);
-  assert.equal(root.querySelector<FakeElement>("#lmi-sys-panel-polytopic")!.hasAttribute("hidden"), true);
-  assert.equal(root.querySelector<FakeElement>("#lmi-sys-panel-ts")!.hasAttribute("hidden"), true);
+  const sysSelect = root.querySelector<FakeElement>("#lmi-workspace-system-select")!;
+  assert.ok(sysSelect !== null);
+  const summaryEl = root.querySelector<FakeElement>("#lmi-selected-system-summary")!;
+  assert.ok(summaryEl.textContent.includes("Linear (LTI)"));
 
-  // Enable generalized channels w and z
-  const cbW = root.querySelector<FakeElement>("#lmi-gen-enable-w")!;
-  const cbZ = root.querySelector<FakeElement>("#lmi-gen-enable-z")!;
+  // 1. Create Generalized StateSpace in Workspace Dock modal -> auto-selected in Tab 6
+  root.querySelector("#btn-lmi-new-system-workspace")!.dispatchEvent("click");
+  const modal = root.querySelector<FakeElement>("#workspace-new-object-modal")!;
+  assert.equal(modal.hasAttribute("hidden"), false);
+  root.querySelector("#btn-new-mode-ss")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-ss-id")!.value = "ss-gen-z2";
+  root.querySelector<FakeElement>("#new-ss-a")!.value = "[[0, 1], [-2, -1]]";
+  root.querySelector<FakeElement>("#new-ss-b")!.value = "[[0], [1]]";
+  root.querySelector<FakeElement>("#new-ss-c")!.value = "[[1, 0]]";
+  root.querySelector<FakeElement>("#new-ss-d")!.value = "[[0]]";
+  const cbW = root.querySelector<FakeElement>("#new-ss-enable-w")!;
+  const cbZ = root.querySelector<FakeElement>("#new-ss-enable-z")!;
   cbW.checked = true;
   cbW.dispatchEvent("change");
   cbZ.checked = true;
   cbZ.dispatchEvent("change");
-  assert.equal(root.querySelector<FakeElement>("#lmi-gen-matrices-panel")!.hasAttribute("hidden"), false);
+  assert.equal(root.querySelector<FakeElement>("#new-ss-gen-panel")!.hasAttribute("hidden"), false);
+  root.querySelector("#btn-new-ss-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
 
-  // 2. Switch to Polytopic mode, set N_v=4, generate vertices, load polytopic template
-  sysSelect.value = "polytopic";
-  sysSelect.dispatchEvent("change");
-  assert.equal(root.querySelector<FakeElement>("#lmi-sys-panel-polytopic")!.hasAttribute("hidden"), false);
+  assert.equal(sysSelect.value, "ss-gen-z2#1");
+  assert.ok(summaryEl.textContent.includes("Planta Generalizada (LTI)"));
+  assert.ok(summaryEl.textContent.includes("Canais Generalizados"));
 
+  // 2. Create 10-vertex Polytopic Uncertain system in Workspace modal (unlimited > 8!)
+  root.querySelector("#btn-lmi-new-system-workspace")!.dispatchEvent("click");
+  root.querySelector("#btn-new-mode-polytopic")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-poly-id")!.value = "poly-10v-z2";
+  for (let k = 0; k < 8; k += 1) {
+    root.querySelector("#btn-new-poly-add-vertex")!.dispatchEvent("click");
+  }
+  root.querySelector("#btn-new-poly-gen-delta")!.dispatchEvent("click");
+  root.querySelector("#btn-new-poly-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+
+  assert.equal(sysSelect.value, "poly-10v-z2#1");
+  assert.ok(summaryEl.textContent.includes("N_v = 10 vértices"));
+
+  // Load polytopic_robust template -> automatically adapts to 10 vertices -> 1 (Q>0) + 10 (forall i) = 11 blocks!
   const tplSelect = root.querySelector<FakeElement>("#lmi-template-select")!;
   tplSelect.value = "polytopic_robust";
   tplSelect.dispatchEvent("change");
-  assert.ok(root.querySelector("#lmi-expanded-blocks-badge")!.textContent.includes("3 blocos LMI"));
+  assert.ok(root.querySelector("#lmi-expanded-blocks-badge")!.textContent.includes("11 blocos LMI"));
 
-  const nvInput = root.querySelector<FakeElement>("#lmi-poly-vertices-count")!;
-  nvInput.value = "4";
-  nvInput.dispatchEvent("change");
-  root.querySelector('[data-action="lmi-gen-polytope"]')!.dispatchEvent("click");
-  assert.ok(root.querySelector("#lmi-poly-vertex-preview")!.textContent.includes("Vértice 4"));
-  // Sync directive to DSL -> expanded blocks updates to 1 (Q>0) + 4 (forall i) = 5
+  // Sync directive to DSL keeps 11 blocks
   root.querySelector('[data-action="lmi-sync-dsl"]')!.dispatchEvent("click");
-  assert.ok(root.querySelector("#lmi-expanded-blocks-badge")!.textContent.includes("5 blocos LMI"));
+  assert.ok(root.querySelector("#lmi-expanded-blocks-badge")!.textContent.includes("11 blocos LMI"));
 
   // Export CVXPY quantified directly from modal
   root.querySelector('[data-action="lmi-export-cvxpy"]')!.dispatchEvent("click");
   await new Promise((r) => setTimeout(r, 30));
   const modalPre = root.querySelector<FakeElement>("#export-modal-content")!;
   assert.ok(modalPre.textContent.includes("for i in range(N):"));
+  assert.ok(modalPre.textContent.includes("N = 10"));
   root.querySelector("#export-modal-close")!.dispatchEvent("click");
 
-  // 3. Switch to TS mode, verify Tab 5 import is removed, verify default analytical h_i(z), toggle premise measured <-> unmeasured
-  tplSelect.value = "ts_pdc_relaxed";
-  tplSelect.dispatchEvent("change");
-  assert.equal(sysSelect.value, "ts");
-  assert.equal(root.querySelector<FakeElement>("#lmi-sys-panel-ts")!.hasAttribute("hidden"), false);
+  // 3. Create TS system with unmeasured premise in Workspace modal -> verify summary, convexity & edit callback
+  root.querySelector("#btn-lmi-new-system-workspace")!.dispatchEvent("click");
+  root.querySelector("#btn-new-mode-ts")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-ts-id")!.value = "ts-unmeas-z2";
+  const premCb0 = root.querySelector<FakeElement>('input[data-ts-premise-field="measured"][data-ts-premise-idx="0"]')!;
+  premCb0.checked = false;
+  premCb0.dispatchEvent("change");
+  root.querySelector("#btn-new-ts-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
 
-  assert.equal(root.querySelector("#btn-lmi-import-fuzzy"), null);
-  assert.equal(root.querySelector('[data-action="lmi-import-fuzzy"]'), null);
-  assert.ok(root.querySelector("#lmi-ts-mf-summary")!.textContent.includes("h₁(z) = (1 + sin(z1)) / 2"));
-  assert.ok(root.querySelector("#lmi-ts-mf-validation")!.textContent.includes("Soma convexa válida"));
+  assert.equal(sysSelect.value, "ts-unmeas-z2#1");
+  assert.ok(summaryEl.textContent.includes("ts_partially_observed"));
+  assert.ok(summaryEl.textContent.includes("∑hᵢ(z)=1 Válida"));
+  assert.equal(root.querySelector("#lmi-ts-unmeasured-panel")!.hasAttribute("hidden"), false);
 
-  const toggleBtn = root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!;
-  assert.equal(toggleBtn.textContent, "Medida");
-  toggleBtn.dispatchEvent("click");
-  const toggleBtnAfter = root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!;
-  assert.equal(toggleBtnAfter.textContent, "Não Medida (Estimada)");
-  assert.ok(root.querySelector("#lmi-ts-premises-list")!.textContent.includes("ts_partially_observed"));
+  // Clicking Editar Sistema no Workspace opens modal pre-populated with ts-unmeas-z2
+  root.querySelector("#btn-lmi-edit-system-workspace")!.dispatchEvent("click");
+  assert.equal(modal.hasAttribute("hidden"), false);
+  assert.equal(root.querySelector<FakeElement>("#new-ts-id")!.value, "ts-unmeas-z2");
+  root.querySelector("#new-object-modal-close")!.dispatchEvent("click");
 
   app.destroy();
 });
@@ -1133,16 +1155,21 @@ test("WP-ROADMAP-TS-UNMEASURED-OBS: Observador TS com premissas não medidas (DS
   await app.client.init();
   app.shell.switchTab("optimization_lmi");
 
-  const sysSelect = root.querySelector<FakeElement>("#lmi-sys-class-select")!;
-  sysSelect.value = "ts";
-  sysSelect.dispatchEvent("change");
-
   const unmeasuredPanel = root.querySelector<FakeElement>("#lmi-ts-unmeasured-panel")!;
-  assert.equal(unmeasuredPanel.hasAttribute("hidden"), true, "Oculto enquanto todas as premissas são medidas");
+  assert.equal(unmeasuredPanel.hasAttribute("hidden"), true, "Oculto enquanto planta LTI está selecionada");
 
-  const toggleBtn = root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!;
-  toggleBtn.dispatchEvent("click");
-  assert.equal(unmeasuredPanel.hasAttribute("hidden"), false, "Visível quando premissa não medida é selecionada");
+  // Create ts_partially_observed system in Workspace Dock modal -> automatically selected & unmeasured panel shown
+  root.querySelector("#btn-open-new-object-modal")!.dispatchEvent("click");
+  root.querySelector("#btn-new-mode-ts")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-ts-id")!.value = "ts-obs-unmeas-ui";
+  const premCb0 = root.querySelector<FakeElement>('input[data-ts-premise-field="measured"][data-ts-premise-idx="0"]')!;
+  premCb0.checked = false;
+  premCb0.dispatchEvent("change");
+  root.querySelector("#btn-new-ts-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+
+  assert.equal(root.querySelector<FakeElement>("#lmi-workspace-system-select")!.value, "ts-obs-unmeas-ui#1");
+  assert.equal(unmeasuredPanel.hasAttribute("hidden"), false, "Visível quando sistema ts_partially_observed é selecionado");
 
   const methodSel = root.querySelector<FakeElement>("#lmi-ts-obs-method")!;
   assert.ok(methodSel !== null);
@@ -1167,7 +1194,7 @@ test("WP-ROADMAP-TS-UNMEASURED-OBS: Observador TS com premissas não medidas (DS
   app.destroy();
 });
 
-test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funções de Pertinência TS", async () => {
+test("WP-PHASE4-03-F8: Vértices editáveis no Workspace (Politópico ilimitado e TS) e Funções de Pertinência TS refletidos no CanonicalSDPProblem", async () => {
   type CapturedProblem = {
     blocks: Array<{
       name: string;
@@ -1196,48 +1223,27 @@ test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funçõ
   await app.client.init();
   app.shell.switchTab("optimization_lmi");
 
-  // 1. Polytopic mode: edit A[1] and B[1] (idx=0) and verify invalid syntax marking + resize preservation + compiled problem
+  // 1. Polytopic mode via Workspace Modal: edit A[1] and B[1] (idx=0), create system, solve and verify compiled SDP
+  root.querySelector("#btn-open-new-object-modal")!.dispatchEvent("click");
+  root.querySelector("#btn-new-mode-polytopic")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-poly-id")!.value = "poly-edited-1";
+  const polyA1 = root.querySelector<FakeElement>('input[data-poly-idx="0"][data-poly-mat="A"]')!;
+  const polyB1 = root.querySelector<FakeElement>('input[data-poly-idx="0"][data-poly-mat="B"]')!;
+  assert.ok(polyA1 !== null && polyB1 !== null);
+  polyA1.value = "[[0, 1], [-7.5, -3.25]]";
+  polyA1.dispatchEvent("input");
+  polyB1.value = "[[0], [2.5]]";
+  polyB1.dispatchEvent("change");
+  root.querySelector("#btn-new-poly-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+
   const tplSelect = root.querySelector<FakeElement>("#lmi-template-select")!;
   tplSelect.value = "polytopic_robust";
   tplSelect.dispatchEvent("change");
-
-  const polyA1 = root.querySelector<FakeElement>('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="A"]')!;
-  const polyB1 = root.querySelector<FakeElement>('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="B"]')!;
-  assert.ok(polyA1 !== null && polyB1 !== null);
-
-  // Invalid syntax marks aria-invalid="true" and .lmi-input-invalid without overwriting value
-  polyA1.value = "[[0, 1], [-5";
-  polyA1.dispatchEvent("input");
-  assert.equal(polyA1.getAttribute("aria-invalid"), "true");
-  assert.ok(polyA1.className.includes("lmi-input-invalid"));
-  assert.equal(polyA1.value, "[[0, 1], [-5");
-
-  // Valid edit to A[1] and B[1]
-  polyA1.value = "[[0, 1], [-7.5, -3.25]]";
-  polyA1.dispatchEvent("input");
-  assert.equal(polyA1.getAttribute("aria-invalid"), null);
-  assert.equal(polyA1.className.includes("lmi-input-invalid"), false);
-
-  polyB1.value = "[[0], [2.5]]";
-  polyB1.dispatchEvent("change");
-
-  // Resize N_v from 2 -> 3 preserves edited vertex 0 and initializes vertex 2 from active plant
-  const nvInput = root.querySelector<FakeElement>("#lmi-poly-vertices-count")!;
-  nvInput.value = "3";
-  nvInput.dispatchEvent("change");
-  const polyA1AfterResize = root.querySelector<FakeElement>('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="A"]')!;
-  assert.equal(polyA1AfterResize.value, "[[0, 1], [-7.5, -3.25]]");
-  const polyA3 = root.querySelector<FakeElement>('input[data-vertex-kind="poly"][data-vertex-idx="2"][data-vertex-mat="A"]')!;
-  assert.ok(polyA3 !== null);
-
-  // Restore N_v=2 and solve to verify compiled CanonicalSDPProblem reflects edited A[1] & B[1]
-  nvInput.value = "2";
-  nvInput.dispatchEvent("change");
   root.querySelector('[data-action="lmi-solve"]')!.dispatchEvent("click");
   await new Promise((r) => setTimeout(r, 20));
 
   assert.equal(capturedProblems.length, 1);
-  // In He(A[1]*Q + B[1]*Y) < 0, F_k_sparse for Y[0] (var_id=3, row=0 of Y -> [1, 0]) has -B[1] = [[0], [-2.5]]
   const polyBlock = capturedProblems[0].blocks[1];
   assert.ok(
     Object.values(polyBlock.F_k_sparse).some((entries) =>
@@ -1245,29 +1251,60 @@ test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funçõ
     ),
     "Esperado B[1]=[0; 2.5] refletido em F_k_sparse do CanonicalSDPProblem politópico",
   );
-  // And F_k_sparse['0'] for Q00 (var_id=0, Q=[[1,0],[0,0]]) has -He(A[1]*E_00) -> off-diagonal -(-7.5) = 7.5
   assert.ok(
     (polyBlock.F_k_sparse["0"] ?? []).some(([, , val]) => Math.abs(val - 7.5) < 1e-9),
     "Esperado A[1][1][0]=-7.5 refletido em F_k_sparse['0'] do CanonicalSDPProblem politópico",
   );
 
-  // 2. Takagi-Sugeno mode: edit A[1]/B[1] in #lmi-ts-vertex-editor and verify compiled problem
-  tplSelect.value = "ts_pdc_relaxed";
-  tplSelect.dispatchEvent("change");
+  // 2. Edit the same polytopic system via #btn-lmi-edit-system-workspace to expand to 10 vertices -> 11 compiled blocks
+  root.querySelector("#btn-lmi-edit-system-workspace")!.dispatchEvent("click");
+  for (let k = 0; k < 8; k += 1) {
+    root.querySelector("#btn-new-poly-add-vertex")!.dispatchEvent("click");
+  }
+  root.querySelector("#btn-new-poly-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(root.querySelector<FakeElement>("#lmi-workspace-system-select")!.value, "poly-edited-1#2");
+  root.querySelector('[data-action="lmi-sync-dsl"]')!.dispatchEvent("click");
+  root.querySelector('[data-action="lmi-solve"]')!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(capturedProblems.length, 2);
+  assert.equal(capturedProblems[1].blocks.length, 11, "10 vértices politópicos devem compilar Q>0 + 10 blocos = 11 blocos SDP");
 
-  const tsA1 = root.querySelector<FakeElement>('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')!;
-  const tsB1 = root.querySelector<FakeElement>('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="B"]')!;
-  assert.ok(tsA1 !== null && tsB1 !== null);
+  // 3. Takagi-Sugeno via Workspace Modal: edit A[1]/B[1], validate h_i(z) convexity & compile
+  root.querySelector("#btn-open-new-object-modal")!.dispatchEvent("click");
+  root.querySelector("#btn-new-mode-ts")!.dispatchEvent("click");
+  root.querySelector<FakeElement>("#new-ts-id")!.value = "ts-edited-1";
+
+  const tsA1 = root.querySelector<FakeElement>('input[data-ts-rule-idx="0"][data-ts-rule-mat="A"]')!;
+  const tsB1 = root.querySelector<FakeElement>('input[data-ts-rule-idx="0"][data-ts-rule-mat="B"]')!;
   tsA1.value = "[[0, 1], [-9.25, -4]]";
   tsA1.dispatchEvent("input");
   tsB1.value = "[[0], [3.5]]";
   tsB1.dispatchEvent("input");
 
+  // Add second premise & test live convexity invalid -> valid
+  root.querySelector("#btn-new-ts-add-premise")!.dispatchEvent("click");
+  const premName1 = root.querySelector<FakeElement>('input[data-ts-premise-field="name"][data-ts-premise-idx="1"]')!;
+  premName1.value = "theta_2";
+  premName1.dispatchEvent("input");
+  root.querySelector("#btn-new-ts-add-mf")!.dispatchEvent("click");
+  const mfExpr2 = root.querySelector<FakeElement>('input[data-ts-mf-field="expression"][data-ts-mf-idx="2"]')!;
+  mfExpr2.value = "theta_2 * 0.25";
+  mfExpr2.dispatchEvent("input");
+  assert.ok(root.querySelector("#new-ts-mf-validation")!.textContent.includes("Inválido"));
+  root.querySelector<FakeElement>('[data-action="new-ts-remove-mf"][data-ts-mf-idx="2"]')!.dispatchEvent("click");
+  assert.ok(root.querySelector("#new-ts-mf-validation")!.textContent.includes("Soma convexa válida"));
+
+  root.querySelector("#btn-new-ts-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
+
+  tplSelect.value = "ts_pdc_relaxed";
+  tplSelect.dispatchEvent("change");
   root.querySelector('[data-action="lmi-solve"]')!.dispatchEvent("click");
   await new Promise((r) => setTimeout(r, 20));
 
-  assert.equal(capturedProblems.length, 2);
-  const tsBlock = capturedProblems[1].blocks[1];
+  assert.equal(capturedProblems.length, 3);
+  const tsBlock = capturedProblems[2].blocks[1];
   assert.ok(
     (tsBlock.F_k_sparse["0"] ?? []).some(([, , val]) => Math.abs(val - 9.25) < 1e-9),
     "Esperado A[1][1][0]=-9.25 refletido no CanonicalSDPProblem TS",
@@ -1278,53 +1315,6 @@ test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funçõ
     ),
     "Esperado B[1]=[0; 3.5] refletido no CanonicalSDPProblem TS",
   );
-
-  // 3. TS Analytical Weighting Functions editor (#lmi-ts-mf-editor) & Premise Universe [z_min, z_max]:
-  assert.equal(root.querySelector("#btn-lmi-import-fuzzy"), null);
-
-  const toggle0 = root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!;
-  toggle0.dispatchEvent("click");
-  assert.equal(
-    root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!.textContent,
-    "Não Medida (Estimada)",
-  );
-
-  // Add a second premise and edit its name and universe [z_min, z_max]
-  root.querySelector("#btn-lmi-add-ts-premise")!.dispatchEvent("click");
-  const premName1 = root.querySelector<FakeElement>('input[data-premise-field="name"][data-premise-idx="1"]')!;
-  const premMin1 = root.querySelector<FakeElement>('input[data-premise-field="min"][data-premise-idx="1"]')!;
-  const premMax1 = root.querySelector<FakeElement>('input[data-premise-field="max"][data-premise-idx="1"]')!;
-  assert.ok(premName1 !== null && premMin1 !== null && premMax1 !== null);
-  premName1.value = "theta_2";
-  premName1.dispatchEvent("input");
-  premMin1.value = "0";
-  premMin1.dispatchEvent("input");
-  premMax1.value = "2";
-  premMax1.dispatchEvent("input");
-
-  // Add a third h_3(z) function -> initially "0" (valid sum since h1+h2=1), then edit to invalid "-0.5"
-  root.querySelector("#btn-lmi-add-ts-mf")!.dispatchEvent("click");
-  const mfExpr2 = root.querySelector<FakeElement>('input[data-mf-field="expression"][data-mf-idx="2"]')!;
-  assert.ok(mfExpr2 !== null);
-
-  mfExpr2.value = "theta_2 * 0.25";
-  mfExpr2.dispatchEvent("input");
-  const mfSummaryText = root.querySelector("#lmi-ts-mf-summary")!.textContent;
-  assert.ok(mfSummaryText.includes("h₃(z) = theta_2 * 0.25"), `Resumo inesperado: ${mfSummaryText}`);
-
-  const validationInvalid = root.querySelector("#lmi-ts-mf-validation")!.textContent;
-  assert.ok(validationInvalid.includes("Inválido"), `Esperado inválido quando soma != 1, obtido: ${validationInvalid}`);
-
-  // Premise 0 should still be unmeasured
-  assert.equal(
-    root.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!.textContent,
-    "Não Medida (Estimada)",
-  );
-
-  // Remove the added MF row -> back to h1 + h2 = 1 -> valid
-  root.querySelector<FakeElement>('[data-action="lmi-remove-ts-mf"][data-mf-idx="2"]')!.dispatchEvent("click");
-  assert.equal(root.querySelector('input[data-mf-field="expression"][data-mf-idx="2"]'), null);
-  assert.ok(root.querySelector("#lmi-ts-mf-validation")!.textContent.includes("Soma convexa válida"));
 
   app.destroy();
 });
@@ -1462,27 +1452,37 @@ test("WP-ROADMAP-CTRLAB-LMI-PERSISTENCE: roundtrip .ctrlab preserva e restaura e
 
   app1.shell.switchTab("optimization_lmi");
 
-  // 1. Mudar para Takagi-Sugeno, editar A[1], h_1(z), premissas [z_min, z_max], unmeasured + dA/dC, extraIndices e DSL customizada
-  const sysClassEl = root1.querySelector<FakeElement>("#lmi-sys-class-select")!;
-  sysClassEl.value = "ts";
-  sysClassEl.dispatchEvent("change");
+  // 1. Criar planta generalizada e sistema Takagi-Sugeno não medido no Workspace Dock
+  root1.querySelector("#btn-open-new-object-modal")!.dispatchEvent("click");
+  root1.querySelector("#btn-new-mode-ss")!.dispatchEvent("click");
+  root1.querySelector<FakeElement>("#new-ss-id")!.value = "ss-gen-persist";
+  const cbW1 = root1.querySelector<FakeElement>("#new-ss-enable-w")!;
+  cbW1.checked = true;
+  cbW1.dispatchEvent("change");
+  root1.querySelector<FakeElement>("#new-ss-bw")!.value = "[[0], [3]]";
+  root1.querySelector("#btn-new-ss-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
 
-  const tsA1 = root1.querySelector<FakeElement>('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')!;
+  root1.querySelector("#btn-open-new-object-modal")!.dispatchEvent("click");
+  root1.querySelector("#btn-new-mode-ts")!.dispatchEvent("click");
+  root1.querySelector<FakeElement>("#new-ts-id")!.value = "ts-persist-1";
+  const tsA1 = root1.querySelector<FakeElement>('input[data-ts-rule-idx="0"][data-ts-rule-mat="A"]')!;
   tsA1.value = "[[0, 1], [-8.75, -3.25]]";
   tsA1.dispatchEvent("input");
-
-  const mf0 = root1.querySelector<FakeElement>('input[data-mf-field="expression"][data-mf-idx="0"]')!;
+  const mf0 = root1.querySelector<FakeElement>('input[data-ts-mf-field="expression"][data-ts-mf-idx="0"]')!;
   mf0.value = "(1 + cos(z1)) / 2";
   mf0.dispatchEvent("input");
-
-  const premMin0 = root1.querySelector<FakeElement>('input[data-premise-field="min"][data-premise-idx="0"]')!;
+  const premMin0 = root1.querySelector<FakeElement>('input[data-ts-premise-field="min"][data-ts-premise-idx="0"]')!;
   premMin0.value = "-2.5";
   premMin0.dispatchEvent("input");
-  const premMax0 = root1.querySelector<FakeElement>('input[data-premise-field="max"][data-premise-idx="0"]')!;
+  const premMax0 = root1.querySelector<FakeElement>('input[data-ts-premise-field="max"][data-ts-premise-idx="0"]')!;
   premMax0.value = "2.5";
   premMax0.dispatchEvent("input");
-
-  root1.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!.dispatchEvent("click");
+  const premCb0 = root1.querySelector<FakeElement>('input[data-ts-premise-field="measured"][data-ts-premise-idx="0"]')!;
+  premCb0.checked = false;
+  premCb0.dispatchEvent("change");
+  root1.querySelector("#btn-new-ts-submit")!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 30));
 
   const daEl = root1.querySelector<FakeElement>("#lmi-ts-obs-da")!;
   daEl.value = "[[[0, 0.35], [0, 0]], [[0, -0.35], [0, 0]]]";
@@ -1513,7 +1513,7 @@ test("WP-ROADMAP-CTRLAB-LMI-PERSISTENCE: roundtrip .ctrlab preserva e restaura e
   assert.ok(exported.bytes.length > 0);
   app1.destroy();
 
-  // 3. Montar app totalmente nova (LmiView limpa) e importar .ctrlab
+  // 3. Montar app totalmente nova (LmiView e Workspace limpos) e importar .ctrlab
   const client2 = new RealPythonRoundtripClient();
   const doc2 = new FakeDocument();
   const root2 = doc2.createElement("div");
@@ -1524,34 +1524,25 @@ test("WP-ROADMAP-CTRLAB-LMI-PERSISTENCE: roundtrip .ctrlab preserva e restaura e
   });
   await app2.client.init();
 
-  // Antes do import, não está em 'ts'
-  assert.notEqual(root2.querySelector<FakeElement>("#lmi-sys-class-select")!.value, "ts");
+  assert.notEqual(root2.querySelector<FakeElement>("#lmi-workspace-system-select")!.value, "ts-persist-1#1");
 
   await app2.shell.importCtrlLab(exported.bytes);
   app2.shell.switchTab("optimization_lmi");
 
-  // 4. Verificar restauração 100% fiel de toda a Aba 6
-  assert.equal(root2.querySelector<FakeElement>("#lmi-sys-class-select")!.value, "ts");
-  assert.equal(
-    root2.querySelector<FakeElement>('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')!.value,
-    "[[0, 1], [-8.75, -3.25]]",
+  // 4. Verificar restauração 100% fiel dos objetos Workspace (TSStateSpace + SS generalizado) e Aba 6
+  const typed2 = app2.shell.getTypedWorkspace();
+  const restoredGen = typed2.listRegisteredObjects(["StateSpace"]).find((o) => o.id === "ss-gen-persist");
+  assert.ok(restoredGen !== undefined, "StateSpace generalizado deve ser restaurado no Workspace");
+  assert.deepEqual(
+    ((restoredGen!.value.provenance as Record<string, unknown>).generalized_channels as Record<string, unknown>).Bw,
+    [[0], [3]],
   );
-  assert.equal(
-    root2.querySelector<FakeElement>('input[data-mf-field="expression"][data-mf-idx="0"]')!.value,
-    "(1 + cos(z1)) / 2",
-  );
-  assert.equal(
-    root2.querySelector<FakeElement>('input[data-premise-field="min"][data-premise-idx="0"]')!.value,
-    "-2.5",
-  );
-  assert.equal(
-    root2.querySelector<FakeElement>('input[data-premise-field="max"][data-premise-idx="0"]')!.value,
-    "2.5",
-  );
-  assert.equal(
-    root2.querySelector<FakeElement>('[data-action="lmi-toggle-premise"][data-premise-idx="0"]')!.textContent,
-    "Não Medida (Estimada)",
-  );
+  const restoredTs = typed2.listRegisteredObjects(["ts_partially_observed"]).find((o) => o.id === "ts-persist-1");
+  assert.ok(restoredTs !== undefined, "TSStateSpace deve ser restaurado no Workspace");
+
+  assert.equal(root2.querySelector<FakeElement>("#lmi-workspace-system-select")!.value, "ts-persist-1#1");
+  assert.equal(root2.querySelector<FakeElement>("#lmi-ts-unmeasured-panel")!.hasAttribute("hidden"), false);
+  assert.ok(root2.querySelector<FakeElement>("#lmi-selected-system-summary")!.textContent.includes("-2.5, 2.5"));
   assert.equal(
     root2.querySelector<FakeElement>("#lmi-ts-obs-da")!.value,
     "[[[0, 0.35], [0, 0]], [[0, -0.35], [0, 0]]]",

@@ -17,7 +17,7 @@ Embora todas as funcionalidades numéricas, contratos RPC e invariantes científ
 3. **Entrada de dados pouco ergonômica:** Estruturas matriciais, funções de transferência e séries temporais exigiram inicialmente entrada via JSON bruto ou tabelas genéricas sem fluxo guiado, quando um aluno ou pesquisador espera editores visuais diretos (`num(s)/den(s)`, grade matricial `A, B, C, D`, importação CSV com pré-visualização e presets prontos).
 4. **Desconexão com o modelo mental clássico de Controle:** Quem usa ferramentas de laboratório espera o fluxo de sessão de dados/modelos do `ident`, a visão de malha fechada + 4 gráficos sincronizados do `sisotool`, e a clareza visual imediata (canvas + gráficos exportáveis) do Laboratório Fuzzy Legado.
 
-### 1.2 Os 4 Pilares do Novo Design
+### 1.2 Os 5 Pilares do Novo Design (atualizado pela ADR-014)
 
 | Pilar | Regra Prática de Interface | Alinhamento com `CL-DIR-001` |
 |---|---|---|
@@ -25,6 +25,7 @@ Embora todas as funcionalidades numéricas, contratos RPC e invariantes científ
 | **2. Divulgação Progressiva (3 Zonas)** | O workspace é dividido em: **(A) Workspace Dock** à esquerda (dados, plantas, controladores), **(B) Bancada Ativa** no centro, e **(C) Inspetor Técnico (R-27 / JSON)** recolhido por padrão à direita. | Atende R-27 (proveniência e resíduos sempre acessíveis) sem poluir o trabalho cotidiano. |
 | **3. Linguagem de Engenharia** | Botões, títulos e badges usam vocabulário de sistemas de controle em português técnico claro. Schemas JSON e payloads RPC ficam em modais secundários ("Importar/Exportar JSON…") ou no Inspetor R-27. | Garante R-02 (transparência de limites e heurísticas) sem jargão de código. |
 | **4. Rigor Científico Inegociável** | Separação explícita entre *Previsão 1-Passo* e *Simulação Livre*, *Atraso Exato* e *Padé*, overlays `[Heurístico]`, travamento de exportação durante arraste (`R-23`), e acessibilidade WCAG 2.2 AA (`R-26`). | 100% compatível com os contratos em [`web/app/shell.ts`](../../web/app/shell.ts). |
+| **5. Definição Centralizada de Sistemas no Workspace (Workspace-First — [ADR-014](ADR-014-workspace-centralized-system-definition.md))** | Toda criação e edição de sistemas dinâmicos (`TransferFunction`, `StateSpace` Linear/Generalizada com `Bw/Dyw/Cz/Dzu/Dzw`, `polytopic_uncertain` com vértices ilimitados e `ts_measured`/`ts_partially_observed` com regras, premissas `[z_min, z_max]` e funções analíticas $h_i(z)$ ilimitadas) ocorre exclusivamente no **Workspace Dock** (`+ Novo` / `Editar`). As Abas 1–6 selecionam sistemas do Workspace e concentram estritamente parâmetros de análise e projeto, com atalhos de 1 clique (`Editar Sistema no Workspace…` / `Editar Planta no Workspace…`). | Garante fonte única de verdade (SSOT), imutabilidade por `revision`, conformidade com `state_space.schema.json` / `ts_state_space.schema.json` e persistência round-trip `.ctrlab` (R-03, R-26, R-27). |
 
 ---
 
@@ -83,8 +84,13 @@ Nenhuma string técnica interna do protocolo ou da suíte de QA deve aparecer co
 3. **Workspace Dock (Coluna Esquerda, 256 px, recolhível):**
    - Substitui o atual `typed-workspace-panel` pesado no topo das telas.
    - Mantém os ativos da sessão sempre à mão, divididos em 3 grupos: **Séries Temporais (Dados)**, **Plantas & Modelos** e **Controladores Projetados**.
-   - Cada item exibe representação legível (ex.: `G(s) = 1 / (s + 1)`, `FIT 99.9% • dt=0.05s`, `K = [2.000, 3.000]`) e ações rápidas contextuais (`→ SISO`, `→ SS/LQR`, `→ MIMO`, `→ LMIs`).
-   - Botão `+ Novo` abre um modal único e guiado para criar planta (`TF` por numerador/denominador ou polos/zeros, `State-Space` por grade matricial, ou importação `CSV`/`JSON`).
+   - Cada item exibe representação legível (ex.: `G(s) = 1 / (s + 1)`, `FIT 99.9% • dt=0.05s`, `Politópico N vértices`, `TS N regras`, `K = [2.000, 3.000]`) e ações rápidas contextuais (`Editar`, `→ SISO`, `→ SS/LQR`, `→ MIMO`, `→ LMIs`).
+   - Botão `+ Novo` (e o botão `Editar` de cada planta/sistema, conforme **Pilar 5 / ADR-014**) abre o modal unificado `#workspace-new-object-modal` para criar ou versionar (`revision + 1`):
+     - `TransferFunction` (`num/den` + `dt`);
+     - `StateSpace` Linear ou **Planta Generalizada** (canais `Bw, Dyw, Cz, Dzu, Dzw` em `provenance.generalized_channels`);
+     - `polytopic_uncertain` com **número ilimitado de vértices** $(A_i, B_i, C_i, D_i)$ (sem teto artificial de 8 vértices) e gerador opcional $\pm\delta\%$;
+     - `ts_measured` / `ts_partially_observed` com **número ilimitado de regras locais** $(A_i, B_i, C_i, D_i)$, premissas $[z_{\min}, z_{\max}]$ medidas vs. não medidas e funções analíticas de ponderação setorial $h_i(z)$ com validador convexo determinístico (sem `eval`);
+     - `Dataset` (importação CSV/tabular e particionamento cronológico treino/holdout).
 4. **Inspetor Técnico R-27 (Gaveta Direita, 320 px, fechada por padrão):**
    - Concentra tudo o que é auditoria científica avançada e depuração: `rCARE`, `simetria(P)`, condição numérica $\kappa$, hashes SHA-256, `project_revision`, backend utilizado (`scipy` / solver SDP nativo) e visualizador/copiador do JSON canônico.
 
@@ -202,7 +208,8 @@ flowchart LR
 ```
 
 **Regras específicas de interface e rigor científico:**
-- **Editor matricial com abas (`A | B | C | D` e `Q | R | x0`):** Em vez de despejar 6 tabelas grandes na tela, as abas alternam a matriz editada (ou mostram `A` e `B` lado a lado quando $n \le 4$), mantendo ajuste dinâmico de dimensões $(n, m, p)$.
+- **Integração Workspace-First (ADR-014):** A barra superior `#ss-workspace-plant-bar` identifica a planta ativa do Workspace (com dimensões `n, m, p`, domínio contínuo/discreto e selo `Generalizada` quando aplicável) e oferece atalhos diretos de 1 clique **`Editar Planta no Workspace…`** (`#btn-ss-edit-plant-workspace`, abrindo o modal `#workspace-new-object-modal` pré-preenchido em modo edição) e **`+ Nova Planta`** (`#btn-ss-new-plant-workspace`). A bancada destaca os parâmetros de projeto da aba (`Q, R, x0`, método CARE/DARE, observador/LQG e comparador de experimentos).
+- **Editor matricial com abas (`A | B | C | D` e `Q | R | x0`):** Em vez de despejar 6 tabelas grandes na tela, as abas alternam a matriz editada (ou mostram `A` e `B` lado a lado quando $n \le 4$), mantendo ajuste dinâmico de dimensões $(n, m, p)$ e foco nos pesos de projeto `Q | R | x0`.
 - **Modal JSON opcional e documentado:** O botão `JSON…` abre um modal limpo com o formato exato esperado (`{"A": [[...]], "B": [[...]], "C": [[...]], "D": [[...]], "dt": null}`), validação imediata de dimensão e botão "Aplicar".
 - **Convenção explícita de sinal (`negative` vs `positive`):** Seletor visível entre `Realimentação Negativa: u = -Kx (A - BK)` e `Positiva: u = +Kx (A + BK)`, além do método `CARE (Contínuo)` / `DARE (Discreto)`.
 - **Exportação `.pvm` guiada:** Um único botão `"Exportar Controlador .pvm"` abre o modal de exportação PathView validando o bloqueio R-23 e permitindo selecionar controlador LQR estático ou dinâmico.
@@ -292,14 +299,15 @@ flowchart LR
 ```
 
 **Regras específicas de UX, segurança e rigor científico:**
+- **Integração Workspace-First (ADR-014):** A Aba 6 não duplica editores de sistema nem impõe tetos artificiais de vértices/regras. Em vez disso, o painel `#lmi-system-characterization-card` seleciona qualquer sistema do Workspace via **`#lmi-workspace-system-select`** (LTI, Planta Generalizada, Politópico Incerto ou Takagi-Sugeno), exibe resumo somente leitura em **`#lmi-selected-system-summary`** e fornece atalhos de 1 clique **`Editar Sistema no Workspace…`** (`#btn-lmi-edit-system-workspace`) e **`+ Novo Sistema`** (`#btn-lmi-new-system-workspace`). Permanecem na Aba 6 estritamente os controles de projeto LMI: conjuntos de índices da DSL (`i, j, k`), painel de observador TS para premissas não medidas (`#lmi-ts-unmeasured-panel` com perturbações `dA[k]`/`dC[k]`), editor DSL v2.0, compilador direto, solver SDP com cancelamento e certificado 5D.
 - **Template inicial ao abrir a primeira vez:** O editor abre pré-preenchido com um template comentado (ex.: estabilização quadrática com decaimento $\alpha$), ensinando a sintaxe na prática (`var Q sym(n)`, `var Y rect(m, n)`, `bmat([[...],[...]])`, `recover K = Y * inv(Q)`). Outros templates (Quadrática, Disco $D$-estável, $H_\infty$ BRL, TS/PDC) podem ser carregados no seletor do topo.
 - **Salvar e carregar condições:** O usuário pode salvar scripts nomeados na sessão local (`IndexedDB` / projeto `.ctrlab`) e exportar/importar arquivos `.lmi` passivos (texto estruturado / JSON).
 - **Interpretador matemático legível (parser declarativo seguro, sem `eval`):**
   1. Um analisador léxico/sintático puro (em TypeScript na pré-visualização e compilado na camada [`control_lab/optimization/modeling/dsl.py`](../../control_lab/optimization/modeling/dsl.py) sem uso de `eval`/`exec`, preservando a política `IMPORT_UNTRUSTED_CODE`) traduz cada linha para notação matricial limpa (`A'` → `Aᵀ`, `< 0` → `≺ 0`, `bmat(...)` → grade visual de blocos).
-  2. Lista variáveis e dimensões inferidas a partir da planta ativa (`A`, `B`, `C`, `D` do Workspace).
+  2. Lista variáveis e dimensões inferidas a partir do sistema selecionado no Workspace (`A`, `B`, `C`, `D`, canais generalizados `Bw/Dyw/Cz/Dzu/Dzw` e vértices/regras `A[i], B[i], C[i], D[i]`).
   3. **Detecção pedagógica de não-linearidade (BMI):** Se o usuário escrever um termo bilinear como `K*Q`, a interface sinaliza imediatamente que o termo não é afim e sugere a mudança de variáveis $Y = KQ$ com `recover K = Y * inv(Q)`.
 - **Nunca mascarar resultado inconclusivo:** Se `audit_feasibility` divergir de `solver_status` (ex.: `numerical_inconclusive`), um banner de alerta sugere imediatamente reescalonamento ou o botão **"Exportar Script CVXPY / YALMIP (Python/MATLAB)"** para execução externa com MOSEK/SCS/SDPT3.
-- **Limites declarados visivelmente:** Quando a planta selecionada exceder o envelope do motor WebAssembly ($n > 12$ estados ou $> 128$ variáveis), o botão de resolução informa o limite antes do disparo e oferece a exportação offline como rota principal.
+- **Limites declarados visivelmente:** Quando o problema compilado exceder o envelope do motor WebAssembly (`BROWSER_ENVELOPE`), o banner informa o limite antes do disparo e mantém a exportação offline CVXPY/YALMIP como rota principal.
 
 ---
 

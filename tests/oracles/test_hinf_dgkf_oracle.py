@@ -18,6 +18,7 @@ Zero internal helpers from `control_lab.frequency.mimo.synthesis` are imported o
 
 from __future__ import annotations
 
+import importlib.util
 import math
 from typing import Any
 
@@ -252,7 +253,12 @@ def _verify_brl_lmi_via_clarabel(
         name="independent_hinf_brl_oracle",
     )
 
-    sdp_res = solve(prob, backend="clarabel_direct", verify_solution=True, raise_on_error=True)
+    try:
+        has_clarabel = importlib.util.find_spec("clarabel") is not None
+    except (ValueError, ModuleNotFoundError):
+        has_clarabel = False
+    backend = "clarabel_direct" if has_clarabel else "native_primal_dual"
+    sdp_res = solve(prob, backend=backend, verify_solution=True, raise_on_error=True)
     assert sdp_res.data is not None
 
     P_s_val = tensor_to_array(sdp_res.data["variables"]["P_brl"], expected_ndim=2)

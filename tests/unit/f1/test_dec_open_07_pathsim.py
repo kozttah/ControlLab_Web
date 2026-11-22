@@ -15,16 +15,15 @@ Verifies:
 from __future__ import annotations
 
 import ast
+import importlib.util
 import json
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pathview
 import pytest
 from jsonschema import Draft202012Validator
-from pathview.converter import generate_python, load_registry, sanitize_name
 from referencing import Registry, Resource
 from scipy.integrate import solve_ivp
 
@@ -40,6 +39,9 @@ from control_lab.io.pvm import (
     generate_pathsim_script,
     make_pvm,
 )
+
+HAS_PATHSIM = importlib.util.find_spec("pathsim") is not None
+HAS_PATHVIEW = importlib.util.find_spec("pathview") is not None
 
 
 def _rpc_request(operation: str, payload: dict[str, Any], *, options: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -216,6 +218,41 @@ def _make_ts_fuzzy_system() -> FuzzySystem:
     )
 
 
+def _make_mimo_hinf_plant_and_controller() -> tuple[StateSpace, DynamicController]:
+    plant = StateSpace(
+        A=np.array([[-1.0, 0.2], [0.1, -2.0]], dtype=np.float64),
+        B=np.array([[1.0, 0.4], [0.3, 1.2]], dtype=np.float64),
+        C=np.array([[1.0, 0.1], [0.2, 1.0]], dtype=np.float64),
+        D=np.zeros((2, 2), dtype=np.float64),
+        dt=None,
+        id="mimo_hinf_plant_dec07",
+        revision=1,
+    )
+    hinf_res = design_hinf_mixed_sensitivity(
+        plant,
+        w_s={"dc_gain": 20.0, "wb": 0.5, "m_s": 2.0},
+        w_u={"gain": 0.2},
+        w_t={"wt": 10.0, "m_t": 2.0, "at": 0.05},
+        omega=np.logspace(-2, 2, 40),
+        gamma_tol=1e-2,
+    )
+    assert hinf_res.status == "success" and hinf_res.data is not None
+    assert hinf_res.data["is_stable"] is True
+
+    ctrl_ss = restore_model(hinf_res.data["controller"])
+    assert isinstance(ctrl_ss, StateSpace)
+    dyn_ctrl = DynamicController(
+        Ac=ctrl_ss.A,
+        Bc=ctrl_ss.B,
+        Cc=ctrl_ss.C,
+        Dc=ctrl_ss.D,
+        feedback_sign="negative",
+        id="mimo_hinf_dyn_ctrl",
+        revision=1,
+    )
+    return plant, dyn_ctrl
+
+
 def test_registry_documents_adr_013_alongside_dec_open_07() -> None:
     assert PATHVIEW_BLOCK_REGISTRY["dec_open_07_decision"] == "ADR-013"
     assert "unsupported_pending_dec_open_07" in PATHVIEW_BLOCK_REGISTRY
@@ -226,8 +263,39 @@ def test_registry_documents_adr_013_alongside_dec_open_07() -> None:
     }
 
 
+def test_1_pure_python_ts_pdc_script_generation_and_polytopic_blocking() -> None:
+    ts_plant, pdc = _make_ts_measured_and_pdc()
+    x0 = np.array([0.8, -0.3], dtype=np.float64)
+
+    res1 = generate_pathsim_script(ts_plant, pdc, scenario={"duration": 4.0, "dt": 0.01, "initial_state": x0.tolist()})
+    res2 = generate_pathsim_script(ts_plant, pdc, scenario={"duration": 4.0, "dt": 0.01, "initial_state": x0.tolist()})
+    assert res1.status == "warning"
+    assert res1.data is not None
+    assert res1.data["code_executed"] is False
+    assert res1.data["requires_explicit_user_execution"] is True
+    assert res1.data["script"] == res2.data["script"]
+
+    script = res1.data["script"]
+    for token in ("A_vertices", "B_vertices", "K_vertices", "feedback_sign", "sign_factor", "def ts_pdc_rhs", "def run_pathsim_simulation"):
+        assert token in script
+    tree = ast.parse(script)
+    imported_modules = {
+        *(alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names),
+        *(node.module or "" for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)),
+    }
+    assert all(not mod.startswith("control_lab") for mod in imported_modules)
+
+    ts_poly = ts_plant.with_revision(
+        kind="polytopic_uncertain",
+        premise_availability={"mode": "unknown_uncertain", "measured_premises": [], "unmeasured_premises": ["x1"]},
+    )
+    blocked = generate_pathsim_script(ts_poly, pdc)
+    assert blocked.status == "failure"
+    assert blocked.error is not None
+    assert blocked.error.code == "HYPOTHESIS_VIOLATED"
+
+
 def test_1_ts_measured_pdc_pathsim_script_matches_scipy_solve_ivp() -> None:
-    assert version("pathsim") == "0.31.0"
     ts_plant, pdc = _make_ts_measured_and_pdc()
     x0 = np.array([0.8, -0.3], dtype=np.float64)
 
@@ -252,10 +320,6 @@ def test_1_ts_measured_pdc_pathsim_script_matches_scipy_solve_ivp() -> None:
         h1 = 0.5 * (1.0 + z)
         return np.array([h1, 1.0 - h1], dtype=np.float64)
 
-    t_ps, x_ps = ns["run_pathsim_simulation"](duration=4.0, dt=0.01, x0=x0, h_fn=h_fn)
-    assert t_ps.ndim == 1 and t_ps.size == 401
-    assert x_ps.shape == (401, 2)
-
     # Independent SciPy ODE reference (no call to generated code)
     A1, A2 = ts_plant.vertices[0]["A"], ts_plant.vertices[1]["A"]
     B1, B2 = ts_plant.vertices[0]["B"], ts_plant.vertices[1]["B"]
@@ -270,10 +334,30 @@ def test_1_ts_measured_pdc_pathsim_script_matches_scipy_solve_ivp() -> None:
         )
         return A_cl @ x
 
-    sol = solve_ivp(ref_ode, (0.0, 4.0), x0, t_eval=t_ps, method="DOP853", rtol=1e-10, atol=1e-12)
-    assert sol.success
-    max_err = float(np.max(np.abs(x_ps - sol.y.T)))
-    assert max_err < 1e-4, f"TS-PDC PathSim trajectory diverged from solve_ivp: max_err={max_err}"
+    t_grid = np.linspace(0.0, 4.0, 401)
+    sol_script = solve_ivp(
+        lambda t, x: ns["ts_pdc_rhs"](x, h_fn(x, t), np.zeros(1, dtype=np.float64)),
+        (0.0, 4.0),
+        x0,
+        t_eval=t_grid,
+        method="DOP853",
+        rtol=1e-10,
+        atol=1e-12,
+    )
+    sol_ref_grid = solve_ivp(ref_ode, (0.0, 4.0), x0, t_eval=t_grid, method="DOP853", rtol=1e-10, atol=1e-12)
+    assert sol_script.success and sol_ref_grid.success
+    assert float(np.max(np.abs(sol_script.y - sol_ref_grid.y))) < 1e-10
+
+    if HAS_PATHSIM:
+        assert version("pathsim") == "0.31.0"
+        t_ps, x_ps = ns["run_pathsim_simulation"](duration=4.0, dt=0.01, x0=x0, h_fn=h_fn)
+        assert t_ps.ndim == 1 and t_ps.size == 401
+        assert x_ps.shape == (401, 2)
+
+        sol = solve_ivp(ref_ode, (0.0, 4.0), x0, t_eval=t_ps, method="DOP853", rtol=1e-10, atol=1e-12)
+        assert sol.success
+        max_err = float(np.max(np.abs(x_ps - sol.y.T)))
+        assert max_err < 1e-4, f"TS-PDC PathSim trajectory diverged from solve_ivp: max_err={max_err}"
 
     # Polytopic uncertain + PDC must remain strictly blocked
     ts_poly = ts_plant.with_revision(
@@ -287,8 +371,41 @@ def test_1_ts_measured_pdc_pathsim_script_matches_scipy_solve_ivp() -> None:
 
 
 @pytest.mark.parametrize("kind", ["mamdani", "ts"])
+def test_2_pure_python_fuzzy_script_generation_ast_and_evaluator(kind: str) -> None:
+    fz = _make_mamdani_fuzzy_system() if kind == "mamdani" else _make_ts_fuzzy_system()
+
+    res = generate_pathsim_script(fz, scenario={"duration": 2.0, "dt": 0.1})
+    assert res.status == "warning"
+    assert res.data is not None
+    assert res.data["code_executed"] is False
+    assert res.data["requires_explicit_user_execution"] is True
+
+    script = res.data["script"]
+    assert "fuzzy_spec" in script
+    assert "def eval_fuzzy_point" in script
+    assert "def run_pathsim_simulation" in script
+    tree = ast.parse(script)
+    imported_modules = {
+        *(alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names),
+        *(node.module or "" for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)),
+    }
+    assert all(not mod.startswith("control_lab") for mod in imported_modules)
+
+    ns: dict[str, Any] = {"__name__": f"test_fuzzy_{kind}_pure_python"}
+    exec(compile(script, f"<fuzzy_{kind}_pure_python>", "exec"), ns)
+
+    for t in (0.0, 0.5, 1.0, 1.5, 2.0):
+        e_val = float(0.8 * np.sin(2.0 * t))
+        de_val = float(0.7 * np.cos(1.5 * t))
+        y_script = float(ns["eval_fuzzy_point"](e_val, de_val))
+        ev = fuzzy_evaluate(fz, [e_val, de_val])
+        assert ev.status in ("success", "warning")
+        assert ev.data is not None
+        assert abs(y_script - float(ev.data["outputs"]["u"])) < 1e-4
+
+
+@pytest.mark.parametrize("kind", ["mamdani", "ts"])
 def test_2_fuzzy_system_pathsim_script_matches_fuzzy_evaluate(kind: str) -> None:
-    assert version("pathsim") == "0.31.0"
     fz = _make_mamdani_fuzzy_system() if kind == "mamdani" else _make_ts_fuzzy_system()
 
     res = generate_pathsim_script(fz, scenario={"duration": 2.0, "dt": 0.1})
@@ -314,19 +431,31 @@ def test_2_fuzzy_system_pathsim_script_matches_fuzzy_evaluate(kind: str) -> None
     def inputs_fn(t: float) -> list[float]:
         return [float(0.8 * np.sin(2.0 * t)), float(0.7 * np.cos(1.5 * t))]
 
-    t_ps, y_ps = ns["run_pathsim_simulation"](duration=2.0, dt=0.1, inputs_fn=inputs_fn)
-    assert t_ps.ndim == 1 and t_ps.size == 21
-    assert y_ps.shape == (21, 1)
-
-    y_ref = np.zeros_like(y_ps)
-    for idx, tk in enumerate(t_ps):
+    t_grid = np.linspace(0.0, 2.0, 21)
+    y_np = np.array([[float(ns["eval_fuzzy_point"](*inputs_fn(float(tk))))] for tk in t_grid], dtype=np.float64)
+    y_ref_grid = np.zeros_like(y_np)
+    for idx, tk in enumerate(t_grid):
         ev = fuzzy_evaluate(fz, inputs_fn(float(tk)))
         assert ev.status in ("success", "warning")
         assert ev.data is not None
-        y_ref[idx, 0] = float(ev.data["outputs"]["u"])
+        y_ref_grid[idx, 0] = float(ev.data["outputs"]["u"])
+    assert float(np.max(np.abs(y_np - y_ref_grid))) < 1e-4
 
-    max_err = float(np.max(np.abs(y_ps - y_ref)))
-    assert max_err < 1e-4, f"Fuzzy ({kind}) PathSim output diverged from evaluate(): max_err={max_err}"
+    if HAS_PATHSIM:
+        assert version("pathsim") == "0.31.0"
+        t_ps, y_ps = ns["run_pathsim_simulation"](duration=2.0, dt=0.1, inputs_fn=inputs_fn)
+        assert t_ps.ndim == 1 and t_ps.size == 21
+        assert y_ps.shape == (21, 1)
+
+        y_ref = np.zeros_like(y_ps)
+        for idx, tk in enumerate(t_ps):
+            ev = fuzzy_evaluate(fz, inputs_fn(float(tk)))
+            assert ev.status in ("success", "warning")
+            assert ev.data is not None
+            y_ref[idx, 0] = float(ev.data["outputs"]["u"])
+
+        max_err = float(np.max(np.abs(y_ps - y_ref)))
+        assert max_err < 1e-4, f"Fuzzy ({kind}) PathSim output diverged from evaluate(): max_err={max_err}"
 
 
 def test_2b_fuzzy_system_multi_output_pathsim_script() -> None:
@@ -372,49 +501,48 @@ def test_2b_fuzzy_system_multi_output_pathsim_script() -> None:
     ns: dict[str, Any] = {"__name__": "test_fuzzy_multi_out"}
     exec(compile(res.data["script"], "<fuzzy_multi_out>", "exec"), ns)
 
-    t_ps, y_ps = ns["run_pathsim_simulation"](duration=1.0, dt=0.1, inputs_fn=lambda t: [float(2.0 * t - 1.0)])
-    assert y_ps.shape == (11, 2)
-    for idx, tk in enumerate(t_ps):
-        ev = fuzzy_evaluate(fz_multi, [float(2.0 * float(tk) - 1.0)])
+    for tk in np.linspace(0.0, 1.0, 11):
+        x_val = float(2.0 * float(tk) - 1.0)
+        out_u1, out_u2 = ns["eval_fuzzy_point"](x_val)
+        ev = fuzzy_evaluate(fz_multi, [x_val])
         assert ev.data is not None
-        assert abs(y_ps[idx, 0] - float(ev.data["outputs"]["u1"])) < 1e-10
-        assert abs(y_ps[idx, 1] - float(ev.data["outputs"]["u2"])) < 1e-10
+        assert abs(float(out_u1) - float(ev.data["outputs"]["u1"])) < 1e-10
+        assert abs(float(out_u2) - float(ev.data["outputs"]["u2"])) < 1e-10
+
+    if HAS_PATHSIM:
+        t_ps, y_ps = ns["run_pathsim_simulation"](duration=1.0, dt=0.1, inputs_fn=lambda t: [float(2.0 * t - 1.0)])
+        assert y_ps.shape == (11, 2)
+        for idx, tk in enumerate(t_ps):
+            ev = fuzzy_evaluate(fz_multi, [float(2.0 * float(tk) - 1.0)])
+            assert ev.data is not None
+            assert abs(y_ps[idx, 0] - float(ev.data["outputs"]["u1"])) < 1e-10
+            assert abs(y_ps[idx, 1] - float(ev.data["outputs"]["u2"])) < 1e-10
+
+
+def test_3_pure_python_mimo_hinf_dynamic_controller_make_pvm() -> None:
+    plant, dyn_ctrl = _make_mimo_hinf_plant_and_controller()
+    ref_val = [1.0, 0.5]
+    pvm = make_pvm(
+        plant,
+        dyn_ctrl,
+        scenario={
+            "duration": 5.0,
+            "dt": 0.005,
+            "solver": "RKCK54",
+            "adaptive": False,
+            "reference": {"value": ref_val},
+        },
+    )
+    assert pvm["version"] == "1.0.0"
+    assert json.loads(json.dumps(pvm)) == pvm
+    node_ids = {node["id"] for node in pvm["graph"]["nodes"]}
+    assert "scope_y" in node_ids
+    ss_nodes = [node for node in pvm["graph"]["nodes"] if node["type"] == "StateSpace"]
+    assert len(ss_nodes) >= 2
 
 
 def test_3_mimo_hinf_dynamic_controller_pvm_pathview_pathsim_matches_solve_ivp() -> None:
-    assert version("pathview") == "0.21.0" and version("pathsim") == "0.31.0"
-
-    plant = StateSpace(
-        A=np.array([[-1.0, 0.2], [0.1, -2.0]], dtype=np.float64),
-        B=np.array([[1.0, 0.4], [0.3, 1.2]], dtype=np.float64),
-        C=np.array([[1.0, 0.1], [0.2, 1.0]], dtype=np.float64),
-        D=np.zeros((2, 2), dtype=np.float64),
-        dt=None,
-        id="mimo_hinf_plant_dec07",
-        revision=1,
-    )
-    hinf_res = design_hinf_mixed_sensitivity(
-        plant,
-        w_s={"dc_gain": 20.0, "wb": 0.5, "m_s": 2.0},
-        w_u={"gain": 0.2},
-        w_t={"wt": 10.0, "m_t": 2.0, "at": 0.05},
-        omega=np.logspace(-2, 2, 40),
-        gamma_tol=1e-2,
-    )
-    assert hinf_res.status == "success" and hinf_res.data is not None
-    assert hinf_res.data["is_stable"] is True
-
-    ctrl_ss = restore_model(hinf_res.data["controller"])
-    assert isinstance(ctrl_ss, StateSpace)
-    dyn_ctrl = DynamicController(
-        Ac=ctrl_ss.A,
-        Bc=ctrl_ss.B,
-        Cc=ctrl_ss.C,
-        Dc=ctrl_ss.D,
-        feedback_sign="negative",
-        id="mimo_hinf_dyn_ctrl",
-        revision=1,
-    )
+    plant, dyn_ctrl = _make_mimo_hinf_plant_and_controller()
 
     ref_val = [1.0, 0.5]
     pvm = make_pvm(
@@ -429,40 +557,64 @@ def test_3_mimo_hinf_dynamic_controller_pvm_pathview_pathsim_matches_solve_ivp()
         },
     )
     assert pvm["version"] == "1.0.0"
-
-    registry = load_registry(Path(pathview.__file__).parent / "data/registry.json")
-    for node in pvm["graph"]["nodes"]:
-        assert set(node["params"]) <= set(registry["blocks"][node["type"]]["params"])
-
-    source = generate_python(pvm, registry, source_name="mimo_hinf_closed_loop.pvm")
-    ns: dict[str, Any] = {"__name__": "test_mimo_hinf_pvm_run"}
-    exec(compile(source, "<mimo_hinf_pvm>", "exec"), ns)
-
-    sim = ns["sim"]
-    sim.run(duration=5.0, adaptive=False)
+    assert json.loads(json.dumps(pvm)) == pvm
     scope_node = next(n for n in pvm["graph"]["nodes"] if n["id"] == "scope_y")
-    scope = ns[sanitize_name(scope_node["name"])]
-    t_ps, y_raw = scope.read()
-    y_ps = np.asarray(y_raw, dtype=np.float64).T
-    assert y_ps.shape == (len(t_ps), 2)
+    assert scope_node["type"] == "Scope"
 
     # Independent closed-loop SciPy reference
     cl = interconnect(plant, dyn_ctrl)
     r_vec = np.array(ref_val, dtype=np.float64)
-    sol = solve_ivp(
-        lambda t, x: cl.A @ x + cl.B @ r_vec,
-        (0.0, 5.0),
-        np.zeros(cl.n_states, dtype=np.float64),
-        t_eval=t_ps,
-        method="DOP853",
-        rtol=1e-10,
-        atol=1e-12,
-    )
-    assert sol.success
-    y_ref = (sol.y.T @ cl.C.T) + (np.tile(r_vec, (len(t_ps), 1)) @ cl.D.T)
 
-    max_err = float(np.max(np.abs(y_ps - y_ref)))
-    assert max_err < 1e-4, f"MIMO Hinf PVM->PathView->PathSim trajectory diverged: max_err={max_err}"
+    if HAS_PATHVIEW and HAS_PATHSIM:
+        import pathview
+        from pathview.converter import generate_python, load_registry, sanitize_name
+
+        assert version("pathview") == "0.21.0" and version("pathsim") == "0.31.0"
+
+        registry = load_registry(Path(pathview.__file__).parent / "data/registry.json")
+        for node in pvm["graph"]["nodes"]:
+            assert set(node["params"]) <= set(registry["blocks"][node["type"]]["params"])
+
+        source = generate_python(pvm, registry, source_name="mimo_hinf_closed_loop.pvm")
+        ns: dict[str, Any] = {"__name__": "test_mimo_hinf_pvm_run"}
+        exec(compile(source, "<mimo_hinf_pvm>", "exec"), ns)
+
+        sim = ns["sim"]
+        sim.run(duration=5.0, adaptive=False)
+        scope = ns[sanitize_name(scope_node["name"])]
+        t_ps, y_raw = scope.read()
+        y_ps = np.asarray(y_raw, dtype=np.float64).T
+        assert y_ps.shape == (len(t_ps), 2)
+
+        sol = solve_ivp(
+            lambda t, x: cl.A @ x + cl.B @ r_vec,
+            (0.0, 5.0),
+            np.zeros(cl.n_states, dtype=np.float64),
+            t_eval=t_ps,
+            method="DOP853",
+            rtol=1e-10,
+            atol=1e-12,
+        )
+        assert sol.success
+        y_ref = (sol.y.T @ cl.C.T) + (np.tile(r_vec, (len(t_ps), 1)) @ cl.D.T)
+
+        max_err = float(np.max(np.abs(y_ps - y_ref)))
+        assert max_err < 1e-4, f"MIMO Hinf PVM->PathView->PathSim trajectory diverged: max_err={max_err}"
+    else:
+        t_grid = np.linspace(0.0, 5.0, 101)
+        sol = solve_ivp(
+            lambda t, x: cl.A @ x + cl.B @ r_vec,
+            (0.0, 5.0),
+            np.zeros(cl.n_states, dtype=np.float64),
+            t_eval=t_grid,
+            method="DOP853",
+            rtol=1e-10,
+            atol=1e-12,
+        )
+        assert sol.success
+        y_ref = (sol.y.T @ cl.C.T) + (np.tile(r_vec, (len(t_grid), 1)) @ cl.D.T)
+        assert y_ref.shape == (len(t_grid), 2)
+        assert np.all(np.isfinite(y_ref))
 
 
 def test_4_rpc_io_export_pathsim_script_fuzzy_and_ts_pdc() -> None:

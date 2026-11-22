@@ -38,6 +38,11 @@ import {
   type TimeResponseChartModel,
 } from "../../charts/scientific_chart.ts";
 import type { CanonicalStateSpaceModel } from "../lqr_workspace.ts";
+import { encodeObjectRefKey } from "../typed_workspace.ts";
+import {
+  extractGeneralizedChannels,
+  formatDockObjectDisplayName,
+} from "../../app/workspace_dock.ts";
 
 export interface LqrPresetSpec {
   id: string;
@@ -121,6 +126,8 @@ export interface StatespaceViewOptions {
   shell: ControlLabShell;
   container: HTMLElement;
   onOpenExportModal: (payload: StatespaceExportModalRequest, trigger: HTMLElement | null) => void;
+  onOpenEditPlantModal?: (refKey?: string) => void;
+  onOpenNewPlantModal?: () => void;
 }
 
 export type MatrixFilterMode = "all" | "plant" | "weights";
@@ -555,6 +562,13 @@ export function renderStatespaceViewHtml(initialDims: { n: number; m: number; p:
 
   return [
     `<section id="statespace-workspace-panel" aria-label="Espaço de Estados / LQR (Aba 3)">`,
+    `<div id="ss-workspace-plant-bar" class="subcard ss-workspace-plant-bar" role="region" aria-label="Planta ativa do Workspace">`,
+    `<div id="ss-workspace-plant-summary" class="ss-workspace-plant-summary"></div>`,
+    `<div class="panel-actions">`,
+    `<button type="button" id="btn-ss-edit-plant-workspace" class="touch-control btn-secondary btn-small" data-action="ss-edit-plant-workspace">Editar Planta no Workspace…</button>`,
+    `<button type="button" id="btn-ss-new-plant-workspace" class="touch-control btn-primary btn-small" data-action="ss-new-plant-workspace">+ Nova Planta</button>`,
+    `</div>`,
+    `</div>`,
     `<div id="lqr-kpi-cards" class="lqr-kpi-cards" role="region" aria-label="Indicadores LQR"></div>`,
     `<div id="lqr-pbh-badges" class="lqr-pbh-badges" role="region" aria-label="Diagnóstico estrutural PBH e método Riccati"></div>`,
     `<div class="lqr-interactive-bar lqr-action-card subcard">`,
@@ -599,7 +613,7 @@ export function renderStatespaceViewHtml(initialDims: { n: number; m: number; p:
     `</section>`,
     `<section id="lqr-matrix-editor" class="lqr-matrix-editor subcard" aria-label="Editor Matricial Interativo LQR">`,
     `<div class="lqr-matrix-editor-header">`,
-    `<h3>Editor Matricial Interativo (Planta StateSpace &amp; Pesos LQR)</h3>`,
+    `<h3>Parâmetros de Projeto LQR (Pesos Q, R, x0) &amp; Matrizes da Planta</h3>`,
     `<button type="button" id="btn-open-lqr-json-modal" class="touch-control btn-secondary btn-small" data-action="open-lqr-json-modal">JSON…</button>`,
     `</div>`,
     `<div class="panel-actions">`,
@@ -693,8 +707,11 @@ export class StatespaceView {
     payload: StatespaceExportModalRequest,
     trigger: HTMLElement | null,
   ) => void;
+  private readonly onOpenEditPlantModal?: (refKey?: string) => void;
+  private readonly onOpenNewPlantModal?: () => void;
 
   private readonly panelEl: HTMLElement | null;
+  private readonly workspacePlantSummaryEl: HTMLElement | null;
   private readonly kpiCardsEl: HTMLElement | null;
   private readonly pbhBadgesEl: HTMLElement | null;
   private readonly interactiveBarEl: HTMLElement | null;
@@ -783,6 +800,8 @@ export class StatespaceView {
     this.shell = options.shell;
     this.container = options.container;
     this.onOpenExportModal = options.onOpenExportModal;
+    this.onOpenEditPlantModal = options.onOpenEditPlantModal;
+    this.onOpenNewPlantModal = options.onOpenNewPlantModal;
 
     const lqr = this.shell.getLqrWorkspace();
     const plant = lqr.getPlant();
@@ -793,6 +812,7 @@ export class StatespaceView {
     };
 
     this.panelEl = this.container.querySelector<HTMLElement>("#statespace-workspace-panel");
+    this.workspacePlantSummaryEl = this.container.querySelector<HTMLElement>("#ss-workspace-plant-summary");
     this.kpiCardsEl = this.container.querySelector<HTMLElement>("#lqr-kpi-cards");
     this.pbhBadgesEl = this.container.querySelector<HTMLElement>("#lqr-pbh-badges");
     this.interactiveBarEl = this.container.querySelector<HTMLElement>(".lqr-interactive-bar");
@@ -1093,6 +1113,20 @@ export class StatespaceView {
     this.filterAllBtnEl?.addEventListener("click", () => this.setMatrixFilterMode("all"));
     this.filterPlantBtnEl?.addEventListener("click", () => this.setMatrixFilterMode("plant"));
     this.filterWeightsBtnEl?.addEventListener("click", () => this.setMatrixFilterMode("weights"));
+
+    this.container
+      .querySelector<HTMLElement>('[data-action="ss-edit-plant-workspace"]')
+      ?.addEventListener("click", () => {
+        const plant = lqr.getPlant();
+        this.onOpenEditPlantModal?.(
+          encodeObjectRefKey({ id: plant.id, revision: plant.revision }),
+        );
+      });
+    this.container
+      .querySelector<HTMLElement>('[data-action="ss-new-plant-workspace"]')
+      ?.addEventListener("click", () => {
+        this.onOpenNewPlantModal?.();
+      });
 
     this.container
       .querySelector<HTMLElement>('[data-action="open-lqr-json-modal"]')
@@ -2165,6 +2199,26 @@ export class StatespaceView {
     const preview = lqr.getPreviewState();
     const pendingCommit = lqr.isPendingCommit();
     const exportGuard = lqr.canExport();
+
+    if (this.workspacePlantSummaryEl) {
+      const plant = lqr.getPlant();
+      const n = plant.matrices.A.shape[0];
+      const m = plant.matrices.B.shape[1];
+      const p = plant.matrices.C.shape[0];
+      const domainLabel = plant.dt === null ? "Contínuo" : `Discreto (dt=${plant.dt} s)`;
+      const friendly = formatDockObjectDisplayName(plant.id);
+      const gen = extractGeneralizedChannels(plant.provenance);
+      const genBadge =
+        gen?.enable_w || gen?.enable_z
+          ? ` <span class="badge badge-exact">Generalizada</span>`
+          : "";
+      this.workspacePlantSummaryEl.innerHTML = [
+        `<strong>Planta do Workspace:</strong> ${escapeHtml(friendly)} <code>${escapeHtml(plant.id)}#r${plant.revision}</code>`,
+        `<span class="badge">n=${n}, m=${m}, p=${p}</span>`,
+        `<span class="badge">${escapeHtml(domainLabel)}</span>${genBadge}`,
+        `<span class="ss-design-hint">Parâmetros de projeto desta aba: pesos Q, R e x0.</span>`,
+      ].join(" ");
+    }
 
     this.renderKpiAndPbh();
 

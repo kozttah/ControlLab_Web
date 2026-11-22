@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 12
+      "2026-11-22": 13
     }
   },
   "audit_reference": {
@@ -6056,6 +6056,126 @@
         "Oraculo independente testa design_hinf_mixed_sensitivity contra BRL LMI (Clarabel) e Hamiltoniano exato",
         "ADR-012 e ADR-013 formalizadas e registradas em PROJECT_STATE.json e no adendo normativo do Documento Diretor"
       ]
+    },
+    {
+      "wp_id": "WP-PHASE8-00-F1F9-CI-NO-SDP-FIX",
+      "front": "f1-core-io",
+      "phase": "Phase8-Workspace-System-Architecture",
+      "title": "F1/F9: Tornar imports opcionais de pathview/pathsim e clarabel seguros no job CI core_no_sdp",
+      "allowed_paths": [
+        "tests/unit/f1/",
+        "tests/oracles/"
+      ],
+      "dependencies": [
+        "WP-PHASE7-04-F9-DEC-OPEN-06-07-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-23",
+        "R-24"
+      ],
+      "normative_tests": [
+        "T-PVM-01",
+        "T-MIMO-01"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f1/test_dec_open_07_pathsim.py tests/oracles/test_hinf_dgkf_oracle.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "ci_core_no_sdp_zero_skip_compatibility_pathsim_and_clarabel_fallback",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE8-00-F1F9-CI-NO-SDP-FIX.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE8-00-F1F9-CI-NO-SDP-FIX.md",
+        "tests/unit/f1/test_dec_open_07_pathsim.py",
+        "tests/oracles/test_hinf_dgkf_oracle.py"
+      ],
+      "origin_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
+      "design_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
+      "acceptance_requirements": [
+        "test_dec_open_07_pathsim.py usa pytest.importorskip dentro dos testes que exigem pathview/pathsim, sem quebrar coleta em core_no_sdp",
+        "test_hinf_dgkf_oracle.py usa clarabel_direct quando disponivel e fallback native_primal_dual em core_no_sdp"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE8-01-F8-WORKSPACE-SYSTEM-EDITOR",
+      "front": "f8-ui-charts",
+      "phase": "Phase8-Workspace-System-Architecture",
+      "title": "F8: Centralizar definicao/edicao de sistemas (Linear/Generalizada, Politopico e TS ilimitados) no Workspace Dock e simplificar abas de projeto (ADR-014)",
+      "allowed_paths": [
+        "web/app/",
+        "web/features/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE8-00-F1F9-CI-NO-SDP-FIX"
+      ],
+      "requirement_ids": [
+        "R-03",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "workspace_first_unified_system_editor_unlimited_polytopic_ts_and_tab3_tab6_delegation",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE8-01-F8-WORKSPACE-SYSTEM-EDITOR.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE8-01-F8-WORKSPACE-SYSTEM-EDITOR.md",
+        "web/app/workspace_dock.ts",
+        "web/features/views/lmi_view.ts",
+        "web/features/views/statespace_view.ts"
+      ],
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
+      "acceptance_requirements": [
+        "Modal + Novo / Editar do Workspace suporta TF, StateSpace/Generalizada (Bw,Dyw,Cz,Dzu,Dzw), Politopico Incerto (N vertices editaveis A,B,C,D sem teto de 8) e Takagi-Sugeno (N regras editaveis A,B,C,D, premissas [z_min,z_max] medidas/nao medidas e pertinencias analiticas h_i(z) com validador convexo)",
+        "Aba 6 seleciona o sistema diretamente do Workspace com resumo compacto e botao Editar no Workspace; Aba 3 destaca pesos Q,R com atalho para editar planta no Workspace"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE8-02-F9-WORKSPACE-FIRST-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase8-Workspace-System-Architecture",
+      "title": "F9: Formalizar ADR-014 + atualizar Documentos Diretores de UI/LMI, auditar Workspace-First em Chromium real e fechar CI core_no_sdp",
+      "allowed_paths": [
+        "tests/e2e/",
+        "tests/oracles/",
+        "docs/architecture/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE8-01-F8-WORKSPACE-SYSTEM-EDITOR"
+      ],
+      "requirement_ids": [
+        "R-24",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f1/ tests/oracles/test_hinf_dgkf_oracle.py tests/e2e/test_ux_refactor_cl_ux_dir_001.py tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_adr014_formalization_design_directors_real_chromium_e2e_and_core_no_sdp_zero_skip_closure",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE8-02-F9-WORKSPACE-FIRST-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE8-02-F9-WORKSPACE-FIRST-AUDIT.md",
+        "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
+        "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+        "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ],
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
+      "acceptance_requirements": [
+        "ADR-014 registrada em PROJECT_STATE.json e Pilar 5 incorporado a ControlLab_Web_Design_Diretor_v1.0.md e ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+        "Todos os testes Web, E2E Chromium, Wasm e core_no_sdp (simulado sem pathview/clarabel) aprovados 100%"
+      ]
     }
   ],
   "audit_history": [
@@ -6140,6 +6260,15 @@
       "scope": "pathview_0210_passive_pvm_boundary_and_pathsim_0310_offline_script_export",
       "evidence_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
       "review_ref": "docs/audits/handoffs/WP-PHASE7-04-F9-DEC-OPEN-06-07-AUDIT.md"
+    },
+    "ADR-014": {
+      "status": "ACCEPTED",
+      "authority": "project_coordinator",
+      "decision_date": "2026-11-22",
+      "decision": "Centralize all dynamic system definitions (TransferFunction, Linear/Generalized StateSpace with Bw/Dyw/Cz/Dzu/Dzw in provenance.generalized_channels, unlimited-vertex polytopic_uncertain, and unlimited-rule ts_measured/ts_partially_observed with measured/unmeasured premises and analytical sector h_i(z) convexity validator) exclusively in the Workspace Dock (+ Novo / Editar) while restricting Project Tabs 1-6 to design parameters with 1-click Workspace edit shortcuts and full .ctrlab round-trip persistence",
+      "scope": "workspace_first_system_definition_and_tab1_to_tab6_design_separation",
+      "evidence_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
+      "review_ref": "docs/audits/handoffs/WP-PHASE8-02-F9-WORKSPACE-FIRST-AUDIT.md"
     }
   }
 }

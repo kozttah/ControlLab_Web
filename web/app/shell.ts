@@ -57,6 +57,8 @@ import {
 } from "../features/lqr_workspace.ts";
 import { ProjectTabsController } from "../features/project_tabs.ts";
 import {
+  encodeObjectRefKey,
+  isTypedObjectKind,
   TypedObjectWorkspace,
 } from "../features/typed_workspace.ts";
 import {
@@ -876,9 +878,32 @@ export class ControlLabShell {
       tolerances: {}, results: null, data_source: null,
       provenance: structuredClone(committed.provenance), created_at: committed.committed_at,
     };
+    const activePlant = this.lqr.getPlant();
+    const models: Record<string, unknown>[] = [activePlant as unknown as Record<string, unknown>];
+    const controllers: Record<string, unknown>[] = [controller];
+    const seenModelKeys = new Set<string>([
+      encodeObjectRefKey({ id: activePlant.id, revision: activePlant.revision }),
+    ]);
+    const seenCtrlKeys = new Set<string>([
+      encodeObjectRefKey({
+        id: String(controller.id),
+        revision: Number(controller.revision),
+      }),
+    ]);
+    for (const reg of this.typedWorkspace.listRegisteredObjects()) {
+      if (reg.kind === "DynamicController") {
+        if (!seenCtrlKeys.has(reg.key)) {
+          seenCtrlKeys.add(reg.key);
+          controllers.push(structuredClone(reg.value));
+        }
+      } else if (!seenModelKeys.has(reg.key)) {
+        seenModelKeys.add(reg.key);
+        models.push(structuredClone(reg.value));
+      }
+    }
     const project = {
       project_id: committed.project_id, project_revision: committed.project_revision,
-      models: [this.lqr.getPlant()], controllers: [controller], experiments: [experiment],
+      models, controllers, experiments: [experiment],
       created_at: committed.committed_at, provenance: structuredClone(committed.provenance),
     };
     return this.exportFile("io.export_ctrlab", { project }, "ctrlab", this.pvmExportRevision);
@@ -1052,6 +1077,32 @@ export class ControlLabShell {
         plant: plant as unknown as CanonicalStateSpaceModel, snapshot,
         Q: workspace.Q as RealTensor, R: workspace.R as RealTensor, x0: workspace.x0 as RealTensor,
       });
+      this.typedWorkspace.clearRegisteredObjects({ keepActiveLqrPlant: true });
+      const activePlantKey = encodeObjectRefKey({
+        id: String(plant.id),
+        revision: Number(plant.revision),
+      });
+      for (const item of project.models) {
+        if (!isPlainObject(item) || typeof item.kind !== "string" || !isTypedObjectKind(item.kind)) {
+          continue;
+        }
+        if (
+          typeof item.id === "string" &&
+          typeof item.revision === "number" &&
+          encodeObjectRefKey({ id: item.id, revision: item.revision }) === activePlantKey
+        ) {
+          continue;
+        }
+        await this.typedWorkspace.registerTypedObject(structuredClone(item), {
+          source: "imported",
+        });
+      }
+      for (const item of project.controllers) {
+        if (!isPlainObject(item) || item.kind !== "DynamicController") continue;
+        await this.typedWorkspace.registerTypedObject(structuredClone(item), {
+          source: "imported",
+        });
+      }
       this.setPvmExportOptions(pvmOptions);
       this.experiments.length = 0;
       if (Array.isArray(parameters.comparisons)) {

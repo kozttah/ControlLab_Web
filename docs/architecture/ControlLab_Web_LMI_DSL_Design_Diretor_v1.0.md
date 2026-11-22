@@ -1,7 +1,7 @@
 # Documento Diretor da Bancada de LMIs e da Linguagem DSL (`CL-LMI-DSL-DIR-001 v1.0.0`)
 
-**Subordinação Normativa:** Subordinado ao [`docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md`](ControlLab_Web_Design_Diretor_v1.0.md) (`CL-UX-DIR-001 v1.0.0`) e ao `CL-DIR-001 v1.0.0` (ADR-010).  
-**Escopo:** Arquitetura de UX/UI da **Aba 6 (`LMIs, SDPs e Síntese Robusta`)** e especificação formal da **DSL Declarativa de LMIs v2.0** com suporte a Sistemas Lineares (LTI e Planta Generalizada), Sistemas Politópicos Incertos, Modelos Takagi-Sugeno (TS) com premissas medidas/não medidas e Quantificadores/Domínios de Índices (`forall`).
+**Subordinação Normativa:** Subordinado ao [`docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md`](ControlLab_Web_Design_Diretor_v1.0.md) (`CL-UX-DIR-001 v1.0.0`), ao [`ADR-014`](ADR-014-workspace-centralized-system-definition.md) (Workspace-First) e ao `CL-DIR-001 v1.0.0` (ADR-010).  
+**Escopo:** Arquitetura de UX/UI da **Aba 6 (`LMIs, SDPs e Síntese Robusta`)** e especificação formal da **DSL Declarativa de LMIs v2.0** com consumo centralizado de sistemas do Workspace (`ADR-014` — LTI/Planta Generalizada, Politópico Incerto e Takagi-Sugeno sem tetos artificiais de vértices/regras) e Quantificadores/Domínios de Índices (`forall`).
 
 ---
 
@@ -232,4 +232,24 @@ Quando esta frente for iniciada, ela deverá ser executada nos seguintes pacotes
      - `https://uphf.hal.science/hal-03425007/document`
      - `https://uphf.hal.science/hal-04307213/document`
      - `https://doi.org/10.1007/s40313-025-01189-y`
+
+---
+
+## 8. Integração Workspace-First na Aba 6 (`ADR-014` — Atualização Normativa Fase 8)
+
+Conforme [`ADR-014`](ADR-014-workspace-centralized-system-definition.md) (Pilar 5 de `CL-UX-DIR-001`), a **Zona 2 (`#lmi-system-characterization-card`)** evoluiu para eliminar a duplicação de editores de sistema e os tetos artificiais de cardinalidade:
+
+1. **Consumo Direto do Workspace (`#lmi-workspace-system-select`):**
+   - A Aba 6 não mantém formulários embutidos paralelos para criar/editar matrizes de vértices, canais generalizados (`Bw/Dyw/Cz/Dzu/Dzw`), premissas ou funções $h_i(z)$.
+   - O usuário seleciona diretamente qualquer modelo compatível registrado no Workspace (`StateSpace` Linear ou Generalizada, `polytopic_uncertain`, `ts_measured` ou `ts_partially_observed`) por meio de **`#lmi-workspace-system-select`** ou clicando em **`→ LMIs`** no Workspace Dock.
+2. **Resumo Somente Leitura + Atalhos de 1 Clique:**
+   - **`#lmi-selected-system-summary`** apresenta um resumo compacto e somente leitura do sistema selecionado (classe, dimensões $n, m, p$, canais generalizados ativos, contagem de vértices/regras, premissas medidas vs. não medidas e status da soma convexa $h_i(z)$).
+   - **`Editar Sistema no Workspace…`** (`#btn-lmi-edit-system-workspace`) abre o modal unificado `#workspace-new-object-modal` em modo **Edição** pré-preenchido com o sistema selecionado (incrementando `revision` ao salvar).
+   - **`+ Novo Sistema`** (`#btn-lmi-new-system-workspace`) abre o mesmo modal para criar um novo sistema no Workspace.
+3. **Remoção dos Tetos Artificiais (8 Vértices / 6 Regras):**
+   - Os limites artificiais anteriores de 8 vértices (`polytopic`) e 6 regras (`ts`) foram removidos: o Workspace suporta quantidade ilimitada de vértices/regras ($N \ge 2$), permitindo modelagem fiel de sistemas multi-setoriais (com alerta transparente de `BROWSER_ENVELOPE` e exportação CVXPY/YALMIP sempre disponível sob `ADR-010`).
+4. **Controles Estritamente de Projeto LMI Preservados na Aba 6:**
+   - **Conjuntos de índices da DSL:** índice principal (`#lmi-primary-index-name`, padrão `i`), índices adicionais (`#lmi-extra-indices`, ex.: `j, k`) e sincronização da diretiva `system` (`#btn-lmi-sync-dsl`).
+   - **Observador TS com premissas não medidas (`#lmi-ts-unmeasured-panel`):** revelado automaticamente quando o sistema TS selecionado no Workspace possui `kind === "ts_partially_observed"` (premissas não medidas), oferecendo seleção do método (`dmvt_nonlinearity` ou `gradient_factorization`), vértices de perturbação de projeto **`dA[k]`** (`#lmi-ts-obs-da`) e **`dC[k]`** (`#lmi-ts-obs-dc`) e o gerador **`#btn-lmi-generate-ts-observer`**.
+   - **Editor DSL v2.0, Compilador Direto, Solver SDP e Certificado 5D:** integralmente preservados, com recuperação de ganhos `K`, `K[i]`, `L[i]`, log de progresso com cancelamento e exportação `.lmi` / CVXPY / YALMIP / `.ctrlab`.
 

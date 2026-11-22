@@ -1133,14 +1133,30 @@ def test_ux_phase2_lqg_observer_mimo_decoupler_and_hinf(browser_harness):
 
 
 def test_ux_phase3_lmi_v2_system_char_and_forall_quantifiers(browser_harness):
-    """Test 8: Phase 3 LMI DSL v2.0 — System Characterization Card, generalized plant, polytopic/TS forall quantifiers, CVXPY loops, and zero overflow."""
+    """Test 8: Phase 3 LMI DSL v2.0 (ADR-014 Workspace-First) — System card, generalized plant via Workspace, polytopic/TS forall quantifiers, CVXPY loops, and zero overflow."""
     page = mount_ui(browser_harness, "e2e-ux-phase3-lmi-v2", {"width": 1280, "height": 800})
 
+    # 1. Create a Generalized StateSpace plant in Workspace modal with w & z channels
+    page.locator("#btn-open-new-object-modal").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="visible")
+    page.locator("#btn-new-mode-ss").click()
+    page.locator("#new-obj-panel-ss").wait_for(state="visible")
+    page.locator("#new-ss-id").fill("ss-gen-e2e")
+    gen_panel = page.locator("#new-ss-gen-panel")
+    assert not gen_panel.is_visible()
+    page.locator("#new-ss-enable-w").check()
+    page.locator("#new-ss-enable-z").check()
+    gen_panel.wait_for(state="visible")
+    for matrix_id in ("#new-ss-bw", "#new-ss-dyw", "#new-ss-cz", "#new-ss-dzu", "#new-ss-dzw"):
+        assert page.locator(matrix_id).is_visible(), f"Expected generalized matrix input {matrix_id} to be visible"
+    page.locator("#btn-new-ss-submit").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="hidden")
+
+    # 2. Switch to Tab 6 and verify #lmi-system-characterization-card above .lmi-editor-split & generalized summary
     page.locator('button[data-tab-id="optimization_lmi"]').click()
     page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
     page.locator("#lmi-workspace-panel").wait_for(state="visible")
 
-    # 1. #lmi-system-characterization-card is visible above .lmi-editor-split
     sys_card = page.locator("#lmi-system-characterization-card")
     editor_split = page.locator(".lmi-editor-split")
     sys_card.wait_for(state="visible")
@@ -1153,24 +1169,22 @@ def test_ux_phase3_lmi_v2_system_char_and_forall_quantifiers(browser_harness):
         f"Expected #lmi-system-characterization-card (y={sys_box['y']}) above .lmi-editor-split (y={split_box['y']})"
     )
 
-    # 2. Switch #lmi-sys-class-select to 'lti' and enable #lmi-gen-enable-w / #lmi-gen-enable-z -> generalized plant matrices visible
-    page.select_option("#lmi-sys-class-select", "lti")
-    assert page.locator("#lmi-sys-class-select").input_value() == "lti"
+    page.select_option("#lmi-workspace-system-select", "ss-gen-e2e#1")
+    summary_gen = page.locator("#lmi-selected-system-summary").inner_text()
+    assert "Planta Generalizada" in summary_gen or "Bw" in summary_gen, (
+        f"Expected generalized plant summary in #lmi-selected-system-summary, got: {summary_gen!r}"
+    )
 
-    gen_panel = page.locator("#lmi-gen-matrices-panel")
-    assert not gen_panel.is_visible()
+    # 3. Load polytopic_2v example from Workspace Dock -> route/select in Tab 6 -> polytopic_robust template
+    page.select_option("#dock-example-select", "polytopic_2v")
+    page.locator("#btn-dock-load-example").click()
+    page.wait_for_function(
+        "() => Array.from(document.querySelectorAll('#lmi-workspace-system-select option')).some((o) => o.value.startsWith('poly-2v-demo#'))"
+    )
+    page.select_option("#lmi-workspace-system-select", "poly-2v-demo#1")
 
-    page.locator("#lmi-gen-enable-w").check()
-    page.locator("#lmi-gen-enable-z").check()
-    gen_panel.wait_for(state="visible")
-    for matrix_id in ("#lmi-gen-bw", "#lmi-gen-cz", "#lmi-gen-dzu", "#lmi-gen-dzw"):
-        assert page.locator(matrix_id).is_visible(), f"Expected generalized matrix input {matrix_id} to be visible"
-
-    # 3. Select template 'polytopic_robust' -> sys-class switches to 'polytopic', forall badge in #lmi-parsed-math, #lmi-expanded-blocks-badge updates
     badge_before = page.locator("#lmi-expanded-blocks-badge").inner_text()
     page.select_option("#lmi-template-select", "polytopic_robust")
-    assert page.locator("#lmi-sys-class-select").input_value() == "polytopic"
-    assert page.locator("#lmi-sys-panel-polytopic").is_visible()
 
     parsed_math_poly = page.locator("#lmi-parsed-math").inner_text()
     assert "∀" in parsed_math_poly, f"Expected ∀ quantifier badge in #lmi-parsed-math, got: {parsed_math_poly!r}"
@@ -1180,21 +1194,19 @@ def test_ux_phase3_lmi_v2_system_char_and_forall_quantifiers(browser_harness):
     assert "expandidos" in badge_poly
     assert badge_poly != badge_before or "blocos LMI expandidos" in badge_poly
 
-    # 4. Select template 'ts_pdc_relaxed' -> sys-class switches to 'ts', #lmi-ts-premises-list toggles Medida/Não Medida, j > i in #lmi-parsed-math, CVXPY for loops
+    # 4. Load ts_unmeasured_2r example -> select in Tab 6 -> ts_pdc_relaxed template -> j > i & CVXPY for loops
+    page.select_option("#dock-example-select", "ts_unmeasured_2r")
+    page.locator("#btn-dock-load-example").click()
+    page.wait_for_function(
+        "() => Array.from(document.querySelectorAll('#lmi-workspace-system-select option')).some((o) => o.value.startsWith('ts-unmeasured-2r-demo#'))"
+    )
+    page.select_option("#lmi-workspace-system-select", "ts-unmeasured-2r-demo#1")
     page.select_option("#lmi-template-select", "ts_pdc_relaxed")
-    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
-    assert page.locator("#lmi-sys-panel-ts").is_visible()
 
-    premises_list = page.locator("#lmi-ts-premises-list")
-    premises_list.wait_for(state="visible")
-    toggle_btn = premises_list.locator('[data-action="lmi-toggle-premise"]').first
-    toggle_btn.wait_for(state="visible")
-    initial_premise_label = toggle_btn.inner_text()
-    assert "Medida" in initial_premise_label
-    toggle_btn.click()
-    toggled_premise_label = toggle_btn.inner_text()
-    assert toggled_premise_label != initial_premise_label
-    assert ("Não Medida" in toggled_premise_label) or ("Medida" in toggled_premise_label)
+    summary_ts = page.locator("#lmi-selected-system-summary").inner_text()
+    assert "Takagi-Sugeno" in summary_ts and "Não Medida" in summary_ts, (
+        f"Expected TS unmeasured summary, got: {summary_ts!r}"
+    )
 
     parsed_math_ts = page.locator("#lmi-parsed-math").inner_text()
     assert "∀" in parsed_math_ts
@@ -1229,7 +1241,7 @@ def test_ux_phase3_lmi_v2_system_char_and_forall_quantifiers(browser_harness):
         {
             "sys_card_above_editor": True,
             "polytopic_badge": badge_poly,
-            "premise_toggle": f"{initial_premise_label} -> {toggled_premise_label}",
+            "ts_summary": summary_ts,
             "cvxpy_has_for_loops": True,
             "overflow_phase3": overflow_phase3,
         },
@@ -1240,13 +1252,22 @@ def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
     """Test 9: Phase 4 Direct DSL v2.0 -> CanonicalSDPProblem compiler in real browser (polytopic_robust + custom decay-rate + TS PDC)."""
     page = mount_ui(browser_harness, "e2e-ux-phase4-dsl-compiler", {"width": 1280, "height": 800})
 
+    # Preload polytopic & TS systems in Workspace Dock
+    page.select_option("#dock-example-select", "polytopic_2v")
+    page.locator("#btn-dock-load-example").click()
+    page.select_option("#dock-example-select", "ts_unmeasured_2r")
+    page.locator("#btn-dock-load-example").click()
+
     page.locator('button[data-tab-id="optimization_lmi"]').click()
     page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
     page.locator("#lmi-workspace-panel").wait_for(state="visible")
+    page.wait_for_function(
+        "() => Array.from(document.querySelectorAll('#lmi-workspace-system-select option')).some((o) => o.value.startsWith('poly-2v-demo#'))"
+    )
 
     # 1. Quantified polytopic_robust template -> #btn-lmi-solve -> validated_dual/feasible + recovered K
+    page.select_option("#lmi-workspace-system-select", "poly-2v-demo#1")
     page.select_option("#lmi-template-select", "polytopic_robust")
-    assert page.locator("#lmi-sys-class-select").input_value() == "polytopic"
 
     page.locator("#btn-lmi-solve").click()
     page.locator("#lmi-spectrum-chart-slot svg").wait_for(state="visible", timeout=45000)
@@ -1261,7 +1282,12 @@ def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
         f"Expected recovered gain K for polytopic_robust, got: {poly_gain!r}"
     )
 
-    # 2. Custom decay-rate DSL (not matching default template alpha=0.5) -> #btn-lmi-solve -> validated_dual/feasible + K
+    # 2. Custom decay-rate DSL on LTI StateSpace plant -> #btn-lmi-solve -> validated_dual/feasible + K
+    lti_key = page.evaluate(
+        "() => { const p = app.shell.getLqrWorkspace().getPlant(); return `${p.id}#${p.revision}`; }"
+    )
+    assert lti_key, "Expected an LTI StateSpace option in #lmi-workspace-system-select"
+    page.select_option("#lmi-workspace-system-select", lti_key)
     custom_dsl = "\n".join([
         "var Q sym(n)",
         "var Y rect(m, n)",
@@ -1270,7 +1296,6 @@ def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
         "He(A*Q + B*Y) + 2*alpha*Q < 0",
         "recover K = Y * inv(Q)",
     ])
-    page.select_option("#lmi-sys-class-select", "lti")
     editor = page.locator("#lmi-code-editor")
     editor.fill(custom_dsl)
     page.locator("#btn-lmi-solve").click()
@@ -1291,8 +1316,8 @@ def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
     assert "Ganho recuperado K" in custom_gain and "N/D" not in custom_gain
 
     # 3. Quantified TS PDC (ts_pdc_relaxed) -> #btn-lmi-solve -> K[1] and K[2] recovered
+    page.select_option("#lmi-workspace-system-select", "ts-unmeasured-2r-demo#1")
     page.select_option("#lmi-template-select", "ts_pdc_relaxed")
-    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
     page.locator("#btn-lmi-solve").click()
     page.wait_for_function(
         """() => {
@@ -1317,25 +1342,23 @@ def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
 
 
 def test_ux_phase5_ts_unmeasured_observer_e2e(browser_harness):
-    """Test 10: TS unmeasured observer (DMVT / gradient factorization) in Tab 6 -> #btn-lmi-solve -> L[1] and L[2]."""
+    """Test 10: TS unmeasured observer (DMVT / gradient factorization) via Workspace-First TS system -> #btn-lmi-solve -> L[1] and L[2]."""
     page = mount_ui(browser_harness, "e2e-ux-phase5-ts-unmeasured-observer", {"width": 1280, "height": 800})
 
+    # 1. Start on Tab 6 with LTI plant: #lmi-ts-unmeasured-panel is hidden
     page.locator('button[data-tab-id="optimization_lmi"]').click()
     page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
     page.locator("#lmi-workspace-panel").wait_for(state="visible")
-
-    # 1. Select 'ts' system mode
-    page.select_option("#lmi-sys-class-select", "ts")
-    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
-    page.locator("#lmi-sys-panel-ts").wait_for(state="visible")
-
     unmeasured_panel = page.locator("#lmi-ts-unmeasured-panel")
     assert not unmeasured_panel.is_visible()
 
-    # 2. Mark first premise as unmeasured -> #lmi-ts-unmeasured-panel becomes visible
-    toggle_btn = page.locator('#lmi-ts-premises-list [data-action="lmi-toggle-premise"]').first
-    toggle_btn.wait_for(state="visible")
-    toggle_btn.click()
+    # 2. Load TS system with unmeasured premise from Workspace Dock -> route to Tab 6 -> #lmi-ts-unmeasured-panel becomes visible
+    page.select_option("#dock-example-select", "ts_unmeasured_2r")
+    page.locator("#btn-dock-load-example").click()
+    page.wait_for_function(
+        "() => Array.from(document.querySelectorAll('#lmi-workspace-system-select option')).some((o) => o.value.startsWith('ts-unmeasured-2r-demo#'))"
+    )
+    page.select_option("#lmi-workspace-system-select", "ts-unmeasured-2r-demo#1")
     unmeasured_panel.wait_for(state="visible")
 
     # Verify both linearization methods are available
@@ -1380,25 +1403,30 @@ def test_ux_phase5_ts_unmeasured_observer_e2e(browser_harness):
 
 
 def test_ux_phase4_editable_vertices_and_ts_mf(browser_harness):
-    """Test 11: Editable A,B,C,D vertices (Polytopic & TS), TS membership function editor, LMI solve, and 390x844 mobile containment."""
+    """Test 11: Editable A,B,C,D vertices (Polytopic & TS) & TS h_i(z) convexity validator in Workspace Modal + Tab 6 solve + 390x844 mobile containment."""
     page = mount_ui(browser_harness, "e2e-ux-phase4-editable-vertices", {"width": 1280, "height": 800})
+
+    # 1. Create custom Polytopic system in Workspace Modal, edit A[1] and B[1] (idx=0), solve in Tab 6
+    page.locator("#btn-open-new-object-modal").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="visible")
+    page.locator("#btn-new-mode-polytopic").click()
+    page.locator("#new-obj-panel-polytopic").wait_for(state="visible")
+    page.locator("#new-poly-id").fill("poly-edited-e2e")
+
+    poly_a1 = page.locator('input[data-poly-idx="0"][data-poly-mat="A"]')
+    poly_b1 = page.locator('input[data-poly-idx="0"][data-poly-mat="B"]')
+    poly_a1.wait_for(state="visible")
+    poly_b1.wait_for(state="visible")
+    poly_a1.fill("[[0, 1], [-3.0, -2.0]]")
+    poly_b1.fill("[[0], [1.5]]")
+    page.locator("#btn-new-poly-submit").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="hidden")
 
     page.locator('button[data-tab-id="optimization_lmi"]').click()
     page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
     page.locator("#lmi-workspace-panel").wait_for(state="visible")
-
-    # 1. Polytopic mode: select polytopic_robust, edit A[1] and B[1] (idx=0), solve, verify validated_dual / feasible
+    page.select_option("#lmi-workspace-system-select", "poly-edited-e2e#1")
     page.select_option("#lmi-template-select", "polytopic_robust")
-    assert page.locator("#lmi-sys-class-select").input_value() == "polytopic"
-    page.locator("#lmi-sys-panel-polytopic").wait_for(state="visible")
-
-    poly_a1 = page.locator('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="A"]')
-    poly_b1 = page.locator('input[data-vertex-kind="poly"][data-vertex-idx="0"][data-vertex-mat="B"]')
-    poly_a1.wait_for(state="visible")
-    poly_b1.wait_for(state="visible")
-
-    poly_a1.fill("[[0, 1], [-3.0, -2.0]]")
-    poly_b1.fill("[[0], [1.5]]")
 
     page.locator("#btn-lmi-solve").click()
     page.wait_for_function(
@@ -1416,30 +1444,30 @@ def test_ux_phase4_editable_vertices_and_ts_mf(browser_harness):
         f"Expected validated_dual or feasible in polytopic certificate, got: {poly_cert!r}"
     )
 
-    # 2. TS mode: switch to ts_pdc_relaxed, edit A[1] (idx=0), verify Tab 5 fuzzy import removed,
-    #    validate default analytical h_i(z) convex sum, test invalid h_1(z) = z1, then restore valid convex sum
-    page.select_option("#lmi-template-select", "ts_pdc_relaxed")
-    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
-    page.locator("#lmi-sys-panel-ts").wait_for(state="visible")
-
+    # 2. Verify Tab 5 fuzzy import removed from Tab 6; create TS system in Workspace Modal,
+    #    validate default analytical h_i(z) convex sum, test invalid h_1(z)=z1, restore valid convex sum
     assert page.locator("#btn-lmi-import-fuzzy").count() == 0
     assert page.locator('[data-action="lmi-import-fuzzy"]').count() == 0
 
-    ts_a1 = page.locator('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')
+    page.locator("#btn-lmi-new-system-workspace").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="visible")
+    page.locator("#btn-new-mode-ts").click()
+    page.locator("#new-obj-panel-ts").wait_for(state="visible")
+    page.locator("#new-ts-id").fill("ts-edited-e2e")
+
+    ts_a1 = page.locator('input[data-ts-rule-idx="0"][data-ts-rule-mat="A"]')
     ts_a1.wait_for(state="visible")
     ts_a1.fill("[[0, 1], [-2.5, -1.5]]")
 
-    validation_el = page.locator("#lmi-ts-mf-validation")
+    validation_el = page.locator("#new-ts-mf-validation")
     validation_el.wait_for(state="visible")
     default_validation_text = validation_el.inner_text()
     assert "Válido" in default_validation_text and "Soma convexa válida" in default_validation_text, (
-        f"Expected valid default convex sum in #lmi-ts-mf-validation, got: {default_validation_text!r}"
+        f"Expected valid default convex sum in #new-ts-mf-validation, got: {default_validation_text!r}"
     )
-    default_summary = page.locator("#lmi-ts-mf-summary").inner_text()
-    assert "(1 + sin(z1)) / 2" in default_summary and "(1 - sin(z1)) / 2" in default_summary
 
-    mf_expr_0 = page.locator('input[data-mf-field="expression"][data-mf-idx="0"]')
-    mf_expr_1 = page.locator('input[data-mf-field="expression"][data-mf-idx="1"]')
+    mf_expr_0 = page.locator('input[data-ts-mf-field="expression"][data-ts-mf-idx="0"]')
+    mf_expr_1 = page.locator('input[data-ts-mf-field="expression"][data-ts-mf-idx="1"]')
     mf_expr_0.wait_for(state="visible")
     mf_expr_1.wait_for(state="visible")
 
@@ -1447,7 +1475,7 @@ def test_ux_phase4_editable_vertices_and_ts_mf(browser_harness):
     mf_expr_0.fill("z1")
     invalid_validation_text = validation_el.inner_text()
     assert "Inválido" in invalid_validation_text, (
-        f"Expected violation in #lmi-ts-mf-validation when h_1(z)=z1, got: {invalid_validation_text!r}"
+        f"Expected violation in #new-ts-mf-validation when h_1(z)=z1, got: {invalid_validation_text!r}"
     )
 
     # Restore valid convex-sum expressions (1 + z1) / 2 and (1 - z1) / 2
@@ -1458,17 +1486,29 @@ def test_ux_phase4_editable_vertices_and_ts_mf(browser_harness):
         f"Expected valid convex sum after restoring (1+z1)/2 and (1-z1)/2, got: {restored_validation_text!r}"
     )
 
-    mf_summary_after = page.locator("#lmi-ts-mf-summary").inner_text()
-    assert mf_summary_after != default_summary
-    assert "(1 + z1) / 2" in mf_summary_after and "(1 - z1) / 2" in mf_summary_after
+    page.locator("#btn-new-ts-submit").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="hidden")
 
-    # 3. Mobile 390x844 viewport: zero horizontal overflow with TS vertex & MF editors visible
+    page.select_option("#lmi-workspace-system-select", "ts-edited-e2e#1")
+    summary_after = page.locator("#lmi-selected-system-summary").inner_text()
+    assert "ts-edited-e2e#r1" in summary_after and "Soma convexa válida" in summary_after, (
+        f"Expected valid TS summary in #lmi-selected-system-summary, got: {summary_after!r}"
+    )
+    # Re-open Edit modal to confirm both analytical h_i(z) expressions were persisted in Workspace
+    page.locator("#btn-lmi-edit-system-workspace").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="visible")
+    assert page.locator('input[data-ts-mf-field="expression"][data-ts-mf-idx="0"]').input_value() == "(1 + z1) / 2"
+    assert page.locator('input[data-ts-mf-field="expression"][data-ts-mf-idx="1"]').input_value() == "(1 - z1) / 2"
+    page.locator("#new-object-modal-close").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="hidden")
+
+    # 3. Mobile 390x844 viewport: zero horizontal overflow on Tab 6
     page.set_viewport_size({"width": 390, "height": 844})
     overflow_metrics = page.evaluate(
         "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
     )
     assert overflow_metrics["scrollWidth"] <= 390, (
-        f"Horizontal overflow at 390x844 on Tab 6 TS editor: "
+        f"Horizontal overflow at 390x844 on Tab 6: "
         f"scrollWidth={overflow_metrics['scrollWidth']} > 390"
     )
 
@@ -1480,7 +1520,7 @@ def test_ux_phase4_editable_vertices_and_ts_mf(browser_harness):
             "default_validation": default_validation_text,
             "invalid_validation": invalid_validation_text,
             "restored_validation": restored_validation_text,
-            "ts_mf_summary_after": mf_summary_after,
+            "ts_summary_after": summary_after,
             "mobile_390x844_overflow": overflow_metrics,
         },
     )
@@ -1555,7 +1595,7 @@ def test_ux_phase5_anfis_tab5_training(browser_harness):
 
 
 def test_ux_phase5_ctrlab_lmi_persistence(browser_harness, tmp_path):
-    """Test 13: Phase 5 .ctrlab persistence roundtrip for Tab 6 (LMI) system characterization & DSL v2.0."""
+    """Test 13: Phase 5 .ctrlab persistence roundtrip for Workspace TS system & Tab 6 (LMI) DSL v2.0."""
     from control_lab.io import load_ctrlab
 
     page = mount_ui(browser_harness, "e2e-ux-phase5-ctrlab-lmi", {"width": 1280, "height": 800})
@@ -1569,24 +1609,26 @@ def test_ux_phase5_ctrlab_lmi_persistence(browser_harness, tmp_path):
     btn_export_ctrlab = page.locator("#btn-header-export-ctrlab")
     assert btn_export_ctrlab.is_enabled()
 
-    # 2. Switch to Tab 6 (optimization_lmi), select 'ts' mode, edit A[1], h_1(z), and currentDsl
+    # 2. Create TS system in Workspace Modal with custom A[1] and h_1(z), then select it in Tab 6 and set customDsl
+    ts_a1_val = "[[0, 1], [-8.75, -3.25]]"
+    h1_expr_val = "(1 + cos(z1)) / 2"
+    h2_expr_val = "(1 - cos(z1)) / 2"
+
+    page.locator("#btn-open-new-object-modal").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="visible")
+    page.locator("#btn-new-mode-ts").click()
+    page.locator("#new-obj-panel-ts").wait_for(state="visible")
+    page.locator("#new-ts-id").fill("ts-ctrlab-roundtrip")
+    page.locator('input[data-ts-rule-idx="0"][data-ts-rule-mat="A"]').fill(ts_a1_val)
+    page.locator('input[data-ts-mf-field="expression"][data-ts-mf-idx="0"]').fill(h1_expr_val)
+    page.locator('input[data-ts-mf-field="expression"][data-ts-mf-idx="1"]').fill(h2_expr_val)
+    page.locator("#btn-new-ts-submit").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="hidden")
+
     page.locator('button[data-tab-id="optimization_lmi"]').click()
     page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
     page.locator("#lmi-workspace-panel").wait_for(state="visible")
-
-    page.select_option("#lmi-sys-class-select", "ts")
-    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
-    page.locator("#lmi-sys-panel-ts").wait_for(state="visible")
-
-    ts_a1_val = "[[0, 1], [-8.75, -3.25]]"
-    ts_a1 = page.locator('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]')
-    ts_a1.wait_for(state="visible")
-    ts_a1.fill(ts_a1_val)
-
-    h1_expr_val = "(1 + cos(z1)) / 2"
-    mf_expr_0 = page.locator('input[data-mf-field="expression"][data-mf-idx="0"]')
-    mf_expr_0.wait_for(state="visible")
-    mf_expr_0.fill(h1_expr_val)
+    page.select_option("#lmi-workspace-system-select", "ts-ctrlab-roundtrip#1")
 
     custom_dsl = "\n".join([
         "system ts rules=2 index=i",
@@ -1619,11 +1661,13 @@ def test_ux_phase5_ctrlab_lmi_persistence(browser_harness, tmp_path):
     assert loaded.diagnostics.get("code_executed") is False
     assert loaded.data["code_executed"] is False
     lmi_state = loaded.data["experiments"][0]["parameters"]["lmi_state"]
-    assert lmi_state["sysState"]["systemClass"] == "ts"
-    assert lmi_state["sysState"]["tsMemberships"][0]["expression"] == h1_expr_val
+    assert lmi_state["selectedSystemRefKey"] == "ts-ctrlab-roundtrip#1"
     assert lmi_state["currentDsl"] == custom_dsl
+    ts_models = [m for m in loaded.data["models"] if m.get("id") == "ts-ctrlab-roundtrip"]
+    assert len(ts_models) == 1
+    assert ts_models[0]["membership_spec"]["functions"][0]["expression"] == h1_expr_val
 
-    # 4. Reload a clean UI session, import .ctrlab via #ctrlab-file-input, and verify Tab 6 restoration
+    # 4. Reload a clean UI session, import .ctrlab via #ctrlab-file-input, and verify Workspace + Tab 6 restoration
     page = mount_ui(browser_harness, "e2e-ux-phase5-ctrlab-lmi-reopened", {"width": 1280, "height": 800})
     assert page.evaluate("() => app.shell.getLqrWorkspace().getCommittedSnapshot()") is None
 
@@ -1634,19 +1678,172 @@ def test_ux_phase5_ctrlab_lmi_persistence(browser_harness, tmp_path):
     page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
     page.locator("#lmi-workspace-panel").wait_for(state="visible")
 
-    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
-    assert page.locator('input[data-vertex-kind="ts"][data-vertex-idx="0"][data-vertex-mat="A"]').input_value() == ts_a1_val
-    assert page.locator('input[data-mf-field="expression"][data-mf-idx="0"]').input_value() == h1_expr_val
+    assert page.locator("#lmi-workspace-system-select").input_value() == "ts-ctrlab-roundtrip#1"
+    restored_summary = page.locator("#lmi-selected-system-summary").inner_text()
+    assert "ts-ctrlab-roundtrip#r1" in restored_summary and "Soma convexa válida" in restored_summary
     assert page.locator("#lmi-code-editor").input_value() == custom_dsl
+
+    # Open Edit modal from Tab 6 to verify A[1] and h_1(z) round-tripped cleanly
+    page.locator("#btn-lmi-edit-system-workspace").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="visible")
+    assert "-8.75" in page.locator('input[data-ts-rule-idx="0"][data-ts-rule-mat="A"]').input_value()
+    assert page.locator('input[data-ts-mf-field="expression"][data-ts-mf-idx="0"]').input_value() == h1_expr_val
+    page.locator("#new-object-modal-close").click()
+    page.locator("#workspace-new-object-modal").wait_for(state="hidden")
 
     browser_harness.record(
         "e2e-ux-phase5-ctrlab-lmi",
         {
             "code_executed": loaded.diagnostics.get("code_executed"),
-            "restored_system_class": "ts",
+            "restored_system_ref": "ts-ctrlab-roundtrip#1",
             "restored_h1_expr": h1_expr_val,
             "restored_dsl_lines": len(custom_dsl.splitlines()),
         },
     )
+
+
+def test_ux_workspace_first_system_definition_polytopic_ts_and_tab6(browser_harness):
+    """Test 14: ADR-014 Workspace-First — 9-vertex Polytopic (no 8-vertex cap), TS unmeasured observer solve, Edit revision increment, Tab 3 shortcut, and 390x844 containment."""
+    page = mount_ui(browser_harness, "e2e-ux-adr014-workspace-first", {"width": 1280, "height": 800})
+
+    # 1a. Create a 9-vertex Polytopic system in #workspace-new-object-modal (proving 8-vertex cap is gone!)
+    page.locator("#btn-open-new-object-modal").click()
+    modal = page.locator("#workspace-new-object-modal")
+    modal.wait_for(state="visible")
+    page.locator("#btn-new-mode-polytopic").click()
+    page.locator("#new-obj-panel-polytopic").wait_for(state="visible")
+    page.locator("#new-poly-id").fill("poly-9v-uncapped")
+
+    add_vertex_btn = page.locator("#btn-new-poly-add-vertex")
+    while page.locator("#new-poly-vertices-list .lmi-vertex-editor-card").count() < 9:
+        add_vertex_btn.click()
+    assert page.locator("#new-poly-vertices-list .lmi-vertex-editor-card").count() == 9, (
+        "Expected 9 editable vertices in Polytopic modal (8-vertex cap must be removed)"
+    )
+    page.locator("#btn-new-poly-submit").click()
+    modal.wait_for(state="hidden")
+
+    # 1b. Create a Takagi-Sugeno system with an unmeasured premise & analytical h_i(z) convexity check
+    page.locator("#btn-open-new-object-modal").click()
+    modal.wait_for(state="visible")
+    page.locator("#btn-new-mode-ts").click()
+    page.locator("#new-obj-panel-ts").wait_for(state="visible")
+    page.locator("#new-ts-id").fill("ts-unmeasured-ws")
+
+    # Uncheck 'Medida' on premise 1 so it becomes unmeasured -> ts_partially_observed
+    measured_cb = page.locator('input[data-ts-premise-field="measured"][data-ts-premise-idx="0"]')
+    measured_cb.wait_for(state="visible")
+    measured_cb.uncheck()
+
+    # Verify h_i(z) convexity validation is active and valid
+    mf_val_text = page.locator("#new-ts-mf-validation").inner_text()
+    assert "Válido" in mf_val_text and "Soma convexa válida" in mf_val_text, (
+        f"Expected valid convex sum in Workspace TS modal, got: {mf_val_text!r}"
+    )
+
+    page.locator("#btn-new-ts-submit").click()
+    modal.wait_for(state="hidden")
+
+    # 2. Both systems appear in #workspace-dock-aside with 'Editar' and '→ LMIs'
+    dock = page.locator("#workspace-dock-aside")
+    poly_edit = dock.locator('[data-action="dock-edit-plant"][data-object-key="poly-9v-uncapped#1"]')
+    poly_lmi = dock.locator('[data-action="dock-route-lmi"][data-object-key="poly-9v-uncapped#1"]')
+    ts_edit = dock.locator('[data-action="dock-edit-plant"][data-object-key="ts-unmeasured-ws#1"]')
+    ts_lmi = dock.locator('[data-action="dock-route-lmi"][data-object-key="ts-unmeasured-ws#1"]')
+
+    for loc in (poly_edit, poly_lmi, ts_edit, ts_lmi):
+        loc.wait_for(state="visible")
+    assert "9 vértices" in dock.inner_text()
+
+    # 3. Route to Tab 6 via TS card '→ LMIs' -> selects TS system, shows summary & unmeasured panel, generates & solves TS observer -> L[1], L[2]
+    ts_lmi.click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
+
+    assert page.locator("#lmi-workspace-system-select").input_value() == "ts-unmeasured-ws#1"
+    summary_text = page.locator("#lmi-selected-system-summary").inner_text()
+    assert "ts-unmeasured-ws" in summary_text and "Não Medida" in summary_text, (
+        f"Expected ts-unmeasured-ws summary with unmeasured premise, got: {summary_text!r}"
+    )
+
+    unmeasured_panel = page.locator("#lmi-ts-unmeasured-panel")
+    unmeasured_panel.wait_for(state="visible")
+
+    page.locator("#btn-lmi-generate-ts-observer").click()
+    dsl_val = page.locator("#lmi-code-editor").input_value()
+    assert "unmeasured_observer" in dsl_val and "recover L[i] = inv(P) * N[i]" in dsl_val
+
+    page.locator("#btn-lmi-solve").click()
+    page.wait_for_function(
+        """() => {
+            const cert = document.querySelector('#lmi-certificate-panel')?.textContent || '';
+            const gain = document.querySelector('#lmi-recovered-gain')?.textContent || '';
+            return (cert.includes('validated_dual') || cert.toLowerCase().includes('feasible'))
+                && gain.includes('L[1]') && gain.includes('L[2]');
+        }""",
+        timeout=45000,
+    )
+    gain_text = page.locator("#lmi-recovered-gain").inner_text()
+    assert "L[1]" in gain_text and "L[2]" in gain_text
+
+    # 4. Click #btn-lmi-edit-system-workspace -> opens modal in Edit mode pre-populated -> saving increments revision (#1 -> #2)
+    page.locator("#btn-lmi-edit-system-workspace").click()
+    modal.wait_for(state="visible")
+    assert "Editar" in page.locator("#new-object-modal-title").inner_text()
+    assert page.locator("#new-ts-id").input_value() == "ts-unmeasured-ws"
+    page.locator('input[data-ts-rule-idx="0"][data-ts-rule-mat="A"]').fill("[[0, 1], [-2.2, -1.3]]")
+    page.locator("#btn-new-ts-submit").click()
+    modal.wait_for(state="hidden")
+
+    page.wait_for_function(
+        "() => document.querySelector('#lmi-workspace-system-select')?.value === 'ts-unmeasured-ws#2'"
+    )
+    assert page.locator("#lmi-workspace-system-select").input_value() == "ts-unmeasured-ws#2"
+    assert "ts-unmeasured-ws#r2" in page.locator("#lmi-selected-system-summary").inner_text()
+
+    # 5. Tab 3 (#btn-ss-edit-plant-workspace) opens #workspace-new-object-modal pre-populated with active LQR plant
+    page.locator('button[data-tab-id="statespace"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'statespace'")
+    page.locator("#statespace-workspace-panel").wait_for(state="visible")
+    active_plant_id = page.evaluate("() => app.shell.getLqrWorkspace().getPlant().id")
+
+    page.locator("#btn-ss-edit-plant-workspace").click()
+    modal.wait_for(state="visible")
+    assert "Editar" in page.locator("#new-object-modal-title").inner_text()
+    assert page.locator("#new-ss-id").input_value() == active_plant_id
+
+    # 6. Mobile 390x844 viewport: zero horizontal overflow on Workspace modal AND on Tab 6
+    page.set_viewport_size({"width": 390, "height": 844})
+    modal_overflow = page.evaluate(
+        "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
+    )
+    assert modal_overflow["scrollWidth"] <= 390, (
+        f"Horizontal overflow at 390x844 with Workspace modal open: {modal_overflow}"
+    )
+
+    page.locator("#new-object-modal-close").click()
+    modal.wait_for(state="hidden")
+
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    tab6_overflow = page.evaluate(
+        "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
+    )
+    assert tab6_overflow["scrollWidth"] <= 390, (
+        f"Horizontal overflow at 390x844 on Tab 6: {tab6_overflow}"
+    )
+
+    browser_harness.record(
+        "e2e-ux-adr014-workspace-first",
+        {
+            "polytopic_vertices_created": 9,
+            "ts_observer_gains": gain_text,
+            "ts_revision_incremented_to": "ts-unmeasured-ws#2",
+            "tab3_edit_plant_id": active_plant_id,
+            "mobile_390x844_modal": modal_overflow,
+            "mobile_390x844_tab6": tab6_overflow,
+        },
+    )
+
 
 

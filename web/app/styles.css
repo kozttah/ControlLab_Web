@@ -2656,9 +2656,133 @@ textarea {
 
   #lmi-template-select,
   #lmi-preset-name,
-  #lmi-saved-select {
+  #lmi-saved-select,
+  #lmi-workspace-system-select {
     max-width: 100%;
     flex: 1 1 100%;
     width: 100%;
   }
+
+  .lmi-indices-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
+
+/* ADR-014 Workspace-First Plant Strip (Tab 3), LMI Selector & 5-Mode System Editor Modal */
+.ss-workspace-plant-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
+  padding: 0.6rem 0.8rem;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ss-workspace-plant-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ss-design-hint {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.lmi-workspace-selector-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#lmi-workspace-system-select {
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.lmi-selected-system-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.lmi-sys-summary-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-primary);
+}
+
+.lmi-sys-summary-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.lmi-sys-summary-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+.lmi-indices-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lmi-index-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.84rem;
+  min-width: 0;
+}
+
+.modal-dynamic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 36vh;
+  overflow-y: auto;
+  padding: 0.25rem 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.modal-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border-subtle);
+  min-width: 0;
+  max-width: 100%;
+}
+

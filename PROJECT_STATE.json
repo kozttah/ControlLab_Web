@@ -25,7 +25,7 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 9
+      "2026-11-22": 10
     }
   },
   "audit_reference": {
@@ -5780,6 +5780,51 @@
       "acceptance_requirements": [
         "ADR-010 atualizado com tabela do stress test em Chromium Pyodide Wasm real e limite max_variables=448",
         "tests/wasm/test_real_runtime.py e tests/unit/f6/ 100% aprovados apos rebuild do wheel"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE5-05-SCALABLE-CHORDAL-COO-CANCEL",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase5-Scalable-Native-SDP",
+      "title": "F6/F8/F9: Clarabel-inspired Ruiz + Decomposicao Cordal/Blocos, F_k esparso COO, botao Cancelar e envelope 2 faixas (448/1024)",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/",
+        "web/features/",
+        "web/app/",
+        "tests/unit/f8/",
+        "docs/architecture/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE5-04-F9-ENVELOPE-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-UI-01",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/wasm/test_real_runtime.py -v && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f6_ruiz_aggregate_sparsity_coo_f8_cancel_2tier_envelope_and_f9_adr010_audit",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE5-05-SCALABLE-CHORDAL-COO-CANCEL.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE5-05-SCALABLE-CHORDAL-COO-CANCEL.md"
+      ],
+      "origin_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "acceptance_requirements": [
+        "SDPBlock.from_dict suporta F_k_sparse (COO) mantendo retrocompatibilidade 100% com F_k denso; lmi_dsl_compiler.ts emite F_k_sparse",
+        "Equilibracao Ruiz multi-varredura e decomposicao de esparsidade agregada / cordal (Goulart & Chen, Clarabel arXiv:2405.12762; Garstka, Cannon & Goulart IFAC 2020) com reconstrucao dual exata",
+        "Envelope 2 faixas (fast_max_variables=448, max_variables=1024) + botao Cancelar (#btn-lmi-cancel-solve) na Aba 6 + ADR-010 atualizado"
       ]
     }
   ],

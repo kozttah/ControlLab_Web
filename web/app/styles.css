@@ -1729,6 +1729,28 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.lmi-solver-progress-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: 0.35rem;
+}
+
+.lmi-solver-progress-bar .lmi-solver-progress-status {
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lmi-cancel-solve-btn {
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
 .lmi-progress-wrap {
   max-height: 180px;
   overflow-y: auto;

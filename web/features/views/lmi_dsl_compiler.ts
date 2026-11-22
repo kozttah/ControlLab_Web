@@ -69,8 +69,9 @@ export interface CanonicalTensor2D {
 
 export interface CanonicalSDPBlockJson {
   name: string;
+  dim: number;
   F0: CanonicalTensor2D;
-  F_k: CanonicalTensor2D[];
+  F_k_sparse: Record<string, [number, number, number][]>;
 }
 
 export interface CanonicalVariableMapEntry {
@@ -1416,15 +1417,23 @@ export function compileLmiDslToCanonicalSdp(
         }
         symmetrizeSquareInPlace(f0, dim);
 
-        const zeroBlock = new Float64Array(dim * dim);
-        const zeroTensor = float64ToTensor2D(zeroBlock, dim, dim);
-        const f_k: CanonicalTensor2D[] = Array.from({ length: nVars }, (_, k) => {
-          const term = matAff.terms.get(k);
-          if (!term) return zeroTensor;
+        const f_k_sparse: Record<string, [number, number, number][]> = {};
+        for (const [k, term] of matAff.terms.entries()) {
           const copy = new Float64Array(term);
           symmetrizeSquareInPlace(copy, dim);
-          return float64ToTensor2D(copy, dim, dim);
-        });
+          const entries: [number, number, number][] = [];
+          for (let r = 0; r < dim; r += 1) {
+            for (let c = 0; c < dim; c += 1) {
+              const val = copy[r * dim + c];
+              if (Math.abs(val) > 0) {
+                entries.push([r, c, val]);
+              }
+            }
+          }
+          if (entries.length > 0) {
+            f_k_sparse[String(k)] = entries;
+          }
+        }
 
         const bindTag = Object.entries(binding)
           .map(([k, v]) => `${k}=${v}`)
@@ -1433,8 +1442,9 @@ export function compileLmiDslToCanonicalSdp(
         blockCounter += 1;
         blocks.push({
           name: blkName,
+          dim,
           F0: float64ToTensor2D(f0, dim, dim),
-          F_k: f_k,
+          F_k_sparse: f_k_sparse,
         });
       };
 

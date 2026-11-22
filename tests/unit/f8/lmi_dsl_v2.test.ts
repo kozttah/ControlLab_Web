@@ -327,7 +327,7 @@ class StubLmiClient implements ControlLabEngineClient {
       provenance: { algorithm: "stub", lib_versions: { python: "3.12" } },
     };
   }
-  public async cancel(): Promise<boolean> {
+  public async cancel(_requestId: string, _options?: { reason?: string; forceTerminate?: boolean }): Promise<boolean> {
     return false;
   }
   public async resetWorker(): Promise<void> {}
@@ -730,19 +730,29 @@ test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelo
   const banner = root.querySelector<FakeElement>("#lmi-envelope-banner")!;
   assert.equal(banner.hasAttribute("hidden"), true, "n=24 em factibilidade geral deve ficar dentro do envelope");
 
-  // General stabilization with n=30 (> 28, n_vars = 465 > 448) -> visible
+  // General stabilization with n=30 (> 28, n_vars = 465 in 449..1024) -> visible extended tier
   app.shell.getLqrWorkspace().updatePlant(makePlant(30));
   editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
   editorEl.dispatchEvent("input");
-  assert.equal(banner.hasAttribute("hidden"), false, "n=30 deve exibir aviso do envelope");
-  assert.ok(banner.textContent.includes("max_variables=448"));
+  assert.equal(banner.hasAttribute("hidden"), false, "n=30 deve exibir aviso de faixa estendida");
+  assert.ok(banner.textContent.includes("Execução longa no navegador"));
+  assert.ok(banner.textContent.includes("Cancelar"));
 
-  // Hinf norm minimization with n=22 (> 20) -> visible
+  // Hinf norm minimization with n=22 (> 20, n_vars <= 1024) -> visible extended tier
   app.shell.getLqrWorkspace().updatePlant(makePlant(22));
   const hinfTpl = LMI_DSL_TEMPLATES.find((t) => t.id === "hinf_brl")!;
   editorEl.value = hinfTpl.dsl;
   editorEl.dispatchEvent("input");
   assert.equal(banner.hasAttribute("hidden"), false, "n=22 em H∞ (> 20) deve exibir aviso do envelope");
+  assert.ok(banner.textContent.includes("Execução longa no navegador"));
+
+  // General stabilization with n=46 (n_vars = 1081 > 1024) -> visible hard limit
+  app.shell.getLqrWorkspace().updatePlant(makePlant(46));
+  editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
+  editorEl.dispatchEvent("input");
+  assert.equal(banner.hasAttribute("hidden"), false, "n=46 (1081 vars > 1024) deve exibir limite máximo");
+  assert.ok(banner.textContent.includes("max_variables=1024"));
+  assert.ok(banner.textContent.includes("Exportar CVXPY / YALMIP"));
 
   app.destroy();
 });
@@ -772,15 +782,29 @@ test("WP-PHASE4-01: Compilador Direto DSL v2.0 -> CanonicalSDPProblem (LTI, Poli
     Dzw: [[0], [0]],
   };
 
-  // Helper to assert symmetry of all F0 and F_k
+  // Helper to assert symmetry of all F0 and sparse COO F_k_sparse (and absence of dense F_k)
   const assertAllBlocksSymmetric = (problem: ReturnType<typeof compileLmiDslToCanonicalSdp>["problem"]) => {
     for (const blk of problem.blocks) {
       const dim = blk.F0.shape[0];
+      assert.equal(blk.dim, dim);
       assert.equal(blk.F0.shape[1], dim);
-      for (const mat of [blk.F0, ...blk.F_k]) {
+      assert.equal("F_k" in blk, false, `Bloco ${blk.name} não deve emitir F_k denso`);
+      assert.equal(typeof blk.F_k_sparse, "object");
+      for (let r = 0; r < dim; r += 1) {
+        for (let c = r + 1; c < dim; c += 1) {
+          assert.equal(blk.F0.data[r * dim + c], blk.F0.data[c * dim + r], `Assimetria em F0 de ${blk.name}`);
+        }
+      }
+      for (const [kStr, entries] of Object.entries(blk.F_k_sparse)) {
+        assert.ok(entries.length > 0, `Chave vazia ${kStr} em F_k_sparse de ${blk.name}`);
+        const dense = new Float64Array(dim * dim);
+        for (const [r, c, val] of entries) {
+          assert.ok(Math.abs(val) > 0, `Entrada nula em F_k_sparse[${kStr}] de ${blk.name}`);
+          dense[r * dim + c] += val;
+        }
         for (let r = 0; r < dim; r += 1) {
           for (let c = r + 1; c < dim; c += 1) {
-            assert.equal(mat.data[r * dim + c], mat.data[c * dim + r], `Assimetria em ${blk.name}`);
+            assert.equal(dense[r * dim + c], dense[c * dim + r], `Assimetria em F_k_sparse[${kStr}] de ${blk.name}`);
           }
         }
       }
@@ -1144,11 +1168,19 @@ test("WP-ROADMAP-TS-UNMEASURED-OBS: Observador TS com premissas não medidas (DS
 });
 
 test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funções de Pertinência TS", async () => {
-  const capturedProblems: Array<{ blocks: Array<{ name: string; F0: { data: number[] }; F_k: Array<{ data: number[] }> }> }> = [];
+  type CapturedProblem = {
+    blocks: Array<{
+      name: string;
+      dim: number;
+      F0: { data: number[] };
+      F_k_sparse: Record<string, [number, number, number][]>;
+    }>;
+  };
+  const capturedProblems: CapturedProblem[] = [];
   class CaptureClient extends StubLmiClient {
     public override async execute(req: RpcRequest): Promise<RpcResponse> {
       if (req.operation === "optimization.solve" && req.payload.problem) {
-        capturedProblems.push(req.payload.problem as { blocks: Array<{ name: string; F0: { data: number[] }; F_k: Array<{ data: number[] }> }> });
+        capturedProblems.push(req.payload.problem as CapturedProblem);
       }
       return super.execute(req);
     }
@@ -1205,16 +1237,18 @@ test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funçõ
   await new Promise((r) => setTimeout(r, 20));
 
   assert.equal(capturedProblems.length, 1);
-  // In He(A[1]*Q + B[1]*Y) < 0, F_k for Y[0] (var_id=3, row=0 of Y -> [1, 0]) has -B[1] = [[0], [-2.5]]
+  // In He(A[1]*Q + B[1]*Y) < 0, F_k_sparse for Y[0] (var_id=3, row=0 of Y -> [1, 0]) has -B[1] = [[0], [-2.5]]
   const polyBlock = capturedProblems[0].blocks[1];
   assert.ok(
-    polyBlock.F_k.some((fk) => fk.data.some((val) => Math.abs(val - (-2.5)) < 1e-9 || Math.abs(val - 2.5) < 1e-9)),
-    "Esperado B[1]=[0; 2.5] refletido em F_k do CanonicalSDPProblem politópico",
+    Object.values(polyBlock.F_k_sparse).some((entries) =>
+      entries.some(([, , val]) => Math.abs(val - (-2.5)) < 1e-9 || Math.abs(val - 2.5) < 1e-9),
+    ),
+    "Esperado B[1]=[0; 2.5] refletido em F_k_sparse do CanonicalSDPProblem politópico",
   );
-  // And F_k for Q00 (var_id=0, Q=[[1,0],[0,0]]) has -He(A[1]*E_00) -> off-diagonal -(-7.5) = 7.5
+  // And F_k_sparse['0'] for Q00 (var_id=0, Q=[[1,0],[0,0]]) has -He(A[1]*E_00) -> off-diagonal -(-7.5) = 7.5
   assert.ok(
-    polyBlock.F_k[0].data.some((val) => Math.abs(val - 7.5) < 1e-9),
-    "Esperado A[1][1][0]=-7.5 refletido em F_k[0] do CanonicalSDPProblem politópico",
+    (polyBlock.F_k_sparse["0"] ?? []).some(([, , val]) => Math.abs(val - 7.5) < 1e-9),
+    "Esperado A[1][1][0]=-7.5 refletido em F_k_sparse['0'] do CanonicalSDPProblem politópico",
   );
 
   // 2. Takagi-Sugeno mode: edit A[1]/B[1] in #lmi-ts-vertex-editor and verify compiled problem
@@ -1235,11 +1269,13 @@ test("WP-PHASE4-03-F8: Vértices editáveis A,B,C,D (Politópico e TS) e Funçõ
   assert.equal(capturedProblems.length, 2);
   const tsBlock = capturedProblems[1].blocks[1];
   assert.ok(
-    tsBlock.F_k[0].data.some((val) => Math.abs(val - 9.25) < 1e-9),
+    (tsBlock.F_k_sparse["0"] ?? []).some(([, , val]) => Math.abs(val - 9.25) < 1e-9),
     "Esperado A[1][1][0]=-9.25 refletido no CanonicalSDPProblem TS",
   );
   assert.ok(
-    tsBlock.F_k.some((fk) => fk.data.some((val) => Math.abs(val - (-3.5)) < 1e-9 || Math.abs(val - 3.5) < 1e-9)),
+    Object.values(tsBlock.F_k_sparse).some((entries) =>
+      entries.some(([, , val]) => Math.abs(val - (-3.5)) < 1e-9 || Math.abs(val - 3.5) < 1e-9),
+    ),
     "Esperado B[1]=[0; 3.5] refletido no CanonicalSDPProblem TS",
   );
 
@@ -1529,6 +1565,90 @@ test("WP-ROADMAP-CTRLAB-LMI-PERSISTENCE: roundtrip .ctrlab preserva e restaura e
 
   app2.destroy();
 });
+
+test("WP-PHASE5-05-F8: Botão Cancelar (#btn-lmi-cancel-solve) invoca client.cancel() em voo e timeout_policy=300000ms", async () => {
+  let resolveInFlight: ((resp: RpcResponse) => void) | null = null;
+  let capturedReq: RpcRequest | null = null;
+  const cancelCalls: Array<{ requestId: string; reason?: string }> = [];
+
+  class CancelableStubClient extends StubLmiClient {
+    public override async execute(req: RpcRequest): Promise<RpcResponse> {
+      if (req.operation === "optimization.solve") {
+        capturedReq = req;
+        return new Promise<RpcResponse>((resolve) => {
+          resolveInFlight = resolve;
+        });
+      }
+      return super.execute(req);
+    }
+
+    public override async cancel(requestId: string, options?: { reason?: string }): Promise<boolean> {
+      cancelCalls.push({ requestId, reason: options?.reason });
+      if (resolveInFlight && capturedReq) {
+        resolveInFlight({
+          api_version: RPC_API_VERSION,
+          request_id: capturedReq.request_id,
+          project_id: capturedReq.project_id,
+          project_revision: capturedReq.project_revision,
+          status: "failure",
+          result: null,
+          diagnostics: {},
+          assumptions: {},
+          warnings: [],
+          error: {
+            code: "CANCELLED",
+            message: "Cancelado pelo usuário.",
+            parameters: {},
+          },
+          provenance: { algorithm: "stub", lib_versions: { python: "3.12" } },
+        });
+      }
+      return true;
+    }
+  }
+
+  const client = new CancelableStubClient();
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client,
+    project_id: "proj-lmi-cancel",
+  });
+  await app.client.init();
+  app.shell.switchTab("optimization_lmi");
+
+  const cancelBtn = root.querySelector<FakeElement>("#btn-lmi-cancel-solve")!;
+  assert.ok(cancelBtn !== null);
+  assert.equal(cancelBtn.hasAttribute("hidden"), true, "Botão Cancelar deve estar oculto em repouso");
+
+  // Dispara resolução em voo
+  root.querySelector<FakeElement>('[data-action="lmi-solve"]')!.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 10));
+
+  assert.equal(cancelBtn.hasAttribute("hidden"), false, "Botão Cancelar deve ficar visível durante solveLmi()");
+  assert.ok(capturedReq !== null);
+  assert.equal(
+    (capturedReq as RpcRequest).timeout_policy?.hard_timeout_ms,
+    300_000,
+    "optimization.solve deve usar hard_timeout_ms=300_000 (5 min)",
+  );
+
+  // Clica em Cancelar
+  cancelBtn.dispatchEvent("click");
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.equal(cancelCalls.length, 1);
+  assert.equal(cancelCalls[0].requestId, (capturedReq as RpcRequest).request_id);
+  assert.equal(cancelCalls[0].reason, "user_cancelled_lmi");
+  assert.equal(cancelBtn.hasAttribute("hidden"), true, "Botão Cancelar deve voltar a ficar oculto após cancelar");
+  assert.equal(
+    root.querySelector("#lmi-solver-progress-status")!.textContent,
+    "Resolução cancelada pelo usuário.",
+  );
+
+  app.destroy();
+});
+
 
 
 

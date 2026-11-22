@@ -158,9 +158,10 @@ interface LmiSolveSnapshot {
 }
 
 export const BROWSER_ENVELOPE = {
-  max_variables: 448,
+  fast_max_variables: 448,
+  max_variables: 1024,
   max_block_dimension: 64,
-  max_cone_entries: 32768,
+  max_cone_entries: 65536,
 } as const;
 
 function setElHidden(el: Element | null | undefined, hidden: boolean): void {
@@ -578,7 +579,10 @@ export function renderLmiViewHtml(): string {
     `<div id="lmi-solver-progress-panel" class="lmi-solver-progress-panel">`,
     `<details id="lmi-solver-progress-details" open>`,
     `<summary>Progresso do Solver Primal-Dual (Iterações)</summary>`,
+    `<div class="lmi-solver-progress-bar">`,
     `<div id="lmi-solver-progress-status" class="lmi-solver-progress-status" aria-live="polite">Aguardando execução.</div>`,
+    `<button type="button" id="btn-lmi-cancel-solve" class="touch-control btn-secondary btn-small lmi-cancel-solve-btn" data-action="lmi-cancel-solve" hidden>Cancelar</button>`,
+    `</div>`,
     `<div class="lmi-progress-wrap">`,
     `<table id="lmi-solver-progress-table" class="accessible-data-table lmi-progress-table">`,
     `<thead><tr><th scope="col">Iter</th><th scope="col">Gap</th><th scope="col">Res. Primal</th><th scope="col">Res. Dual</th><th scope="col">λ_min</th><th scope="col">Tempo (ms)</th></tr></thead>`,
@@ -625,6 +629,7 @@ export class LmiView {
   private readonly recoveredGainEl: HTMLElement | null;
   private readonly progressStatusEl: HTMLElement | null;
   private readonly progressTbodyEl: HTMLElement | null;
+  private readonly cancelSolveBtnEl: HTMLButtonElement | null;
   private readonly spectrumChartSlotEl: HTMLElement | null;
   private readonly spectrumTableSlotEl: HTMLElement | null;
 
@@ -667,6 +672,7 @@ export class LmiView {
   private lastSolve: LmiSolveSnapshot | null = null;
   private lastBuildPayload: Record<string, unknown> | null = null;
   private liveIterations: SolverProgress[] = [];
+  private activeSolveRequestId: string | null = null;
   private sysState: LmiSystemCharacterizationState;
   private mfIdCounter = 2;
 
@@ -735,6 +741,7 @@ export class LmiView {
     this.recoveredGainEl = this.container.querySelector<HTMLElement>("#lmi-recovered-gain");
     this.progressStatusEl = this.container.querySelector<HTMLElement>("#lmi-solver-progress-status");
     this.progressTbodyEl = this.container.querySelector<HTMLElement>("#lmi-solver-progress-tbody");
+    this.cancelSolveBtnEl = this.container.querySelector<HTMLButtonElement>("#btn-lmi-cancel-solve");
     this.spectrumChartSlotEl = this.container.querySelector<HTMLElement>("#lmi-spectrum-chart-slot");
     this.spectrumTableSlotEl = this.container.querySelector<HTMLElement>("#lmi-spectrum-table-slot");
 
@@ -1318,6 +1325,10 @@ export class LmiView {
         void this.solveLmi();
       });
 
+    this.cancelSolveBtnEl?.addEventListener("click", () => {
+      void this.cancelSolve();
+    });
+
     this.container
       .querySelector<HTMLElement>('[data-action="lmi-verify"]')
       ?.addEventListener("click", () => {
@@ -1558,6 +1569,7 @@ export class LmiView {
     operation: string,
     payload: Record<string, unknown>,
     requestIdOverride?: string,
+    timeoutMs = 30000,
   ): Promise<RpcResponse> {
     const lqr = this.shell.getLqrWorkspace();
     const projectId = lqr.getProjectId();
@@ -1571,7 +1583,7 @@ export class LmiView {
         operation,
         payload,
         options: {},
-        timeout_policy: { hard_timeout_ms: 30000 },
+        timeout_policy: { hard_timeout_ms: timeoutMs },
       },
       { commitOnSuccess: false },
     );
@@ -1705,8 +1717,25 @@ export class LmiView {
     };
   }
 
+  public async cancelSolve(): Promise<void> {
+    const reqId = this.activeSolveRequestId;
+    if (!reqId) return;
+    this.activeSolveRequestId = null;
+    setElHidden(this.cancelSolveBtnEl, true);
+    if (this.progressStatusEl) {
+      this.progressStatusEl.textContent = "Resolução cancelada pelo usuário.";
+    }
+    try {
+      await this.client.cancel(reqId, { reason: "user_cancelled_lmi" });
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+    }
+  }
+
   public async solveLmi(): Promise<void> {
     const requestId = `lmi-${generateUuid()}`;
+    this.activeSolveRequestId = requestId;
+    setElHidden(this.cancelSolveBtnEl, false);
     this.liveIterations = [];
     this.renderProgressRows([], "Resolvendo LMI no motor nativo...");
     const unsubscribeProgress = this.client.subscribeProgress?.((ev) => {
@@ -1721,8 +1750,16 @@ export class LmiView {
 
     try {
       const payload = await this.buildBackendPayload();
-      const resp = await this.executeRpc("optimization.solve", payload, requestId);
+      const resp = await this.executeRpc("optimization.solve", payload, requestId, 300_000);
+      if (this.activeSolveRequestId !== requestId) {
+        this.renderProgressRows(this.liveIterations, "Resolução cancelada pelo usuário.");
+        return;
+      }
       if (resp.status === "failure") {
+        if (resp.error?.code === "CANCELLED") {
+          this.renderProgressRows(this.liveIterations, "Resolução cancelada pelo usuário.");
+          return;
+        }
         throw new ControlLabBridgeError(
           resp.error?.code ?? "INTERNAL_ERROR",
           resp.error?.message ?? "Falha ao resolver LMI.",
@@ -1739,9 +1776,17 @@ export class LmiView {
       this.renderCertificateAndSpectrum();
       this.onRequestRender?.();
     } catch (err: unknown) {
-      this.renderProgressRows(this.liveIterations, "Execução interrompida ou com erro.");
-      this.shell.presentError(err);
+      if (this.activeSolveRequestId !== requestId) {
+        this.renderProgressRows(this.liveIterations, "Resolução cancelada pelo usuário.");
+      } else {
+        this.renderProgressRows(this.liveIterations, "Execução interrompida ou com erro.");
+        this.shell.presentError(err);
+      }
     } finally {
+      if (this.activeSolveRequestId === requestId) {
+        this.activeSolveRequestId = null;
+      }
+      setElHidden(this.cancelSolveBtnEl, true);
       unsubscribeProgress?.();
     }
   }
@@ -2197,16 +2242,33 @@ export class LmiView {
       const tpl = this.parsed.inferredTemplate;
       const isHinf = tpl === "hinf_brl" || tpl === "hinf_generalized_brl";
       const nVars = this.estimateDslVariables(dims);
-      const maxNForMode = isHinf ? 20 : 28;
-      const exceedsEnvelope =
-        dims.n > maxNForMode ||
+      const maxNForFast = isHinf ? 20 : 28;
+      const estMaxBlockDim = isHinf ? dims.n + 2 : dims.n;
+      const estConeEntries = this.parsed.expandedBlockCount * estMaxBlockDim * estMaxBlockDim;
+      const exceedsHardLimit =
         nVars > BROWSER_ENVELOPE.max_variables ||
-        this.parsed.expandedBlockCount > 32;
-      if (exceedsEnvelope) {
+        estMaxBlockDim > BROWSER_ENVELOPE.max_block_dimension ||
+        estConeEntries > BROWSER_ENVELOPE.max_cone_entries;
+      const isExtendedTier =
+        !exceedsHardLimit &&
+        (nVars > BROWSER_ENVELOPE.fast_max_variables ||
+          dims.n > maxNForFast ||
+          this.parsed.expandedBlockCount > 32);
+
+      if (exceedsHardLimit) {
         setElHidden(this.envelopeBannerEl, false);
-        this.envelopeBannerEl.innerHTML = `<strong>Limite do motor navegador (ADR-010):</strong> Planta com n=${dims.n} estados, ~${nVars} variáveis (envelope validado: n ≤ 28 geral, n ≤ 20 H∞, max_variables=${BROWSER_ENVELOPE.max_variables}, max_block_dimension=${BROWSER_ENVELOPE.max_block_dimension}, max_cone_entries=${BROWSER_ENVELOPE.max_cone_entries}) e ${this.parsed.expandedBlockCount} bloco(s) LMI. Recomenda-se usar <strong>Exportar CVXPY / YALMIP</strong> para execução offline com MOSEK/SCS.`;
+        toggleCssClass(this.envelopeBannerEl, "lmi-envelope-extended", false);
+        toggleCssClass(this.envelopeBannerEl, "lmi-envelope-hard-limit", true);
+        this.envelopeBannerEl.innerHTML = `<strong>Limite do motor navegador (ADR-010):</strong> Planta com n=${dims.n} estados, ~${nVars} variáveis (limite máximo no navegador: max_variables=${BROWSER_ENVELOPE.max_variables}, max_block_dimension=${BROWSER_ENVELOPE.max_block_dimension}, max_cone_entries=${BROWSER_ENVELOPE.max_cone_entries}) e ${this.parsed.expandedBlockCount} bloco(s) LMI. Recomenda-se usar <strong>Exportar CVXPY / YALMIP</strong> para execução offline com MOSEK/SCS.`;
+      } else if (isExtendedTier) {
+        setElHidden(this.envelopeBannerEl, false);
+        toggleCssClass(this.envelopeBannerEl, "lmi-envelope-extended", true);
+        toggleCssClass(this.envelopeBannerEl, "lmi-envelope-hard-limit", false);
+        this.envelopeBannerEl.innerHTML = `<strong>Faixa estendida no navegador (~${nVars} variáveis, n=${dims.n}):</strong> Execução longa no navegador (~10 s a ~3 min): acompanhe o log por iteração, use <strong>Cancelar</strong> se necessário ou <strong>Exportar CVXPY / YALMIP</strong> (faixa rápida ≤ ${BROWSER_ENVELOPE.fast_max_variables} variáveis; limite máximo max_variables=${BROWSER_ENVELOPE.max_variables}).`;
       } else {
         setElHidden(this.envelopeBannerEl, true);
+        toggleCssClass(this.envelopeBannerEl, "lmi-envelope-extended", false);
+        toggleCssClass(this.envelopeBannerEl, "lmi-envelope-hard-limit", false);
         this.envelopeBannerEl.innerHTML = "";
       }
     }

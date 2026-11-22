@@ -7,9 +7,13 @@ Algorithmic enhancements incorporated for scalable control LMIs:
 - Sparsity-exploiting Nesterov-Todd congruence, vectorized Schur Complement Matrix
   (SCM) assembly, and regularized Cholesky factorization (Fujisawa et al., IEEE IPDPS
   2014, doi:10.1109/IPDPS.2014.121).
-- Block-level Frobenius data equilibration with exact dual unscaling so the
-  independent verifier audits the unscaled original problem (Yurtsever, Tropp,
-  Fercoq, Udell, Cevher, SIAM J. Matrix Anal. Appl. 2021, SketchyCGAL §7.1.1).
+- Aggregate-sparsity connected-component & chordal block decomposition with exact dual
+  reassembly for decoupled/block-diagonal PSD constraints (Garstka, Cannon & Goulart,
+  IFAC 2020, doi:10.1016/j.ifacol.2020.12.1255; Goulart & Chen, 2024, arXiv:2405.12762).
+- Multi-sweep clipped Ruiz data equilibration (up to 5 sweeps, factors clipped to
+  [1e-4, 1e4]) with exact primal and dual unscaling so the independent verifier audits
+  the original unscaled problem (Goulart & Chen, 2024, arXiv:2405.12762, §2.4 & §2.6;
+  Yurtsever, Tropp, Fercoq, Udell, Cevher, SIAM J. Matrix Anal. Appl. 2021, §7.1.1).
 - Interior-point warm-start support (`warm_start_x`) allowing Phase 1 to be bypassed
   when a strictly feasible interior point is supplied (Ding et al., arXiv:2312.11801,
   SpecBM).
@@ -1057,6 +1061,207 @@ def _run_primal_dual_cone_loop(
     }
 
 
+@dataclass(frozen=True)
+class _BlockDecompositionPlan:
+    """Plano de decomposição exata por componentes conexas de esparsidade agregada.
+
+    Referências:
+    - Garstka, Cannon & Goulart, IFAC 2020 (doi:10.1016/j.ifacol.2020.12.1255)
+    - Goulart & Chen, 2024 (arXiv:2405.12762, Clarabel)
+    """
+
+    decomposed_blocks: list[_InternalConeBlock]
+    reconstruction: list[tuple[int, list[tuple[int, np.ndarray]]]]
+    n_original_blocks: int
+    n_decomposed_blocks: int
+    decomposed_block_indices: tuple[int, ...]
+
+    def reassemble_duals(self, sub_duals: Sequence[np.ndarray]) -> list[np.ndarray]:
+        """Reconstrói matrizes duais Z_b na dimensão original a partir dos sub-blocos."""
+        assembled: list[np.ndarray] = []
+        for orig_dim, mapping in self.reconstruction:
+            if (
+                len(mapping) == 1
+                and mapping[0][1].size == orig_dim
+                and np.array_equal(mapping[0][1], np.arange(orig_dim, dtype=np.intp))
+            ):
+                assembled.append(_sym(sub_duals[mapping[0][0]]))
+            else:
+                Z_full = np.zeros((orig_dim, orig_dim), dtype=np.float64)
+                for sub_idx, verts in mapping:
+                    Z_full[np.ix_(verts, verts)] = _sym(sub_duals[sub_idx])
+                assembled.append(_sym(Z_full))
+        return assembled
+
+
+def _decompose_sparse_psd_blocks(
+    blocks: Sequence[_InternalConeBlock],
+) -> _BlockDecompositionPlan:
+    """Decompõe blocos PSD com dim >= 4 em componentes conexas de esparsidade agregada.
+
+    Constrói o grafo não-direcionado de esparsidade agregada sobre {0..dim-1} a partir da
+    união das entradas não-nulas fora da diagonal de F0 e de todos os F_k. Se houver C > 1
+    componentes conexas V_1, ..., V_C, divide o bloco em C blocos PSD independentes sem
+    introduzir variáveis extras (equivalência exata), registrando o mapa de reconstrução
+    para remontar Z_b[np.ix_(V_c, V_c)] = Z_sub_c após a solução.
+
+    Referências:
+    - Garstka, Cannon & Goulart, IFAC 2020 (10.1016/j.ifacol.2020.12.1255)
+    - Goulart & Chen, 2024 (arXiv:2405.12762)
+    """
+    decomposed_blocks: list[_InternalConeBlock] = []
+    reconstruction: list[tuple[int, list[tuple[int, np.ndarray]]]] = []
+    decomposed_indices: list[int] = []
+
+    for orig_idx, blk in enumerate(blocks):
+        if blk.is_ineq_slack or blk.dim < 4:
+            sub_idx = len(decomposed_blocks)
+            decomposed_blocks.append(blk)
+            reconstruction.append((blk.dim, [(sub_idx, np.arange(blk.dim, dtype=np.intp))]))
+            continue
+
+        dim = blk.dim
+        adj = np.abs(blk.F0) > 0.0
+        for fk in blk.F_terms.values():
+            adj |= np.abs(fk) > 0.0
+        adj |= adj.T
+
+        visited = [False] * dim
+        components: list[np.ndarray] = []
+        for start in range(dim):
+            if visited[start]:
+                continue
+            comp: list[int] = []
+            stack = [start]
+            visited[start] = True
+            while stack:
+                node = stack.pop()
+                comp.append(node)
+                neighbors = np.flatnonzero(adj[node])
+                for nb in neighbors:
+                    nb_i = int(nb)
+                    if not visited[nb_i]:
+                        visited[nb_i] = True
+                        stack.append(nb_i)
+            comp.sort()
+            components.append(np.asarray(comp, dtype=np.intp))
+
+        components.sort(key=lambda arr: int(arr[0]))
+        if len(components) <= 1:
+            sub_idx = len(decomposed_blocks)
+            decomposed_blocks.append(blk)
+            reconstruction.append((dim, [(sub_idx, np.arange(dim, dtype=np.intp))]))
+            continue
+
+        decomposed_indices.append(orig_idx)
+        mapping: list[tuple[int, np.ndarray]] = []
+        for c_idx, verts in enumerate(components):
+            sub_F0 = _sym(blk.F0[np.ix_(verts, verts)])
+            sub_F_terms: dict[int, np.ndarray] = {}
+            for j, fj in blk.F_terms.items():
+                sub_fj = _sym(fj[np.ix_(verts, verts)])
+                if np.any(sub_fj != 0.0):
+                    sub_F_terms[j] = sub_fj
+            sub_idx = len(decomposed_blocks)
+            decomposed_blocks.append(
+                _InternalConeBlock(
+                    name=f"{blk.name}__cc{c_idx}",
+                    dim=int(verts.size),
+                    F0=sub_F0,
+                    F_terms=sub_F_terms,
+                    is_ineq_slack=blk.is_ineq_slack,
+                    ineq_index=blk.ineq_index,
+                )
+            )
+            mapping.append((sub_idx, verts))
+        reconstruction.append((dim, mapping))
+
+    return _BlockDecompositionPlan(
+        decomposed_blocks=decomposed_blocks,
+        reconstruction=reconstruction,
+        n_original_blocks=len(blocks),
+        n_decomposed_blocks=len(decomposed_blocks),
+        decomposed_block_indices=tuple(decomposed_indices),
+    )
+
+
+def _ruiz_equilibrate_blocks(
+    blocks: Sequence[_InternalConeBlock],
+    c_y: np.ndarray,
+    m_y: int,
+    *,
+    max_sweeps: int = 5,
+    min_scale: float = 1e-4,
+    max_scale: float = 1e4,
+) -> tuple[list[_InternalConeBlock], np.ndarray, np.ndarray, np.ndarray]:
+    """Equilibração de Ruiz multi-varredura com recorte (Clarabel §2.4 & §2.6).
+
+    Executa até `max_sweeps` (padrão 5) varreduras equilibrando simultaneamente as normas
+    de Frobenius dos blocos (`e_b`) e das colunas das variáveis de decisão (`d_j`), com
+    fatores cumulativos recortados em `[min_scale, max_scale]` = `[1e-4, 1e4]`.
+
+    Transformação exata:
+        y = diag(d) y_tilde,   c_tilde = diag(d) c_y
+        F_tilde_b(y_tilde) = e_b F_b(diag(d) y_tilde) >= 0
+        Z_b = e_b Z_tilde_b    (preserva estacionariedade dual, gap e certificados de Farkas)
+
+    Referências:
+    - Goulart & Chen, 2024 (arXiv:2405.12762, Clarabel §2.4 & §2.6)
+    - Garstka, Cannon & Goulart, IFAC 2020 (10.1016/j.ifacol.2020.12.1255)
+    """
+    n_blk = len(blocks)
+    e = np.ones((n_blk,), dtype=np.float64)
+    d = np.ones((m_y,), dtype=np.float64)
+
+    if n_blk == 0:
+        return list(blocks), c_y.copy(), e, d
+
+    f0_norms = np.array([float(np.linalg.norm(b.F0, "fro")) for b in blocks], dtype=np.float64)
+    M = np.zeros((n_blk, m_y), dtype=np.float64)
+    for b_idx, b in enumerate(blocks):
+        for j, fj in b.F_terms.items():
+            M[b_idx, j] = float(np.linalg.norm(fj, "fro"))
+
+    for _ in range(max_sweeps):
+        M_cur = (e[:, None] * M) * d[None, :]
+        f0_cur = e * f0_norms
+
+        if m_y > 0:
+            row_norms = np.maximum(f0_cur, np.max(M_cur, axis=1))
+            col_norms = np.max(M_cur, axis=0)
+        else:
+            row_norms = f0_cur
+            col_norms = np.zeros((0,), dtype=np.float64)
+
+        delta_e = np.where(row_norms > 1e-12, 1.0 / np.sqrt(np.maximum(row_norms, 1e-30)), 1.0)
+        delta_d = np.where(col_norms > 1e-12, 1.0 / np.sqrt(np.maximum(col_norms, 1e-30)), 1.0)
+
+        e_new = np.clip(e * delta_e, min_scale, max_scale)
+        d_new = np.clip(d * delta_d, min_scale, max_scale)
+
+        rel_e = float(np.max(np.abs(e_new / e - 1.0))) if n_blk > 0 else 0.0
+        rel_d = float(np.max(np.abs(d_new / d - 1.0))) if m_y > 0 else 0.0
+        e, d = e_new, d_new
+        if max(rel_e, rel_d) < 1e-3:
+            break
+
+    scaled_blocks: list[_InternalConeBlock] = []
+    for b_idx, b in enumerate(blocks):
+        eb = float(e[b_idx])
+        scaled_blocks.append(
+            _InternalConeBlock(
+                name=b.name,
+                dim=b.dim,
+                F0=b.F0 * eb,
+                F_terms={j: fj * (eb * float(d[j])) for j, fj in b.F_terms.items()},
+                is_ineq_slack=b.is_ineq_slack,
+                ineq_index=b.ineq_index,
+            )
+        )
+    c_y_eq = d * c_y
+    return scaled_blocks, c_y_eq, e, d
+
+
 def solve_native_raw(
     problem: CanonicalSDPProblem,
     options: Mapping[str, Any] | None = None,
@@ -1282,35 +1487,35 @@ def solve_native_raw(
         }
 
     # -----------------------------------------------------------------------
-    # Passo 2.5: Equilíbrio de dados por bloco (Yurtsever et al., SIMAX 2021, §7.1.1)
-    # Normaliza cada bloco pela sua norma de Frobenius máxima s_b e desescala Z_b = Z'_b / s_b
-    # ao retornar, preservando tr(Z_b F_b(x)) = tr(Z'_b F'_b(x)) para auditoria no problema original.
+    # Passo 2.4: Decomposição de blocos PSD por esparsidade agregada
+    # (Garstka, Cannon & Goulart, IFAC 2020; Goulart & Chen, 2024, arXiv:2405.12762)
     # -----------------------------------------------------------------------
-    block_scales: list[float] = []
-    y_blocks_eq: list[_InternalConeBlock] = []
-    for b in y_blocks:
-        f0_norm = float(np.linalg.norm(b.F0, "fro"))
-        fk_max = max((float(np.linalg.norm(fj, "fro")) for fj in b.F_terms.values()), default=0.0)
-        s_b = max(f0_norm, fk_max)
-        if s_b > 1e-12:
-            block_scales.append(s_b)
-            inv_sb = 1.0 / s_b
-            y_blocks_eq.append(
-                _InternalConeBlock(
-                    name=b.name,
-                    dim=b.dim,
-                    F0=b.F0 * inv_sb,
-                    F_terms={j: fj * inv_sb for j, fj in b.F_terms.items()},
-                    is_ineq_slack=b.is_ineq_slack,
-                    ineq_index=b.ineq_index,
-                )
-            )
-        else:
-            block_scales.append(1.0)
-            y_blocks_eq.append(b)
+    decomp_plan = _decompose_sparse_psd_blocks(y_blocks)
+    y_blocks_dec = decomp_plan.decomposed_blocks
+    decomposition_summary = {
+        "n_original_blocks": decomp_plan.n_original_blocks,
+        "n_decomposed_blocks": decomp_plan.n_decomposed_blocks,
+        "decomposed_block_indices": list(decomp_plan.decomposed_block_indices),
+    }
 
-    def _unscale_duals(Z_all_scaled: Sequence[np.ndarray]) -> list[np.ndarray]:
-        return [_sym(Z_b / s_b) for Z_b, s_b in zip(Z_all_scaled, block_scales, strict=True)]
+    # -----------------------------------------------------------------------
+    # Passo 2.5: Equilibração de Ruiz multi-varredura com recorte [1e-4, 1e4]
+    # (Goulart & Chen, 2024, arXiv:2405.12762, Clarabel §2.4 & §2.6)
+    # Desescala tanto primal x (via d_ruiz) quanto dual Z_b = e_b * Z'_b e
+    # remonta blocos decompostos antes da auditoria independente no problema original.
+    # -----------------------------------------------------------------------
+    y_blocks_eq, c_y_eq, e_ruiz, d_ruiz = _ruiz_equilibrate_blocks(
+        y_blocks_dec,
+        c_y,
+        m_y,
+        max_sweeps=5,
+        min_scale=1e-4,
+        max_scale=1e4,
+    )
+
+    def _unscale_and_reassemble_duals(Z_sub_scaled: Sequence[np.ndarray]) -> list[np.ndarray]:
+        Z_sub_unscaled = [_sym(float(eb) * Z_b) for Z_b, eb in zip(Z_sub_scaled, e_ruiz, strict=True)]
+        return decomp_plan.reassemble_duals(Z_sub_unscaled)
 
     # -----------------------------------------------------------------------
     # Passo 3: Equilíbrio de colunas preservando esparsidade ou SVD se rank-deficiente
@@ -1340,7 +1545,7 @@ def solve_native_raw(
         Q_R = np.diag(col_inv)
         Q_N = np.zeros((m_y, 0), dtype=np.float64)
         m_z = m_y
-        c_z = col_inv * c_y
+        c_z = col_inv * c_y_eq
         c_null = np.zeros((0,), dtype=np.float64)
         z_blocks = [
             _InternalConeBlock(
@@ -1365,8 +1570,8 @@ def solve_native_raw(
         Q_N = Vt_cone[rank_cone:, :].T                       # (m_y, m_y - rank_cone)
 
         m_z = rank_cone
-        c_z = Q_R.T @ c_y
-        c_null = Q_N.T @ c_y
+        c_z = Q_R.T @ c_y_eq
+        c_null = Q_N.T @ c_y_eq
 
         z_blocks = []
         for b in y_blocks_eq:
@@ -1416,7 +1621,7 @@ def solve_native_raw(
         min_slack_ineq_ws = float(np.min(problem.h - problem.H @ x_ws)) if n_ineq > 0 else float("inf")
         if eq_err_ws <= 1e-8 and min(min_eig_psd_ws, min_slack_ineq_ws) > 1e-8:
             y_ws = N_eq.T @ (x_ws - x_eq)
-            z_ws = _project_y_to_z(y_ws)
+            z_ws = _project_y_to_z(y_ws / d_ruiz)
             min_eig_z_ws = min(float(np.min(np.linalg.eigvalsh(b.evaluate(z_ws)))) for b in z_blocks)
             if min_eig_z_ws > 1e-8:
                 z0 = z_ws
@@ -1508,7 +1713,7 @@ def solve_native_raw(
                         farkas_Z_internal = Z_strict
 
             if farkas_Z_internal is not None:
-                farkas_Z_unscaled = _unscale_duals(farkas_Z_internal)
+                farkas_Z_unscaled = _unscale_and_reassemble_duals(farkas_Z_internal)
                 fZ, f_ineq = _split_duals(farkas_Z_unscaled)
                 adj_f = _full_adjoint_x(farkas_Z_unscaled, f_ineq)
                 f_eq = _recover_eq_dual(adj_f, np.zeros((n_vars,), dtype=np.float64))
@@ -1529,10 +1734,11 @@ def solve_native_raw(
                     "iteration_log": iteration_log,
                     "phase1_summary": phase1_summary,
                     "phase2_summary": phase2_summary,
+                    "decomposition_summary": decomposition_summary,
                     "warnings": warnings_out,
                 }
 
-            x_cand = x_eq + N_eq @ (Q_R @ z_cand)
+            x_cand = x_eq + N_eq @ (d_ruiz * (Q_R @ z_cand))
             cand_feasible_bound = cand_min_eig >= -1e-12 and float(np.linalg.norm(z_cand)) <= cfg.unbounded_norm_threshold
             warnings_out.append(
                 WarningItem(
@@ -1566,10 +1772,10 @@ def solve_native_raw(
     # -----------------------------------------------------------------------
     # Passo 5: Checar direções livres no núcleo N_cone (ex.: variável livre no objetivo)
     # -----------------------------------------------------------------------
-    x_feas0 = x_eq + N_eq @ (Q_R @ z0)
+    x_feas0 = x_eq + N_eq @ (d_ruiz * (Q_R @ z0))
     if float(np.linalg.norm(c_null)) > 1e-12:
         # Variável livre sem restrições com custo não nulo -> problema ilimitado certificado!
-        d_y = -(Q_N @ (c_null / float(np.linalg.norm(c_null))))
+        d_y = d_ruiz * (-(Q_N @ (c_null / float(np.linalg.norm(c_null)))))
         d_x = N_eq @ d_y
         return {
             "backend": "native_primal_dual",
@@ -1587,12 +1793,13 @@ def solve_native_raw(
             "iteration_log": iteration_log,
             "phase1_summary": phase1_summary,
             "phase2_summary": phase2_summary,
+            "decomposition_summary": decomposition_summary,
             "warnings": warnings_out,
         }
 
     # Se o problema for de pura factibilidade reduzida (c_z == 0 e c_null == 0), z0 já é estritamente factível!
     if is_pure_feasibility:
-        Z_zero = [np.zeros((b.dim, b.dim), dtype=np.float64) for b in z_blocks]
+        Z_zero = [np.zeros((b.dim, b.dim), dtype=np.float64) for b in y_blocks]
         dZ, d_ineq = _split_duals(Z_zero)
         nu_feas = _recover_eq_dual(np.zeros((n_vars,), dtype=np.float64), c_orig)
         return {
@@ -1613,6 +1820,7 @@ def solve_native_raw(
             "iteration_log": iteration_log,
             "phase1_summary": phase1_summary,
             "phase2_summary": phase2_summary,
+            "decomposition_summary": decomposition_summary,
             "warnings": warnings_out,
         }
 
@@ -1648,7 +1856,7 @@ def solve_native_raw(
 
     if p2_status == "dual_infeasible":
         d_z = p2_out["recession_candidate"]
-        d_x = N_eq @ (Q_R @ d_z) if d_z is not None else None
+        d_x = N_eq @ (d_ruiz * (Q_R @ d_z)) if d_z is not None else None
         return {
             "backend": "native_primal_dual",
             "maturity": "beta",
@@ -1665,12 +1873,13 @@ def solve_native_raw(
             "iteration_log": iteration_log,
             "phase1_summary": phase1_summary,
             "phase2_summary": phase2_summary,
+            "decomposition_summary": decomposition_summary,
             "warnings": warnings_out,
         }
 
     z_final = p2_out["z"]
-    x_final = x_eq + N_eq @ (Q_R @ z_final)
-    Z_final_all = _unscale_duals(p2_out["Z_list"])
+    x_final = x_eq + N_eq @ (d_ruiz * (Q_R @ z_final))
+    Z_final_all = _unscale_and_reassemble_duals(p2_out["Z_list"])
     dZ, d_ineq = _split_duals(Z_final_all)
     adj_x = _full_adjoint_x(Z_final_all, d_ineq)
     d_eq = _recover_eq_dual(adj_x, c_orig)
@@ -1702,5 +1911,6 @@ def solve_native_raw(
         "iteration_log": iteration_log,
         "phase1_summary": phase1_summary,
         "phase2_summary": phase2_summary,
+        "decomposition_summary": decomposition_summary,
         "warnings": warnings_out,
     }

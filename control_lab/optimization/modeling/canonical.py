@@ -224,14 +224,90 @@ class SDPBlock(_ImmutableCanonicalBase):
     def from_dict(cls, data: Mapping[str, Any], *, n_vars: int | None = None) -> SDPBlock:
         if not isinstance(data, Mapping):
             raise ValidationError("SDPBlock serializado deve ser dict.")
-        if "name" not in data or "F0" not in data or "F_k" not in data:
-            raise ValidationError("SDPBlock requer campos 'name', 'F0' e 'F_k'.")
+        has_dense = "F_k" in data and data["F_k"] is not None
+        has_sparse = "F_k_sparse" in data and data["F_k_sparse"] is not None
+        if "name" not in data or "F0" not in data or (not has_dense and not has_sparse):
+            raise ValidationError("SDPBlock requer campos 'name', 'F0' e ('F_k' ou 'F_k_sparse').")
         F0_raw = data["F0"]
         F0 = tensor_to_array(F0_raw, expected_ndim=2, dtype="float64") if isinstance(F0_raw, Mapping) else F0_raw
-        fk_list = []
-        for item in data["F_k"]:
-            fk_list.append(tensor_to_array(item, expected_ndim=2, dtype="float64") if isinstance(item, Mapping) else item)
-        return cls(name=str(data["name"]), F0=F0, F_k=fk_list, n_vars=n_vars)
+        if has_dense:
+            fk_list = []
+            for item in data["F_k"]:
+                fk_list.append(
+                    tensor_to_array(item, expected_ndim=2, dtype="float64") if isinstance(item, Mapping) else item
+                )
+            return cls(name=str(data["name"]), F0=F0, F_k=fk_list, n_vars=n_vars)
+
+        # Sparse COO path: F_k_sparse = { str(k): [[r, c, val], ...] }
+        resolved_n_vars = n_vars if n_vars is not None else data.get("n_vars")
+        if resolved_n_vars is None or isinstance(resolved_n_vars, bool) or not isinstance(resolved_n_vars, (int, np.integer)):
+            raise ValidationError("n_vars inteiro >= 1 é obrigatório quando 'F_k_sparse' é fornecido.")
+        resolved_n_vars = int(resolved_n_vars)
+        if resolved_n_vars < 1:
+            raise ValidationError("SDPBlock requer n_vars >= 1.")
+
+        F0_arr = ensure_finite_float64(F0, ndim=2, name=f"block[{data['name']}].F0")
+        dim, dim2 = F0_arr.shape
+        if dim != dim2 or dim < 1:
+            raise DimensionMismatchError(
+                message=f"Bloco PSD {data['name']!r} deve ser quadrado n x n (n >= 1), recebido {F0_arr.shape}.",
+                parameters={"block": str(data["name"]), "shape": list(F0_arr.shape)},
+            )
+
+        fk_sparse = data["F_k_sparse"]
+        if not isinstance(fk_sparse, Mapping):
+            raise ValidationError("F_k_sparse deve ser Mapping {str(k): [[r, c, val], ...]}.")
+
+        F_terms_dict: dict[int, np.ndarray] = {}
+        for raw_k, triplets in fk_sparse.items():
+            if isinstance(raw_k, bool):
+                raise ValidationError(f"Índice de variável inválido em F_k_sparse: {raw_k!r}.")
+            if isinstance(raw_k, (int, np.integer)):
+                k = int(raw_k)
+            elif isinstance(raw_k, str):
+                try:
+                    k = int(raw_k.strip())
+                except ValueError as exc:
+                    raise ValidationError(f"Chave de variável inválida em F_k_sparse: {raw_k!r}.") from exc
+            else:
+                raise ValidationError(f"Chave de variável inválida em F_k_sparse: {raw_k!r}.")
+            if k < 0 or k >= resolved_n_vars:
+                raise ValidationError(
+                    f"Índice de variável fora dos limites [0, {resolved_n_vars}) em F_k_sparse: {k}."
+                )
+            if isinstance(triplets, (str, bytes, Mapping)) or not isinstance(triplets, Sequence):
+                raise ValidationError(f"F_k_sparse[{raw_k!r}] deve ser sequência de triplas [r, c, val].")
+
+            mat = np.zeros((dim, dim), dtype=np.float64)
+            for idx_t, entry in enumerate(triplets):
+                if isinstance(entry, (str, bytes, Mapping)) or not isinstance(entry, Sequence) or len(entry) != 3:
+                    raise ValidationError(
+                        f"Entrada inválida em F_k_sparse[{raw_k!r}][{idx_t}]: esperado [r, c, val]."
+                    )
+                r_raw, c_raw, v_raw = entry
+                if (
+                    isinstance(r_raw, bool)
+                    or not isinstance(r_raw, (int, np.integer))
+                    or isinstance(c_raw, bool)
+                    or not isinstance(c_raw, (int, np.integer))
+                ):
+                    raise ValidationError(
+                        f"Índices (r, c) devem ser inteiros em F_k_sparse[{raw_k!r}][{idx_t}]: ({r_raw!r}, {c_raw!r})."
+                    )
+                r, c = int(r_raw), int(c_raw)
+                if r < 0 or r >= dim or c < 0 or c >= dim:
+                    raise ValidationError(
+                        f"Índices ({r}, {c}) fora dos limites [0, {dim}) em F_k_sparse[{raw_k!r}][{idx_t}]."
+                    )
+                if not _is_scalar_number(v_raw) or not math.isfinite(float(v_raw)):
+                    raise ValidationError(
+                        f"Valor não finito ou inválido em F_k_sparse[{raw_k!r}][{idx_t}]: {v_raw!r}."
+                    )
+                mat[r, c] += float(v_raw)
+
+            F_terms_dict[k] = 0.5 * (mat + mat.T)
+
+        return cls(name=str(data["name"]), F0=F0_arr, F_k=F_terms_dict, n_vars=resolved_n_vars)
 
 
 class CanonicalSDPProblem(_ImmutableCanonicalBase):

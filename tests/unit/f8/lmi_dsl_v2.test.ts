@@ -38,6 +38,11 @@ import {
   parseLmiDsl,
   resolveShapeLabel,
 } from "../../../web/features/views/lmi_dsl_parser.ts";
+import {
+  compileLmiDslToCanonicalSdp,
+  type LmiCompileContext,
+} from "../../../web/features/views/lmi_dsl_compiler.ts";
+import { cpythonLoader } from "../f7/cpython_runtime.mjs";
 
 class FakeElement {
   public tagName: string;
@@ -732,6 +737,235 @@ test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelo
   editorEl.value = hinfTpl.dsl;
   editorEl.dispatchEvent("input");
   assert.equal(banner16.hasAttribute("hidden"), false, "n=13 em H∞ (> 12) deve exibir aviso do envelope");
+
+  app.destroy();
+});
+
+test("WP-PHASE4-01: Compilador Direto DSL v2.0 -> CanonicalSDPProblem (LTI, Politópico, TS PDC, H∞ BRL, rejeição bilinear e solve CPython)", async () => {
+  const compilerPath = fileURLToPath(
+    new URL("../../../web/features/views/lmi_dsl_compiler.ts", import.meta.url),
+  );
+  const compilerSource = fs.readFileSync(compilerPath, "utf8");
+  assert.equal(/\beval\s*\(/.test(compilerSource), false, "Compilador não pode conter eval()");
+  assert.equal(/new\s+Function\b/.test(compilerSource), false, "Compilador não pode conter new Function");
+
+  const baseCtx: LmiCompileContext = {
+    A: [
+      [0, 1],
+      [-2, -1],
+    ],
+    B: [[0], [1]],
+    C: [[1, 0]],
+    D: [[0]],
+    Bw: [[0], [1]],
+    Cz: [
+      [1, 0],
+      [0, 0.5],
+    ],
+    Dzu: [[0], [0.1]],
+    Dzw: [[0], [0]],
+  };
+
+  // Helper to assert symmetry of all F0 and F_k
+  const assertAllBlocksSymmetric = (problem: ReturnType<typeof compileLmiDslToCanonicalSdp>["problem"]) => {
+    for (const blk of problem.blocks) {
+      const dim = blk.F0.shape[0];
+      assert.equal(blk.F0.shape[1], dim);
+      for (const mat of [blk.F0, ...blk.F_k]) {
+        for (let r = 0; r < dim; r += 1) {
+          for (let c = r + 1; c < dim; c += 1) {
+            assert.equal(mat.data[r * dim + c], mat.data[c * dim + r], `Assimetria em ${blk.name}`);
+          }
+        }
+      }
+    }
+  };
+
+  // 1. Custom LTI decay rate LMI: He(A*Q + B*Y) + 2*alpha*Q < 0, Q > 0
+  const ltiDsl = [
+    "var Q sym(n)",
+    "var Y rect(m, n)",
+    "param alpha = 0.5",
+    "Q > 0",
+    "He(A*Q + B*Y) + 2*alpha*Q < 0",
+    "recover K = Y * inv(Q)",
+  ].join("\n");
+  const ltiParsed = parseLmiDsl(ltiDsl);
+  assert.equal(ltiParsed.valid, true);
+  const ltiCompiled = compileLmiDslToCanonicalSdp(ltiParsed, baseCtx);
+  assert.equal(ltiCompiled.nVars, 5);
+  assert.equal(ltiCompiled.blockCount, 2);
+  assert.equal(ltiCompiled.problem.recovery_plan, null);
+  assertAllBlocksSymmetric(ltiCompiled.problem);
+
+  // 2. Polytopic robust stabilization (forall i: He(A[i]*Q + B[i]*Y) < 0)
+  const polyDsl = LMI_DSL_TEMPLATES.find((t) => t.id === "polytopic_robust")!.dsl;
+  const polyParsed = parseLmiDsl(polyDsl);
+  const polyCtx: LmiCompileContext = {
+    ...baseCtx,
+    vertices: [
+      {
+        A: [
+          [0, 1],
+          [-1.7, -0.85],
+        ],
+        B: [[0], [1]],
+      },
+      {
+        A: [
+          [0, 1],
+          [-2.3, -1.15],
+        ],
+        B: [[0], [1]],
+      },
+    ],
+  };
+  const polyCompiled = compileLmiDslToCanonicalSdp(polyParsed, polyCtx);
+  assert.equal(polyCompiled.nVars, 5);
+  assert.equal(polyCompiled.blockCount, 3);
+  assertAllBlocksSymmetric(polyCompiled.problem);
+
+  // 3. Takagi-Sugeno PDC with macro & forall i + forall i, j where j > i
+  const tsDsl = LMI_DSL_TEMPLATES.find((t) => t.id === "ts_pdc_relaxed")!.dsl;
+  const tsParsed = parseLmiDsl(tsDsl);
+  const tsCompiled = compileLmiDslToCanonicalSdp(tsParsed, polyCtx);
+  assert.equal(tsCompiled.nVars, 7, "Q(3) + Y[1](2) + Y[2](2) = 7");
+  assert.equal(tsCompiled.blockCount, 4, "Q>0 + 2*(i) + 1*(j>i) = 4");
+  assert.ok("Q" in tsCompiled.problem.variable_map);
+  assert.ok("Y[1]" in tsCompiled.problem.variable_map);
+  assert.ok("Y[2]" in tsCompiled.problem.variable_map);
+  assertAllBlocksSymmetric(tsCompiled.problem);
+
+  // 4. Generalized H-infinity BRL with bmat, *, Bw, Cz, Dzu, Dzw, minimize gamma_sq
+  const hinfGenDsl = LMI_DSL_TEMPLATES.find((t) => t.id === "hinf_generalized_brl")!.dsl;
+  const hinfGenParsed = parseLmiDsl(hinfGenDsl);
+  const hinfGenCompiled = compileLmiDslToCanonicalSdp(hinfGenParsed, baseCtx);
+  assert.equal(hinfGenCompiled.nVars, 6, "Q(3) + Y(2) + gamma_sq(1) = 6");
+  assert.equal(hinfGenCompiled.blockCount, 3, "Q>0, gamma_sq>0, BRL(5x5)");
+  assert.equal(hinfGenCompiled.problem.blocks[2].F0.shape[0], 5, "n(2) + nw(1) + nz(2) = 5");
+  assert.deepEqual(hinfGenCompiled.problem.c.data, [0, 0, 0, 0, 0, 1]);
+  assertAllBlocksSymmetric(hinfGenCompiled.problem);
+
+  // 5. Bilinear term rejection (Y * Q)
+  const bmiParsed = parseLmiDsl("var Q sym(n)\nvar Y rect(m, n)\nY * Q < 0");
+  assert.throws(
+    () => compileLmiDslToCanonicalSdp(bmiParsed, baseCtx),
+    /bilinear|não afim/i,
+  );
+  // Also test directly inside compiler evaluator when parser warning is bypassed
+  const forcedParsed = {
+    ...bmiParsed,
+    bilinearWarnings: [],
+  };
+  assert.throws(
+    () => compileLmiDslToCanonicalSdp(forcedParsed, baseCtx),
+    /bilinear/i,
+  );
+
+  // 6. Real CPython optimization.solve on all 4 compiled problems!
+  const loaded = await cpythonLoader({ indexURL: "", packages: [] });
+  const pyodide = loaded.pyodide;
+  if (!pyodide.pyimport || !pyodide.toPy) {
+    throw new Error("cpythonLoader não expôs pyimport/toPy.");
+  }
+  const rpcMod = pyodide.pyimport("control_lab.core.rpc") as {
+    dispatch: (arg: unknown) => RpcResponse;
+  };
+  const runSolve = (problem: unknown): RpcResponse => {
+    const req: RpcRequest = {
+      api_version: RPC_API_VERSION,
+      request_id: `comp-test-${Math.random().toString(36).slice(2)}`,
+      project_id: "proj-compiler-test",
+      project_revision: 1,
+      operation: "optimization.solve",
+      payload: { problem },
+      options: {},
+      timeout_policy: { hard_timeout_ms: 30000 },
+    };
+    const proxy = pyodide.toPy!({ request: req, payload: req.payload });
+    const resp = rpcMod.dispatch(proxy);
+    proxy.destroy();
+    return resp;
+  };
+
+  const resLti = runSolve(ltiCompiled.problem);
+  assert.equal(resLti.status, "success", JSON.stringify(resLti.error));
+  const ltiRes = resLti.result as Record<string, unknown>;
+  assert.equal(ltiRes.audit_feasibility, "strictly_feasible");
+  const ltiVars = ltiRes.variables as Record<string, unknown>;
+  assert.ok(ltiVars?.Q && ltiVars?.Y);
+
+  const resPoly = runSolve(polyCompiled.problem);
+  assert.equal(resPoly.status, "success", JSON.stringify(resPoly.error));
+  assert.equal((resPoly.result as Record<string, unknown>).audit_feasibility, "strictly_feasible");
+
+  const resTs = runSolve(tsCompiled.problem);
+  assert.equal(resTs.status, "success", JSON.stringify(resTs.error));
+  const tsRes = resTs.result as Record<string, unknown>;
+  assert.equal(tsRes.audit_feasibility, "strictly_feasible");
+  const tsVars = tsRes.variables as Record<string, unknown>;
+  assert.ok(tsVars?.["Y[1]"] && tsVars?.["Y[2]"]);
+
+  const resHinf = runSolve(hinfGenCompiled.problem);
+  assert.equal(resHinf.status, "success", JSON.stringify(resHinf.error));
+  const hinfRes = resHinf.result as Record<string, unknown>;
+  assert.ok(
+    hinfRes.audit_feasibility === "strictly_feasible" ||
+      hinfRes.audit_feasibility === "approximately_feasible",
+    `Esperado feasible para H∞ BRL, obtido ${String(hinfRes.audit_feasibility)}`,
+  );
+  const hinfVars = hinfRes.variables as Record<string, unknown>;
+  assert.ok(hinfVars?.gamma_sq);
+});
+
+test("WP-PHASE4-01: LmiView end-to-end TS PDC com compilador direto e recuperação K[1], K[2]", async () => {
+  const loaded = await cpythonLoader({ indexURL: "", packages: [] });
+  const pyodide = loaded.pyodide;
+  if (!pyodide.pyimport || !pyodide.toPy) {
+    throw new Error("cpythonLoader não expôs pyimport/toPy.");
+  }
+  const rpcMod = pyodide.pyimport("control_lab.core.rpc") as {
+    dispatch: (arg: unknown) => RpcResponse;
+  };
+  let resolveDone: (() => void) | null = null;
+  const donePromise = new Promise<void>((r) => {
+    resolveDone = r;
+  });
+  class RealPythonLmiClient extends StubLmiClient {
+    public override async execute(req: RpcRequest): Promise<RpcResponse> {
+      try {
+        const proxy = pyodide.toPy!({ request: req, payload: req.payload });
+        const resp = rpcMod.dispatch(proxy);
+        proxy.destroy();
+        return resp;
+      } finally {
+        if (req.operation === "optimization.solve") {
+          setTimeout(() => resolveDone?.(), 20);
+        }
+      }
+    }
+  }
+
+  const client = new RealPythonLmiClient();
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client,
+    project_id: "proj-lmi-ts-e2e",
+  });
+  await app.client.init();
+  app.shell.switchTab("optimization_lmi");
+
+  const tplSelect = root.querySelector<FakeElement>("#lmi-template-select")!;
+  tplSelect.value = "ts_pdc_relaxed";
+  tplSelect.dispatchEvent("change");
+
+  root.querySelector('[data-action="lmi-solve"]')!.dispatchEvent("click");
+  await donePromise;
+
+  const gainText = root.querySelector("#lmi-recovered-gain")!.textContent;
+  assert.ok(gainText.includes("K[1]"), `Esperado K[1] em '${gainText}'`);
+  assert.ok(gainText.includes("K[2]"), `Esperado K[2] em '${gainText}'`);
 
   app.destroy();
 });

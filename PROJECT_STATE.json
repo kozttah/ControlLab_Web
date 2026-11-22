@@ -24,7 +24,8 @@
       "2026-11-18": 5,
       "2026-11-19": 8,
       "2026-11-20": 1,
-      "2026-11-21": 12
+      "2026-11-21": 12,
+      "2026-11-22": 1
     }
   },
   "audit_reference": {
@@ -5235,6 +5236,216 @@
         "verify_fixtures": "11 schemas + 7 golden fixtures OK",
         "governance_tests": "20/20 passed in 5.86s"
       }
+    },
+    {
+      "wp_id": "WP-PHASE4-01-F8-DSL-DIRECT-SDP-COMPILER",
+      "front": "f8-ui-charts",
+      "phase": "Phase4-Direct-DSL-Compiler",
+      "title": "F8: Compilador Direto DSL v2.0 -> CanonicalSDPProblem (zero templates fixos) e integracao na Aba 6",
+      "allowed_paths": [
+        "web/features/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE3-S4-F9-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "node_ts_compiler_and_cpython_optimization_solve",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE4-01-F8-DSL-DIRECT-SDP-COMPILER.md",
+      "reviewed_source_sha256": {
+        "web/features/views/lmi_dsl_compiler.ts": "e566b5bfd5645185dbd180f7006d48c5b04c4d61fd6a5d9113c26b537cebb28c",
+        "web/features/views/lmi_view.ts": "96f4125e4bd40ea43e5d0aa70f9695df1b4727aa5c6f115f216e821d8c3514c3",
+        "tests/unit/f8/lmi_dsl_v2.test.ts": "efc380beb71edcb315e9ddc69a3874a9c4d9c874ea345d6128c3e52cce4c3eae",
+        "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md": "7eaf1b85a6ef8d95dccf59a5ea00a929601307eca356b7fd3b2d7e5c5d0b6b5b"
+      },
+      "acceptance_evidence": [
+        "npm --prefix web run typecheck (PASS, 0 errors)",
+        "node scripts/run_web_tests.mjs --scope all (142/142 PASS, 19 files)",
+        "npm --prefix web run build (PASS, 42 local assets)",
+        "python3 scripts/verify_fixtures.py (PASS, 11 schemas + 7 golden fixtures)"
+      ],
+      "acceptance_requirements": [
+        "Compilador deterministico DSL v2.0 -> CanonicalSDPProblem (sym, rect, scalar, P[i], Y[i], +, -, *, transp, He, bmat com *, macro, forall i, forall i, j where j > i) sem eval/new Function",
+        "Aba 6 resolve LMIs customizadas/quantificadas diretamente via { problem } em optimization.solve e recupera K / K[i] a partir de result.variables"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE4-02-F9-DSL-COMPILER-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase4-Direct-DSL-Compiler",
+      "title": "F9: Auditoria independente e E2E Chromium do Compilador Direto DSL v2.0 na Aba 6",
+      "allowed_paths": [
+        "tests/e2e/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE4-01-F8-DSL-DIRECT-SDP-COMPILER"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "chromium_pyodide_wasm_dsl_v2_direct_sdp_solve",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE4-02-F9-DSL-COMPILER-AUDIT.md",
+      "reviewed_source_sha256": {
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py": "47f3d108d2e91a293b799dd46ea94b697bc2ad713cf0d8fc2bd61bfd4e8e8a97"
+      },
+      "acceptance_evidence": [
+        "pytest tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v (9/9 PASS in Chromium + Pyodide Wasm)",
+        "node scripts/run_web_tests.mjs --scope all (142/142 PASS)",
+        "npm --prefix web run build (PASS)",
+        "python3 scripts/verify_fixtures.py (PASS)",
+        "python3 scripts/project_governance.py (PASS)"
+      ],
+      "acceptance_requirements": [
+        "E2E Chromium resolve LMI customizada/quantificada diretamente na Aba 6 via #btn-lmi-solve e valida certificado primal/dual + ganho K recuperado"
+      ]
+    },
+    {
+      "wp_id": "WP-ROADMAP-TS-UNMEASURED-OBS",
+      "front": "f5-fuzzy-ts",
+      "phase": "Roadmap-Phase5-TS-Observers",
+      "title": "F5/F6/F8: Observadores Takagi-Sugeno com premissas nao medidas (DMVT direto nas nao-linearidades e fatoracao algebrica exata do gradiente)",
+      "allowed_paths": [
+        "control_lab/fuzzy/",
+        "control_lab/optimization/",
+        "web/features/",
+        "tests/unit/f5/",
+        "tests/unit/f6/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE4-02-F9-DSL-COMPILER-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-25",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-FZ-01",
+        "T-SDP-C1"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/ tests/unit/f6/ -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Suporte a DMVT aplicado diretamente nas nao-linearidades f(x), h(x) e fatoracao algebrica exata do gradiente (10.1016/j.fss.2020.04.012, hal-03425007, hal-04307213, 10.1007/s40313-025-01189-y)"
+      ]
+    },
+    {
+      "wp_id": "WP-ROADMAP-ANFIS-TAB5",
+      "front": "f5-fuzzy-ts",
+      "phase": "Roadmap-Phase5-ANFIS",
+      "title": "F5/F8: Treinamento e ajuste ANFIS (hibrido LSE+gradiente) a partir de datasets na Aba 5",
+      "allowed_paths": [
+        "control_lab/fuzzy/",
+        "web/features/",
+        "tests/unit/f5/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE4-02-F9-DSL-COMPILER-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-24",
+        "R-25"
+      ],
+      "normative_tests": [
+        "T-FZ-01",
+        "T-FZ-02"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/ -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/ControlLab_Web_Documento_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Interface de treinamento ANFIS na Aba 5 conectada ao motor Python e visualizacao de erro/regras ajustadas"
+      ]
+    },
+    {
+      "wp_id": "WP-ROADMAP-CTRLAB-LMI-PERSISTENCE",
+      "front": "f8-ui-charts",
+      "phase": "Roadmap-Phase5-Persistence",
+      "title": "F8/F1: Persistencia completa da caracterizacao de sistema e script DSL v2.0 no pacote .ctrlab",
+      "allowed_paths": [
+        "control_lab/io/",
+        "web/features/",
+        "tests/unit/f1/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE4-02-F9-DSL-COMPILER-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-03",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-IO-01",
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope all && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Exportar e reabrir .ctrlab restaura modo Linear/Politopico/TS, vertices, matrizes generalizadas, indices e codigo DSL v2.0 da Aba 6"
+      ]
+    },
+    {
+      "wp_id": "WP-ROADMAP-SW-FIREFOX-CI",
+      "front": "f7-worker-bridge",
+      "phase": "Roadmap-Phase5-CI-Hardening",
+      "title": "F7/F9: Estabilizacao definitiva do teste de Service Worker em Firefox no CI",
+      "allowed_paths": [
+        "web/app/",
+        "web/worker/",
+        "tests/e2e/"
+      ],
+      "dependencies": [
+        "WP-PHASE4-02-F9-DSL-COMPILER-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-28"
+      ],
+      "normative_tests": [
+        "T-PWA-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/e2e/test_sw_release_update.py -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/ControlLab_Web_Documento_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "test_sw_release_update.py passa de forma deterministica em Chromium e Firefox no CI sem flakiness de reload"
+      ]
     }
   ],
   "audit_history": [

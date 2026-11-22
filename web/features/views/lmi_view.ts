@@ -52,6 +52,11 @@ import {
   type LmiDslParseResult,
   type LmiQuantifiedExportContext,
 } from "./lmi_dsl_parser.ts";
+import {
+  compileLmiDslToCanonicalSdp,
+  type LmiCompileContext,
+  type LmiVertexMatrices,
+} from "./lmi_dsl_compiler.ts";
 
 export interface LmiExportModalPayload {
   title: string;
@@ -123,6 +128,8 @@ interface LmiSolveSnapshot {
   blockMinEigs: number[];
   rawSolutionPayload: Record<string, unknown>;
   recoveredK: { rows: number; cols: number; data: number[] } | null;
+  recoveredIndexedK?: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }>;
+  recoveredScalars?: Array<{ name: string; value: number }>;
   warnings: string[];
   provenance: Provenance | null;
   iterationLog: SolverProgress[];
@@ -979,63 +986,107 @@ export class LmiView {
       return { problem: this.parsed.canonicalSdpOverride };
     }
 
-    if (tpl === "hinf_brl" || tpl === "hinf_generalized_brl") {
-      const plant = this.shell.getLqrWorkspace().getPlant();
-      const A2d = tensorTo2DArray(plant.matrices.A);
-      const B2_2d = tensorTo2DArray(plant.matrices.B);
-      const C1_default = tensorTo2DArray(plant.matrices.C);
-      const n = A2d.length;
-      const bwParsed = this.sysState.genEnableW ? parseCompactMatrixJson(this.sysState.genBwText) : null;
-      const czParsed = this.sysState.genEnableZ ? parseCompactMatrixJson(this.sysState.genCzText) : null;
-      const B1_2d = bwParsed && bwParsed.length === n
+    const lqrPlant = this.shell.getLqrWorkspace().getPlant();
+    const effPlant = typed.getEffectiveSelection("statespacePlant");
+    const mats =
+      effPlant && isPlainObject(effPlant.object.value.matrices)
+        ? (effPlant.object.value.matrices as Record<string, RealTensor>)
+        : lqrPlant.matrices;
+
+    const A2d = tensorTo2DArray(mats.A ?? lqrPlant.matrices.A);
+    const B2d = tensorTo2DArray(mats.B ?? lqrPlant.matrices.B);
+    const C2d = tensorTo2DArray(mats.C ?? lqrPlant.matrices.C);
+    const D2d = tensorTo2DArray(mats.D ?? lqrPlant.matrices.D);
+    const n = A2d.length;
+    const m = B2d[0]?.length ?? 1;
+    const p = C2d.length;
+
+    const bwParsed = parseCompactMatrixJson(this.sysState.genBwText);
+    const czParsed = parseCompactMatrixJson(this.sysState.genCzText);
+    const dzuParsed = parseCompactMatrixJson(this.sysState.genDzuText);
+    const dzwParsed = parseCompactMatrixJson(this.sysState.genDzwText);
+
+    const Bw2d =
+      bwParsed && bwParsed.length === n
         ? bwParsed
         : Array.from({ length: n }, (_, i) => [i === n - 1 ? 1.0 : 0.0]);
-      const C1_2d = czParsed && czParsed[0]?.length === n ? czParsed : C1_default;
-      const basePayload: Record<string, unknown> = {
-        template: "hinf_brl",
-        A: makeFloat64Tensor([n, n], A2d.flat()),
-        B1: makeFloat64Tensor([n, B1_2d[0].length], B1_2d.flat()),
-        B2: makeFloat64Tensor([n, plant.matrices.B.shape[1]], B2_2d.flat()),
-        C1: makeFloat64Tensor([C1_2d.length, n], C1_2d.flat()),
-        feedback_sign: this.parsed.inferredFeedbackSign,
-      };
-      if (this.parsed.inferredGamma !== null && this.parsed.inferredGamma > 0) {
-        basePayload.gamma = this.parsed.inferredGamma;
+    const nw = Bw2d[0]?.length ?? 1;
+    const Cz2d = czParsed && czParsed[0]?.length === n ? czParsed : C2d;
+    const nz = Cz2d.length;
+    const Dzu2d =
+      dzuParsed && dzuParsed.length === nz && dzuParsed[0]?.length === m
+        ? dzuParsed
+        : Array.from({ length: nz }, () => Array(m).fill(0));
+    const Dzw2d =
+      dzwParsed && dzwParsed.length === nz && dzwParsed[0]?.length === nw
+        ? dzwParsed
+        : Array.from({ length: nz }, () => Array(nw).fill(0));
+
+    const weights = this.shell.getLqrWorkspace().getWeights();
+    const Q_cost =
+      weights.Q.shape[0] === n ? tensorTo2DArray(weights.Q) : undefined;
+    const R_cost =
+      weights.R.shape[0] === m ? tensorTo2DArray(weights.R) : undefined;
+
+    let vertices: LmiVertexMatrices[] | undefined;
+    const sysClass = this.parsed.systemSpec?.systemClass ?? this.sysState.systemClass;
+    const effN = Math.max(1, this.parsed.effectiveSystemN);
+    if (sysClass === "polytopic" || sysClass === "ts" || effN > 1) {
+      if (sysClass === "polytopic") {
+        if (this.sysState.polyVertices.length !== effN) {
+          this.sysState.polyVerticesCount = effN;
+          this.generatePolytopeVertices();
+        }
+        vertices = this.sysState.polyVertices.slice(0, effN).map((v) => ({
+          A: v.aMatrix,
+          B: B2d,
+          C: C2d,
+          D: D2d,
+          Bw: Bw2d,
+          Cz: Cz2d,
+          Dzu: Dzu2d,
+          Dzw: Dzw2d,
+        }));
+      } else {
+        vertices = Array.from({ length: effN }, (_, idx) => {
+          const frac = effN === 1 ? 0 : -1 + (2 * idx) / (effN - 1);
+          const scale = 1 + frac * 0.15;
+          return {
+            A: A2d.map((row) => row.map((val) => Number((val * scale).toFixed(6)))),
+            B: B2d,
+            C: C2d,
+            D: D2d,
+            Bw: Bw2d,
+            Cz: Cz2d,
+            Dzu: Dzu2d,
+            Dzw: Dzw2d,
+          };
+        });
       }
-      return basePayload;
     }
 
-    const mappedTemplate: LmiBackendTemplateId =
-      tpl === "polytopic_robust"
-        ? "quadratic_stabilization"
-        : tpl === "ts_pdc_relaxed"
-          ? "ts_pdc_stabilization"
-          : tpl;
-
-    const rawParams: Record<string, unknown> = {
-      template: mappedTemplate,
-      feedback_sign: this.parsed.inferredFeedbackSign,
+    const compileCtx: LmiCompileContext = {
+      A: A2d,
+      B: B2d,
+      C: C2d,
+      D: D2d,
+      Bw: Bw2d,
+      Cz: Cz2d,
+      Dzu: Dzu2d,
+      Dzw: Dzw2d,
+      Q_cost,
+      R_cost,
+      vertices,
+      name: `dsl_${tpl}`,
     };
-    if (this.parsed.inferredAlpha !== null) {
-      rawParams.alpha = this.parsed.inferredAlpha;
-    }
-    if (mappedTemplate === "regional_pole_placement") {
-      rawParams.radius = this.parsed.inferredRadius ?? 5.0;
-    }
-    if (mappedTemplate === "lqr_lmi") {
-      const weights = this.shell.getLqrWorkspace().getWeights();
-      const dims = this.getActivePlantDims();
-      if (weights.Q.shape[0] === dims.n && weights.R.shape[0] === dims.m) {
-        rawParams.Q_cost = weights.Q;
-        rawParams.R_cost = weights.R;
-      }
-    }
 
-    const plan = await typed.prepareToolExecution("optimization.solve", rawParams, {
-      extraPayload: rawParams,
-      feedbackSign: this.parsed.inferredFeedbackSign,
-    });
-    return { ...rawParams, ...plan.extraPayload };
+    try {
+      const compiled = compileLmiDslToCanonicalSdp(this.parsed, compileCtx);
+      return { problem: compiled.problem };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ControlLabBridgeError("VALIDATION_ERROR", msg);
+    }
   }
 
   private async executeRpc(
@@ -1084,12 +1135,38 @@ export class LmiView {
       : [];
 
     let recoveredK = extractRealTensor2D(res.K);
-    if (!recoveredK && isPlainObject(res.variables)) {
+    const recoveredIndexedK: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }> = [];
+    const recoveredScalars: Array<{ name: string; value: number }> = [];
+
+    if (isPlainObject(res.variables)) {
       const vars = res.variables as Record<string, unknown>;
       const qMat = extractRealTensor2D(vars.Q);
-      const yMat = extractRealTensor2D(vars.Y);
-      if (qMat && yMat) {
+      const yMat = extractRealTensor2D(vars.Y) ?? extractRealTensor2D(vars.Y_i);
+      if (!recoveredK && qMat && yMat) {
         recoveredK = formatGainFromQY(qMat, yMat);
+      }
+
+      // Indexed gains K[i] = Y[i] * inv(Q) or Y[i] * inv(P[i])
+      for (const [varKey, varVal] of Object.entries(vars)) {
+        const idxMatch = /^Y\[(\d+)\]$/.exec(varKey);
+        if (idxMatch) {
+          const idx = idxMatch[1];
+          const yiMat = extractRealTensor2D(varVal);
+          const piMat = extractRealTensor2D(vars[`P[${idx}]`]) ?? qMat;
+          if (yiMat && piMat) {
+            const ki = formatGainFromQY(piMat, yiMat);
+            if (ki) {
+              recoveredIndexedK.push({ label: `K[${idx}]`, mat: ki });
+            }
+          }
+        }
+        const t = extractRealTensor2D(varVal);
+        if (t && t.rows === 1 && t.cols === 1 && t.data.length === 1 && Number.isFinite(t.data[0])) {
+          recoveredScalars.push({ name: varKey, value: t.data[0] });
+        }
+      }
+      if (!recoveredK && recoveredIndexedK.length > 0) {
+        recoveredK = recoveredIndexedK[0].mat;
       }
     }
 
@@ -1141,6 +1218,8 @@ export class LmiView {
       blockMinEigs: minEigs,
       rawSolutionPayload: rawSol,
       recoveredK,
+      recoveredIndexedK,
+      recoveredScalars,
       warnings: resp.warnings.map((w) => (typeof w === "string" ? w : w.message)),
       provenance: resp.provenance as Provenance,
       iterationLog: parsedLog,
@@ -1623,19 +1702,37 @@ export class LmiView {
     }
 
     if (this.recoveredGainEl) {
-      const kFormatted = s.recoveredK
-        ? formatMatrixDisplay(s.recoveredK.data, s.recoveredK.rows, s.recoveredK.cols, decimals)
-            .map((r) => `[${r.join(", ")}]`)
-            .join("; ")
-        : null;
-      const kHtml = kFormatted
-        ? `<strong>Ganho recuperado K = Y Q⁻¹:</strong> <code>${escapeHtml(kFormatted)}</code>`
-        : `<strong>Ganho K:</strong> N/D para esta formulação`;
+      let kHtml: string;
+      if (s.recoveredIndexedK && s.recoveredIndexedK.length > 0) {
+        kHtml = s.recoveredIndexedK
+          .map((item) => {
+            const fmt = formatMatrixDisplay(item.mat.data, item.mat.rows, item.mat.cols, decimals)
+              .map((r) => `[${r.join(", ")}]`)
+              .join("; ");
+            return `<strong>Ganho recuperado ${escapeHtml(item.label)}:</strong> <code>${escapeHtml(fmt)}</code>`;
+          })
+          .join(" | ");
+      } else {
+        const kFormatted = s.recoveredK
+          ? formatMatrixDisplay(s.recoveredK.data, s.recoveredK.rows, s.recoveredK.cols, decimals)
+              .map((r) => `[${r.join(", ")}]`)
+              .join("; ")
+          : null;
+        kHtml = kFormatted
+          ? `<strong>Ganho recuperado K = Y Q⁻¹:</strong> <code>${escapeHtml(kFormatted)}</code>`
+          : `<strong>Ganho K:</strong> N/D para esta formulação`;
+      }
+      const scalarHtml =
+        s.recoveredScalars && s.recoveredScalars.length > 0
+          ? s.recoveredScalars
+              .map((sc) => ` | <strong>${escapeHtml(sc.name)}:</strong> <code>${formatNumericDisplay(sc.value, decimals)}</code>`)
+              .join("")
+          : "";
       const objHtml =
         s.objective !== null
           ? ` | <strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code>`
           : "";
-      this.recoveredGainEl.innerHTML = `<p>${kHtml}${objHtml}</p>`;
+      this.recoveredGainEl.innerHTML = `<p>${kHtml}${scalarHtml}${objHtml}</p>`;
     }
 
     if (s.iterationLog.length > 0) {

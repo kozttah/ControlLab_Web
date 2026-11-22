@@ -1236,5 +1236,84 @@ def test_ux_phase3_lmi_v2_system_char_and_forall_quantifiers(browser_harness):
     )
 
 
+def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
+    """Test 9: Phase 4 Direct DSL v2.0 -> CanonicalSDPProblem compiler in real browser (polytopic_robust + custom decay-rate + TS PDC)."""
+    page = mount_ui(browser_harness, "e2e-ux-phase4-dsl-compiler", {"width": 1280, "height": 800})
+
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
+
+    # 1. Quantified polytopic_robust template -> #btn-lmi-solve -> validated_dual/feasible + recovered K
+    page.select_option("#lmi-template-select", "polytopic_robust")
+    assert page.locator("#lmi-sys-class-select").input_value() == "polytopic"
+
+    page.locator("#btn-lmi-solve").click()
+    page.locator("#lmi-spectrum-chart-slot svg").wait_for(state="visible", timeout=45000)
+
+    poly_cert = page.locator("#lmi-certificate-panel").inner_text()
+    poly_cert_cf = poly_cert.casefold()
+    assert ("validated_dual" in poly_cert_cf) or ("feasible" in poly_cert_cf), (
+        f"Expected validated_dual or feasible in polytopic certificate, got: {poly_cert!r}"
+    )
+    poly_gain = page.locator("#lmi-recovered-gain").inner_text()
+    assert "Ganho recuperado K" in poly_gain and "N/D" not in poly_gain, (
+        f"Expected recovered gain K for polytopic_robust, got: {poly_gain!r}"
+    )
+
+    # 2. Custom decay-rate DSL (not matching default template alpha=0.5) -> #btn-lmi-solve -> validated_dual/feasible + K
+    custom_dsl = "\n".join([
+        "var Q sym(n)",
+        "var Y rect(m, n)",
+        "param alpha = 0.75",
+        "Q > 0",
+        "He(A*Q + B*Y) + 2*alpha*Q < 0",
+        "recover K = Y * inv(Q)",
+    ])
+    page.select_option("#lmi-sys-class-select", "lti")
+    editor = page.locator("#lmi-code-editor")
+    editor.fill(custom_dsl)
+    page.locator("#btn-lmi-solve").click()
+    page.wait_for_function(
+        """() => {
+            const cert = document.querySelector('#lmi-certificate-panel')?.textContent || '';
+            const gain = document.querySelector('#lmi-recovered-gain')?.textContent || '';
+            return (cert.includes('validated_dual') || cert.toLowerCase().includes('feasible'))
+                && gain.includes('Ganho recuperado K');
+        }""",
+        timeout=45000,
+    )
+    custom_cert = page.locator("#lmi-certificate-panel").inner_text()
+    custom_gain = page.locator("#lmi-recovered-gain").inner_text()
+    assert ("validated_dual" in custom_cert.casefold()) or ("feasible" in custom_cert.casefold())
+    assert "Ganho recuperado K" in custom_gain and "N/D" not in custom_gain
+
+    # 3. Quantified TS PDC (ts_pdc_relaxed) -> #btn-lmi-solve -> K[1] and K[2] recovered
+    page.select_option("#lmi-template-select", "ts_pdc_relaxed")
+    assert page.locator("#lmi-sys-class-select").input_value() == "ts"
+    page.locator("#btn-lmi-solve").click()
+    page.wait_for_function(
+        """() => {
+            const gain = document.querySelector('#lmi-recovered-gain')?.textContent || '';
+            return gain.includes('K[1]') && gain.includes('K[2]');
+        }""",
+        timeout=45000,
+    )
+    ts_cert = page.locator("#lmi-certificate-panel").inner_text()
+    ts_gain = page.locator("#lmi-recovered-gain").inner_text()
+    assert ("validated_dual" in ts_cert.casefold()) or ("feasible" in ts_cert.casefold())
+    assert "K[1]" in ts_gain and "K[2]" in ts_gain
+
+    browser_harness.record(
+        "e2e-ux-phase4-dsl-compiler",
+        {
+            "polytopic_gain": poly_gain,
+            "custom_decay_gain": custom_gain,
+            "ts_pdc_gain": ts_gain,
+        },
+    )
+
+
+
 
 

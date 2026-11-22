@@ -215,3 +215,21 @@ Quando esta frente for iniciada, ela deverá ser executada nos seguintes pacotes
    - Conectar a expansão multi-vértice / multi-regra (`forall`) ao solver Python `optimization.solve` e aos exportadores `optimization.export_cvxpy` / `optimization.export_yalmip` (gerando laços `for i` e `for j > i` nativos em Python/MATLAB).
 4. **`WP-LMI-V2-04-F9-AUDIT` (`f9-integration-qa`)**:
    - Auditoria independente em navegador real validando sistemas LTI generalizados, politópicos e Takagi-Sugeno na Aba 6.
+
+---
+
+## 7. Fase 4 e Roadmap: Compilador Direto DSL v2.0 e Observadores TS com Premissas Não Medidas
+
+1. **Compilador Direto DSL v2.0 → `CanonicalSDPProblem` (Zero Templates Fixos):**
+   - A DSL v2.0 compila diretamente no navegador (de forma 100% determinística, sem `eval`/`new Function`) qualquer LMI arbitrária escrita pelo usuário com variáveis matriciais/escalares (`sym(d)`, `rect(r,c)`, `scalar`), variáveis indexadas (`var P[i]`, `var Y[i]`), álgebra matricial afim (`+`, `-`, `*`, `'`, `He(...)`, `bmat([...])` com preenchimento simétrico `*`), `macro` e quantificadores (`forall i`, `forall i, j where j > i`) para o descritor canônico `CanonicalSDPProblem` (`c`, `c0`, `blocks`, `variable_map`), enviando `{ problem }` para `optimization.solve` e recuperando `K` / `K[i]` a partir de `result.variables`.
+   - Desigualdades estritas (`< 0`, `> 0`) são canonizadas com margem explícita $-\varepsilon_{\text{LMI}} I$ ($\varepsilon_{\text{LMI}} = 10^{-4}$ ou parâmetro explícito) para fidelidade numérica em cones semidefinidos não-estritos $F_b(x) \succeq 0$.
+2. **Observadores Takagi-Sugeno com Premissas Não Medidas (`WP-ROADMAP-TS-UNMEASURED-OBS`):**
+   - Para sistemas TS cujas variáveis premissas $z(t)$ dependem de estados não medidos, o projeto adotará formulações baseadas **diretamente nas não-linearidades do sistema** (evitando a aplicação de DMVT sobre as funções de pertinência $w_i(z)$, que introduz conservadorismo e explosão de vértices):
+     - **Paradigma A (DMVT Direto nas Não-Linearidades):** Aplicação do Teorema do Valor Médio Diferencial (DMVT) diretamente nos termos não-lineares da planta $f(x) - f(\hat{x})$ e $h(x) - h(\hat{x})$.
+     - **Paradigma B (Fatoração Algébrica Exata do Gradiente nas Não-Linearidades):** Reescrita algébrica exata $f(x) - f(\hat{x}) = A(x, \hat{x}) e_x$ e $h(x) - h(\hat{x}) = C(x, \hat{x}) e_x$ via forma polinomial matricial do gradiente / reescrita tensor-produto TS do erro de estimação, desacoplando sinais medidos e não medidos sem exigir saída linear nem estrutura afim no controle.
+   - **Referências Normativas de Pesquisa:**
+     - `https://doi.org/10.1016/j.fss.2020.04.012` (*An exact handling of the gradient for overcoming persistent problems in nonlinear observer design via convex optimization techniques*, Fuzzy Sets and Systems, 2020)
+     - `https://uphf.hal.science/hal-03425007/document`
+     - `https://uphf.hal.science/hal-04307213/document`
+     - `https://doi.org/10.1007/s40313-025-01189-y`
+

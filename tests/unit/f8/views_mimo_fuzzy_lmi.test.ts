@@ -47,6 +47,10 @@ import {
   LMI_DSL_TEMPLATES,
   parseLmiDsl,
 } from "../../../web/features/views/lmi_dsl_parser.ts";
+import {
+  serializeCanonicalSdpForJson,
+  type CanonicalSDPProblemJson,
+} from "../../../web/features/views/lmi_dsl_compiler.ts";
 import { cpythonLoader } from "../f7/cpython_runtime.mjs";
 
 class FakeElement {
@@ -401,6 +405,19 @@ class PythonMimoFuzzyLmiClient implements ControlLabEngineClient {
       request.operation,
       request.payload,
     );
+    if (
+      materialized.problem &&
+      typeof materialized.problem === "object" &&
+      Array.isArray((materialized.problem as CanonicalSDPProblemJson).blocks)
+    ) {
+      materialized.problem = serializeCanonicalSdpForJson(
+        materialized.problem as CanonicalSDPProblemJson,
+      );
+    }
+    const jsonSafeRequest: RpcRequest = {
+      ...request,
+      payload: materialized,
+    };
     const loaded = await cpythonLoader({ indexURL: "", packages: [] });
     const pyodide = loaded.pyodide;
     if (!pyodide.pyimport || !pyodide.toPy) {
@@ -410,7 +427,7 @@ class PythonMimoFuzzyLmiClient implements ControlLabEngineClient {
       dispatch: (arg: unknown) => RpcResponse;
       destroy?: () => void;
     };
-    const proxy = pyodide.toPy({ request, payload: materialized });
+    const proxy = pyodide.toPy({ request: jsonSafeRequest, payload: materialized });
     const rawResp = rpcMod.dispatch(proxy);
     proxy.destroy();
     rpcMod.destroy?.();

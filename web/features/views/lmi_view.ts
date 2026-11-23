@@ -156,6 +156,10 @@ interface LmiSolveSnapshot {
   iterationLog: SolverProgress[];
 }
 
+type LastSolveProblemSource =
+  | { kind: "override"; problem: Record<string, unknown> }
+  | { kind: "compiled"; parsed: LmiDslParseResult; compileCtx: LmiCompileContext };
+
 export const BROWSER_ENVELOPE = {
   fast_max_variables: 448,
   max_variables: 1024,
@@ -540,7 +544,7 @@ export class LmiView {
   private parsed: LmiDslParseResult;
   private savedPresets: SavedLmiPreset[] = [];
   private lastSolve: LmiSolveSnapshot | null = null;
-  private lastBuildPayload: Record<string, unknown> | null = null;
+  private lastSolveProblemSource: LastSolveProblemSource | null = null;
   private liveIterations: SolverProgress[] = [];
   private activeSolveRequestId: string | null = null;
 
@@ -1328,7 +1332,7 @@ export class LmiView {
     };
   }
 
-  private async buildBackendPayload(): Promise<Record<string, unknown>> {
+  private prepareProblemSource(): LastSolveProblemSource {
     if (this.codeEditorEl && this.codeEditorEl.value !== this.currentDsl) {
       this.currentDsl = this.codeEditorEl.value;
       this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
@@ -1348,18 +1352,37 @@ export class LmiView {
 
     const tpl = this.parsed.inferredTemplate;
     if (tpl === "canonical_sdp_json" && this.parsed.canonicalSdpOverride) {
-      return { problem: this.parsed.canonicalSdpOverride };
+      return {
+        kind: "override",
+        problem: structuredClone(this.parsed.canonicalSdpOverride),
+      };
     }
 
-    const compileCtx = this.buildCompileContext();
+    return {
+      kind: "compiled",
+      parsed: this.parsed,
+      compileCtx: this.buildCompileContext(),
+    };
+  }
 
+  private materializePayloadFromSource(
+    source: LastSolveProblemSource,
+  ): Record<string, unknown> {
+    if (source.kind === "override") {
+      return { problem: structuredClone(source.problem) };
+    }
     try {
-      const compiled = compileLmiDslToCanonicalSdp(this.parsed, compileCtx);
+      const compiled = compileLmiDslToCanonicalSdp(source.parsed, source.compileCtx);
       return { problem: compiled.problem };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new ControlLabBridgeError("VALIDATION_ERROR", msg);
     }
+  }
+
+  private async buildBackendPayload(): Promise<Record<string, unknown>> {
+    const source = this.prepareProblemSource();
+    return this.materializePayloadFromSource(source);
   }
 
   private async executeRpc(
@@ -1389,7 +1412,7 @@ export class LmiView {
   private ingestOptimizationResponse(
     operation: string,
     resp: RpcResponse,
-    payloadUsed: Record<string, unknown>,
+    problemSource: LastSolveProblemSource,
   ): void {
     const res = (isPlainObject(resp.result) ? resp.result : {}) as Record<string, unknown>;
     const diag = (isPlainObject(resp.diagnostics) ? resp.diagnostics : {}) as Record<string, unknown>;
@@ -1460,6 +1483,12 @@ export class LmiView {
     for (const k of ["x", "dual_Z", "dual_eq", "dual_ineq", "farkas_Z", "farkas_eq", "farkas_ineq", "objective"]) {
       if (res[k] !== undefined) rawSol[k] = res[k];
     }
+    const effectiveRawSol =
+      Object.keys(rawSol).length > 0
+        ? rawSol
+        : operation === "optimization.verify" && this.lastSolve
+          ? this.lastSolve.rawSolutionPayload
+          : rawSol;
 
     const rawLog = Array.isArray(res.iteration_log)
       ? res.iteration_log
@@ -1481,7 +1510,7 @@ export class LmiView {
           }))
       : [...this.liveIterations];
 
-    this.lastBuildPayload = payloadUsed;
+    this.lastSolveProblemSource = problemSource;
     this.lastSolve = {
       operation,
       responseStatus: resp.status,
@@ -1502,7 +1531,7 @@ export class LmiView {
             : null,
       offlineRecommended: Boolean(diag.offline_recommended),
       blockMinEigs: minEigs,
-      rawSolutionPayload: rawSol,
+      rawSolutionPayload: effectiveRawSol,
       recoveredK,
       recoveredIndexedK,
       recoveredIndexedL,
@@ -1545,7 +1574,8 @@ export class LmiView {
     });
 
     try {
-      const payload = await this.buildBackendPayload();
+      const problemSource = this.prepareProblemSource();
+      const payload = this.materializePayloadFromSource(problemSource);
       const resp = await this.executeRpc("optimization.solve", payload, requestId, 300_000);
       if (this.activeSolveRequestId !== requestId) {
         this.renderProgressRows(this.liveIterations, "Resolução cancelada pelo usuário.");
@@ -1561,7 +1591,7 @@ export class LmiView {
           resp.error?.message ?? "Falha ao resolver LMI.",
         );
       }
-      this.ingestOptimizationResponse("optimization.solve", resp, payload);
+      this.ingestOptimizationResponse("optimization.solve", resp, problemSource);
       this.shell
         .getAnnouncer()
         .announce(
@@ -1595,7 +1625,8 @@ export class LmiView {
           "Resolva o problema LMI antes de auditar o certificado primal/dual.",
         );
       }
-      const basePayload = this.lastBuildPayload ?? (await this.buildBackendPayload());
+      const problemSource = this.lastSolveProblemSource ?? this.prepareProblemSource();
+      const basePayload = this.materializePayloadFromSource(problemSource);
       const verifyPayload: Record<string, unknown> = {
         ...basePayload,
         solution: this.lastSolve.rawSolutionPayload,
@@ -1608,7 +1639,7 @@ export class LmiView {
           resp.error?.message ?? "Falha ao auditar certificado SDP.",
         );
       }
-      this.ingestOptimizationResponse("optimization.verify", resp, basePayload);
+      this.ingestOptimizationResponse("optimization.verify", resp, problemSource);
       this.shell
         .getAnnouncer()
         .announce(

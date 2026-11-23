@@ -99,6 +99,16 @@ export type TensorDescriptor =
   | ComplexVectorPair
   | BufferTensorRef;
 
+export interface PackedSparseCooPayload {
+  k_idx: Int32Array | number[] | TensorDescriptor | BufferTensorRef;
+  rows: Int32Array | number[] | TensorDescriptor | BufferTensorRef;
+  cols: Int32Array | number[] | TensorDescriptor | BufferTensorRef;
+  vals: Float64Array | number[] | TensorDescriptor | BufferTensorRef;
+}
+
+const PACKED_SPARSE_INT32_FIELDS = new Set<string>(["k_idx", "rows", "cols"]);
+const PACKED_SPARSE_FLOAT64_FIELDS = new Set<string>(["vals"]);
+
 export interface WarningItem {
   code: string;
   message: string;
@@ -217,6 +227,7 @@ export interface WireBinaryBuffer {
   byte_length: number;
   imag_buffer?: ArrayBuffer;
   imag_byte_length?: number;
+  packed_sparse?: boolean;
 }
 
 export interface BinaryTensorInput {
@@ -457,7 +468,16 @@ export function ensureFiniteJson<T>(
         if (v === undefined && !fromPythonProxy) {
           continue;
         }
-        outObj[k] = ensureFiniteJson(v, `${path}.${k}`, seen, fromPythonProxy);
+        if (k === "F_k_packed" && isPlainObject(v)) {
+          outObj[k] = ensureFinitePackedSparseCoo(
+            v,
+            `${path}.${k}`,
+            seen,
+            fromPythonProxy,
+          );
+        } else {
+          outObj[k] = ensureFiniteJson(v, `${path}.${k}`, seen, fromPythonProxy);
+        }
       }
       return outObj as unknown as T;
     } finally {
@@ -469,6 +489,79 @@ export function ensureFiniteJson<T>(
     `Tipo inválido em ${path}.`,
     { parameters: { path } },
   );
+}
+
+function validatePackedTypedArray(
+  fieldName: string,
+  value: Int32Array | Float64Array,
+  path: string,
+): Int32Array | Float64Array {
+  if (!(value.buffer instanceof ArrayBuffer)) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      `Buffer de ${path} deve ser respaldado por ArrayBuffer transferível.`,
+      { parameters: { path, field: fieldName } },
+    );
+  }
+  if (isArrayBufferDetached(value.buffer)) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      `Buffer de ${path} já foi transferido/destacado (detached) e não pode ser reutilizado.`,
+      {
+        parameters: { path, field: fieldName, detached: true },
+        next_step: "Use preserveSenderCopy: true se precisar manter acesso ao buffer após postMessage.",
+      },
+    );
+  }
+  if (value instanceof Float64Array) {
+    for (let i = 0; i < value.length; i += 1) {
+      if (!Number.isFinite(value[i])) {
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          `Valor numérico não finito proibido em ${path}[${i}]: ${String(value[i])}`,
+          {
+            parameters: { path: `${path}[${i}]`, value: String(value[i]) },
+            next_step: "Substitua NaN ou Infinity por números reais finitos antes de enviar RPC.",
+          },
+        );
+      }
+    }
+  }
+  return value;
+}
+
+function ensureFinitePackedSparseCoo(
+  packed: Record<string, unknown>,
+  path: string,
+  seen: WeakSet<object>,
+  fromPythonProxy: boolean,
+): Record<string, unknown> {
+  if (seen.has(packed)) {
+    throw new ControlLabBridgeError(
+      "VALIDATION_ERROR",
+      `Referência circular detectada em ${path}.`,
+      { parameters: { path } },
+    );
+  }
+  seen.add(packed);
+  try {
+    const outObj: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(packed)) {
+      if (v === undefined && !fromPythonProxy) {
+        continue;
+      }
+      if (PACKED_SPARSE_INT32_FIELDS.has(k) && v instanceof Int32Array) {
+        outObj[k] = validatePackedTypedArray(k, v, `${path}.${k}`);
+      } else if (PACKED_SPARSE_FLOAT64_FIELDS.has(k) && v instanceof Float64Array) {
+        outObj[k] = validatePackedTypedArray(k, v, `${path}.${k}`);
+      } else {
+        outObj[k] = ensureFiniteJson(v, `${path}.${k}`, seen, fromPythonProxy);
+      }
+    }
+    return outObj;
+  } finally {
+    seen.delete(packed);
+  }
 }
 
 export function strictJsonStringify(value: unknown): string {
@@ -1436,17 +1529,19 @@ export function verifyPostTransferDetachment(
   }
 }
 
-export function rehydrateBinaryBufferToTensor(
-  entry: WireBinaryBuffer,
-): RealTensor | ComplexTensor {
+export function validateWireBinaryBuffer(entry: WireBinaryBuffer): void {
+  const expectedElements = productOfShape(entry.shape);
   assertBufferUsable(
     entry.buffer,
-    productOfShape(entry.shape) > 0 ? 1 : 0,
+    expectedElements > 0 ? 1 : 0,
     `wireBuffer['${entry.buffer_ref}']`,
   );
-  const expectedElements = productOfShape(entry.shape);
-  validateTypedArrayFinite(entry.buffer, entry.dtype, expectedElements, entry.buffer_ref);
-
+  validateTypedArrayFinite(
+    entry.buffer,
+    entry.dtype,
+    expectedElements,
+    entry.buffer_ref,
+  );
   if (COMPLEX_DTYPE_SET.has(entry.dtype)) {
     if (!(entry.imag_buffer instanceof ArrayBuffer)) {
       throw new ControlLabBridgeError(
@@ -1465,14 +1560,24 @@ export function rehydrateBinaryBufferToTensor(
       expectedElements,
       `${entry.buffer_ref}.imag`,
     );
+  }
+}
+
+export function rehydrateBinaryBufferToTensor(
+  entry: WireBinaryBuffer,
+): RealTensor | ComplexTensor {
+  validateWireBinaryBuffer(entry);
+
+  if (COMPLEX_DTYPE_SET.has(entry.dtype)) {
+    const imagBuffer = entry.imag_buffer as ArrayBuffer;
     const realArr =
       entry.dtype === "complex128"
         ? Array.from(new Float64Array(entry.buffer))
         : Array.from(new Float32Array(entry.buffer));
     const imagArr =
       entry.dtype === "complex128"
-        ? Array.from(new Float64Array(entry.imag_buffer))
-        : Array.from(new Float32Array(entry.imag_buffer));
+        ? Array.from(new Float64Array(imagBuffer))
+        : Array.from(new Float32Array(imagBuffer));
     return {
       shape: [...entry.shape],
       dtype: entry.dtype as ComplexDType,
@@ -1570,17 +1675,178 @@ export function tensorToBinaryBuffer(
   };
 }
 
+function isPackedRealTensorDescriptor(value: unknown): value is RealTensor {
+  return (
+    isPlainObject(value) &&
+    Array.isArray(value.shape) &&
+    (value.dtype === "int32" || value.dtype === "float64") &&
+    typeof value.order === "string" &&
+    Array.isArray(value.data)
+  );
+}
+
+export function containsExtractablePackedSparse(node: unknown): boolean {
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i += 1) {
+      const item = node[i];
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        containsExtractablePackedSparse(item)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (!isPlainObject(node)) {
+    return false;
+  }
+  for (const [k, v] of Object.entries(node)) {
+    if (k === "F_k_packed" && isPlainObject(v)) {
+      for (const [fk, fv] of Object.entries(v)) {
+        if (
+          (PACKED_SPARSE_INT32_FIELDS.has(fk) && fv instanceof Int32Array) ||
+          (PACKED_SPARSE_FLOAT64_FIELDS.has(fk) && fv instanceof Float64Array) ||
+          ((PACKED_SPARSE_INT32_FIELDS.has(fk) ||
+            PACKED_SPARSE_FLOAT64_FIELDS.has(fk)) &&
+            isPackedRealTensorDescriptor(fv))
+        ) {
+          return true;
+        }
+      }
+    } else if (typeof v === "object" && v !== null) {
+      if (k === "data" || k === "real" || k === "imag") {
+        if (Array.isArray(v) && (v.length === 0 || typeof v[0] === "number")) {
+          continue;
+        }
+      }
+      if (containsExtractablePackedSparse(v)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function extractTensorsToBinaryBuffers(
   record: Record<string, unknown>,
   prefix = "res",
+  options?: {
+    preserveSenderCopy?: boolean;
+    packedSparseOnly?: boolean;
+  },
 ): {
   replaced: Record<string, unknown>;
   buffers: Record<string, WireBinaryBuffer>;
   transferList: ArrayBuffer[];
 } {
+  const preserveSenderCopy = options?.preserveSenderCopy === true;
+  const packedSparseOnly = options?.packedSparseOnly === true;
   const buffers: Record<string, WireBinaryBuffer> = {};
   const transferList: ArrayBuffer[] = [];
+  const transferSet = new Set<ArrayBuffer>();
   let seq = 0;
+
+  const pushUniqueTransfer = (ab: ArrayBuffer): ArrayBuffer => {
+    if (transferSet.has(ab)) {
+      const cloned = ab.slice(0);
+      transferSet.add(cloned);
+      transferList.push(cloned);
+      return cloned;
+    }
+    transferSet.add(ab);
+    transferList.push(ab);
+    return ab;
+  };
+
+  const extractTypedArrayToPackedWireBuffer = (
+    bufferRef: string,
+    fieldName: string,
+    arr: Int32Array | Float64Array,
+    dtype: "int32" | "float64",
+  ): BufferTensorRef => {
+    validatePackedTypedArray(fieldName, arr, bufferRef);
+    const rawBuf = arr.buffer as ArrayBuffer;
+    const isSubSlice =
+      arr.byteOffset !== 0 || arr.byteLength !== rawBuf.byteLength;
+    const wireAb =
+      preserveSenderCopy || isSubSlice
+        ? sliceArrayBuffer(rawBuf, arr.byteOffset, arr.byteLength)
+        : rawBuf;
+    const uniqueAb = pushUniqueTransfer(wireAb);
+    const shape = [arr.length];
+    buffers[bufferRef] = {
+      buffer_ref: bufferRef,
+      shape,
+      dtype,
+      order: "C",
+      buffer: uniqueAb,
+      byte_length: uniqueAb.byteLength,
+      packed_sparse: true,
+    };
+    return {
+      shape,
+      dtype,
+      order: "C",
+      buffer_ref: bufferRef,
+    } satisfies BufferTensorRef;
+  };
+
+  const extractPackedSparseObject = (
+    packed: Record<string, unknown>,
+    keyPath: string,
+  ): Record<string, unknown> => {
+    const outPacked: Record<string, unknown> = {};
+    for (const [fk, fv] of Object.entries(packed)) {
+      if (PACKED_SPARSE_INT32_FIELDS.has(fk) && fv instanceof Int32Array) {
+        seq += 1;
+        const bufferRef = `${prefix}-${keyPath}_${fk}-${seq}`;
+        outPacked[fk] = extractTypedArrayToPackedWireBuffer(
+          bufferRef,
+          fk,
+          fv,
+          "int32",
+        );
+      } else if (
+        PACKED_SPARSE_FLOAT64_FIELDS.has(fk) &&
+        fv instanceof Float64Array
+      ) {
+        seq += 1;
+        const bufferRef = `${prefix}-${keyPath}_${fk}-${seq}`;
+        outPacked[fk] = extractTypedArrayToPackedWireBuffer(
+          bufferRef,
+          fk,
+          fv,
+          "float64",
+        );
+      } else if (
+        (PACKED_SPARSE_INT32_FIELDS.has(fk) ||
+          PACKED_SPARSE_FLOAT64_FIELDS.has(fk)) &&
+        isPackedRealTensorDescriptor(fv)
+      ) {
+        seq += 1;
+        const bufferRef = `${prefix}-${keyPath}_${fk}-${seq}`;
+        const wb = tensorToBinaryBuffer(bufferRef, fv);
+        const uniqueAb = pushUniqueTransfer(wb.buffer);
+        buffers[bufferRef] = {
+          ...wb,
+          buffer: uniqueAb,
+          byte_length: uniqueAb.byteLength,
+          packed_sparse: true,
+        };
+        outPacked[fk] = {
+          shape: wb.shape,
+          dtype: wb.dtype,
+          order: wb.order,
+          buffer_ref: bufferRef,
+        } satisfies BufferTensorRef;
+      } else {
+        outPacked[fk] = walk(fv, `${keyPath}_${fk}`);
+      }
+    }
+    return outPacked;
+  };
 
   const walk = (node: unknown, keyPath: string): unknown => {
     if (Array.isArray(node)) {
@@ -1588,6 +1854,7 @@ export function extractTensorsToBinaryBuffers(
     }
     if (isPlainObject(node)) {
       if (
+        !packedSparseOnly &&
         Array.isArray(node.shape) &&
         typeof node.dtype === "string" &&
         typeof node.order === "string" &&
@@ -1600,11 +1867,19 @@ export function extractTensorsToBinaryBuffers(
           bufferRef,
           node as unknown as RealTensor | ComplexTensor,
         );
-        buffers[bufferRef] = wb;
-        transferList.push(wb.buffer);
+        const uniqueAb = pushUniqueTransfer(wb.buffer);
+        let uniqueImag: ArrayBuffer | undefined;
         if (wb.imag_buffer) {
-          transferList.push(wb.imag_buffer);
+          uniqueImag = pushUniqueTransfer(wb.imag_buffer);
         }
+        buffers[bufferRef] = {
+          ...wb,
+          buffer: uniqueAb,
+          byte_length: uniqueAb.byteLength,
+          ...(uniqueImag !== undefined
+            ? { imag_buffer: uniqueImag, imag_byte_length: uniqueImag.byteLength }
+            : {}),
+        };
         return {
           shape: wb.shape,
           dtype: wb.dtype,
@@ -1614,7 +1889,11 @@ export function extractTensorsToBinaryBuffers(
       }
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(node)) {
-        out[k] = walk(v, k);
+        if (k === "F_k_packed" && isPlainObject(v)) {
+          out[k] = extractPackedSparseObject(v, "F_k_packed");
+        } else {
+          out[k] = walk(v, k);
+        }
       }
       return out;
     }

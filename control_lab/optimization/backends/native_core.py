@@ -26,6 +26,7 @@ import time
 from typing import Any, Callable, Mapping, Sequence
 import numpy as np
 import scipy.linalg
+import scipy.sparse
 from control_lab.core.tensors import ensure_finite_float64
 from control_lab.diagnostics import ValidationError, WarningItem
 from ..modeling.canonical import CanonicalSDPProblem
@@ -229,6 +230,19 @@ class _InternalConeBlock:
         res = (self._F_cols @ dz[self._active_keys]).reshape((self.dim, self.dim))
         return 0.5 * (res + res.T)
 
+    def evaluate_into(self, z: np.ndarray, out: np.ndarray, tmp: np.ndarray) -> np.ndarray:
+        """Avalia F0 + sum_k z_k F_k simetrizada em `out` reutilizando buffer `tmp` (out is not tmp)."""
+        if self._active_keys.size == 0:
+            return _sym_into(self.F0, out)
+        n_act = self._active_keys.size
+        if n_act == z.shape[0] and int(self._active_keys[0]) == 0 and int(self._active_keys[-1]) == n_act - 1:
+            z_act = z
+        else:
+            z_act = z[self._active_keys]
+        np.matmul(self._F_cols, z_act, out=tmp.ravel())
+        tmp += self.F0
+        return _sym_into(tmp, out)
+
 
 # ---------------------------------------------------------------------------
 # Utilitários de Álgebra Linear Numérica (Zero uso de np.linalg.inv!)
@@ -239,6 +253,20 @@ def _sym(M: np.ndarray) -> np.ndarray:
     return 0.5 * (M + M.T)
 
 
+def _sym_into(src: np.ndarray, out: np.ndarray) -> np.ndarray:
+    """Simetriza `src` no buffer distinto `out` (`src is not out`) sem alocar temporários."""
+    np.add(src, src.T, out=out)
+    out *= 0.5
+    return out
+
+
+def _min_eig_sym(M: np.ndarray) -> float:
+    """Menor autovalor de matriz simétrica (caminho escalar O(1) para blocos 1x1)."""
+    if M.shape[0] == 1:
+        return float(M[0, 0])
+    return float(np.min(np.linalg.eigvalsh(M)))
+
+
 def _safe_cholesky(M: np.ndarray) -> tuple[np.ndarray, bool] | None:
     """Retorna fatoração de Cholesky (L, True) se M for estritamente SPD, ou None."""
     Ms = _sym(M)
@@ -246,6 +274,17 @@ def _safe_cholesky(M: np.ndarray) -> tuple[np.ndarray, bool] | None:
         return None
     try:
         return scipy.linalg.cho_factor(Ms, lower=True, check_finite=True)
+    except np.linalg.LinAlgError:
+        return None
+
+
+def _safe_cholesky_buf(M_sym: np.ndarray, work: np.ndarray) -> tuple[np.ndarray, bool] | None:
+    """Fatoração de Cholesky in-place sobre buffer Fortran pré-alocado `work`."""
+    if not np.all(np.isfinite(M_sym)):
+        return None
+    np.copyto(work, M_sym)
+    try:
+        return scipy.linalg.cho_factor(work, lower=True, overwrite_a=True, check_finite=False)
     except np.linalg.LinAlgError:
         return None
 
@@ -289,14 +328,20 @@ class _FactoredSymmetricSystem:
     regularized: bool
 
 
-def _factor_symmetric_system(H: np.ndarray) -> _FactoredSymmetricSystem:
+def _factor_symmetric_system(
+    H: np.ndarray,
+    *,
+    H_scaled_buf: np.ndarray | None = None,
+    H_work_buf: np.ndarray | None = None,
+    inv_d_buf: np.ndarray | None = None,
+) -> _FactoredSymmetricSystem:
     """Fatora H uma única vez por iteração com Jacobi + Cholesky regularizado (Fujisawa et al., IPDPS 2014).
 
     Estima o condicionamento em O(m) pela razão dos elementos diagonais do fator de Cholesky
     `(max(diag(L)) / max(min(diag(L)), 1e-15)) ** 2`, evitando SVD O(m^3) a cada iteração.
+    Suporta buffers pré-alocados (`H_scaled_buf`, `H_work_buf`, `inv_d_buf`) para execução in-place.
     """
-    H_sym = _sym(H)
-    n = H_sym.shape[0]
+    n = int(H.shape[0])
     if n == 0:
         return _FactoredSymmetricSystem(
             n=0,
@@ -307,11 +352,20 @@ def _factor_symmetric_system(H: np.ndarray) -> _FactoredSymmetricSystem:
             regularized=False,
         )
 
-    # Escalonamento simétrico de Jacobi D^{-1} H D^{-1} para equilibrar blocos perto/longe da fronteira
-    diag_h = np.diag(H_sym)
-    d_scale = np.sqrt(np.maximum(np.abs(diag_h), 1e-30))
-    inv_d = 1.0 / d_scale
-    H_scaled = _sym((inv_d[:, None] * H_sym) * inv_d[None, :])
+    H_scaled = H_scaled_buf if H_scaled_buf is not None else np.empty((n, n), dtype=np.float64)
+    H_work = H_work_buf if H_work_buf is not None else np.empty((n, n), dtype=np.float64, order="F")
+    inv_d = inv_d_buf if inv_d_buf is not None else np.empty((n,), dtype=np.float64)
+
+    # Escalonamento simétrico de Jacobi D^{-1} H D^{-1} in-place sobre H_scaled
+    _sym_into(H, H_scaled)
+    np.abs(np.diag(H_scaled), out=inv_d)
+    np.maximum(inv_d, 1e-30, out=inv_d)
+    np.sqrt(inv_d, out=inv_d)
+    np.reciprocal(inv_d, out=inv_d)
+    H_scaled *= inv_d[:, None]
+    H_scaled *= inv_d[None, :]
+    _sym_into(H_scaled, H_work)
+    np.copyto(H_scaled, H_work)
 
     def _cond_from_cho(cho_fac: tuple[np.ndarray, bool]) -> float:
         diag_l = np.abs(np.diag(cho_fac[0]))
@@ -324,31 +378,45 @@ def _factor_symmetric_system(H: np.ndarray) -> _FactoredSymmetricSystem:
         ratio = l_max / max(l_min, 1e-15)
         return float(min(1e16, ratio * ratio))
 
-    cho = _safe_cholesky(H_scaled)
-    if cho is not None:
-        return _FactoredSymmetricSystem(
-            n=n,
-            H_scaled=H_scaled,
-            inv_d=inv_d,
-            cho=cho,
-            cond=_cond_from_cho(cho),
-            regularized=False,
-        )
-
-    # Regularização diagonal adaptativa no espaço escalonado caso H seja quase singular/indefinida
-    h_scale = max(1.0, float(np.max(np.abs(H_scaled))))
-    eye_n = np.eye(n, dtype=np.float64)
-    for reg_exp in (1e-13, 1e-11, 1e-9, 1e-7):
-        cho_reg = _safe_cholesky(H_scaled + (reg_exp * h_scale) * eye_n)
-        if cho_reg is not None:
+    finite_ok = bool(np.all(np.isfinite(H_scaled)))
+    if finite_ok:
+        try:
+            cho: tuple[np.ndarray, bool] | None = scipy.linalg.cho_factor(
+                H_work, lower=True, overwrite_a=True, check_finite=False
+            )
+        except np.linalg.LinAlgError:
+            cho = None
+        if cho is not None:
             return _FactoredSymmetricSystem(
                 n=n,
                 H_scaled=H_scaled,
                 inv_d=inv_d,
-                cho=cho_reg,
-                cond=_cond_from_cho(cho_reg),
-                regularized=True,
+                cho=cho,
+                cond=_cond_from_cho(cho),
+                regularized=False,
             )
+
+        # Regularização diagonal adaptativa no espaço escalonado sem alocar eye(n)
+        h_scale = max(1.0, float(np.max(np.abs(H_scaled))))
+        diag_idx = np.arange(n, dtype=np.intp)
+        for reg_exp in (1e-13, 1e-11, 1e-9, 1e-7):
+            np.copyto(H_work, H_scaled)
+            H_work[diag_idx, diag_idx] += reg_exp * h_scale
+            try:
+                cho_reg = scipy.linalg.cho_factor(
+                    H_work, lower=True, overwrite_a=True, check_finite=False
+                )
+            except np.linalg.LinAlgError:
+                cho_reg = None
+            if cho_reg is not None:
+                return _FactoredSymmetricSystem(
+                    n=n,
+                    H_scaled=H_scaled,
+                    inv_d=inv_d,
+                    cho=cho_reg,
+                    cond=_cond_from_cho(cho_reg),
+                    regularized=True,
+                )
 
     return _FactoredSymmetricSystem(
         n=n,
@@ -360,15 +428,30 @@ def _factor_symmetric_system(H: np.ndarray) -> _FactoredSymmetricSystem:
     )
 
 
-def _solve_factored_symmetric(fac: _FactoredSymmetricSystem, rhs: np.ndarray) -> np.ndarray:
+def _solve_factored_symmetric(
+    fac: _FactoredSymmetricSystem,
+    rhs: np.ndarray,
+    *,
+    out: np.ndarray | None = None,
+    rhs_scaled_buf: np.ndarray | None = None,
+    res_s_buf: np.ndarray | None = None,
+    mv_buf: np.ndarray | None = None,
+) -> np.ndarray:
     """Resolve H dx = rhs usando a fatoração em cache + até 2 passos de refino iterativo."""
     if fac.n == 0:
+        if out is not None:
+            return out
         return np.zeros((0,), dtype=np.float64)
 
-    rhs_scaled = fac.inv_d * rhs
+    rhs_scaled = np.multiply(fac.inv_d, rhs, out=rhs_scaled_buf) if rhs_scaled_buf is not None else fac.inv_d * rhs
     if fac.cho is not None:
         sol_s = scipy.linalg.cho_solve(fac.cho, rhs_scaled, check_finite=True)
-        res_s = rhs_scaled - fac.H_scaled @ sol_s
+        if mv_buf is not None and res_s_buf is not None:
+            np.matmul(fac.H_scaled, sol_s, out=mv_buf)
+            np.subtract(rhs_scaled, mv_buf, out=res_s_buf)
+            res_s = res_s_buf
+        else:
+            res_s = rhs_scaled - fac.H_scaled @ sol_s
         res_norm = float(np.linalg.norm(res_s))
         rhs_norm = float(np.linalg.norm(rhs_scaled))
         for _ in range(2):
@@ -378,17 +461,29 @@ def _solve_factored_symmetric(fac: _FactoredSymmetricSystem, rhs: np.ndarray) ->
             if not np.all(np.isfinite(corr_s)):
                 break
             cand_s = sol_s + corr_s
-            new_res_s = rhs_scaled - fac.H_scaled @ cand_s
+            if mv_buf is not None:
+                np.matmul(fac.H_scaled, cand_s, out=mv_buf)
+                new_res_s = rhs_scaled - mv_buf
+            else:
+                new_res_s = rhs_scaled - fac.H_scaled @ cand_s
             new_res_norm = float(np.linalg.norm(new_res_s))
             if new_res_norm < res_norm:
                 sol_s = cand_s
-                res_s = new_res_s
+                if res_s_buf is not None:
+                    np.copyto(res_s_buf, new_res_s)
+                    res_s = res_s_buf
+                else:
+                    res_s = new_res_s
                 res_norm = new_res_norm
             else:
                 break
+        if out is not None:
+            return np.multiply(fac.inv_d, sol_s, out=out)
         return np.asarray(fac.inv_d * sol_s, dtype=np.float64)
 
     sol_s, _, _, _ = scipy.linalg.lstsq(fac.H_scaled, rhs_scaled, cond=1e-13, check_finite=True)
+    if out is not None:
+        return np.multiply(fac.inv_d, sol_s, out=out)
     return np.asarray(fac.inv_d * sol_s, dtype=np.float64)
 
 
@@ -452,7 +547,7 @@ def _project_dual_onto_subspace(
             if yj != 0.0:
                 dZ = dZ + yj * bj
         Z_cand = _sym(Z_b + dZ)
-        min_e = float(np.min(np.linalg.eigvalsh(Z_cand)))
+        min_e = _min_eig_sym(Z_cand)
         z_norm = 1.0 + float(np.linalg.norm(Z_cand, "fro"))
         if min_e < -1e-9 * z_norm:
             return None
@@ -558,16 +653,29 @@ def _nt_scaling_factors(
     return G, G_invT, lam_safe
 
 
-def _max_step_scaled_identity(lam: np.ndarray, dM_tilde: np.ndarray) -> float:
+def _max_step_scaled_identity(
+    lam: np.ndarray,
+    dM_tilde: np.ndarray,
+    *,
+    work1: np.ndarray | None = None,
+    work2: np.ndarray | None = None,
+) -> float:
     """Maior alpha > 0 tal que diag(lam) + alpha * dM_tilde >= 0 sem inversão."""
-    dM_sym = _sym(dM_tilde)
-    if not np.all(np.isfinite(dM_sym)):
+    if not np.all(np.isfinite(dM_tilde)):
         return 0.0
-    if float(np.linalg.norm(dM_sym, "fro")) <= 1e-16:
+    if float(np.linalg.norm(dM_tilde, "fro")) <= 1e-16:
         return float("inf")
     inv_sqrt = 1.0 / np.sqrt(np.maximum(lam, 1e-30))
-    scaled = _sym((inv_sqrt[:, None] * dM_sym) * inv_sqrt[None, :])
-    min_eig = float(np.min(np.linalg.eigvalsh(scaled)))
+    if work1 is not None and work2 is not None:
+        _sym_into(dM_tilde, work1)
+        work1 *= inv_sqrt[:, None]
+        work1 *= inv_sqrt[None, :]
+        _sym_into(work1, work2)
+        min_eig = float(np.min(np.linalg.eigvalsh(work2)))
+    else:
+        dM_sym = _sym(dM_tilde)
+        scaled = _sym((inv_sqrt[:, None] * dM_sym) * inv_sqrt[None, :])
+        min_eig = float(np.min(np.linalg.eigvalsh(scaled)))
     if min_eig >= -1e-15:
         return float("inf")
     return float(-1.0 / min_eig)
@@ -598,33 +706,251 @@ def _run_primal_dual_cone_loop(
     Resolve:
         min_{z in R^m}   c_vec^T z + c0
         sujeito a        S_b(z) = F_{b,0} + sum_{j=0}^{m-1} z_j F_{b,j} >= 0   (b = 0..B_int-1)
+
+    Otimizações ADR-015 (Ciclo 1):
+    - Agrupa todos os blocos PSD escalares `1x1` em um único cone LP vetorial 1D
+      (`s_lp`, `z_lp`, `F0_lp`, `F_lp`), eliminando chamadas matriciais `eigh`/`cholesky`/`svd`.
+    - Pré-aloca buffers de trabalho in-place (`H`, `H_scaled_buf`, `H_work_buf`, vetores RHS/direção
+      e matrizes temporárias por bloco PSD) para conter fragmentação de heap em `wasm32`,
+      liberando explicitamente as referências antes do retorno.
     """
     m = int(c_vec.shape[0])
     n_blocks = len(blocks)
     total_order = sum(b.dim for b in blocks)
     z = np.array(z_init, dtype=np.float64, copy=True)
     z0_initial = z.copy()
+    c_scale = max(1.0, float(np.linalg.norm(c_vec)))
+    c_norm = float(np.linalg.norm(c_vec))
 
-    S_list = [b.evaluate(z) for b in blocks]
-    cho_S_list: list[tuple[np.ndarray, bool]] = []
-    for b_idx, S_b in enumerate(S_list):
-        cho = _safe_cholesky(S_b)
-        if cho is None:
+    # -----------------------------------------------------------------------
+    # Particionar blocos 1x1 (cone LP 1D unificado) vs blocos PSD (dim >= 2)
+    # -----------------------------------------------------------------------
+    lp_indices: list[int] = [i for i, b in enumerate(blocks) if b.dim == 1]
+    psd_indices: list[int] = [i for i, b in enumerate(blocks) if b.dim > 1]
+    psd_blocks: list[_InternalConeBlock] = [blocks[i] for i in psd_indices]
+    q_lp = len(lp_indices)
+    n_psd_blocks = len(psd_blocks)
+
+    # -----------------------------------------------------------------------
+    # Pré-alocar workspace do cone LP 1D (quando q_lp > 0)
+    # -----------------------------------------------------------------------
+    F0_lp: np.ndarray | None = None
+    f_lp_row_norms: np.ndarray | None = None
+    F_lp_dense: np.ndarray | None = None
+    F_lp_scaled: np.ndarray | None = None
+    F_lp_csr: scipy.sparse.csr_matrix | None = None
+    F_lp_csc: scipy.sparse.csc_matrix | None = None
+    use_sparse_lp = False
+
+    s_lp: np.ndarray | None = None
+    z_lp: np.ndarray | None = None
+    s_lp_eval: np.ndarray | None = None
+    s_lp_trial: np.ndarray | None = None
+    z_lp_trial: np.ndarray | None = None
+    rp_lp: np.ndarray | None = None
+    s_lp_safe: np.ndarray | None = None
+    w_lp: np.ndarray | None = None
+    ds_lp_aff: np.ndarray | None = None
+    dz_lp_aff: np.ndarray | None = None
+    rc_lp: np.ndarray | None = None
+    ds_lp: np.ndarray | None = None
+    dz_lp: np.ndarray | None = None
+    lp_vec_buf: np.ndarray | None = None
+    lp_vec_buf2: np.ndarray | None = None
+
+    if q_lp > 0:
+        F0_lp = np.empty((q_lp,), dtype=np.float64)
+        f_lp_row_norms = np.empty((q_lp,), dtype=np.float64)
+        nnz_lp = 0
+        for pos, orig_i in enumerate(lp_indices):
+            blk = blocks[orig_i]
+            F0_lp[pos] = float(blk.F0[0, 0])
+            f_lp_row_norms[pos] = blk._f_norm_sum
+            nnz_lp += int(blk._active_keys.size)
+
+        use_sparse_lp = (q_lp * m > 16384) and (nnz_lp < int(0.15 * q_lp * m))
+        if use_sparse_lp:
+            lp_rows_parts: list[np.ndarray] = []
+            lp_cols_parts: list[np.ndarray] = []
+            lp_vals_parts: list[np.ndarray] = []
+            for pos, orig_i in enumerate(lp_indices):
+                blk = blocks[orig_i]
+                ak = blk._active_keys
+                if ak.size > 0:
+                    lp_rows_parts.append(np.full((ak.size,), pos, dtype=np.int32))
+                    lp_cols_parts.append(ak.astype(np.int32, copy=False))
+                    lp_vals_parts.append(blk._F_cols[0, :])
+            if lp_rows_parts:
+                F_lp_csr = scipy.sparse.csr_matrix(
+                    (
+                        np.concatenate(lp_vals_parts),
+                        (np.concatenate(lp_rows_parts), np.concatenate(lp_cols_parts)),
+                    ),
+                    shape=(q_lp, m),
+                    dtype=np.float64,
+                )
+            else:
+                F_lp_csr = scipy.sparse.csr_matrix((q_lp, m), dtype=np.float64)
+            F_lp_csc = F_lp_csr.tocsc()
+        else:
+            F_lp_dense = np.zeros((q_lp, m), dtype=np.float64)
+            for pos, orig_i in enumerate(lp_indices):
+                blk = blocks[orig_i]
+                if blk._active_keys.size > 0:
+                    F_lp_dense[pos, blk._active_keys] = blk._F_cols[0, :]
+            F_lp_scaled = np.empty((q_lp, m), dtype=np.float64)
+
+        s_lp = np.empty((q_lp,), dtype=np.float64)
+        s_lp_eval = np.empty((q_lp,), dtype=np.float64)
+        s_lp_trial = np.empty((q_lp,), dtype=np.float64)
+        z_lp_trial = np.empty((q_lp,), dtype=np.float64)
+        rp_lp = np.empty((q_lp,), dtype=np.float64)
+        s_lp_safe = np.empty((q_lp,), dtype=np.float64)
+        w_lp = np.empty((q_lp,), dtype=np.float64)
+        ds_lp_aff = np.empty((q_lp,), dtype=np.float64)
+        dz_lp_aff = np.empty((q_lp,), dtype=np.float64)
+        rc_lp = np.empty((q_lp,), dtype=np.float64)
+        ds_lp = np.empty((q_lp,), dtype=np.float64)
+        dz_lp = np.empty((q_lp,), dtype=np.float64)
+        lp_vec_buf = np.empty((q_lp,), dtype=np.float64)
+        lp_vec_buf2 = np.empty((q_lp,), dtype=np.float64)
+
+        if use_sparse_lp:
+            assert F_lp_csr is not None
+            s_lp[:] = F_lp_csr @ z
+        else:
+            assert F_lp_dense is not None
+            np.matmul(F_lp_dense, z, out=s_lp)
+        s_lp += F0_lp
+        bad_lp = s_lp <= 0.0
+        if np.any(bad_lp):
+            s_lp[bad_lp] = s_lp[bad_lp] + np.maximum(1e-3, -s_lp[bad_lp] + 1e-2)
+        z_lp = np.full((q_lp,), c_scale, dtype=np.float64)
+
+    # -----------------------------------------------------------------------
+    # Pré-alocar workspace de Schur e vetores de direção (tamanho m)
+    # -----------------------------------------------------------------------
+    H = np.empty((m, m), dtype=np.float64)
+    H_scaled_buf = np.empty((m, m), dtype=np.float64)
+    H_work_buf = np.empty((m, m), dtype=np.float64, order="F")
+    inv_d_buf = np.empty((m,), dtype=np.float64)
+    adj = np.empty((m,), dtype=np.float64)
+    r_d = np.empty((m,), dtype=np.float64)
+    rhs_aff = np.empty((m,), dtype=np.float64)
+    rhs_cor = np.empty((m,), dtype=np.float64)
+    dz_aff = np.empty((m,), dtype=np.float64)
+    dz = np.empty((m,), dtype=np.float64)
+    z_trial = np.empty((m,), dtype=np.float64)
+    rhs_scaled_buf = np.empty((m,), dtype=np.float64)
+    res_s_buf = np.empty((m,), dtype=np.float64)
+    m_scratch = np.empty((m,), dtype=np.float64)
+
+    # -----------------------------------------------------------------------
+    # Pré-alocar workspace por bloco PSD (dim >= 2)
+    # -----------------------------------------------------------------------
+    eye_psd: list[np.ndarray] = []
+    diag_psd: list[np.ndarray] = []
+    S_psd_list: list[np.ndarray] = []
+    Z_psd_list: list[np.ndarray] = []
+    S_eval_bufs: list[np.ndarray] = []
+    S_trial_bufs: list[np.ndarray] = []
+    Z_trial_bufs: list[np.ndarray] = []
+    cho_S_bufs: list[np.ndarray] = []
+    cho_S_trial_bufs: list[np.ndarray] = []
+    cho_Z_bufs: list[np.ndarray] = []
+    cho_Z_trial_bufs: list[np.ndarray] = []
+    cho_S_psd: list[tuple[np.ndarray, bool]] = []
+    cho_Z_psd: list[tuple[np.ndarray, bool]] = []
+    R_p_psd_bufs: list[np.ndarray] = []
+    R_p_hat_bufs: list[np.ndarray] = []
+    cols_bufs: list[np.ndarray] = []
+    gram_bufs: list[np.ndarray | None] = []
+    dS_tilde_aff_bufs: list[np.ndarray] = []
+    dZ_tilde_aff_bufs: list[np.ndarray] = []
+    M_cor_bufs: list[np.ndarray] = []
+    dZ_psd_bufs: list[np.ndarray] = []
+    tmp1_bufs: list[np.ndarray] = []
+    tmp2_bufs: list[np.ndarray] = []
+    act_vec_bufs: list[np.ndarray | None] = []
+    is_full_m: list[bool] = []
+    G_invT_psd: list[np.ndarray] = [np.empty((0, 0), dtype=np.float64)] * n_psd_blocks
+    lam_psd: list[np.ndarray] = [np.empty((0,), dtype=np.float64)] * n_psd_blocks
+
+    for blk in psd_blocks:
+        dim = blk.dim
+        n_act = int(blk._active_keys.size)
+        eye_b = np.eye(dim, dtype=np.float64)
+        diag_b = np.arange(dim, dtype=np.intp)
+        eye_psd.append(eye_b)
+        diag_psd.append(diag_b)
+
+        S_b = np.empty((dim, dim), dtype=np.float64)
+        tmp1_b = np.empty((dim, dim), dtype=np.float64)
+        tmp2_b = np.empty((dim, dim), dtype=np.float64)
+        cho_s_work = np.empty((dim, dim), dtype=np.float64, order="F")
+        cho_s_trial = np.empty((dim, dim), dtype=np.float64, order="F")
+        cho_z_work = np.empty((dim, dim), dtype=np.float64, order="F")
+        cho_z_trial = np.empty((dim, dim), dtype=np.float64, order="F")
+
+        blk.evaluate_into(z, S_b, tmp1_b)
+        cho_s = _safe_cholesky_buf(S_b, cho_s_work)
+        if cho_s is None:
             eigs = np.linalg.eigvalsh(S_b)
             shift = max(1e-3, -float(np.min(eigs)) + 1e-2)
-            S_b = _sym(S_b + shift * np.eye(S_b.shape[0], dtype=np.float64))
-            S_list[b_idx] = S_b
-            cho = _safe_cholesky(S_b)
-            assert cho is not None
-        cho_S_list.append(cho)
+            S_b[diag_b, diag_b] += shift
+            _sym_into(S_b, tmp1_b)
+            np.copyto(S_b, tmp1_b)
+            cho_s = _safe_cholesky_buf(S_b, cho_s_work)
+            assert cho_s is not None
 
-    c_scale = max(1.0, float(np.linalg.norm(c_vec)))
-    Z_list = [c_scale * np.eye(b.dim, dtype=np.float64) for b in blocks]
-    cho_Z_list: list[tuple[np.ndarray, bool]] = []
-    for Z_b in Z_list:
-        cho_z = _safe_cholesky(Z_b)
+        Z_b = c_scale * eye_b.copy()
+        cho_z = _safe_cholesky_buf(Z_b, cho_z_work)
         assert cho_z is not None
-        cho_Z_list.append(cho_z)
+
+        S_psd_list.append(S_b)
+        Z_psd_list.append(Z_b)
+        S_eval_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        S_trial_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        Z_trial_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        cho_S_bufs.append(cho_s_work)
+        cho_S_trial_bufs.append(cho_s_trial)
+        cho_Z_bufs.append(cho_z_work)
+        cho_Z_trial_bufs.append(cho_z_trial)
+        cho_S_psd.append(cho_s)
+        cho_Z_psd.append(cho_z)
+        R_p_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        R_p_hat_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        cols_bufs.append(np.empty((dim * dim, n_act), dtype=np.float64))
+        gram_bufs.append(np.empty((n_act, n_act), dtype=np.float64) if n_act > 0 else None)
+        dS_tilde_aff_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        dZ_tilde_aff_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        M_cor_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        dZ_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        tmp1_bufs.append(tmp1_b)
+        tmp2_bufs.append(tmp2_b)
+        act_vec_bufs.append(np.empty((n_act,), dtype=np.float64) if n_act > 0 else None)
+        is_full_m.append(
+            n_act == m and n_act > 0 and int(blk._active_keys[0]) == 0 and int(blk._active_keys[-1]) == m - 1
+        )
+
+    # Pré-computar metadados de Fase I (sub-blocos de Farkas e índices originais) fora do laço
+    n_check_p1 = check_farkas_on_blocks if check_farkas_on_blocks is not None else n_blocks
+    lp_check_pos = np.asarray(
+        [pos for pos, orig_i in enumerate(lp_indices) if orig_i < n_check_p1], dtype=np.intp
+    )
+    psd_check_pos = [pos for pos, orig_i in enumerate(psd_indices) if orig_i < n_check_p1]
+    sub_blocks_farkas: list[_InternalConeBlock] | None = None
+    if check_farkas_on_blocks is not None:
+        m_orig_f = m - 1
+        sub_blocks_farkas = [
+            _InternalConeBlock(
+                name=b.name,
+                dim=b.dim,
+                F0=b.F0,
+                F_terms={j: fj for j, fj in b.F_terms.items() if j < m_orig_f},
+            )
+            for b in blocks[:check_farkas_on_blocks]
+        ]
 
     history: list[IterationRecord] = []
     iter_log: list[dict[str, Any]] = iteration_log if iteration_log is not None else []
@@ -635,38 +961,97 @@ def _run_primal_dual_cone_loop(
 
     for it in range(max_iter):
         # 1. Avaliar folgas primais exatas, gap de complementaridade e resíduo dual
-        S_eval = [b.evaluate(z) for b in blocks]
-        cho_eval = [_safe_cholesky(S_b) for S_b in S_eval]
-        if all(c is not None for c in cho_eval):
-            S_list = S_eval
-            cho_S_list = [c for c in cho_eval if c is not None]
+        lp_eval_pos = True
+        if q_lp > 0:
+            assert s_lp_eval is not None and F0_lp is not None and s_lp is not None and z_lp is not None
+            assert rp_lp is not None and f_lp_row_norms is not None
+            if use_sparse_lp:
+                assert F_lp_csr is not None
+                s_lp_eval[:] = F_lp_csr @ z
+            else:
+                assert F_lp_dense is not None
+                np.matmul(F_lp_dense, z, out=s_lp_eval)
+            s_lp_eval += F0_lp
+            lp_eval_pos = bool(np.all(np.isfinite(s_lp_eval)) and np.all(s_lp_eval > 0.0))
 
-        R_p_list = [S_b - S_ev for S_b, S_ev in zip(S_list, S_eval, strict=True)]
-        rp_norm = max(float(np.linalg.norm(rp, "fro")) for rp in R_p_list) if R_p_list else 0.0
-        gap = sum(float(np.sum(S_b * Z_b)) for S_b, Z_b in zip(S_list, Z_list, strict=True))
-        mu = gap / max(1, total_order)
+        psd_eval_pos = True
+        cho_eval_psd: list[tuple[np.ndarray, bool]] = []
+        for pos, blk in enumerate(psd_blocks):
+            blk.evaluate_into(z, S_eval_bufs[pos], tmp1_bufs[pos])
+            if psd_eval_pos and lp_eval_pos:
+                c_ev = _safe_cholesky_buf(S_eval_bufs[pos], cho_S_trial_bufs[pos])
+                if c_ev is None:
+                    psd_eval_pos = False
+                else:
+                    cho_eval_psd.append(c_ev)
 
-        adj = np.zeros((m,), dtype=np.float64)
-        dual_scale = 1.0 + float(np.linalg.norm(c_vec))
-        for blk, Z_b in zip(blocks, Z_list, strict=True):
+        if lp_eval_pos and psd_eval_pos:
+            if q_lp > 0:
+                assert s_lp is not None and s_lp_eval is not None
+                np.copyto(s_lp, s_lp_eval)
+            for pos in range(n_psd_blocks):
+                np.copyto(S_psd_list[pos], S_eval_bufs[pos])
+                if cho_eval_psd[pos][0] is cho_S_trial_bufs[pos]:
+                    cho_S_bufs[pos], cho_S_trial_bufs[pos] = cho_S_trial_bufs[pos], cho_S_bufs[pos]
+                cho_S_psd[pos] = cho_eval_psd[pos]
+
+        rp_norm = 0.0
+        gap = 0.0
+        adj.fill(0.0)
+        dual_scale = 1.0 + c_norm
+        dual_f0_dot = 0.0
+        comp_scale = 1.0
+        min_eig_p = float("inf")
+        min_eig_d = float("inf")
+
+        if q_lp > 0:
+            assert s_lp is not None and s_lp_eval is not None and z_lp is not None
+            assert rp_lp is not None and F0_lp is not None and f_lp_row_norms is not None
+            np.subtract(s_lp, s_lp_eval, out=rp_lp)
+            rp_norm = max(rp_norm, float(np.max(np.abs(rp_lp))))
+            gap += float(np.dot(s_lp, z_lp))
+            if use_sparse_lp:
+                assert F_lp_csc is not None
+                adj += F_lp_csc.T @ z_lp
+            else:
+                assert F_lp_dense is not None
+                np.matmul(F_lp_dense.T, z_lp, out=adj)
+            dual_scale += float(np.dot(f_lp_row_norms, np.abs(z_lp)))
+            dual_f0_dot += float(np.dot(F0_lp, z_lp))
+            comp_scale += float(np.dot(np.abs(s_lp), np.abs(z_lp)))
+            min_eig_p = min(min_eig_p, float(np.min(s_lp_eval)))
+            min_eig_d = min(min_eig_d, float(np.min(z_lp)))
+
+        for pos, blk in enumerate(psd_blocks):
+            S_b = S_psd_list[pos]
+            S_ev = S_eval_bufs[pos]
+            Z_b = Z_psd_list[pos]
+            np.subtract(S_b, S_ev, out=R_p_psd_bufs[pos])
+            rp_norm = max(rp_norm, float(np.linalg.norm(R_p_psd_bufs[pos], "fro")))
+            gap += float(np.sum(S_b * Z_b))
+            z_norm_b = float(np.linalg.norm(Z_b, "fro"))
             if blk._active_keys.size > 0:
-                adj[blk._active_keys] += blk._F_cols.T @ Z_b.ravel()
-                dual_scale += blk._f_norm_sum * float(np.linalg.norm(Z_b, "fro"))
+                act_buf = act_vec_bufs[pos]
+                assert act_buf is not None
+                np.matmul(blk._F_cols.T, Z_b.ravel(), out=act_buf)
+                if is_full_m[pos]:
+                    adj += act_buf
+                else:
+                    adj[blk._active_keys] += act_buf
+                dual_scale += blk._f_norm_sum * z_norm_b
+            dual_f0_dot += float(np.sum(blk.F0 * Z_b))
+            comp_scale += float(np.linalg.norm(S_b, "fro")) * z_norm_b
+            min_eig_p = min(min_eig_p, float(np.min(np.linalg.eigvalsh(S_ev))))
+            min_eig_d = min(min_eig_d, float(np.min(np.linalg.eigvalsh(Z_b))))
 
-        r_d = c_vec - adj
+        mu = gap / max(1, total_order)
+        np.subtract(c_vec, adj, out=r_d)
         r_d_rel = float(np.linalg.norm(r_d) / dual_scale)
 
         primal_obj = float(np.dot(c_vec, z) + c0)
-        dual_obj = float(c0 - sum(float(np.sum(blk.F0 * Z_b)) for blk, Z_b in zip(blocks, Z_list, strict=True)))
+        dual_obj = float(c0 - dual_f0_dot)
         rel_gap = abs(primal_obj - dual_obj) / (1.0 + abs(primal_obj) + abs(dual_obj))
-        comp_scale = 1.0 + sum(
-            float(np.linalg.norm(S_b, "fro") * np.linalg.norm(Z_b, "fro"))
-            for S_b, Z_b in zip(S_list, Z_list, strict=True)
-        )
         comp_rel = abs(gap) / comp_scale
-
-        min_eig_p = min(float(np.min(np.linalg.eigvalsh(S_ev))) for S_ev in S_eval)
-        min_eig_d = min(float(np.min(np.linalg.eigvalsh(Z_b))) for Z_b in Z_list)
 
         def _record_iter_log(alpha_step: float) -> None:
             entry = {
@@ -688,13 +1073,22 @@ def _run_primal_dual_cone_loop(
 
         # Parada antecipada de Fase I assim que atingirmos ponto estritamente interior
         if stop_on_negative_obj_margin is not None and primal_obj < -stop_on_negative_obj_margin:
-            n_check = check_farkas_on_blocks if check_farkas_on_blocks is not None else n_blocks
-            orig_min_eig = min(
-                float(np.min(np.linalg.eigvalsh(
-                    blocks[b_i].F0 + sum(float(z[j]) * fj for j, fj in blocks[b_i].F_terms.items() if j < m - 1)
-                )))
-                for b_i in range(n_check)
-            )
+            np.copyto(m_scratch, z)
+            m_scratch[m - 1] = 0.0
+            orig_min_eig = float("inf")
+            if lp_check_pos.size > 0:
+                assert F0_lp is not None and lp_vec_buf is not None
+                if use_sparse_lp:
+                    assert F_lp_csr is not None
+                    lp_vec_buf[:] = F_lp_csr @ m_scratch
+                else:
+                    assert F_lp_dense is not None
+                    np.matmul(F_lp_dense, m_scratch, out=lp_vec_buf)
+                lp_vec_buf += F0_lp
+                orig_min_eig = min(orig_min_eig, float(np.min(lp_vec_buf[lp_check_pos])))
+            for pos in psd_check_pos:
+                psd_blocks[pos].evaluate_into(m_scratch, tmp2_bufs[pos], tmp1_bufs[pos])
+                orig_min_eig = min(orig_min_eig, float(np.min(np.linalg.eigvalsh(tmp2_bufs[pos]))))
             if orig_min_eig > 0.5 * stop_on_negative_obj_margin:
                 history.append(
                     IterationRecord(
@@ -721,28 +1115,29 @@ def _run_primal_dual_cone_loop(
 
         # Em Fase I, checar se o dual atual já projeta para um certificado de Farkas estrito
         if check_farkas_on_blocks is not None and primal_obj > 0.0:
-            orig_blocks = blocks[:check_farkas_on_blocks]
-            orig_Z = Z_list[:check_farkas_on_blocks]
-            orig_W = [_cho_solve_mat(cho_S_list[b_i], np.eye(orig_blocks[b_i].dim)) for b_i in range(check_farkas_on_blocks)]
+            assert sub_blocks_farkas is not None
+            orig_Z: list[np.ndarray] = [None] * check_farkas_on_blocks  # type: ignore[list-item]
+            orig_W: list[np.ndarray] = [None] * check_farkas_on_blocks  # type: ignore[list-item]
+            if q_lp > 0:
+                assert s_lp is not None and z_lp is not None
+                for pos, orig_i in enumerate(lp_indices):
+                    if orig_i < check_farkas_on_blocks:
+                        orig_Z[orig_i] = np.array([[float(z_lp[pos])]], dtype=np.float64)
+                        orig_W[orig_i] = np.array([[1.0 / max(float(s_lp[pos]), 1e-30)]], dtype=np.float64)
+            for pos, orig_i in enumerate(psd_indices):
+                if orig_i < check_farkas_on_blocks:
+                    orig_Z[orig_i] = Z_psd_list[pos]
+                    orig_W[orig_i] = _cho_solve_mat(cho_S_psd[pos], eye_psd[pos])
             m_orig = m - 1
-            sub_blocks = [
-                _InternalConeBlock(
-                    name=b.name,
-                    dim=b.dim,
-                    F0=b.F0,
-                    F_terms={j: fj for j, fj in b.F_terms.items() if j < m_orig},
-                )
-                for b in orig_blocks
-            ]
             Z_proj = _project_dual_onto_subspace(
-                sub_blocks,
+                sub_blocks_farkas,
                 m_orig,
                 orig_Z,
                 np.zeros((m_orig,), dtype=np.float64),
                 weight_mats=orig_W,
             )
             if Z_proj is not None:
-                Z_strict = _validate_strict_farkas_certificate(sub_blocks, m_orig, Z_proj)
+                Z_strict = _validate_strict_farkas_certificate(sub_blocks_farkas, m_orig, Z_proj)
                 if Z_strict is not None:
                     farkas_candidate = Z_strict
                     if it >= 3 or (comp_rel <= 1e-3 and r_d_rel <= 1e-4):
@@ -800,53 +1195,118 @@ def _run_primal_dual_cone_loop(
             solver_status = "optimal"
             break
 
-        # 2. Escalonamento de Nesterov-Todd (NT) por bloco e matriz de Schur simétrica SPD
-        # Explora esparsidade de F_k na congruência G^{-1} F_k G^{-T} e montagem BLAS (Fujisawa et al., IPDPS 2014)
-        nt_data: list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []
-        H = np.zeros((m, m), dtype=np.float64)
+        # 2. Escalonamento de Nesterov-Todd (NT) e montagem in-place da matriz de Schur H
+        # 2a. Cone LP 1D unificado (blocos 1x1): w_lp = z_lp / s_lp, H = F_lp.T @ (w_lp[:, None] * F_lp)
+        if q_lp > 0:
+            assert s_lp is not None and z_lp is not None and s_lp_safe is not None and w_lp is not None
+            np.maximum(s_lp, 1e-30, out=s_lp_safe)
+            np.divide(z_lp, s_lp_safe, out=w_lp)
+            if use_sparse_lp:
+                assert F_lp_csc is not None and F_lp_csr is not None
+                H.fill(0.0)
+                H += (F_lp_csc.T @ F_lp_csr.multiply(w_lp[:, None])).toarray()
+            else:
+                assert F_lp_dense is not None and F_lp_scaled is not None
+                np.multiply(F_lp_dense, w_lp[:, None], out=F_lp_scaled)
+                np.matmul(F_lp_dense.T, F_lp_scaled, out=H)
+        else:
+            H.fill(0.0)
 
-        for blk, cho_S, cho_Z, R_p in zip(blocks, cho_S_list, cho_Z_list, R_p_list, strict=True):
-            G_b, G_invT_b, lam_b = _nt_scaling_factors(cho_S, cho_Z)
+        # 2b. Blocos PSD (dim >= 2): congruência NT esparsa + montagem BLAS in-place em H
+        for pos, blk in enumerate(psd_blocks):
+            _, G_invT_b, lam_b = _nt_scaling_factors(cho_S_psd[pos], cho_Z_psd[pos])
+            G_invT_psd[pos] = G_invT_b
+            lam_psd[pos] = lam_b
             active_keys = blk._active_keys
-            n_act = active_keys.size
-            cols = np.empty((blk.dim * blk.dim, n_act), dtype=np.float64)
+            n_act = int(active_keys.size)
+            cols = cols_bufs[pos]
+            tmp1 = tmp1_bufs[pos]
+            tmp2 = tmp2_bufs[pos]
             sparse_terms = blk._sparse_terms
             for idx, j_raw in enumerate(active_keys):
                 j = int(j_raw)
                 sp = sparse_terms.get(j)
                 if sp is not None:
-                    rows, c_idx, vals = sp
-                    fhat = _sym(G_invT_b[rows, :].T @ (vals[:, None] * G_invT_b[c_idx, :]))
+                    r_sp, c_sp, v_sp = sp
+                    np.matmul(G_invT_b[r_sp, :].T, v_sp[:, None] * G_invT_b[c_sp, :], out=tmp1)
                 else:
-                    fhat = _sym(G_invT_b.T @ blk.F_terms[j] @ G_invT_b)
-                cols[:, idx] = fhat.ravel()
-            R_p_hat = _sym(G_invT_b.T @ R_p @ G_invT_b)
-            nt_data.append((G_b, G_invT_b, lam_b, active_keys, cols, R_p_hat))
+                    np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
+                    np.matmul(tmp2, G_invT_b, out=tmp1)
+                _sym_into(tmp1, tmp2)
+                cols[:, idx] = tmp2.ravel()
+            np.matmul(G_invT_b.T, R_p_psd_bufs[pos], out=tmp1)
+            np.matmul(tmp1, G_invT_b, out=tmp2)
+            _sym_into(tmp2, R_p_hat_bufs[pos])
 
             if n_act > 0:
-                gram = cols.T @ cols
-                H[np.ix_(active_keys, active_keys)] += gram
+                gram = gram_bufs[pos]
+                assert gram is not None
+                np.matmul(cols.T, cols, out=gram)
+                if is_full_m[pos]:
+                    H += gram
+                else:
+                    H[np.ix_(active_keys, active_keys)] += gram
 
-        # Fatorar o sistema de Schur uma única vez por iteração (reutilizado no preditor e no corretor)
-        fac_H = _factor_symmetric_system(H)
+        # Fatorar o sistema de Schur uma única vez por iteração usando buffers pré-alocados
+        fac_H = _factor_symmetric_system(
+            H, H_scaled_buf=H_scaled_buf, H_work_buf=H_work_buf, inv_d_buf=inv_d_buf
+        )
         cond_H = fac_H.cond
 
-        # 3. Passo Preditor Afim de Mehrotra (sigma = 0): dS_tilde + dZ_tilde = -diag(lam)
-        rhs_aff = -r_d.copy()
-        for blk, (_, _, lam_b, active_keys, cols, R_p_hat) in zip(blocks, nt_data, strict=True):
-            if active_keys.size > 0:
-                M_aff_b = -np.diag(lam_b) + R_p_hat
-                rhs_aff[active_keys] += cols.T @ M_aff_b.ravel()
+        # 3. Passo Preditor Afim de Mehrotra (sigma = 0)
+        np.negative(r_d, out=rhs_aff)
+        if q_lp > 0:
+            assert w_lp is not None and rp_lp is not None and z_lp is not None and lp_vec_buf is not None
+            np.multiply(w_lp, rp_lp, out=lp_vec_buf)
+            lp_vec_buf -= z_lp
+            if use_sparse_lp:
+                assert F_lp_csc is not None
+                rhs_aff += F_lp_csc.T @ lp_vec_buf
+            else:
+                assert F_lp_dense is not None
+                np.matmul(F_lp_dense.T, lp_vec_buf, out=m_scratch)
+                rhs_aff += m_scratch
 
-        dz_aff = _solve_factored_symmetric(fac_H, rhs_aff)
+        for pos, blk in enumerate(psd_blocks):
+            active_keys = blk._active_keys
+            if active_keys.size > 0:
+                tmp1 = tmp1_bufs[pos]
+                np.copyto(tmp1, R_p_hat_bufs[pos])
+                tmp1[diag_psd[pos], diag_psd[pos]] -= lam_psd[pos]
+                act_buf = act_vec_bufs[pos]
+                assert act_buf is not None
+                np.matmul(cols_bufs[pos].T, tmp1.ravel(), out=act_buf)
+                if is_full_m[pos]:
+                    rhs_aff += act_buf
+                else:
+                    rhs_aff[active_keys] += act_buf
+
+        _solve_factored_symmetric(
+            fac_H,
+            rhs_aff,
+            out=dz_aff,
+            rhs_scaled_buf=rhs_scaled_buf,
+            res_s_buf=res_s_buf,
+            mv_buf=m_scratch,
+        )
 
         # Checar se dz_aff revela direção recessiva ilimitada (c^T dz_aff < 0 e F_lin >= 0)
-        if check_farkas_on_blocks is None and float(np.dot(c_vec, dz_aff)) < -1e-7 * c_scale * float(np.linalg.norm(dz_aff)):
-            lin_S_aff = [blk.evaluate_linear(dz_aff) for blk in blocks]
-            min_lin_eig = min(float(np.min(np.linalg.eigvalsh(M_lin))) for M_lin in lin_S_aff)
-            dz_norm = float(np.linalg.norm(dz_aff))
-            if dz_norm > 1e-12 and min_lin_eig >= -1e-10 * dz_norm:
-                recession_candidate = dz_aff / dz_norm
+        dz_aff_norm = float(np.linalg.norm(dz_aff))
+        if check_farkas_on_blocks is None and float(np.dot(c_vec, dz_aff)) < -1e-7 * c_scale * dz_aff_norm:
+            min_lin_eig = float("inf")
+            if q_lp > 0:
+                assert lp_vec_buf is not None
+                if use_sparse_lp:
+                    assert F_lp_csr is not None
+                    lp_vec_buf[:] = F_lp_csr @ dz_aff
+                else:
+                    assert F_lp_dense is not None
+                    np.matmul(F_lp_dense, dz_aff, out=lp_vec_buf)
+                min_lin_eig = min(min_lin_eig, float(np.min(lp_vec_buf)))
+            for blk in psd_blocks:
+                min_lin_eig = min(min_lin_eig, float(np.min(np.linalg.eigvalsh(blk.evaluate_linear(dz_aff)))))
+            if dz_aff_norm > 1e-12 and min_lin_eig >= -1e-10 * dz_aff_norm:
+                recession_candidate = dz_aff / dz_aff_norm
                 history.append(
                     IterationRecord(
                         iteration=it,
@@ -863,33 +1323,85 @@ def _run_primal_dual_cone_loop(
                         alpha_dual=0.0,
                         kkt_condition_number=cond_H,
                         sigma=0.0,
-                        step_norm=dz_norm,
+                        step_norm=dz_aff_norm,
                     )
                 )
                 _record_iter_log(1.0)
                 solver_status = "dual_infeasible"
                 break
 
-        dS_tilde_aff: list[np.ndarray] = []
-        dZ_tilde_aff: list[np.ndarray] = []
         alpha_p_aff = 1.0
         alpha_d_aff = 1.0
 
-        for blk, (_, _, lam_b, active_keys, cols, R_p_hat) in zip(blocks, nt_data, strict=True):
-            if active_keys.size > 0:
-                ds_t = _sym(-R_p_hat + (cols @ dz_aff[active_keys]).reshape((blk.dim, blk.dim)))
+        if q_lp > 0:
+            assert s_lp is not None and z_lp is not None and s_lp_safe is not None
+            assert rp_lp is not None and w_lp is not None and ds_lp_aff is not None and dz_lp_aff is not None
+            if use_sparse_lp:
+                assert F_lp_csr is not None
+                ds_lp_aff[:] = F_lp_csr @ dz_aff
             else:
-                ds_t = _sym(-R_p_hat)
-            dz_t = _sym(-np.diag(lam_b) - ds_t)
-            dS_tilde_aff.append(ds_t)
-            dZ_tilde_aff.append(dz_t)
-            alpha_p_aff = min(alpha_p_aff, step_fraction * _max_step_scaled_identity(lam_b, ds_t))
-            alpha_d_aff = min(alpha_d_aff, step_fraction * _max_step_scaled_identity(lam_b, dz_t))
+                assert F_lp_dense is not None
+                np.matmul(F_lp_dense, dz_aff, out=ds_lp_aff)
+            ds_lp_aff -= rp_lp
+            np.multiply(w_lp, ds_lp_aff, out=dz_lp_aff)
+            dz_lp_aff += z_lp
+            np.negative(dz_lp_aff, out=dz_lp_aff)
 
-        gap_aff = sum(
-            float(np.sum((np.diag(lam_b) + alpha_p_aff * ds_t) * (np.diag(lam_b) + alpha_d_aff * dz_t)))
-            for (_, _, lam_b, _, _, _), ds_t, dz_t in zip(nt_data, dS_tilde_aff, dZ_tilde_aff, strict=True)
-        )
+            if not np.all(np.isfinite(ds_lp_aff)):
+                alpha_p_aff = 0.0
+            else:
+                neg_p = ds_lp_aff < -1e-15 * s_lp_safe
+                if np.any(neg_p):
+                    alpha_p_aff = min(alpha_p_aff, step_fraction * float(np.min(-s_lp[neg_p] / ds_lp_aff[neg_p])))
+            if not np.all(np.isfinite(dz_lp_aff)):
+                alpha_d_aff = 0.0
+            else:
+                neg_d = dz_lp_aff < -1e-15 * np.maximum(z_lp, 1e-30)
+                if np.any(neg_d):
+                    alpha_d_aff = min(alpha_d_aff, step_fraction * float(np.min(-z_lp[neg_d] / dz_lp_aff[neg_d])))
+
+        for pos, blk in enumerate(psd_blocks):
+            active_keys = blk._active_keys
+            tmp1 = tmp1_bufs[pos]
+            tmp2 = tmp2_bufs[pos]
+            ds_t = dS_tilde_aff_bufs[pos]
+            dz_t = dZ_tilde_aff_bufs[pos]
+            if active_keys.size > 0:
+                dz_act = dz_aff if is_full_m[pos] else dz_aff[active_keys]
+                np.matmul(cols_bufs[pos], dz_act, out=tmp1.ravel())
+                tmp1 -= R_p_hat_bufs[pos]
+                _sym_into(tmp1, ds_t)
+            else:
+                np.negative(R_p_hat_bufs[pos], out=tmp1)
+                _sym_into(tmp1, ds_t)
+            np.negative(ds_t, out=dz_t)
+            dz_t[diag_psd[pos], diag_psd[pos]] -= lam_psd[pos]
+            alpha_p_aff = min(
+                alpha_p_aff, step_fraction * _max_step_scaled_identity(lam_psd[pos], ds_t, work1=tmp1, work2=tmp2)
+            )
+            alpha_d_aff = min(
+                alpha_d_aff, step_fraction * _max_step_scaled_identity(lam_psd[pos], dz_t, work1=tmp1, work2=tmp2)
+            )
+
+        gap_aff = 0.0
+        if q_lp > 0:
+            assert s_lp is not None and z_lp is not None and ds_lp_aff is not None and dz_lp_aff is not None
+            assert lp_vec_buf is not None and lp_vec_buf2 is not None
+            np.multiply(ds_lp_aff, alpha_p_aff, out=lp_vec_buf)
+            lp_vec_buf += s_lp
+            np.multiply(dz_lp_aff, alpha_d_aff, out=lp_vec_buf2)
+            lp_vec_buf2 += z_lp
+            gap_aff += float(np.dot(lp_vec_buf, lp_vec_buf2))
+
+        for pos in range(n_psd_blocks):
+            tmp1 = tmp1_bufs[pos]
+            tmp2 = tmp2_bufs[pos]
+            np.multiply(dS_tilde_aff_bufs[pos], alpha_p_aff, out=tmp1)
+            tmp1[diag_psd[pos], diag_psd[pos]] += lam_psd[pos]
+            np.multiply(dZ_tilde_aff_bufs[pos], alpha_d_aff, out=tmp2)
+            tmp2[diag_psd[pos], diag_psd[pos]] += lam_psd[pos]
+            gap_aff += float(np.sum(tmp1 * tmp2))
+
         mu_aff = max(0.0, gap_aff / max(1, total_order))
         if r_d_rel > 1e-6:
             sigma_dyn_min = max(sigma_min, 0.12)
@@ -901,72 +1413,212 @@ def _run_primal_dual_cone_loop(
 
         # 4. Passo Corretor-Centrador de Mehrotra (com termo de segunda ordem simetrizado no espaço NT)
         eta_meh = 1.0 if min(alpha_p_aff, alpha_d_aff) >= 0.05 else 0.0
-        rhs_cor = -r_d.copy()
-        M_cor_list: list[np.ndarray] = []
-        for (blk, (_, _, lam_b, active_keys, cols, R_p_hat), ds_t, dz_t) in zip(
-            blocks, nt_data, dS_tilde_aff, dZ_tilde_aff, strict=True
-        ):
-            second_order = _sym(ds_t @ dz_t) if eta_meh != 0.0 else 0.0
-            rhs_lyap = np.diag(sigma * mu - lam_b * lam_b) - eta_meh * second_order
-            lam_sum = lam_b[:, None] + lam_b[None, :]
-            M_cor_b = _sym((2.0 * rhs_lyap) / np.maximum(lam_sum, 1e-30))
-            M_cor_list.append(M_cor_b)
+        np.negative(r_d, out=rhs_cor)
+
+        if q_lp > 0:
+            assert s_lp is not None and z_lp is not None and s_lp_safe is not None and w_lp is not None
+            assert rp_lp is not None and rc_lp is not None and ds_lp_aff is not None and dz_lp_aff is not None
+            assert lp_vec_buf is not None and lp_vec_buf2 is not None
+            np.multiply(s_lp, z_lp, out=rc_lp)
+            np.subtract(sigma * mu, rc_lp, out=rc_lp)
+            if eta_meh != 0.0:
+                np.multiply(ds_lp_aff, dz_lp_aff, out=lp_vec_buf)
+                rc_lp -= lp_vec_buf
+            np.divide(rc_lp, s_lp_safe, out=lp_vec_buf)
+            np.multiply(w_lp, rp_lp, out=lp_vec_buf2)
+            lp_vec_buf += lp_vec_buf2
+            if use_sparse_lp:
+                assert F_lp_csc is not None
+                rhs_cor += F_lp_csc.T @ lp_vec_buf
+            else:
+                assert F_lp_dense is not None
+                np.matmul(F_lp_dense.T, lp_vec_buf, out=m_scratch)
+                rhs_cor += m_scratch
+
+        for pos, blk in enumerate(psd_blocks):
+            lam_b = lam_psd[pos]
+            tmp1 = tmp1_bufs[pos]
+            tmp2 = tmp2_bufs[pos]
+            M_cor_b = M_cor_bufs[pos]
+            if eta_meh != 0.0:
+                np.matmul(dS_tilde_aff_bufs[pos], dZ_tilde_aff_bufs[pos], out=tmp1)
+                _sym_into(tmp1, tmp2)
+                np.negative(tmp2, out=tmp1)
+                tmp1[diag_psd[pos], diag_psd[pos]] += sigma * mu - lam_b * lam_b
+            else:
+                tmp1.fill(0.0)
+                tmp1[diag_psd[pos], diag_psd[pos]] = sigma * mu - lam_b * lam_b
+            np.add.outer(lam_b, lam_b, out=tmp2)
+            np.maximum(tmp2, 1e-30, out=tmp2)
+            tmp1 *= 2.0
+            np.divide(tmp1, tmp2, out=tmp1)
+            _sym_into(tmp1, M_cor_b)
+            active_keys = blk._active_keys
             if active_keys.size > 0:
-                eff_b = M_cor_b + R_p_hat
-                rhs_cor[active_keys] += cols.T @ eff_b.ravel()
+                np.add(M_cor_b, R_p_hat_bufs[pos], out=tmp1)
+                act_buf = act_vec_bufs[pos]
+                assert act_buf is not None
+                np.matmul(cols_bufs[pos].T, tmp1.ravel(), out=act_buf)
+                if is_full_m[pos]:
+                    rhs_cor += act_buf
+                else:
+                    rhs_cor[active_keys] += act_buf
 
-        dz = _solve_factored_symmetric(fac_H, rhs_cor)
+        _solve_factored_symmetric(
+            fac_H,
+            rhs_cor,
+            out=dz,
+            rhs_scaled_buf=rhs_scaled_buf,
+            res_s_buf=res_s_buf,
+            mv_buf=m_scratch,
+        )
 
-        dS_tilde_list: list[np.ndarray] = []
-        dZ_tilde_list: list[np.ndarray] = []
-        dZ_list: list[np.ndarray] = []
         alpha_p_max = float("inf")
         alpha_d_max = float("inf")
 
-        for blk, (G_b, G_invT_b, lam_b, active_keys, cols, R_p_hat), M_cor_b in zip(
-            blocks, nt_data, M_cor_list, strict=True
-        ):
-            if active_keys.size > 0:
-                ds_t = _sym(-R_p_hat + (cols @ dz[active_keys]).reshape((blk.dim, blk.dim)))
+        if q_lp > 0:
+            assert s_lp is not None and z_lp is not None and s_lp_safe is not None and w_lp is not None
+            assert rp_lp is not None and rc_lp is not None and ds_lp is not None and dz_lp is not None
+            assert lp_vec_buf is not None
+            if use_sparse_lp:
+                assert F_lp_csr is not None
+                ds_lp[:] = F_lp_csr @ dz
             else:
-                ds_t = _sym(-R_p_hat)
-            dz_t = _sym(M_cor_b - ds_t)
-            dS_tilde_list.append(ds_t)
-            dZ_tilde_list.append(dz_t)
-            dZ_list.append(_sym(G_invT_b @ dz_t @ G_invT_b.T))
-            alpha_p_max = min(alpha_p_max, _max_step_scaled_identity(lam_b, ds_t))
-            alpha_d_max = min(alpha_d_max, _max_step_scaled_identity(lam_b, dz_t))
+                assert F_lp_dense is not None
+                np.matmul(F_lp_dense, dz, out=ds_lp)
+            ds_lp -= rp_lp
+            np.divide(rc_lp, s_lp_safe, out=dz_lp)
+            np.multiply(w_lp, ds_lp, out=lp_vec_buf)
+            dz_lp -= lp_vec_buf
+
+            if not np.all(np.isfinite(ds_lp)):
+                alpha_p_max = 0.0
+            else:
+                neg_p = ds_lp < -1e-15 * s_lp_safe
+                if np.any(neg_p):
+                    alpha_p_max = min(alpha_p_max, float(np.min(-s_lp[neg_p] / ds_lp[neg_p])))
+            if not np.all(np.isfinite(dz_lp)):
+                alpha_d_max = 0.0
+            else:
+                neg_d = dz_lp < -1e-15 * np.maximum(z_lp, 1e-30)
+                if np.any(neg_d):
+                    alpha_d_max = min(alpha_d_max, float(np.min(-z_lp[neg_d] / dz_lp[neg_d])))
+
+        for pos, blk in enumerate(psd_blocks):
+            active_keys = blk._active_keys
+            tmp1 = tmp1_bufs[pos]
+            tmp2 = tmp2_bufs[pos]
+            ds_t = dS_tilde_aff_bufs[pos]
+            dz_t = dZ_tilde_aff_bufs[pos]
+            if active_keys.size > 0:
+                dz_act = dz if is_full_m[pos] else dz[active_keys]
+                np.matmul(cols_bufs[pos], dz_act, out=tmp1.ravel())
+                tmp1 -= R_p_hat_bufs[pos]
+                _sym_into(tmp1, ds_t)
+            else:
+                np.negative(R_p_hat_bufs[pos], out=tmp1)
+                _sym_into(tmp1, ds_t)
+            np.subtract(M_cor_bufs[pos], ds_t, out=tmp1)
+            _sym_into(tmp1, dz_t)
+            G_invT_b = G_invT_psd[pos]
+            np.matmul(G_invT_b, dz_t, out=tmp1)
+            np.matmul(tmp1, G_invT_b.T, out=tmp2)
+            _sym_into(tmp2, dZ_psd_bufs[pos])
+
+            alpha_p_max = min(alpha_p_max, _max_step_scaled_identity(lam_psd[pos], ds_t, work1=tmp1, work2=tmp2))
+            alpha_d_max = min(alpha_d_max, _max_step_scaled_identity(lam_psd[pos], dz_t, work1=tmp1, work2=tmp2))
 
         alpha_p = min(1.0, step_fraction * alpha_p_max)
         alpha_d = min(1.0, step_fraction * alpha_d_max)
 
-        # Backtracking para garantir estrita positividade via Cholesky exata no espaço original
+        # Backtracking para garantir estrita positividade via vetor 1D (LP) e Cholesky exata (PSD)
         while alpha_p > 1e-12:
-            z_trial = z + alpha_p * dz
-            S_trial = [b.evaluate(z_trial) for b in blocks]
-            cho_p_trial = [_safe_cholesky(St) for St in S_trial]
-            if all(c is not None for c in cho_p_trial):
-                S_list = S_trial
-                cho_S_list = [c for c in cho_p_trial if c is not None]
-                z = z_trial
-                break
+            np.multiply(dz, alpha_p, out=z_trial)
+            z_trial += z
+            lp_ok = True
+            if q_lp > 0:
+                assert s_lp_trial is not None and F0_lp is not None
+                if use_sparse_lp:
+                    assert F_lp_csr is not None
+                    s_lp_trial[:] = F_lp_csr @ z_trial
+                else:
+                    assert F_lp_dense is not None
+                    np.matmul(F_lp_dense, z_trial, out=s_lp_trial)
+                s_lp_trial += F0_lp
+                lp_ok = bool(np.all(np.isfinite(s_lp_trial)) and np.all(s_lp_trial > 0.0))
+            if lp_ok:
+                psd_ok = True
+                cho_p_trial: list[tuple[np.ndarray, bool]] = []
+                for pos, blk in enumerate(psd_blocks):
+                    blk.evaluate_into(z_trial, S_trial_bufs[pos], tmp1_bufs[pos])
+                    c_p = _safe_cholesky_buf(S_trial_bufs[pos], cho_S_trial_bufs[pos])
+                    if c_p is None:
+                        psd_ok = False
+                        break
+                    cho_p_trial.append(c_p)
+                if psd_ok:
+                    if q_lp > 0:
+                        assert s_lp is not None and s_lp_trial is not None
+                        np.copyto(s_lp, s_lp_trial)
+                    for pos in range(n_psd_blocks):
+                        np.copyto(S_psd_list[pos], S_trial_bufs[pos])
+                        if cho_p_trial[pos][0] is cho_S_trial_bufs[pos]:
+                            cho_S_bufs[pos], cho_S_trial_bufs[pos] = cho_S_trial_bufs[pos], cho_S_bufs[pos]
+                        cho_S_psd[pos] = cho_p_trial[pos]
+                    np.copyto(z, z_trial)
+                    break
             alpha_p *= 0.5
         else:
-            z = z + alpha_p * dz
-            dS_orig = [-rp + b.evaluate_linear(dz) for b, rp in zip(blocks, R_p_list, strict=True)]
-            S_list = [_sym(S_b + alpha_p * dS) for S_b, dS in zip(S_list, dS_orig, strict=True)]
-            cho_S_list = [_safe_cholesky(S_b) or cho_S_list[i] for i, S_b in enumerate(S_list)]
+            np.multiply(dz, alpha_p, out=m_scratch)
+            z += m_scratch
+            if q_lp > 0:
+                assert s_lp is not None and ds_lp is not None and lp_vec_buf is not None
+                np.multiply(ds_lp, alpha_p, out=lp_vec_buf)
+                s_lp += lp_vec_buf
+                np.maximum(s_lp, 1e-30, out=s_lp)
+            for pos, blk in enumerate(psd_blocks):
+                dS_b = -R_p_psd_bufs[pos] + blk.evaluate_linear(dz)
+                np.multiply(dS_b, alpha_p, out=tmp1_bufs[pos])
+                tmp1_bufs[pos] += S_psd_list[pos]
+                _sym_into(tmp1_bufs[pos], S_psd_list[pos])
+                c_fb = _safe_cholesky_buf(S_psd_list[pos], cho_S_trial_bufs[pos])
+                if c_fb is not None:
+                    if c_fb[0] is cho_S_trial_bufs[pos]:
+                        cho_S_bufs[pos], cho_S_trial_bufs[pos] = cho_S_trial_bufs[pos], cho_S_bufs[pos]
+                    cho_S_psd[pos] = c_fb
 
         while alpha_d > 1e-12:
-            Z_trial = [_sym(Z_b + alpha_d * dZ) for Z_b, dZ in zip(Z_list, dZ_list, strict=True)]
-            cho_d_trial = [_safe_cholesky(Zt) for Zt in Z_trial]
-            if all(c is not None for c in cho_d_trial):
-                Z_list = Z_trial
-                cho_Z_list = [c for c in cho_d_trial if c is not None]
-                break
+            lp_d_ok = True
+            if q_lp > 0:
+                assert z_lp is not None and dz_lp is not None and z_lp_trial is not None
+                np.multiply(dz_lp, alpha_d, out=z_lp_trial)
+                z_lp_trial += z_lp
+                lp_d_ok = bool(np.all(np.isfinite(z_lp_trial)) and np.all(z_lp_trial > 0.0))
+            if lp_d_ok:
+                psd_d_ok = True
+                cho_d_trial: list[tuple[np.ndarray, bool]] = []
+                for pos in range(n_psd_blocks):
+                    np.multiply(dZ_psd_bufs[pos], alpha_d, out=tmp1_bufs[pos])
+                    tmp1_bufs[pos] += Z_psd_list[pos]
+                    _sym_into(tmp1_bufs[pos], Z_trial_bufs[pos])
+                    c_d = _safe_cholesky_buf(Z_trial_bufs[pos], cho_Z_trial_bufs[pos])
+                    if c_d is None:
+                        psd_d_ok = False
+                        break
+                    cho_d_trial.append(c_d)
+                if psd_d_ok:
+                    if q_lp > 0:
+                        assert z_lp is not None and z_lp_trial is not None
+                        np.copyto(z_lp, z_lp_trial)
+                    for pos in range(n_psd_blocks):
+                        np.copyto(Z_psd_list[pos], Z_trial_bufs[pos])
+                        if cho_d_trial[pos][0] is cho_Z_trial_bufs[pos]:
+                            cho_Z_bufs[pos], cho_Z_trial_bufs[pos] = cho_Z_trial_bufs[pos], cho_Z_bufs[pos]
+                        cho_Z_psd[pos] = cho_d_trial[pos]
+                    break
             alpha_d *= 0.5
 
-        step_norm = float(np.linalg.norm(alpha_p * dz))
+        step_norm = float(alpha_p * np.linalg.norm(dz))
         history.append(
             IterationRecord(
                 iteration=it,
@@ -989,31 +1641,47 @@ def _run_primal_dual_cone_loop(
         _record_iter_log(alpha_p)
 
         # Detecção de divergência ilimitada ao longo de raio factível
-        if check_farkas_on_blocks is None and float(np.linalg.norm(z - z0_initial)) > unbounded_norm_threshold:
-            disp = z - z0_initial
-            disp_norm = float(np.linalg.norm(disp))
-            if disp_norm > 0.0 and float(np.dot(c_vec, disp)) < -1e-6 * c_scale * disp_norm:
-                d_cand = disp / disp_norm
-                min_lin = min(float(np.min(np.linalg.eigvalsh(blk.evaluate_linear(d_cand)))) for blk in blocks)
+        if check_farkas_on_blocks is None:
+            np.subtract(z, z0_initial, out=m_scratch)
+            disp_norm = float(np.linalg.norm(m_scratch))
+            if disp_norm > unbounded_norm_threshold and float(np.dot(c_vec, m_scratch)) < -1e-6 * c_scale * disp_norm:
+                d_cand = m_scratch / disp_norm
+                min_lin = float("inf")
+                if q_lp > 0:
+                    assert lp_vec_buf is not None
+                    if use_sparse_lp:
+                        assert F_lp_csr is not None
+                        lp_vec_buf[:] = F_lp_csr @ d_cand
+                    else:
+                        assert F_lp_dense is not None
+                        np.matmul(F_lp_dense, d_cand, out=lp_vec_buf)
+                    min_lin = min(min_lin, float(np.min(lp_vec_buf)))
+                for blk in psd_blocks:
+                    min_lin = min(min_lin, float(np.min(np.linalg.eigvalsh(blk.evaluate_linear(d_cand)))))
                 if min_lin >= -1e-8:
-                    recession_candidate = d_cand
+                    recession_candidate = d_cand.copy()
                     solver_status = "dual_infeasible"
                     break
 
         # Em Fase I, interromper se ||z|| divergir sem encontrar interior (típico de weak infeasibility)
         if check_farkas_on_blocks is not None and m > 1:
             if float(np.linalg.norm(z[: m - 1])) > max(1e9, 100.0 * unbounded_norm_threshold):
-                orig_min_now = min(
-                    float(
-                        np.min(
-                            np.linalg.eigvalsh(
-                                blocks[b_i].F0
-                                + sum(float(z[j]) * fj for j, fj in blocks[b_i].F_terms.items() if j < m - 1)
-                            )
-                        )
-                    )
-                    for b_i in range(check_farkas_on_blocks)
-                )
+                np.copyto(m_scratch, z)
+                m_scratch[m - 1] = 0.0
+                orig_min_now = float("inf")
+                if lp_check_pos.size > 0:
+                    assert F0_lp is not None and lp_vec_buf is not None
+                    if use_sparse_lp:
+                        assert F_lp_csr is not None
+                        lp_vec_buf[:] = F_lp_csr @ m_scratch
+                    else:
+                        assert F_lp_dense is not None
+                        np.matmul(F_lp_dense, m_scratch, out=lp_vec_buf)
+                    lp_vec_buf += F0_lp
+                    orig_min_now = min(orig_min_now, float(np.min(lp_vec_buf[lp_check_pos])))
+                for pos in psd_check_pos:
+                    psd_blocks[pos].evaluate_into(m_scratch, tmp2_bufs[pos], tmp1_bufs[pos])
+                    orig_min_now = min(orig_min_now, float(np.min(np.linalg.eigvalsh(tmp2_bufs[pos]))))
                 if orig_min_now <= 0.0:
                     solver_status = "max_iterations"
                     break
@@ -1022,9 +1690,25 @@ def _run_primal_dual_cone_loop(
             solver_status = "optimal" if r_d_rel <= 10.0 * tol_feas else "optimal_inaccurate"
             break
 
+    # Desempacotar multiplicadores duais escalares 1D de volta para matrizes 1x1 na ordem original
+    Z_list: list[np.ndarray] = [None] * n_blocks  # type: ignore[list-item]
+    if q_lp > 0:
+        assert z_lp is not None
+        for pos, orig_i in enumerate(lp_indices):
+            Z_list[orig_i] = np.array([[float(z_lp[pos])]], dtype=np.float64)
+    for pos, orig_i in enumerate(psd_indices):
+        Z_list[orig_i] = Z_psd_list[pos].copy()
+
     # Polimento final do certificado dual no subespaço estacionário sum_b <F_{b,j}, Z_b> = c_j
     if solver_status in ("optimal", "optimal_inaccurate", "max_iterations"):
-        W_final = [_cho_solve_mat(cho_S, np.eye(b.dim, dtype=np.float64)) for b, cho_S in zip(blocks, cho_S_list, strict=True)]
+        W_final: list[np.ndarray] = [None] * n_blocks  # type: ignore[list-item]
+        if q_lp > 0:
+            assert s_lp is not None
+            for pos, orig_i in enumerate(lp_indices):
+                W_final[orig_i] = np.array([[1.0 / max(float(s_lp[pos]), 1e-30)]], dtype=np.float64)
+        for pos, orig_i in enumerate(psd_indices):
+            W_final[orig_i] = _cho_solve_mat(cho_S_psd[pos], eye_psd[pos])
+
         Z_pol = _project_dual_onto_subspace(blocks, m, Z_list, c_vec, weight_mats=W_final)
         if Z_pol is None:
             W_damped = [_sym(Z_b + 1e-4 * np.eye(b.dim, dtype=np.float64)) for b, Z_b in zip(blocks, Z_list, strict=True)]
@@ -1032,13 +1716,13 @@ def _run_primal_dual_cone_loop(
         if Z_pol is not None:
             Z_list = Z_pol
 
-        S_eval = [b.evaluate(z) for b in blocks]
-        min_eig_p = min(float(np.min(np.linalg.eigvalsh(S_ev))) for S_ev in S_eval)
+        S_eval_final = [b.evaluate(z) for b in blocks]
+        min_eig_p = min(_min_eig_sym(S_ev) for S_ev in S_eval_final)
         primal_obj = float(np.dot(c_vec, z) + c0)
         dual_obj = float(c0 - sum(float(np.sum(blk.F0 * Z_b)) for blk, Z_b in zip(blocks, Z_list, strict=True)))
         rel_gap = abs(primal_obj - dual_obj) / (1.0 + abs(primal_obj) + abs(dual_obj))
-        adj = np.zeros((m,), dtype=np.float64)
-        dual_scale = 1.0 + float(np.linalg.norm(c_vec))
+        adj.fill(0.0)
+        dual_scale = 1.0 + c_norm
         for blk, Z_b in zip(blocks, Z_list, strict=True):
             if blk._active_keys.size > 0:
                 adj[blk._active_keys] += blk._F_cols.T @ Z_b.ravel()
@@ -1048,12 +1732,79 @@ def _run_primal_dual_cone_loop(
             solver_status = "optimal"
         elif min_eig_p >= -1e-5 and r_d_rel <= 1e-4 and rel_gap <= 1e-4:
             solver_status = "optimal_inaccurate"
+    else:
+        S_eval_final = [b.evaluate(z) for b in blocks]
+
+    # Liberar explicitamente buffers temporários do workspace para coleta imediata no heap wasm32
+    del (
+        H,
+        H_scaled_buf,
+        H_work_buf,
+        inv_d_buf,
+        adj,
+        r_d,
+        rhs_aff,
+        rhs_cor,
+        dz_aff,
+        dz,
+        z_trial,
+        rhs_scaled_buf,
+        res_s_buf,
+        m_scratch,
+        F_lp_dense,
+        F_lp_scaled,
+        F_lp_csr,
+        F_lp_csc,
+        F0_lp,
+        f_lp_row_norms,
+        s_lp,
+        z_lp,
+        s_lp_eval,
+        s_lp_trial,
+        z_lp_trial,
+        rp_lp,
+        s_lp_safe,
+        w_lp,
+        ds_lp_aff,
+        dz_lp_aff,
+        rc_lp,
+        ds_lp,
+        dz_lp,
+        lp_vec_buf,
+        lp_vec_buf2,
+        cols_bufs,
+        gram_bufs,
+        S_psd_list,
+        Z_psd_list,
+        S_eval_bufs,
+        S_trial_bufs,
+        Z_trial_bufs,
+        cho_S_bufs,
+        cho_S_trial_bufs,
+        cho_Z_bufs,
+        cho_Z_trial_bufs,
+        cho_S_psd,
+        cho_Z_psd,
+        R_p_psd_bufs,
+        R_p_hat_bufs,
+        dS_tilde_aff_bufs,
+        dZ_tilde_aff_bufs,
+        M_cor_bufs,
+        dZ_psd_bufs,
+        tmp1_bufs,
+        tmp2_bufs,
+        act_vec_bufs,
+        G_invT_psd,
+        lam_psd,
+        eye_psd,
+        diag_psd,
+    )
 
     return {
         "solver_status": solver_status,
         "z": z,
         "Z_list": Z_list,
-        "S_list": [b.evaluate(z) for b in blocks],
+        "S_list": S_eval_final,
         "farkas_candidate": farkas_candidate,
         "recession_candidate": recession_candidate,
         "history": history,
@@ -1350,24 +2101,34 @@ def solve_native_raw(
     c0_y = c0_orig + float(np.dot(c_orig, x_eq))
 
     y_blocks: list[_InternalConeBlock] = []
-    for b_idx, blk in enumerate(problem.blocks):
-        F0_y = blk.evaluate(x_eq)
-        F_terms_y: dict[int, np.ndarray] = {}
-        for j in range(m_y):
-            mat_j = blk.evaluate_linear(N_eq[:, j])
-            if float(np.linalg.norm(mat_j, "fro")) > 1e-15:
-                F_terms_y[j] = mat_j
-        y_blocks.append(_InternalConeBlock(name=blk.name, dim=blk.dim, F0=F0_y, F_terms=F_terms_y))
+    if n_eq == 0:
+        for blk in problem.blocks:
+            F0_y = blk.F0.copy()
+            F_terms_y = {
+                j: fk.copy()
+                for j, fk in blk.F_terms.items()
+                if float(np.linalg.norm(fk, "fro")) > 1e-15
+            }
+            y_blocks.append(_InternalConeBlock(name=blk.name, dim=blk.dim, F0=F0_y, F_terms=F_terms_y))
+    else:
+        for blk in problem.blocks:
+            F0_y = blk.evaluate(x_eq)
+            F_terms_y = {}
+            for j in range(m_y):
+                mat_j = blk.evaluate_linear(N_eq[:, j])
+                if float(np.linalg.norm(mat_j, "fro")) > 1e-15:
+                    F_terms_y[j] = mat_j
+            y_blocks.append(_InternalConeBlock(name=blk.name, dim=blk.dim, F0=F0_y, F_terms=F_terms_y))
 
     for i_idx in range(n_ineq):
         h_row = problem.H[i_idx, :]
-        h_val = float(problem.h[i_idx] - np.dot(h_row, x_eq))
+        h_val = float(problem.h[i_idx]) if n_eq == 0 else float(problem.h[i_idx] - np.dot(h_row, x_eq))
         F0_ineq = np.array([[h_val]], dtype=np.float64)
-        h_y = -(N_eq.T @ h_row)
-        F_terms_ineq: dict[int, np.ndarray] = {}
-        for j in range(m_y):
-            if abs(float(h_y[j])) > 1e-15:
-                F_terms_ineq[j] = np.array([[float(h_y[j])]], dtype=np.float64)
+        h_y = -h_row if n_eq == 0 else -(N_eq.T @ h_row)
+        nz_cols = np.flatnonzero(np.abs(h_y) > 1e-15)
+        F_terms_ineq: dict[int, np.ndarray] = {
+            int(j): np.array([[float(h_y[j])]], dtype=np.float64) for j in nz_cols
+        }
         y_blocks.append(
             _InternalConeBlock(
                 name=f"ineq_{i_idx}",
@@ -1594,6 +2355,8 @@ def solve_native_raw(
         def _project_y_to_z(y_vec: np.ndarray) -> np.ndarray:
             return s_cone[:rank_cone] * (Vt_cone[:rank_cone, :] @ y_vec)
 
+    del A_cone
+
     all_history: list[IterationRecord] = []
     phase1_summary: dict[str, Any] = {"executed": False, "iterations": 0, "status": "skipped", "warm_start_used": False}
     phase2_summary: dict[str, Any] = {"executed": False, "iterations": 0, "status": "skipped"}
@@ -1615,14 +2378,14 @@ def solve_native_raw(
             else 0.0
         )
         min_eig_psd_ws = min(
-            (float(np.min(np.linalg.eigvalsh(blk.evaluate(x_ws)))) for blk in problem.blocks),
+            (_min_eig_sym(blk.evaluate(x_ws)) for blk in problem.blocks),
             default=float("inf"),
         )
         min_slack_ineq_ws = float(np.min(problem.h - problem.H @ x_ws)) if n_ineq > 0 else float("inf")
         if eq_err_ws <= 1e-8 and min(min_eig_psd_ws, min_slack_ineq_ws) > 1e-8:
             y_ws = N_eq.T @ (x_ws - x_eq)
             z_ws = _project_y_to_z(y_ws / d_ruiz)
-            min_eig_z_ws = min(float(np.min(np.linalg.eigvalsh(b.evaluate(z_ws)))) for b in z_blocks)
+            min_eig_z_ws = min(_min_eig_sym(b.evaluate(z_ws)) for b in z_blocks)
             if min_eig_z_ws > 1e-8:
                 z0 = z_ws
                 warm_start_used = True
@@ -1633,7 +2396,7 @@ def solve_native_raw(
                     "warm_start_used": True,
                 }
 
-    init_min_eig = min(float(np.min(np.linalg.eigvalsh(b.evaluate(z0)))) for b in z_blocks)
+    init_min_eig = min(_min_eig_sym(b.evaluate(z0)) for b in z_blocks)
     is_pure_feasibility = float(np.linalg.norm(c_z)) <= 1e-12 and float(np.linalg.norm(c_null)) <= 1e-12
 
     if not warm_start_used and (init_min_eig <= cfg.strict_margin or is_pure_feasibility):
@@ -1693,7 +2456,7 @@ def solve_native_raw(
         }
 
         z_cand = p1_out["z"][:m_z]
-        cand_min_eig = min(float(np.min(np.linalg.eigvalsh(b.evaluate(z_cand)))) for b in z_blocks)
+        cand_min_eig = min(_min_eig_sym(b.evaluate(z_cand)) for b in z_blocks)
 
         if cand_min_eig > 0.0:
             z0 = z_cand

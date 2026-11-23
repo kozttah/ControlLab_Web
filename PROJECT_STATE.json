@@ -25,7 +25,8 @@
       "2026-11-19": 8,
       "2026-11-20": 1,
       "2026-11-21": 12,
-      "2026-11-22": 13
+      "2026-11-22": 13,
+      "2026-11-23": 1
     }
   },
   "audit_reference": {
@@ -6176,6 +6177,486 @@
         "ADR-014 registrada em PROJECT_STATE.json e Pilar 5 incorporado a ControlLab_Web_Design_Diretor_v1.0.md e ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md",
         "Todos os testes Web, E2E Chromium, Wasm e core_no_sdp (simulado sem pathview/clarabel) aprovados 100%"
       ]
+    },
+    {
+      "wp_id": "WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015",
+      "front": "f9-integration-qa",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F9: Formalizar ADR-015 (Roadmap Native SDP Scalability v2.0 em 4 ciclos zero-install NumPy/SciPy), atualizar ADR-010 e registrar 12 WPs da Fase 9",
+      "allowed_paths": [
+        "docs/architecture/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE8-02-F9-WORKSPACE-FIRST-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-D1",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_adr015_native_sdp_v2_roadmap_and_phase9_queue_governance",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015.md",
+        "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+        "docs/architecture/ADR-010-native-sdp-and-offline-exports.md"
+      ],
+      "origin_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "ADR-015 formalizada com racional de rejeicao de servidor local, clarabel.wasm, wasm64/COOP-COEP e ADMM/SCS, 5 pilares arquiteturais, 4 ciclos e 12 referencias cientificas com DOIs/arXiv",
+        "ADR-010 atualizada com secao Evolucao Planejada (ADR-015 — Fase 9)",
+        "PROJECT_STATE.json registra ADR-015 e 12 WorkPackages da fase Phase9-Native-SDP-Scalability-v2 validados por project_governance.py"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-01E-F1-RPC-PACKED-BUFFERS",
+      "front": "f1-core-io",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F1: Ciclo 1 — Suporte zero-copy a buffers de F_k_packed no envelope Worker do dispatcher RPC (control_lab/core/rpc.py)",
+      "allowed_paths": [
+        "control_lab/core/rpc.py",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f1/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f1_rpc_worker_envelope_fk_packed_zero_copy_buffers_cpython_and_pyodide",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-01E-F1-RPC-PACKED-BUFFERS.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-01E-F1-RPC-PACKED-BUFFERS.md",
+        "tests/unit/f1/test_rpc_packed_buffers.py",
+        "tests/oracles/test_phase9_cycle1_oracle.py",
+        "tests/wasm/test_real_runtime.py"
+      ],
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "dispatch_rpc aceita chave opcional buffers no envelope Worker {request, payload, ?store, ?buffers} preservando assinatura e retrocompatibilidade",
+        "_rehydrate_buffers reidrata BufferTensorRef sob F_k_packed em modo zero-copy (np.frombuffer -> np.ndarray com validacao de shape/dtype/finitude em C) mantendo TensorDescriptor canonico fora de F_k_packed"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-01A-F6-INPLACE-WORKSPACE-PACKED-COO",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F6: Ciclo 1 — Suporte a F_k_packed (memoryview/np.frombuffer zero-copy), workspace in-place pre-alocado no IPM e cone LP 1D unificado para blocos PSD 1x1",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f6_fk_packed_zero_copy_inplace_workspace_and_unified_1d_lp_cone_clarabel_parity",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-01A-F6-INPLACE-WORKSPACE-PACKED-COO.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-01A-F6-INPLACE-WORKSPACE-PACKED-COO.md",
+        "tests/unit/f6/test_phase9_cycle1_packed_lp_inplace.py",
+        "tests/oracles/test_phase9_cycle1_oracle.py",
+        "tests/wasm/test_real_runtime.py"
+      ],
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "SDPBlock/canonical aceita F_k_packed (buffers Int32/Float64 via memoryview/np.frombuffer) mantendo 100% de retrocompatibilidade com F_k e F_k_sparse",
+        "Workspace reutilizavel in-place (H, W, S, dX, dZ com out=...) reduzindo fragmentacao de heap wasm32 nas iteracoes Mehrotra",
+        "Blocos PSD 1x1 tratados via cone LP vetorial 1D unificado no mesmo IPM sem chamadas escalares a eigh/cholesky, preservando auditoria 5D no problema original"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-01B-F7-TYPEDARRAY-WORKER-BRIDGE",
+      "front": "f7-worker-bridge",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F7: Ciclo 1 — Transporte zero-copy de TypedArrays (Int32Array/Float64Array) via Web Worker Transferable para Pyodide Buffer Protocol",
+      "allowed_paths": [
+        "web/bridge/",
+        "web/worker/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f7 && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f7_fk_packed_transferable_zero_copy_worker_bridge_zero_pyproxy_leak",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-01B-F7-TYPEDARRAY-WORKER-BRIDGE.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-01B-F7-TYPEDARRAY-WORKER-BRIDGE.md",
+        "tests/unit/f7/packed_sparse_transfer.test.ts",
+        "tests/wasm/test_real_runtime.py"
+      ],
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "Bridge RPC e Web Worker coletam e transferem ArrayBuffers de F_k_packed via lista Transferable sem copia estruturada",
+        "Conversao Pyodide preserva PyBuffer/memoryview sem vazamento de PyProxy e sem explosao de PyFloat em wasm32"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-01C-F8-PACKED-COO-COMPILER",
+      "front": "f8-ui-charts",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F8: Ciclo 1 — Compilador LMI DSL emitindo F_k_packed (Int32Array/Float64Array) diretamente para o Worker",
+      "allowed_paths": [
+        "web/features/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-01A-F6-INPLACE-WORKSPACE-PACKED-COO",
+        "WP-PHASE9-01B-F7-TYPEDARRAY-WORKER-BRIDGE"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f8_lmi_dsl_compiler_fk_packed_emission_and_lmi_view_rematerialization_real_browser_e2e",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-01C-F8-PACKED-COO-COMPILER.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-01C-F8-PACKED-COO-COMPILER.md",
+        "tests/unit/f8/lmi_dsl_v2.test.ts",
+        "tests/unit/f8/views_mimo_fuzzy_lmi.test.ts",
+        "tests/wasm/test_real_runtime.py",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ],
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "lmi_dsl_compiler.ts empacota blocos esparsos em Int32Array/Float64Array (F_k_packed) reduzindo alocacoes JSON no envio ao Worker",
+        "Exportadores CVXPY/YALMIP e fluxo de cancelamento preservam comportamento deterministico identico"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-01D-F9-CYCLE1-MEMORY-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F9: Ciclo 1 — Auditoria independente de memoria wasm32, paridade Clarabel, escada G-0B e E2E em navegador real",
+      "allowed_paths": [
+        "tests/oracles/",
+        "tests/wasm/",
+        "tests/e2e/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE9-01E-F1-RPC-PACKED-BUFFERS",
+        "WP-PHASE9-01A-F6-INPLACE-WORKSPACE-PACKED-COO",
+        "WP-PHASE9-01B-F7-TYPEDARRAY-WORKER-BRIDGE",
+        "WP-PHASE9-01C-F8-PACKED-COO-COMPILER"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/oracles/ tests/wasm/test_real_runtime.py tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_phase9_cycle1_independent_oracle_clarabel_parity_chromium_pyodide_wasm_and_e2e_audit",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-01D-F9-CYCLE1-MEMORY-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-01D-F9-CYCLE1-MEMORY-AUDIT.md",
+        "tests/oracles/test_phase9_cycle1_oracle.py",
+        "tests/wasm/test_real_runtime.py",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
+      ],
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "Verificacao independente de F_k_packed zero-copy, workspace in-place e cone LP 1D contra oraculo clarabel_direct sem relaxamento de tolerancias",
+        "Escada G-0B, teste de memoria/leak PyProxy em Chromium Pyodide real e handoffs Apendice E dos pacotes 01A..01D aprovados"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-02-F6-HSDE-GONDZIO-SOLVER",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F6: Ciclo 2 — Embedding Homogeneo Autodual (HSDE) em fase unica com certificados Farkas e multiplos corretores de Gondzio",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-01D-F9-CYCLE1-MEMORY-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "Embedding Homogeneo Autodual (Ye-Todd-Mizuno 1994; de Klerk-Roos-Terlaky 1998; Sturm 1999; Goulart-Chen 2024) eliminando Fase I + Fase II separadas e emitindo certificados Farkas primal/dual",
+        "Multiplos corretores de centralidade de Gondzio (1996) reutilizando a fatoracao de Cholesky ja calculada (O(m^2) por corretor) com preservacao da auditoria 5D no problema original"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-02B-F9-HSDE-ORACLE-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F9: Ciclo 2 — Auditoria independente de HSDE, certificados Farkas e corretores de Gondzio contra oraculo Clarabel e runtime Wasm",
+      "allowed_paths": [
+        "tests/oracles/",
+        "tests/wasm/",
+        "tests/e2e/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE9-02-F6-HSDE-GONDZIO-SOLVER"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/oracles/ tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "Paridade verificada contra clarabel_direct em problemas factiveis, infactiveis (T-SDP-A2), ilimitados (T-SDP-A3) e sintese de controle (D1/D2) sem relaxar tolerancias",
+        "Reducao comprovada de iteracoes/tempo em benchmarks de controle e escada G-0B aprovada em Pyodide real"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-03-F6-FUJISAWA-F1F2-PREPROCESS",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F6: Ciclo 3 — Formulas esparsas F1/F2 de Fujisawa na montagem do complemento de Schur e pre-processamento simbolico de colunas F_k",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-02B-F9-HSDE-ORACLE-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "Montagem do complemento de Schur por formulas F1/F2 de Fujisawa-Kojima-Nakata (1997) sem alocar temporarios densos (m, n, n)",
+        "Pre-processamento simbolico remove colunas F_k nulas, duplicadas ou linearmente dependentes com reconstrucao exata de primal/dual antes da auditoria 5D"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-03B-F8-DSL-SYMMETRIC-FUSION",
+      "front": "f8-ui-charts",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F8: Ciclo 3 — Fusao simetrica automatica de somas duplas (Upsilon_ij + Upsilon_ji < 0) no compilador lmi_dsl_compiler.ts",
+      "allowed_paths": [
+        "web/features/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-02B-F9-HSDE-ORACLE-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-D1"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "lmi_dsl_compiler.ts detecta e funde somas duplas simetricas politopicas/TS (Tuan et al. 2001; Sala & Arino 2007) reduzindo blocos PSD redundantes sem alterar semantica matematica",
+        "Exportadores CVXPY/YALMIP refletem fielmente as restricoes fundidas com metadados claros de compilacao"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-03C-F9-F1F2-BENCHMARK-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F9: Ciclo 3 — Auditoria e benchmark comparativo F1/F2, pre-processamento simbolico e fusao simetrica em CPython e Pyodide real",
+      "allowed_paths": [
+        "tests/oracles/",
+        "tests/wasm/",
+        "tests/e2e/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE9-03-F6-FUJISAWA-F1F2-PREPROCESS",
+        "WP-PHASE9-03B-F8-DSL-SYMMETRIC-FUSION"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/oracles/ tests/wasm/test_real_runtime.py tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "Benchmark comparativo F1/F2 + fusao simetrica medido em CPython e Chromium Pyodide real com paridade clarabel_direct e auditoria 5D intacta",
+        "Handoffs Apendice E dos pacotes 03, 03B e 03C aprovados pela F9"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-04-F6-CHORDAL-CLIQUES-SPARSE-SCHUR",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F6: Ciclo 4 — Decomposicao cordal por cliques maximais (scipy.sparse.csgraph) e fatoracao esparsa adaptativa de Schur (scipy.sparse.linalg.splu)",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-03C-F9-F1F2-BENCHMARK-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "Decomposicao cordal por cliques maximais + clique-tree merging e acoplamento de sobreposicao (Vandenberghe & Andersen 2015; Garstka-Cannon-Goulart 2020) em Python puro + scipy.sparse.csgraph com reconstrucao exata de duais originais",
+        "Fatoracao esparsa adaptativa de Schur via scipy.sparse.linalg.splu (SuperLU MMD_AT_PLUS_A/COLAMD, Demmel et al. 1999) quando densidade simbolica < 30% com fallback transparente para Cholesky denso"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-04B-F9-CHORDAL-ENVELOPE-RECALIBRATION",
+      "front": "f9-integration-qa",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F9: Ciclo 4 — Auditoria cordal/splu, benchmark de estresse em navegador real e recalibracao formal do BROWSER_ENVELOPE (ADR-010/ADR-015)",
+      "allowed_paths": [
+        "tests/oracles/",
+        "tests/wasm/",
+        "tests/e2e/",
+        "docs/architecture/",
+        "docs/audits/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-PHASE9-04-F6-CHORDAL-CLIQUES-SPARSE-SCHUR"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/oracles/ tests/wasm/test_real_runtime.py tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "acceptance_requirements": [
+        "Reconstrucao exata de duais cordais validada contra auditoria 5D original e oraculo clarabel_direct sem relaxar tolerancias",
+        "Benchmark real em navegador Pyodide documentado em ADR-010/ADR-015 com recalibracao evidenciada do BROWSER_ENVELOPE e encerramento da Fase 9"
+      ]
     }
   ],
   "audit_history": [
@@ -6269,6 +6750,15 @@
       "scope": "workspace_first_system_definition_and_tab1_to_tab6_design_separation",
       "evidence_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
       "review_ref": "docs/audits/handoffs/WP-PHASE8-02-F9-WORKSPACE-FIRST-AUDIT.md"
+    },
+    "ADR-015": {
+      "status": "ACCEPTED",
+      "authority": "project_coordinator",
+      "decision_date": "2026-11-22",
+      "decision": "Evolve the native pure NumPy/SciPy Pyodide SDP solver (ADR-010) across 4 cycles (Phase9-Native-SDP-Scalability-v2): (1) zero-copy TypedArray packed COO F_k_packed transport via Transferable -> Pyodide memoryview/np.frombuffer, pre-allocated in-place IPM workspace, and unified 1D LP cone for 1x1 PSD blocks; (2) single-phase Homogeneous Self-Dual Embedding (HSDE) with Farkas certificates and Gondzio multiple centrality correctors; (3) Fujisawa F1/F2 sparse Schur assembly, symbolic F_k redundancy elimination, and automatic symmetric double-sum fusion in lmi_dsl_compiler.ts; (4) maximal-clique chordal decomposition (scipy.sparse.csgraph) and adaptive sparse Schur factorization (scipy.sparse.linalg.splu) — explicitly rejecting localhost companion servers, external compiled clarabel.wasm forks, wasm64/COOP-COEP shims, and dual ADMM/SCS solvers, while preserving exact 5D independent verification on the original unscaled/undecomposed problem and clarabel_direct oracle parity without relaxing tolerances",
+      "scope": "phase9_native_sdp_scalability_v2_zero_install_pyodide_roadmap",
+      "evidence_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "review_ref": "docs/audits/handoffs/WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015.md"
     }
   }
 }

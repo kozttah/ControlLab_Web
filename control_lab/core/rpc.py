@@ -312,11 +312,11 @@ def _validate_request_envelope(raw_input: Any, store: Any) -> tuple[dict[str, An
             message=f"RpcRequest deve ser um objeto JSON/Mapping, recebido {type(unwrapped).__name__}.",
         )
 
-    # Suporta envelope de Worker {request, payload, ?store} além de RpcRequest direto
+    # Suporta envelope de Worker {request, payload, ?store, ?buffers} além de RpcRequest direto
     if (
         "request" in unwrapped
         and "operation" not in unwrapped
-        and set(unwrapped.keys()).issubset({"request", "payload", "store"})
+        and set(unwrapped.keys()).issubset({"request", "payload", "store", "buffers"})
     ):
         req_part = _to_python_native(unwrapped["request"])
         if not isinstance(req_part, Mapping):
@@ -329,6 +329,10 @@ def _validate_request_envelope(raw_input: Any, store: Any) -> tuple[dict[str, An
             req_dict["payload"] = dict(resolved_payload)
         if store is None and "store" in unwrapped:
             store = unwrapped["store"]
+        if "buffers" in unwrapped and unwrapped["buffers"] is not None:
+            resolved_bufs = _to_python_native(unwrapped["buffers"])
+            if not isinstance(resolved_bufs, Mapping):
+                raise ValidationError("Envelope Worker.buffers deve ser um objeto Mapping.")
     else:
         req_dict = dict(unwrapped)
 
@@ -2363,12 +2367,22 @@ _DISPATCH_TABLE = {
 }
 
 
-def _rehydrate_buffers(obj: Any, buffers: Mapping[str, Any] | None) -> Any:
-    """Reidrata BufferTensorRef recursivamente quando `buffers` explícito é fornecido."""
+def _rehydrate_buffers(
+    obj: Any,
+    buffers: Mapping[str, Any] | None,
+    *,
+    _inside_packed: bool = False,
+) -> Any:
+    """Reidrata BufferTensorRef recursivamente quando `buffers` explícito é fornecido.
+
+    Para subárvores sob ``F_k_packed`` (ADR-015), aplica caminho rápido *zero-copy*:
+    valida ``shape``/``dtype``/``order``/comprimento em bytes e finitude em C,
+    retornando ``np.ndarray`` diretamente sem expansão para listas Python.
+    """
     if buffers is None:
         return obj
     if isinstance(obj, list):
-        return [_rehydrate_buffers(item, buffers) for item in obj]
+        return [_rehydrate_buffers(item, buffers, _inside_packed=_inside_packed) for item in obj]
     if isinstance(obj, Mapping):
         if "buffer_ref" in obj and set(obj.keys()) == {"shape", "dtype", "order", "buffer_ref"}:
             ref_id = obj["buffer_ref"]
@@ -2403,12 +2417,13 @@ def _rehydrate_buffers(obj: Any, buffers: Mapping[str, Any] | None) -> Any:
                 try:
                     arr = np.frombuffer(raw_buf, dtype=np_dt)
                 except (ValueError, TypeError) as exc:
+                    byte_len = raw_buf.nbytes if isinstance(raw_buf, memoryview) else len(raw_buf)
                     raise DimensionMismatchError(
                         message=f"Buffer {ref_id!r} incompatível com dtype={dtype_str!r}: {exc}",
                         parameters={
                             "buffer_ref": ref_id,
                             "dtype": dtype_str,
-                            "byte_length": len(raw_buf),
+                            "byte_length": byte_len,
                         },
                     ) from exc
                 expected_count = int(np.prod(shape))
@@ -2429,8 +2444,21 @@ def _rehydrate_buffers(obj: Any, buffers: Mapping[str, Any] | None) -> Any:
                     raise DimensionMismatchError(
                         f"Buffer {ref_id!r} tem shape {list(arr.shape)}, esperado {shape}."
                     )
+            if (
+                np.issubdtype(arr.dtype, np.floating)
+                or np.issubdtype(arr.dtype, np.complexfloating)
+            ) and not bool(np.all(np.isfinite(arr))):
+                raise ValidationError(
+                    message=f"Buffer {ref_id!r} contém valores não finitos (NaN ou Inf).",
+                    parameters={"buffer_ref": ref_id, "dtype": dtype_str},
+                )
+            if _inside_packed:
+                return arr
             return array_to_tensor(arr, dtype=dtype_str, order=order)
-        return {k: _rehydrate_buffers(v, buffers) for k, v in obj.items()}
+        return {
+            k: _rehydrate_buffers(v, buffers, _inside_packed=(_inside_packed or k == "F_k_packed"))
+            for k, v in obj.items()
+        }
     return obj
 
 
@@ -2464,11 +2492,29 @@ def dispatch(
         )
 
     try:
-        validated_req, resolved_store = _validate_request_envelope(raw_py, store)
-        if buffers is not None:
-            validated_req["payload"] = ensure_json_finite(
-                _rehydrate_buffers(validated_req["payload"], buffers),
-                path="$.payload",
+        envelope_input = raw_py
+        if isinstance(envelope_input, (str, bytes, bytearray)):
+            envelope_input = strict_json_loads(envelope_input)
+
+        validated_req, resolved_store = _validate_request_envelope(envelope_input, store)
+
+        resolved_buffers = _to_python_native(buffers) if buffers is not None else None
+        if (
+            resolved_buffers is None
+            and isinstance(envelope_input, Mapping)
+            and "request" in envelope_input
+            and "operation" not in envelope_input
+            and "buffers" in envelope_input
+            and envelope_input["buffers"] is not None
+        ):
+            resolved_buffers = _to_python_native(envelope_input["buffers"])
+
+        if resolved_buffers is not None:
+            if not isinstance(resolved_buffers, Mapping):
+                raise ValidationError("Envelope Worker.buffers deve ser um objeto Mapping.")
+            validated_req["payload"] = _rehydrate_buffers(
+                validated_req["payload"],
+                resolved_buffers,
             )
     except Exception as exc:
         return _error_to_rpc_response(

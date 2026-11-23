@@ -59,6 +59,128 @@ def _freeze_json(value: Any) -> Any:
     return value
 
 
+def _unpack_packed_int_vector(raw: Any, *, name: str, upper_bound: int) -> np.ndarray:
+    """Converte vetor 1D de índices de F_k_packed para int32 com validação vetorizada em C (zero-copy quando possível)."""
+    if raw is None or isinstance(raw, (bool, str)):
+        raise ValidationError(f"{name} deve ser vetor 1D de inteiros, recebido {type(raw).__name__}.")
+
+    if isinstance(raw, Mapping):
+        raw_dtype = raw.get("dtype")
+        if raw_dtype not in ("int32", "int64"):
+            raise ValidationError(
+                f"{name} como TensorDescriptor deve ter dtype 'int32' ou 'int64', recebido {raw_dtype!r}."
+            )
+        try:
+            arr = tensor_to_array(raw, expected_ndim=1, dtype=None)
+        except DimensionMismatchError as exc:
+            raise ValidationError(f"{name} deve ser vetor 1D: {exc}") from exc
+    elif isinstance(raw, (bytes, bytearray)):
+        if len(raw) % 4 != 0:
+            raise ValidationError(
+                f"{name} em bytes deve ter comprimento múltiplo de 4 (int32), recebido {len(raw)}."
+            )
+        arr = np.frombuffer(raw, dtype=np.int32)
+    elif isinstance(raw, memoryview):
+        if raw.ndim != 1:
+            raise ValidationError(f"{name} deve ser vetor 1D, recebido {raw.ndim}D.")
+        if raw.format == "B" and not isinstance(raw.obj, np.ndarray):
+            if raw.nbytes % 4 != 0:
+                raise ValidationError(
+                    f"{name} em memoryview de bytes deve ter nbytes múltiplo de 4 (int32), recebido {raw.nbytes}."
+                )
+            arr = np.frombuffer(raw, dtype=np.int32)
+        else:
+            arr = np.asarray(raw)
+    elif isinstance(raw, np.ndarray):
+        arr = raw
+    elif isinstance(raw, Sequence):
+        if len(raw) == 0:
+            return np.empty((0,), dtype=np.int32)
+        try:
+            arr = np.asarray(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Não foi possível converter {name} para vetor 1D de inteiros: {exc}") from exc
+    else:
+        raise ValidationError(
+            f"{name} deve ser np.ndarray, memoryview, bytes, TensorDescriptor ou Sequence, recebido {type(raw).__name__}."
+        )
+
+    if arr.ndim != 1:
+        raise ValidationError(f"{name} deve ser vetor 1D, recebido {arr.ndim}D (shape={arr.shape}).")
+    if arr.dtype == np.bool_ or not np.issubdtype(arr.dtype, np.integer):
+        raise ValidationError(f"{name} deve conter inteiros, recebido dtype={arr.dtype}.")
+
+    if arr.size > 0:
+        min_v = int(arr.min())
+        max_v = int(arr.max())
+        if min_v < 0 or max_v >= upper_bound:
+            raise ValidationError(
+                f"Índices fora dos limites [0, {upper_bound}) em {name}: min={min_v}, max={max_v}."
+            )
+
+    return np.asarray(arr, dtype=np.int32)
+
+
+def _unpack_packed_float64_vector(raw: Any, *, name: str) -> np.ndarray:
+    """Converte vetor 1D de valores de F_k_packed para float64 finito com validação vetorizada em C (zero-copy quando possível)."""
+    if raw is None or isinstance(raw, (bool, str)):
+        raise ValidationError(f"{name} deve ser vetor 1D float64, recebido {type(raw).__name__}.")
+
+    if isinstance(raw, Mapping):
+        raw_dtype = raw.get("dtype")
+        if raw_dtype not in ("float64", "float32", "int64", "int32"):
+            raise ValidationError(
+                f"{name} como TensorDescriptor deve ter dtype real numérico, recebido {raw_dtype!r}."
+            )
+        try:
+            arr = tensor_to_array(raw, expected_ndim=1, dtype="float64")
+        except DimensionMismatchError as exc:
+            raise ValidationError(f"{name} deve ser vetor 1D: {exc}") from exc
+    elif isinstance(raw, (bytes, bytearray)):
+        if len(raw) % 8 != 0:
+            raise ValidationError(
+                f"{name} em bytes deve ter comprimento múltiplo de 8 (float64), recebido {len(raw)}."
+            )
+        arr = np.frombuffer(raw, dtype=np.float64)
+    elif isinstance(raw, memoryview):
+        if raw.ndim != 1:
+            raise ValidationError(f"{name} deve ser vetor 1D, recebido {raw.ndim}D.")
+        if raw.format == "B" and not isinstance(raw.obj, np.ndarray):
+            if raw.nbytes % 8 != 0:
+                raise ValidationError(
+                    f"{name} em memoryview de bytes deve ter nbytes múltiplo de 8 (float64), recebido {raw.nbytes}."
+                )
+            arr = np.frombuffer(raw, dtype=np.float64)
+        else:
+            arr = np.asarray(raw)
+    elif isinstance(raw, np.ndarray):
+        arr = raw
+    elif isinstance(raw, Sequence):
+        if len(raw) == 0:
+            return np.empty((0,), dtype=np.float64)
+        try:
+            arr = np.asarray(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Não foi possível converter {name} para vetor 1D float64: {exc}") from exc
+    else:
+        raise ValidationError(
+            f"{name} deve ser np.ndarray, memoryview, bytes, TensorDescriptor ou Sequence, recebido {type(raw).__name__}."
+        )
+
+    if arr.ndim != 1:
+        raise ValidationError(f"{name} deve ser vetor 1D, recebido {arr.ndim}D (shape={arr.shape}).")
+    if arr.dtype == np.bool_ or not (
+        np.issubdtype(arr.dtype, np.floating) or np.issubdtype(arr.dtype, np.integer)
+    ):
+        raise ValidationError(f"{name} deve conter números reais, recebido dtype={arr.dtype}.")
+
+    arr_f64 = np.asarray(arr, dtype=np.float64)
+    if arr_f64.size > 0 and not np.all(np.isfinite(arr_f64)):
+        raise ValidationError(f"{name} contém valores não finitos (NaN ou Inf).")
+    return arr_f64
+
+
+
 class _ImmutableCanonicalBase:
     __slots__ = ("_locked",)
 
@@ -226,10 +348,95 @@ class SDPBlock(_ImmutableCanonicalBase):
             raise ValidationError("SDPBlock serializado deve ser dict.")
         has_dense = "F_k" in data and data["F_k"] is not None
         has_sparse = "F_k_sparse" in data and data["F_k_sparse"] is not None
-        if "name" not in data or "F0" not in data or (not has_dense and not has_sparse):
-            raise ValidationError("SDPBlock requer campos 'name', 'F0' e ('F_k' ou 'F_k_sparse').")
+        has_packed = "F_k_packed" in data and data["F_k_packed"] is not None
+        if "name" not in data or "F0" not in data or (not has_dense and not has_sparse and not has_packed):
+            raise ValidationError("SDPBlock requer campos 'name', 'F0' e ('F_k', 'F_k_sparse' ou 'F_k_packed').")
         F0_raw = data["F0"]
-        F0 = tensor_to_array(F0_raw, expected_ndim=2, dtype="float64") if isinstance(F0_raw, Mapping) else F0_raw
+        if isinstance(F0_raw, Mapping):
+            F0 = tensor_to_array(F0_raw, expected_ndim=2, dtype="float64")
+        elif isinstance(F0_raw, memoryview):
+            F0 = np.asarray(F0_raw)
+        else:
+            F0 = F0_raw
+
+        if has_packed:
+            # Zero-copy packed COO path:
+            # F_k_packed = {"k_idx": 1D int32, "rows": 1D int32, "cols": 1D int32, "vals": 1D float64}
+            resolved_n_vars = n_vars if n_vars is not None else data.get("n_vars")
+            if resolved_n_vars is None or isinstance(resolved_n_vars, bool) or not isinstance(resolved_n_vars, (int, np.integer)):
+                raise ValidationError("n_vars inteiro >= 1 é obrigatório quando 'F_k_packed' é fornecido.")
+            resolved_n_vars = int(resolved_n_vars)
+            if resolved_n_vars < 1:
+                raise ValidationError("SDPBlock requer n_vars >= 1.")
+
+            F0_arr = ensure_finite_float64(F0, ndim=2, name=f"block[{data['name']}].F0")
+            dim, dim2 = F0_arr.shape
+            if dim != dim2 or dim < 1:
+                raise DimensionMismatchError(
+                    message=f"Bloco PSD {data['name']!r} deve ser quadrado n x n (n >= 1), recebido {F0_arr.shape}.",
+                    parameters={"block": str(data["name"]), "shape": list(F0_arr.shape)},
+                )
+
+            fk_packed = data["F_k_packed"]
+            if not isinstance(fk_packed, Mapping):
+                raise ValidationError("F_k_packed deve ser Mapping {'k_idx', 'rows', 'cols', 'vals'}.")
+            for req_key in ("k_idx", "rows", "cols", "vals"):
+                if req_key not in fk_packed:
+                    raise ValidationError(f"Campo obrigatório ausente em F_k_packed: {req_key!r}.")
+
+            k_idx = _unpack_packed_int_vector(
+                fk_packed["k_idx"], name="F_k_packed.k_idx", upper_bound=resolved_n_vars
+            )
+            rows = _unpack_packed_int_vector(
+                fk_packed["rows"], name="F_k_packed.rows", upper_bound=dim
+            )
+            cols = _unpack_packed_int_vector(
+                fk_packed["cols"], name="F_k_packed.cols", upper_bound=dim
+            )
+            vals = _unpack_packed_float64_vector(
+                fk_packed["vals"], name="F_k_packed.vals"
+            )
+
+            nnz = int(k_idx.shape[0])
+            if rows.shape[0] != nnz or cols.shape[0] != nnz or vals.shape[0] != nnz:
+                raise ValidationError(
+                    f"Comprimento inconsistente em F_k_packed: k_idx={k_idx.shape[0]}, "
+                    f"rows={rows.shape[0]}, cols={cols.shape[0]}, vals={vals.shape[0]}."
+                )
+
+            F_terms_dict: dict[int, np.ndarray] = {}
+            if nnz > 0:
+                if nnz > 1 and not bool(np.all(k_idx[:-1] <= k_idx[1:])):
+                    order = np.argsort(k_idx, kind="stable")
+                    k_s = k_idx[order]
+                    r_s = rows[order]
+                    c_s = cols[order]
+                    v_s = vals[order]
+                else:
+                    k_s = k_idx
+                    r_s = rows
+                    c_s = cols
+                    v_s = vals
+
+                change = np.empty((nnz,), dtype=np.bool_)
+                change[0] = True
+                if nnz > 1:
+                    np.not_equal(k_s[1:], k_s[:-1], out=change[1:])
+                starts = np.flatnonzero(change)
+                ends = np.empty_like(starts)
+                ends[:-1] = starts[1:]
+                ends[-1] = nnz
+                unique_ks = k_s[starts]
+
+                for k_val, s_i, e_i in zip(unique_ks.tolist(), starts.tolist(), ends.tolist(), strict=True):
+                    mat = np.zeros((dim, dim), dtype=np.float64)
+                    np.add.at(mat, (r_s[s_i:e_i], c_s[s_i:e_i]), v_s[s_i:e_i])
+                    mat_sym = 0.5 * (mat + mat.T)
+                    if np.any(mat_sym != 0.0):
+                        F_terms_dict[k_val] = mat_sym
+
+            return cls(name=str(data["name"]), F0=F0_arr, F_k=F_terms_dict, n_vars=resolved_n_vars)
+
         if has_dense:
             fk_list = []
             for item in data["F_k"]:
@@ -629,17 +836,38 @@ class CanonicalSDPProblem(_ImmutableCanonicalBase):
         if not isinstance(payload, Mapping):
             raise ValidationError("CanonicalSDPProblem serializado deve ser dict.")
         c_raw = payload["c"]
-        c_arr = tensor_to_array(c_raw, expected_ndim=1, dtype="float64") if isinstance(c_raw, Mapping) else c_raw
+        if isinstance(c_raw, Mapping):
+            c_arr = tensor_to_array(c_raw, expected_ndim=1, dtype="float64")
+        elif isinstance(c_raw, memoryview):
+            c_arr = np.asarray(c_raw)
+        else:
+            c_arr = c_raw
         n_vars = int(np.asarray(c_arr).shape[0])
         blocks = [SDPBlock.from_dict(b, n_vars=n_vars) for b in payload.get("blocks", ())]
         E_raw = payload.get("E")
         d_raw = payload.get("d")
         H_raw = payload.get("H")
         h_raw = payload.get("h")
-        E = tensor_to_array(E_raw, expected_ndim=2, dtype="float64") if isinstance(E_raw, Mapping) else E_raw
-        d = tensor_to_array(d_raw, expected_ndim=1, dtype="float64") if isinstance(d_raw, Mapping) else d_raw
-        H = tensor_to_array(H_raw, expected_ndim=2, dtype="float64") if isinstance(H_raw, Mapping) else H_raw
-        h = tensor_to_array(h_raw, expected_ndim=1, dtype="float64") if isinstance(h_raw, Mapping) else h_raw
+        E = (
+            tensor_to_array(E_raw, expected_ndim=2, dtype="float64")
+            if isinstance(E_raw, Mapping)
+            else (np.asarray(E_raw) if isinstance(E_raw, memoryview) else E_raw)
+        )
+        d = (
+            tensor_to_array(d_raw, expected_ndim=1, dtype="float64")
+            if isinstance(d_raw, Mapping)
+            else (np.asarray(d_raw) if isinstance(d_raw, memoryview) else d_raw)
+        )
+        H = (
+            tensor_to_array(H_raw, expected_ndim=2, dtype="float64")
+            if isinstance(H_raw, Mapping)
+            else (np.asarray(H_raw) if isinstance(H_raw, memoryview) else H_raw)
+        )
+        h = (
+            tensor_to_array(h_raw, expected_ndim=1, dtype="float64")
+            if isinstance(h_raw, Mapping)
+            else (np.asarray(h_raw) if isinstance(h_raw, memoryview) else h_raw)
+        )
         return cls(
             c=c_arr,
             c0=float(payload.get("c0", 0.0)),

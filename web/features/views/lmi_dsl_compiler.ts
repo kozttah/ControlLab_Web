@@ -11,6 +11,7 @@
  *   diretamente em um `CanonicalSDPProblem` JSON compatível com `CanonicalSDPProblem.from_dict`.
  */
 
+import type { PackedSparseCooPayload } from "../../bridge/protocol.ts";
 import type {
   LmiDslParseResult,
   LmiDslQuantifier,
@@ -51,6 +52,7 @@ export interface LmiCompileContext {
   params?: Record<string, number>;
   strictMargin?: number;
   name?: string;
+  format?: LmiSdpBlockFormat;
 }
 
 export interface CanonicalTensor1D {
@@ -67,11 +69,27 @@ export interface CanonicalTensor2D {
   data: number[];
 }
 
+export type LmiSdpBlockFormat = "packed" | "sparse" | "dense";
+
+export interface LmiCompileOptions {
+  format?: LmiSdpBlockFormat;
+}
+
+export interface PackedSparseCooTypedArrays extends PackedSparseCooPayload {
+  k_idx: Int32Array;
+  rows: Int32Array;
+  cols: Int32Array;
+  vals: Float64Array;
+}
+
 export interface CanonicalSDPBlockJson {
   name: string;
   dim: number;
+  n_vars: number;
   F0: CanonicalTensor2D;
-  F_k_sparse: Record<string, [number, number, number][]>;
+  F_k_packed?: PackedSparseCooTypedArrays;
+  F_k_sparse?: Record<string, [number, number, number][]>;
+  F_k?: CanonicalTensor2D[];
 }
 
 export interface CanonicalVariableMapEntry {
@@ -1220,10 +1238,34 @@ class ExprEvaluator {
   }
 }
 
+export function serializeCanonicalSdpForJson(
+  problem: CanonicalSDPProblemJson,
+): Record<string, unknown> {
+  return {
+    ...problem,
+    blocks: problem.blocks.map((blk) => {
+      if (!blk.F_k_packed) {
+        return { ...blk };
+      }
+      return {
+        ...blk,
+        F_k_packed: {
+          k_idx: Array.from(blk.F_k_packed.k_idx),
+          rows: Array.from(blk.F_k_packed.rows),
+          cols: Array.from(blk.F_k_packed.cols),
+          vals: Array.from(blk.F_k_packed.vals),
+        },
+      };
+    }),
+  };
+}
+
 export function compileLmiDslToCanonicalSdp(
   parsed: LmiDslParseResult,
   ctx: LmiCompileContext,
+  options?: LmiCompileOptions,
 ): LmiCompileResult {
+  const blockFormat: LmiSdpBlockFormat = options?.format ?? ctx.format ?? "packed";
   if (!parsed.valid) {
     throw new Error(parsed.errors[0]?.message ?? "DSL LMI inválida para compilação.");
   }
@@ -1417,35 +1459,130 @@ export function compileLmiDslToCanonicalSdp(
         }
         symmetrizeSquareInPlace(f0, dim);
 
-        const f_k_sparse: Record<string, [number, number, number][]> = {};
-        for (const [k, term] of matAff.terms.entries()) {
-          const copy = new Float64Array(term);
-          symmetrizeSquareInPlace(copy, dim);
-          const entries: [number, number, number][] = [];
-          for (let r = 0; r < dim; r += 1) {
-            for (let c = 0; c < dim; c += 1) {
-              const val = copy[r * dim + c];
-              if (Math.abs(val) > 0) {
-                entries.push([r, c, val]);
-              }
-            }
-          }
-          if (entries.length > 0) {
-            f_k_sparse[String(k)] = entries;
-          }
-        }
-
         const bindTag = Object.entries(binding)
           .map(([k, v]) => `${k}=${v}`)
           .join(",");
         const blkName = `lmi_${blockCounter}${bindTag ? `_${bindTag}` : ""}${suffix}`;
         blockCounter += 1;
-        blocks.push({
-          name: blkName,
-          dim,
-          F0: float64ToTensor2D(f0, dim, dim),
-          F_k_sparse: f_k_sparse,
-        });
+
+        const sortedKs = Array.from(matAff.terms.keys()).sort((a, b) => a - b);
+
+        if (blockFormat === "packed") {
+          let cap = Math.max(16, sortedKs.length * dim);
+          let kBuf = new Int32Array(cap);
+          let rBuf = new Int32Array(cap);
+          let cBuf = new Int32Array(cap);
+          let vBuf = new Float64Array(cap);
+          let nnz = 0;
+
+          const ensureCap = (needed: number): void => {
+            if (needed <= cap) return;
+            let nextCap = cap;
+            while (nextCap < needed) nextCap *= 2;
+            const nk = new Int32Array(nextCap);
+            nk.set(kBuf.subarray(0, nnz));
+            kBuf = nk;
+            const nr = new Int32Array(nextCap);
+            nr.set(rBuf.subarray(0, nnz));
+            rBuf = nr;
+            const nc = new Int32Array(nextCap);
+            nc.set(cBuf.subarray(0, nnz));
+            cBuf = nc;
+            const nv = new Float64Array(nextCap);
+            nv.set(vBuf.subarray(0, nnz));
+            vBuf = nv;
+            cap = nextCap;
+          };
+
+          for (let ki = 0; ki < sortedKs.length; ki += 1) {
+            const k = sortedKs[ki];
+            const term = matAff.terms.get(k)!;
+            for (let r = 0; r < dim; r += 1) {
+              const rOff = r * dim;
+              for (let c = 0; c < dim; c += 1) {
+                const val =
+                  r === c
+                    ? term[rOff + c]
+                    : 0.5 * (term[rOff + c] + term[c * dim + r]);
+                if (Math.abs(val) > 0) {
+                  ensureCap(nnz + 1);
+                  kBuf[nnz] = k;
+                  rBuf[nnz] = r;
+                  cBuf[nnz] = c;
+                  vBuf[nnz] = val;
+                  nnz += 1;
+                }
+              }
+            }
+          }
+
+          const k_idx = nnz === kBuf.length ? kBuf : kBuf.slice(0, nnz);
+          const rows = nnz === rBuf.length ? rBuf : rBuf.slice(0, nnz);
+          const cols = nnz === cBuf.length ? cBuf : cBuf.slice(0, nnz);
+          const vals = nnz === vBuf.length ? vBuf : vBuf.slice(0, nnz);
+
+          blocks.push({
+            name: blkName,
+            dim,
+            n_vars: nVars,
+            F0: float64ToTensor2D(f0, dim, dim),
+            F_k_packed: { k_idx, rows, cols, vals },
+          });
+        } else if (blockFormat === "sparse") {
+          const f_k_sparse: Record<string, [number, number, number][]> = {};
+          for (let ki = 0; ki < sortedKs.length; ki += 1) {
+            const k = sortedKs[ki];
+            const term = matAff.terms.get(k)!;
+            const entries: [number, number, number][] = [];
+            for (let r = 0; r < dim; r += 1) {
+              const rOff = r * dim;
+              for (let c = 0; c < dim; c += 1) {
+                const val =
+                  r === c
+                    ? term[rOff + c]
+                    : 0.5 * (term[rOff + c] + term[c * dim + r]);
+                if (Math.abs(val) > 0) {
+                  entries.push([r, c, val]);
+                }
+              }
+            }
+            if (entries.length > 0) {
+              f_k_sparse[String(k)] = entries;
+            }
+          }
+          blocks.push({
+            name: blkName,
+            dim,
+            n_vars: nVars,
+            F0: float64ToTensor2D(f0, dim, dim),
+            F_k_sparse: f_k_sparse,
+          });
+        } else {
+          const f_k: CanonicalTensor2D[] = [];
+          for (let k = 0; k < nVars; k += 1) {
+            const term = matAff.terms.get(k);
+            const sym = new Float64Array(dim * dim);
+            if (term) {
+              for (let r = 0; r < dim; r += 1) {
+                const rOff = r * dim;
+                for (let c = 0; c < dim; c += 1) {
+                  sym[rOff + c] =
+                    r === c
+                      ? term[rOff + c]
+                      : 0.5 * (term[rOff + c] + term[c * dim + r]);
+                }
+              }
+            }
+            f_k.push(float64ToTensor2D(sym, dim, dim));
+          }
+          blocks.push({
+            name: blkName,
+            dim,
+            n_vars: nVars,
+            F0: float64ToTensor2D(f0, dim, dim),
+            F_k: f_k,
+          });
+        }
       };
 
       pushBlock(diff, "");

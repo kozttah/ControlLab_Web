@@ -7,6 +7,7 @@
 
 import {
   buildFailureRpcResponse,
+  containsExtractablePackedSparse,
   ControlLabBridgeError,
   ensureFiniteJson,
   extractTensorsToBinaryBuffers,
@@ -16,6 +17,7 @@ import {
   RPC_API_VERSION,
   validateRpcRequest,
   validateRpcResponse,
+  validateWireBinaryBuffer,
   type CapabilityDescriptor,
   type ErrorCategory,
   type RpcRequest,
@@ -848,24 +850,53 @@ export class PyodideWorkerRuntime {
         await delayWithSignal(request.options.__delay_ms, abortController.signal);
       }
 
-      // Reidratar buffers binários transferíveis recebidos via postMessage
-      const resolvedPayload: Record<string, unknown> = structuredClone(
+      // Reidratar buffers binários transferíveis recebidos via postMessage.
+      // Blocos esparsos empacotados (F_k_packed) preservam BufferTensorRef e seguem
+      // zero-copy como Uint8Array -> Pyodide memoryview no envelope `buffers`.
+      let resolvedPayload: Record<string, unknown> = structuredClone(
         request.payload,
       );
+      let dispatchRequest: RpcRequest = request;
+      const packedBuffers: Record<string, Uint8Array> = {};
       if (msg.buffers) {
+        const packedRefIds = new Set<string>();
+        collectPackedSparseBufferRefs(resolvedPayload, packedRefIds);
         const rehydratedTensors: Record<string, unknown> = {};
         for (const [refName, wireBuf] of Object.entries(msg.buffers)) {
-          rehydratedTensors[refName] = rehydrateBinaryBufferToTensor(wireBuf);
+          if (packedRefIds.has(refName) || wireBuf.packed_sparse === true) {
+            validateWireBinaryBuffer(wireBuf);
+            packedBuffers[refName] = new Uint8Array(wireBuf.buffer);
+          } else {
+            rehydratedTensors[refName] = rehydrateBinaryBufferToTensor(wireBuf);
+          }
         }
-        replaceBufferRefsInObject(resolvedPayload, rehydratedTensors);
+        if (Object.keys(rehydratedTensors).length > 0) {
+          replaceBufferRefsInObject(resolvedPayload, rehydratedTensors);
+        }
+      }
+      if (containsExtractablePackedSparse(resolvedPayload)) {
+        const extractedInline = extractTensorsToBinaryBuffers(
+          resolvedPayload,
+          `${request.request_id}-packed`,
+          { packedSparseOnly: true },
+        );
+        resolvedPayload = extractedInline.replaced;
+        dispatchRequest = {
+          ...request,
+          payload: extractedInline.replaced,
+        };
+        for (const [refName, wireBuf] of Object.entries(extractedInline.buffers)) {
+          packedBuffers[refName] = new Uint8Array(wireBuf.buffer);
+        }
       }
 
-      const canonicalPayload = materializePayloadReferences(request, resolvedPayload, this.modelStore);
+      const canonicalPayload = materializePayloadReferences(dispatchRequest, resolvedPayload, this.modelStore);
 
       const rawResult = await this.executeOperation(
-        request,
+        dispatchRequest,
         canonicalPayload,
         abortController.signal,
+        packedBuffers,
       );
 
       const tSer0 = nowMs();
@@ -970,6 +1001,7 @@ export class PyodideWorkerRuntime {
     request: RpcRequest,
     resolvedPayload: Record<string, unknown>,
     signal: AbortSignal,
+    packedBuffers?: Record<string, Uint8Array>,
   ): Promise<RpcResponse> {
     if (signal.aborted) {
       throw new ControlLabBridgeError(
@@ -992,7 +1024,13 @@ export class PyodideWorkerRuntime {
               { parameters: { operation: request.operation } },
             );
           }
-          return py.toPy({ request, payload: resolvedPayload });
+          const hasPackedBuffers =
+            packedBuffers !== undefined && Object.keys(packedBuffers).length > 0;
+          return py.toPy(
+            hasPackedBuffers
+              ? { request, payload: resolvedPayload, buffers: packedBuffers }
+              : { request, payload: resolvedPayload },
+          );
         },
         async (proxy, abortSig) => {
           if (abortSig?.aborted) {
@@ -1109,6 +1147,36 @@ export class PyodideWorkerRuntime {
     );
   }
 
+}
+
+function collectPackedSparseBufferRefs(
+  node: unknown,
+  out: Set<string>,
+): void {
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i += 1) {
+      collectPackedSparseBufferRefs(node[i], out);
+    }
+    return;
+  }
+  if (!isPlainObject(node)) {
+    return;
+  }
+  for (const [k, v] of Object.entries(node)) {
+    if (k === "F_k_packed" && isPlainObject(v)) {
+      for (const fieldVal of Object.values(v)) {
+        if (
+          isPlainObject(fieldVal) &&
+          typeof fieldVal.buffer_ref === "string" &&
+          Object.keys(fieldVal).length === 4
+        ) {
+          out.add(fieldVal.buffer_ref);
+        }
+      }
+    } else {
+      collectPackedSparseBufferRefs(v, out);
+    }
+  }
 }
 
 function replaceBufferRefsInObject(

@@ -9,6 +9,10 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
+  ensureFiniteJson,
+  extractTensorsToBinaryBuffers,
+  isArrayBufferDetached,
+  markBufferTransferred,
   RPC_API_VERSION,
   type CapabilityDescriptor,
   type EngineLifecycleState,
@@ -40,13 +44,21 @@ import {
 } from "../../../web/features/views/lmi_dsl_parser.ts";
 import {
   compileLmiDslToCanonicalSdp,
+  serializeCanonicalSdpForJson,
+  type CanonicalSDPProblemJson,
+  type CanonicalTensor2D,
   type LmiCompileContext,
+  type PackedSparseCooTypedArrays,
 } from "../../../web/features/views/lmi_dsl_compiler.ts";
 import {
   evaluateMathExpression,
   validateConvexMembershipFunctions,
 } from "../../../web/features/views/lmi_ts_mf_eval.ts";
 import { cpythonLoader } from "../f7/cpython_runtime.mjs";
+import {
+  compareCanonicalSdpFromDictSolve,
+  dispatchPythonWithBinaryBuffers,
+} from "./cpython_binary_helper.mjs";
 
 class FakeElement {
   public tagName: string;
@@ -804,29 +816,60 @@ test("WP-PHASE4-01: Compilador Direto DSL v2.0 -> CanonicalSDPProblem (LTI, Poli
     Dzw: [[0], [0]],
   };
 
-  // Helper to assert symmetry of all F0 and sparse COO F_k_sparse (and absence of dense F_k)
+  // Helper to assert symmetry of all F0 and packed COO F_k_packed (and absence of dense F_k / legacy F_k_sparse)
   const assertAllBlocksSymmetric = (problem: ReturnType<typeof compileLmiDslToCanonicalSdp>["problem"]) => {
     for (const blk of problem.blocks) {
       const dim = blk.F0.shape[0];
       assert.equal(blk.dim, dim);
+      assert.equal(blk.n_vars, problem.n_vars);
       assert.equal(blk.F0.shape[1], dim);
       assert.equal("F_k" in blk, false, `Bloco ${blk.name} não deve emitir F_k denso`);
-      assert.equal(typeof blk.F_k_sparse, "object");
+      assert.equal("F_k_sparse" in blk, false, `Bloco ${blk.name} no modo padrão packed não deve emitir F_k_sparse`);
+      assert.ok(blk.F_k_packed !== undefined, `Bloco ${blk.name} deve emitir F_k_packed`);
+      const packed = blk.F_k_packed!;
+      assert.ok(packed.k_idx instanceof Int32Array);
+      assert.ok(packed.rows instanceof Int32Array);
+      assert.ok(packed.cols instanceof Int32Array);
+      assert.ok(packed.vals instanceof Float64Array);
+      assert.equal(packed.k_idx.byteOffset, 0);
+      assert.equal(packed.rows.byteOffset, 0);
+      assert.equal(packed.cols.byteOffset, 0);
+      assert.equal(packed.vals.byteOffset, 0);
+      assert.equal(packed.k_idx.byteLength, packed.k_idx.buffer.byteLength);
+      assert.equal(packed.rows.byteLength, packed.rows.buffer.byteLength);
+      assert.equal(packed.cols.byteLength, packed.cols.buffer.byteLength);
+      assert.equal(packed.vals.byteLength, packed.vals.buffer.byteLength);
+      const nnz = packed.k_idx.length;
+      assert.equal(packed.rows.length, nnz);
+      assert.equal(packed.cols.length, nnz);
+      assert.equal(packed.vals.length, nnz);
+
       for (let r = 0; r < dim; r += 1) {
         for (let c = r + 1; c < dim; c += 1) {
           assert.equal(blk.F0.data[r * dim + c], blk.F0.data[c * dim + r], `Assimetria em F0 de ${blk.name}`);
         }
       }
-      for (const [kStr, entries] of Object.entries(blk.F_k_sparse)) {
-        assert.ok(entries.length > 0, `Chave vazia ${kStr} em F_k_sparse de ${blk.name}`);
-        const dense = new Float64Array(dim * dim);
-        for (const [r, c, val] of entries) {
-          assert.ok(Math.abs(val) > 0, `Entrada nula em F_k_sparse[${kStr}] de ${blk.name}`);
-          dense[r * dim + c] += val;
+      const byK = new Map<number, Float64Array>();
+      for (let idx = 0; idx < nnz; idx += 1) {
+        const k = packed.k_idx[idx];
+        const r = packed.rows[idx];
+        const c = packed.cols[idx];
+        const val = packed.vals[idx];
+        if (idx > 0) {
+          assert.ok(packed.k_idx[idx - 1] <= k, `k_idx deve estar ordenado crescentemente em ${blk.name}`);
         }
+        assert.ok(Math.abs(val) > 0, `Entrada nula em F_k_packed[${idx}] de ${blk.name}`);
+        let dense = byK.get(k);
+        if (!dense) {
+          dense = new Float64Array(dim * dim);
+          byK.set(k, dense);
+        }
+        dense[r * dim + c] += val;
+      }
+      for (const [k, dense] of byK.entries()) {
         for (let r = 0; r < dim; r += 1) {
           for (let c = r + 1; c < dim; c += 1) {
-            assert.equal(dense[r * dim + c], dense[c * dim + r], `Assimetria em F_k_sparse[${kStr}] de ${blk.name}`);
+            assert.equal(dense[r * dim + c], dense[c * dim + r], `Assimetria em F_k_packed[k=${k}] de ${blk.name}`);
           }
         }
       }
@@ -923,14 +966,15 @@ test("WP-PHASE4-01: Compilador Direto DSL v2.0 -> CanonicalSDPProblem (LTI, Poli
   const rpcMod = pyodide.pyimport("control_lab.core.rpc") as {
     dispatch: (arg: unknown) => RpcResponse;
   };
-  const runSolve = (problem: unknown): RpcResponse => {
+  const runSolve = (problem: CanonicalSDPProblemJson): RpcResponse => {
+    const jsonProblem = serializeCanonicalSdpForJson(problem);
     const req: RpcRequest = {
       api_version: RPC_API_VERSION,
       request_id: `comp-test-${Math.random().toString(36).slice(2)}`,
       project_id: "proj-compiler-test",
       project_revision: 1,
       operation: "optimization.solve",
-      payload: { problem },
+      payload: { problem: jsonProblem },
       options: {},
       timeout_policy: { hard_timeout_ms: 30000 },
     };
@@ -986,7 +1030,15 @@ test("WP-PHASE4-01: LmiView end-to-end TS PDC com compilador direto e recuperaç
   class RealPythonLmiClient extends StubLmiClient {
     public override async execute(req: RpcRequest): Promise<RpcResponse> {
       try {
-        const proxy = pyodide.toPy!({ request: req, payload: req.payload });
+        const payload = { ...req.payload };
+        if (payload.problem && typeof payload.problem === "object") {
+          const prob = payload.problem as CanonicalSDPProblemJson;
+          if (Array.isArray(prob.blocks)) {
+            payload.problem = serializeCanonicalSdpForJson(prob);
+          }
+        }
+        const safeReq: RpcRequest = { ...req, payload };
+        const proxy = pyodide.toPy!({ request: safeReq, payload });
         const resp = rpcMod.dispatch(proxy);
         proxy.destroy();
         return resp;
@@ -1111,7 +1163,7 @@ test("WP-ROADMAP-TS-UNMEASURED-OBS: Observador TS com premissas não medidas (DS
     project_id: "proj-ts-obs-test",
     project_revision: 1,
     operation: "optimization.solve",
-    payload: { problem: compiled.problem },
+    payload: { problem: serializeCanonicalSdpForJson(compiled.problem) },
     options: {},
     timeout_policy: { hard_timeout_ms: 30000 },
   };
@@ -1133,7 +1185,15 @@ test("WP-ROADMAP-TS-UNMEASURED-OBS: Observador TS com premissas não medidas (DS
   class RealPythonObsClient extends StubLmiClient {
     public override async execute(r: RpcRequest): Promise<RpcResponse> {
       try {
-        const px = pyodide.toPy!({ request: r, payload: r.payload });
+        const payload = { ...r.payload };
+        if (payload.problem && typeof payload.problem === "object") {
+          const prob = payload.problem as CanonicalSDPProblemJson;
+          if (Array.isArray(prob.blocks)) {
+            payload.problem = serializeCanonicalSdpForJson(prob);
+          }
+        }
+        const safeReq: RpcRequest = { ...r, payload };
+        const px = pyodide.toPy!({ request: safeReq, payload });
         const out = rpcMod.dispatch(px);
         px.destroy();
         return out;
@@ -1199,8 +1259,9 @@ test("WP-PHASE4-03-F8: Vértices editáveis no Workspace (Politópico ilimitado 
     blocks: Array<{
       name: string;
       dim: number;
+      n_vars: number;
       F0: { data: number[] };
-      F_k_sparse: Record<string, [number, number, number][]>;
+      F_k_packed: PackedSparseCooTypedArrays;
     }>;
   };
   const capturedProblems: CapturedProblem[] = [];
@@ -1245,15 +1306,18 @@ test("WP-PHASE4-03-F8: Vértices editáveis no Workspace (Politópico ilimitado 
 
   assert.equal(capturedProblems.length, 1);
   const polyBlock = capturedProblems[0].blocks[1];
+  assert.ok(polyBlock.F_k_packed.vals instanceof Float64Array);
   assert.ok(
-    Object.values(polyBlock.F_k_sparse).some((entries) =>
-      entries.some(([, , val]) => Math.abs(val - (-2.5)) < 1e-9 || Math.abs(val - 2.5) < 1e-9),
+    Array.from(polyBlock.F_k_packed.vals).some(
+      (val) => Math.abs(val - (-2.5)) < 1e-9 || Math.abs(val - 2.5) < 1e-9,
     ),
-    "Esperado B[1]=[0; 2.5] refletido em F_k_sparse do CanonicalSDPProblem politópico",
+    "Esperado B[1]=[0; 2.5] refletido em F_k_packed do CanonicalSDPProblem politópico",
   );
   assert.ok(
-    (polyBlock.F_k_sparse["0"] ?? []).some(([, , val]) => Math.abs(val - 7.5) < 1e-9),
-    "Esperado A[1][1][0]=-7.5 refletido em F_k_sparse['0'] do CanonicalSDPProblem politópico",
+    Array.from(polyBlock.F_k_packed.vals).some(
+      (val, idx) => polyBlock.F_k_packed.k_idx[idx] === 0 && Math.abs(val - 7.5) < 1e-9,
+    ),
+    "Esperado A[1][1][0]=-7.5 refletido em F_k_packed (k=0) do CanonicalSDPProblem politópico",
   );
 
   // 2. Edit the same polytopic system via #btn-lmi-edit-system-workspace to expand to 10 vertices -> 11 compiled blocks
@@ -1306,14 +1370,16 @@ test("WP-PHASE4-03-F8: Vértices editáveis no Workspace (Politópico ilimitado 
   assert.equal(capturedProblems.length, 3);
   const tsBlock = capturedProblems[2].blocks[1];
   assert.ok(
-    (tsBlock.F_k_sparse["0"] ?? []).some(([, , val]) => Math.abs(val - 9.25) < 1e-9),
-    "Esperado A[1][1][0]=-9.25 refletido no CanonicalSDPProblem TS",
+    Array.from(tsBlock.F_k_packed.vals).some(
+      (val, idx) => tsBlock.F_k_packed.k_idx[idx] === 0 && Math.abs(val - 9.25) < 1e-9,
+    ),
+    "Esperado A[1][1][0]=-9.25 refletido no CanonicalSDPProblem TS (F_k_packed k=0)",
   );
   assert.ok(
-    Object.values(tsBlock.F_k_sparse).some((entries) =>
-      entries.some(([, , val]) => Math.abs(val - (-3.5)) < 1e-9 || Math.abs(val - 3.5) < 1e-9),
+    Array.from(tsBlock.F_k_packed.vals).some(
+      (val) => Math.abs(val - (-3.5)) < 1e-9 || Math.abs(val - 3.5) < 1e-9,
     ),
-    "Esperado B[1]=[0; 3.5] refletido no CanonicalSDPProblem TS",
+    "Esperado B[1]=[0; 3.5] refletido no CanonicalSDPProblem TS (F_k_packed)",
   );
 
   app.destroy();
@@ -1636,6 +1702,338 @@ test("WP-PHASE5-05-F8: Botão Cancelar (#btn-lmi-cancel-solve) invoca client.can
     root.querySelector("#lmi-solver-progress-status")!.textContent,
     "Resolução cancelada pelo usuário.",
   );
+
+  app.destroy();
+});
+
+test("WP-PHASE9-01C-F8-PACKED-COO-COMPILER: F_k_packed alinhado zero-copy, paridade CPython binary buffers + CanonicalSDPProblem.from_dict e LmiView sem detached ArrayBuffer", async () => {
+  // 1. Packed vs Sparse vs Dense entry-for-entry parity + zero-copy alignment invariants
+  const tsCtx: LmiCompileContext = {
+    A: [
+      [0, 1],
+      [-2, -1],
+    ],
+    B: [[0], [1]],
+    C: [[1, 0]],
+    D: [[0]],
+    vertices: [
+      {
+        A: [
+          [0, 1],
+          [-1.7, -0.85],
+        ],
+        B: [[0], [1]],
+        C: [[1, 0]],
+      },
+      {
+        A: [
+          [0, 1],
+          [-2.3, -1.15],
+        ],
+        B: [[0], [1]],
+        C: [[1, 0]],
+      },
+    ],
+    deltaVertices: [
+      { dA: [[0, 0.2], [0, 0]], dC: [[0, 0]] },
+      { dA: [[0, -0.2], [0, 0]], dC: [[0, 0]] },
+    ],
+  };
+
+  const tsDsl = LMI_DSL_TEMPLATES.find((t) => t.id === "ts_pdc_relaxed")!.dsl;
+  const tsParsed = parseLmiDsl(tsDsl);
+  const packedComp = compileLmiDslToCanonicalSdp(tsParsed, tsCtx);
+  const sparseComp = compileLmiDslToCanonicalSdp(tsParsed, tsCtx, { format: "sparse" });
+  const denseComp = compileLmiDslToCanonicalSdp(tsParsed, tsCtx, { format: "dense" });
+
+  assert.equal(packedComp.nVars, sparseComp.nVars);
+  assert.equal(packedComp.blockCount, sparseComp.blockCount);
+  assert.equal(denseComp.blockCount, sparseComp.blockCount);
+
+  for (let b = 0; b < packedComp.problem.blocks.length; b += 1) {
+    const pBlk = packedComp.problem.blocks[b];
+    const sBlk = sparseComp.problem.blocks[b];
+    const dBlk = denseComp.problem.blocks[b];
+
+    assert.equal(pBlk.n_vars, packedComp.nVars);
+    assert.equal(sBlk.n_vars, sparseComp.nVars);
+    assert.equal(dBlk.n_vars, denseComp.nVars);
+    assert.equal("F_k" in pBlk, false);
+    assert.equal("F_k_sparse" in pBlk, false);
+    assert.ok(pBlk.F_k_packed !== undefined);
+    assert.ok(sBlk.F_k_sparse !== undefined);
+    assert.ok(dBlk.F_k !== undefined);
+
+    const fp = pBlk.F_k_packed!;
+    const backingBufs = new Set<ArrayBuffer>([
+      fp.k_idx.buffer as ArrayBuffer,
+      fp.rows.buffer as ArrayBuffer,
+      fp.cols.buffer as ArrayBuffer,
+      fp.vals.buffer as ArrayBuffer,
+    ]);
+    assert.equal(backingBufs.size, 4, "k_idx, rows, cols e vals devem ter ArrayBuffers independentes");
+    for (const arr of [fp.k_idx, fp.rows, fp.cols, fp.vals]) {
+      assert.equal(arr.byteOffset, 0);
+      assert.equal(arr.byteLength, arr.buffer.byteLength);
+    }
+
+    // Flatten sparseComp entries in ascending k order and compare entry-for-entry
+    const expectedFlat: Array<[number, number, number, number]> = [];
+    const sortedKeys = Object.keys(sBlk.F_k_sparse!)
+      .map((s) => Number(s))
+      .sort((x, y) => x - y);
+    for (const k of sortedKeys) {
+      for (const [r, c, v] of sBlk.F_k_sparse![String(k)]) {
+        expectedFlat.push([k, r, c, v]);
+      }
+    }
+    assert.equal(fp.k_idx.length, expectedFlat.length);
+    for (let idx = 0; idx < expectedFlat.length; idx += 1) {
+      if (idx > 0) {
+        assert.ok(fp.k_idx[idx - 1] <= fp.k_idx[idx], "k_idx deve ser monotônico crescente");
+      }
+      assert.equal(fp.k_idx[idx], expectedFlat[idx][0]);
+      assert.equal(fp.rows[idx], expectedFlat[idx][1]);
+      assert.equal(fp.cols[idx], expectedFlat[idx][2]);
+      assert.equal(fp.vals[idx], expectedFlat[idx][3]);
+      // Cross-check against dense format
+      const denseFkList: CanonicalTensor2D[] = dBlk.F_k!;
+      const denseMat: CanonicalTensor2D = denseFkList[fp.k_idx[idx]];
+      assert.equal(denseMat.data[fp.rows[idx] * pBlk.dim + fp.cols[idx]], fp.vals[idx]);
+    }
+  }
+
+  // 2a. Direct CanonicalSDPProblem.from_dict + solve() in CPython comparing packed vs sparse
+  const directParsed = compareCanonicalSdpFromDictSolve(
+    serializeCanonicalSdpForJson(packedComp.problem),
+    sparseComp.problem,
+  );
+  assert.equal(directParsed.cert_p, "validated_dual");
+  assert.equal(directParsed.cert_s, "validated_dual");
+  assert.ok(directParsed.max_diff < 1e-10, `Esperado paridade exata from_dict+solve, max_diff=${directParsed.max_diff}`);
+
+  // 2b. End-to-end CPython dispatch_rpc via zero-copy binary buffers
+  //     for BOTH TS PDC (K[1], K[2]) AND TS unmeasured observer (L[1], L[2]) vs sparse baseline!
+  const origFirstBuf = packedComp.problem.blocks[0].F_k_packed!.k_idx.buffer as ArrayBuffer;
+  const extractedTs = extractTensorsToBinaryBuffers(
+    { problem: packedComp.problem },
+    "packed-ts",
+    { packedSparseOnly: true },
+  );
+  // Confirm true zero-copy (exact same ArrayBuffer instance without slicing)
+  const transferredBufSet = new Set(extractedTs.transferList);
+  assert.equal(
+    transferredBufSet.has(origFirstBuf),
+    true,
+    "F7 extractTensorsToBinaryBuffers deve transferir ArrayBuffer original 100% zero-copy",
+  );
+
+  const packedTsResp = dispatchPythonWithBinaryBuffers(
+    {
+      api_version: RPC_API_VERSION,
+      request_id: "packed-ts-bin-1",
+      project_id: "proj-packed-parity",
+      project_revision: 1,
+      operation: "optimization.solve",
+      payload: extractedTs.replaced,
+      options: {},
+      timeout_policy: { hard_timeout_ms: 30000 },
+    },
+    extractedTs.buffers,
+  );
+  const sparseTsResp = dispatchPythonWithBinaryBuffers(
+    {
+      api_version: RPC_API_VERSION,
+      request_id: "sparse-ts-1",
+      project_id: "proj-packed-parity",
+      project_revision: 1,
+      operation: "optimization.solve",
+      payload: { problem: sparseComp.problem },
+      options: {},
+      timeout_policy: { hard_timeout_ms: 30000 },
+    },
+    {},
+  );
+  assert.equal(packedTsResp.status, "success", JSON.stringify(packedTsResp.error));
+  assert.equal(sparseTsResp.status, "success", JSON.stringify(sparseTsResp.error));
+  const packedTsRes = packedTsResp.result as Record<string, unknown>;
+  const sparseTsRes = sparseTsResp.result as Record<string, unknown>;
+  assert.equal(packedTsRes.certificate_status, "validated_dual");
+  assert.equal(sparseTsRes.certificate_status, "validated_dual");
+  const packedX = (packedTsRes.x as { data: number[] }).data;
+  const sparseX = (sparseTsRes.x as { data: number[] }).data;
+  assert.equal(packedX.length, sparseX.length);
+  for (let i = 0; i < packedX.length; i += 1) {
+    assert.ok(
+      Math.abs(packedX[i] - sparseX[i]) < 1e-10,
+      `Divergência em x[${i}]: packed=${packedX[i]} vs sparse=${sparseX[i]}`,
+    );
+  }
+
+  // Also verify observer L[i] problem through binary buffers dispatch_rpc
+  const obsDsl = [
+    "system ts (unmeasured_observer)",
+    "index i in 1..2",
+    "index k in 1..2",
+    "param alpha = 0.2",
+    "var P sym(n)",
+    "var N[i] rect(n, p)",
+    "P > 0",
+    "forall i, k:",
+    "  He(P * (A[i] + dA[k]) - N[i] * (C[i] + dC[k])) + 2*alpha*P < 0",
+    "recover L[i] = inv(P) * N[i]",
+  ].join("\n");
+  const obsParsed = parseLmiDsl(obsDsl);
+  const obsPacked = compileLmiDslToCanonicalSdp(obsParsed, tsCtx);
+  const obsSparse = compileLmiDslToCanonicalSdp(obsParsed, tsCtx, { format: "sparse" });
+  const extractedObs = extractTensorsToBinaryBuffers(
+    { problem: obsPacked.problem },
+    "packed-obs",
+    { packedSparseOnly: true },
+  );
+  const packedObsResp = dispatchPythonWithBinaryBuffers(
+    {
+      api_version: RPC_API_VERSION,
+      request_id: "packed-obs-bin-1",
+      project_id: "proj-packed-parity",
+      project_revision: 1,
+      operation: "optimization.solve",
+      payload: extractedObs.replaced,
+      options: {},
+      timeout_policy: { hard_timeout_ms: 30000 },
+    },
+    extractedObs.buffers,
+  );
+  const sparseObsResp = dispatchPythonWithBinaryBuffers(
+    {
+      api_version: RPC_API_VERSION,
+      request_id: "sparse-obs-1",
+      project_id: "proj-packed-parity",
+      project_revision: 1,
+      operation: "optimization.solve",
+      payload: { problem: obsSparse.problem },
+      options: {},
+      timeout_policy: { hard_timeout_ms: 30000 },
+    },
+    {},
+  );
+  assert.equal(packedObsResp.status, "success", JSON.stringify(packedObsResp.error));
+  assert.equal((packedObsResp.result as Record<string, unknown>).certificate_status, "validated_dual");
+  const obsPackedX = ((packedObsResp.result as Record<string, unknown>).x as { data: number[] }).data;
+  const obsSparseX = ((sparseObsResp.result as Record<string, unknown>).x as { data: number[] }).data;
+  for (let i = 0; i < obsPackedX.length; i += 1) {
+    assert.ok(Math.abs(obsPackedX[i] - obsSparseX[i]) < 1e-10);
+  }
+
+  // 3. LmiView UI test with real F7 zero-copy transfer detachment simulation:
+  //    Resolver LMI -> Auditar Certificado (twice!) -> Exportar CVXPY -> Exportar YALMIP
+  //    MUST succeed with zero detached ArrayBuffer errors!
+  let detachedBufferCount = 0;
+  const executedOps: string[] = [];
+  const pendingResolvers = new Map<string, Array<() => void>>();
+  const waitOp = (op: string): Promise<void> =>
+    new Promise<void>((resolve) => {
+      const list = pendingResolvers.get(op) ?? [];
+      list.push(resolve);
+      pendingResolvers.set(op, list);
+    });
+
+  class DetachingBinaryBridgeClient extends StubLmiClient {
+    public override async execute(
+      req: RpcRequest,
+      opts?: ExecuteOptions,
+    ): Promise<RpcResponse> {
+      try {
+        // Mirror PyodideEngineClient: validate ensureFiniteJson (rejects detached ArrayBuffers!)
+        ensureFiniteJson(req.payload, "$.payload");
+        const extracted = extractTensorsToBinaryBuffers(
+          req.payload,
+          `${req.request_id}-packed`,
+          {
+            preserveSenderCopy: opts?.preserveSenderCopy,
+            packedSparseOnly: true,
+          },
+        );
+        const wireReq: RpcRequest = { ...req, payload: extracted.replaced };
+        const resp = dispatchPythonWithBinaryBuffers(wireReq, extracted.buffers);
+
+        // Simulate real Worker.postMessage(..., transferList) detaching sender ArrayBuffers unless preserveSenderCopy=true
+        if (opts?.preserveSenderCopy !== true) {
+          for (const ab of extracted.transferList) {
+            structuredClone(ab, { transfer: [ab] });
+            markBufferTransferred(ab);
+            assert.equal(isArrayBufferDetached(ab), true);
+            detachedBufferCount += 1;
+          }
+        }
+        executedOps.push(req.operation);
+        return resp;
+      } finally {
+        const list = pendingResolvers.get(req.operation);
+        if (list && list.length > 0) {
+          const next = list.shift()!;
+          setTimeout(next, 10);
+        }
+      }
+    }
+  }
+
+  const bridgeClient = new DetachingBinaryBridgeClient();
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client: bridgeClient,
+    project_id: "proj-lmi-detachment-test",
+  });
+  await app.client.init();
+  app.shell.switchTab("optimization_lmi");
+
+  // Step A: Click "Resolver LMI" (transfers F_k_packed zero-copy and detaches its buffers!)
+  const solveDone = waitOp("optimization.solve");
+  root.querySelector('[data-action="lmi-solve"]')!.dispatchEvent("click");
+  await solveDone;
+  assert.ok(detachedBufferCount >= 8, `Esperado >= 8 ArrayBuffers transferidos/destacados, obtido ${detachedBufferCount}`);
+  const certPanel = root.querySelector<FakeElement>("#lmi-certificate-panel")!;
+  assert.ok(certPanel.textContent.includes("validated_dual"));
+  assert.ok(certPanel.textContent.includes("Ganho recuperado K"));
+
+  // Step B: Click "Auditar Certificado" right after solve (must NOT hit detached ArrayBuffer!)
+  const verifyDone1 = waitOp("optimization.verify");
+  root.querySelector('[data-action="lmi-verify"]')!.dispatchEvent("click");
+  await verifyDone1;
+  assert.ok(certPanel.textContent.includes("validated_dual"));
+  assert.equal(
+    root.querySelector("#controllab-error-banner")?.textContent.includes("detached") ?? false,
+    false,
+  );
+
+  // Step C: Click "Auditar Certificado" a SECOND time to prove repeated verification works too
+  const verifyDone2 = waitOp("optimization.verify");
+  root.querySelector('[data-action="lmi-verify"]')!.dispatchEvent("click");
+  await verifyDone2;
+  assert.ok(certPanel.textContent.includes("validated_dual"));
+
+  // Step D: Click "Exportar CVXPY" & "Exportar YALMIP" right after solve+verify
+  const exportCvxpyDone = waitOp("optimization.export_cvxpy");
+  root.querySelector('[data-action="lmi-export-cvxpy"]')!.dispatchEvent("click");
+  await exportCvxpyDone;
+  const modalPre = root.querySelector<FakeElement>("#export-modal-content")!;
+  assert.ok(modalPre.textContent.includes("import cvxpy"));
+  root.querySelector("#export-modal-close")!.dispatchEvent("click");
+
+  const exportYalmipDone = waitOp("optimization.export_yalmip");
+  root.querySelector('[data-action="lmi-export-yalmip"]')!.dispatchEvent("click");
+  await exportYalmipDone;
+  assert.ok(modalPre.textContent.includes("sdpvar"));
+  root.querySelector("#export-modal-close")!.dispatchEvent("click");
+
+  assert.deepEqual(executedOps, [
+    "optimization.solve",
+    "optimization.verify",
+    "optimization.verify",
+    "optimization.export_cvxpy",
+    "optimization.export_yalmip",
+  ]);
 
   app.destroy();
 });

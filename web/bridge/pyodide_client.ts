@@ -13,10 +13,13 @@ import {
 } from "./client.ts";
 import {
   buildFailureRpcResponse,
+  containsExtractablePackedSparse,
   ControlLabBridgeError,
+  extractTensorsToBinaryBuffers,
   extractTransferableBuffers,
   generateUuid,
   isPlainObject,
+  markBufferTransferred,
   rehydrateBufferRefsInRecord,
   RPC_API_VERSION,
   validateRpcResponse,
@@ -24,6 +27,7 @@ import {
   type CapabilityDescriptor,
   type RpcRequest,
   type RpcResponse,
+  type WireBinaryBuffer,
 } from "./protocol.ts";
 import {
   IndexedDBProjectStore,
@@ -655,14 +659,63 @@ export class PyodideEngineClient extends BaseEngineClient {
     };
     let transferList: ArrayBuffer[] = [];
 
-    if (options?.buffers) {
+    const hasExplicitBuffers = options?.buffers !== undefined;
+    const hasInlinePackedSparse = containsExtractablePackedSparse(request.payload);
+
+    if (hasExplicitBuffers || hasInlinePackedSparse) {
       return new Promise<{ response: RpcResponse; bridgeTransferMs?: number }>(
         (resolve) => {
-          let extracted: ReturnType<typeof extractTransferableBuffers>;
+          let extractedExplicit: ReturnType<typeof extractTransferableBuffers> | null =
+            null;
+          let wireRequest: RpcRequest = request;
+          const combinedBuffers: Record<string, WireBinaryBuffer> = {};
+          const transferSet = new Set<ArrayBuffer>();
+          const packedSourceBuffers: ArrayBuffer[] = [];
+
           try {
-            extracted = extractTransferableBuffers(options.buffers!, {
-              preserveSenderCopy: options.preserveSenderCopy,
-            });
+            if (hasExplicitBuffers) {
+              extractedExplicit = extractTransferableBuffers(options!.buffers!, {
+                preserveSenderCopy: options?.preserveSenderCopy,
+              });
+              for (const [k, wb] of Object.entries(extractedExplicit.binaryEntries)) {
+                combinedBuffers[k] = wb;
+              }
+              for (const ab of extractedExplicit.transferList) {
+                transferSet.add(ab);
+              }
+            }
+
+            if (hasInlinePackedSparse) {
+              const extractedPacked = extractTensorsToBinaryBuffers(
+                request.payload,
+                `${request.request_id}-packed`,
+                {
+                  preserveSenderCopy: options?.preserveSenderCopy,
+                  packedSparseOnly: true,
+                },
+              );
+              wireRequest = {
+                ...request,
+                payload: extractedPacked.replaced,
+              };
+              for (const [k, wb] of Object.entries(extractedPacked.buffers)) {
+                let buf = wb.buffer;
+                if (transferSet.has(buf)) {
+                  buf = buf.slice(0);
+                  combinedBuffers[k] = {
+                    ...wb,
+                    buffer: buf,
+                    byte_length: buf.byteLength,
+                  };
+                } else {
+                  combinedBuffers[k] = wb;
+                  if (options?.preserveSenderCopy !== true) {
+                    packedSourceBuffers.push(buf);
+                  }
+                }
+                transferSet.add(buf);
+              }
+            }
           } catch (err: unknown) {
             const bErr =
               err instanceof ControlLabBridgeError
@@ -690,15 +743,15 @@ export class PyodideEngineClient extends BaseEngineClient {
 
           message = {
             kind: "rpc_request",
-            request,
-            buffers: extracted.binaryEntries,
+            request: wireRequest,
+            buffers: combinedBuffers,
           };
-          transferList = extracted.transferList;
+          transferList = Array.from(transferSet);
 
           const tPost0 = tBridge0;
-          const timeoutTimer = this.createTimeoutTimer(request);
+          const timeoutTimer = this.createTimeoutTimer(wireRequest);
           this.pendingRpc.set(request.request_id, {
-            request,
+            request: wireRequest,
             resolve,
             timeoutTimer,
             bridgeTransferMs: 0,
@@ -707,7 +760,14 @@ export class PyodideEngineClient extends BaseEngineClient {
 
           try {
             w.postMessage(message, transferList);
-            verifyPostTransferDetachment(extracted);
+            if (extractedExplicit !== null) {
+              verifyPostTransferDetachment(extractedExplicit);
+            }
+            if (options?.preserveSenderCopy !== true) {
+              for (const ab of packedSourceBuffers) {
+                markBufferTransferred(ab);
+              }
+            }
             const tPost1 =
               typeof performance !== "undefined" &&
               typeof performance.now === "function"

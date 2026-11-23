@@ -42,4 +42,14 @@ Medição independente de estabilização LTI contínua (`continuous_stabilizati
 | `n=28` (`434 vars`) | `3221.4ms` | `9721.2ms` (14 it) | `273.0ms` | `validated_dual` | Limite interativo (`max_variables=448`) |
 | `n=30` (`495 vars`) | `4293.8ms` | `16424.9ms` (15 it) | `359.9ms` | `validated_dual` | Acima de `< 10s` — exportação offline recomendada |
 
+## Evolução Planejada (ADR-015 — Fase 9)
+
+A continuidade de escalabilidade do solver `native_primal_dual` na **Fase 9 (`Phase9-Native-SDP-Scalability-v2`)** é formalizada na [`ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md`](ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md), preservando integralmente a execução 100% *zero-install* em NumPy/SciPy puro no Pyodide (rejeitando servidor local `localhost`, forks binários Wasm externos, `wasm64`/COOP-COEP e solvers paralelos de 1ª ordem) e mantendo inegociável a auditoria 5D independente no problema original sem relaxamento de tolerâncias. A evolução divide-se em 4 ciclos sequenciais:
+
+1. **Ciclo 1 (`WP-PHASE9-01A..01D`):** transporte *zero-copy* empacotado (`F_k_packed` via `TypedArray`/`Transferable` → Pyodide `memoryview`/`np.frombuffer`), buffers *in-place* pré-alocados no laço IPM (`H, W, S, dX, dZ`) e caminho vetorial 1D unificado para blocos PSD `1x1`.
+2. **Ciclo 2 (`WP-PHASE9-02`, `WP-PHASE9-02B`):** Embedding Homogêneo Autodual (HSDE) em fase única com certificados Farkas primal/dual e múltiplos corretores de centralidade de Gondzio reutilizando a fatoração de Cholesky ($O(m^2)$).
+3. **Ciclo 3 (`WP-PHASE9-03`, `WP-PHASE9-03B`, `WP-PHASE9-03C`):** montagem esparsa do complemento de Schur pelas fórmulas F1/F2 de Fujisawa, remoção simbólica de colunas redundantes em `F_k` e fusão simétrica automática ($\Upsilon_{ij} + \Upsilon_{ji} \prec 0$) no compilador `lmi_dsl_compiler.ts`.
+4. **Ciclo 4 (`WP-PHASE9-04`, `WP-PHASE9-04B`):** decomposição cordal por cliques maximais com fusão em árvore de cliques (`scipy.sparse.csgraph`) + fatoração esparsa adaptativa de Schur via `scipy.sparse.linalg.splu` (quando densidade simbólica $< 30\%$) e recalibração formal do `BROWSER_ENVELOPE` em navegador real.
+
+
 

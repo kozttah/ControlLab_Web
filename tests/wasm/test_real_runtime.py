@@ -149,3 +149,193 @@ def test_offline_scripts_download_without_committed_solution(browser_harness, tm
         else:
             assert 'optimize(' in text and 'value(M) / value(P)' in text
         page.locator('#export-modal-close').click()
+
+
+def test_wasm_phase9_cycle1_packed_zero_copy_transfer_and_solve(browser_harness):
+    """ADR-015 Cycle 1 real Chromium + Pyodide Wasm proof: F_k_packed Transferable, 0 PyProxy leak, and UI Solve->Verify->Export."""
+    import time
+    from control_lab.core.tensors import tensor_to_array
+    from control_lab.optimization import continuous_stabilization_lmi, solve as solve_sdp
+
+    # 1. Build deterministic n=8 stabilization LMI (44 vars) and solve in CPython for cross-runtime parity
+    n = 8
+    alpha = 0.25
+    A = np.diag([-1.0 - 0.15 * i for i in range(n - 1)] + [0.45]).astype(np.float64)
+    for i in range(n - 1):
+        A[i, i + 1] = 0.2
+    B = np.zeros((n, 1), dtype=np.float64)
+    B[-1, 0] = 1.0
+    B[-2, 0] = 0.25
+    prob = continuous_stabilization_lmi(A, B, alpha=alpha)
+    cpython_res = solve_sdp(prob, backend="native_primal_dual")
+    assert cpython_res.status in ("success", "warning"), cpython_res.error
+    assert cpython_res.data["certificate_status"] == "validated_dual"
+    x_cpython = tensor_to_array(cpython_res.data["x"], expected_ndim=1, dtype="float64")
+    obj_cpython = float(cpython_res.data["objective"])
+
+    base = prob.to_dict()
+    js_blocks = []
+    for blk, blk_dict in zip(prob.blocks, base["blocks"], strict=True):
+        k_list, r_list, c_list, v_list = [], [], [], []
+        for k, fk in blk.F_terms.items():
+            rows, cols = np.nonzero(np.abs(fk) > 0.0)
+            for r, c_col in zip(rows.tolist(), cols.tolist(), strict=True):
+                k_list.append(int(k))
+                r_list.append(int(r))
+                c_list.append(int(c_col))
+                v_list.append(float(fk[r, c_col]))
+        js_blocks.append(
+            {
+                "name": blk_dict["name"],
+                "F0": blk_dict["F0"],
+                "n_vars": prob.n_vars,
+                "k_idx": k_list,
+                "rows": r_list,
+                "cols": c_list,
+                "vals": v_list,
+            }
+        )
+
+    # 2. Execute real zero-copy F_k_packed (Int32Array / Float64Array Transferable) in Chromium + Pyodide Worker
+    page = browser_harness.page
+    page_errors = []
+    page.on("pageerror", lambda err: page_errors.append(str(err)))
+
+    wasm_packed_report = page.evaluate(
+        """async ({c, c0, name, blocks}) => {
+            const buffersToCheck = [];
+            const packedBlocks = blocks.map((b) => {
+                const kArr = new Int32Array(b.k_idx);
+                const rArr = new Int32Array(b.rows);
+                const cArr = new Int32Array(b.cols);
+                const vArr = new Float64Array(b.vals);
+                buffersToCheck.push(kArr.buffer, rArr.buffer, cArr.buffer, vArr.buffer);
+                return {
+                    name: b.name,
+                    F0: b.F0,
+                    n_vars: b.n_vars,
+                    F_k_packed: {
+                        k_idx: kArr,
+                        rows: rArr,
+                        cols: cArr,
+                        vals: vArr,
+                    },
+                };
+            });
+            const req = {
+                api_version: '1.0',
+                request_id: crypto.randomUUID(),
+                project_id: 'f9-phase9-cycle1-wasm',
+                project_revision: 1,
+                operation: 'optimization.solve',
+                payload: {
+                    problem: { name, c, c0, blocks: packedBlocks },
+                    backend: 'native_primal_dual',
+                },
+                options: {},
+                timeout_policy: { hard_timeout_ms: 60000 },
+            };
+            const t0 = performance.now();
+            const response = await app.client.execute(req, { commitOnSuccess: false });
+            const solveMs = performance.now() - t0;
+            const detachedCount = buffersToCheck.filter((buf) => buf.byteLength === 0).length;
+            const workerStats = await app.client.getWorkerStats();
+            return {
+                response,
+                solveMs,
+                totalPackedBuffers: buffersToCheck.length,
+                detachedCount,
+                activeProxies: workerStats.pyproxy.activeProxies,
+                workerStats,
+            };
+        }""",
+        {
+            "c": base["c"],
+            "c0": base.get("c0", 0.0),
+            "name": base.get("name", "f9_stab_n8"),
+            "blocks": js_blocks,
+        },
+    )
+
+    resp = wasm_packed_report["response"]
+    assert resp["status"] in ("success", "warning"), resp
+    assert resp["result"]["backend"] == "native_primal_dual"
+    assert resp["result"]["certificate_status"] == "validated_dual"
+    assert resp["result"]["audit_feasibility"] in ("strictly_feasible", "approximately_feasible")
+    assert wasm_packed_report["totalPackedBuffers"] > 0
+    assert wasm_packed_report["detachedCount"] == wasm_packed_report["totalPackedBuffers"], (
+        f"Expected all F_k_packed ArrayBuffers transferred zero-copy (detached), "
+        f"got {wasm_packed_report['detachedCount']}/{wasm_packed_report['totalPackedBuffers']}"
+    )
+    assert wasm_packed_report["activeProxies"] == 0, wasm_packed_report["workerStats"]
+
+    x_wasm = tensor_to_array(resp["result"]["x"], expected_ndim=1, dtype="float64")
+    obj_wasm = float(resp["result"]["objective"])
+    max_x_diff = float(np.max(np.abs(x_wasm - x_cpython)))
+    obj_diff = abs(obj_wasm - obj_cpython)
+    assert max_x_diff < 1e-8, f"CPython vs Pyodide x parity mismatch: {max_x_diff}"
+    assert obj_diff < 1e-8, f"CPython vs Pyodide objective parity mismatch: {obj_diff}"
+
+    # 3. Real browser UI flow: Solve -> Verify -> Export CVXPY without any detached ArrayBuffer error
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+
+    t_ui_solve_0 = time.perf_counter()
+    page.locator('[data-action="lmi-solve"]').click()
+    page.locator("#lmi-spectrum-chart-slot svg").wait_for(state="visible", timeout=60000)
+    page.wait_for_function(
+        "() => (document.querySelector('#lmi-certificate-panel')?.textContent || '').includes('validated_dual')",
+        timeout=30000,
+    )
+    ui_solve_ms = (time.perf_counter() - t_ui_solve_0) * 1000.0
+    stats_after_solve = page.evaluate("() => app.client.getWorkerStats()")
+    assert stats_after_solve["pyproxy"]["activeProxies"] == 0, stats_after_solve
+
+    t_ui_verify_0 = time.perf_counter()
+    page.locator('[data-action="lmi-verify"]').click()
+    page.wait_for_function(
+        """() => {
+            const polite = document.querySelector('#controllab-live-polite')?.textContent || '';
+            return polite.includes('Auditoria independente concluída') && polite.includes('validated_dual');
+        }""",
+        timeout=30000,
+    )
+    ui_verify_ms = (time.perf_counter() - t_ui_verify_0) * 1000.0
+    stats_after_verify = page.evaluate("() => app.client.getWorkerStats()")
+    assert stats_after_verify["pyproxy"]["activeProxies"] == 0, stats_after_verify
+
+    page.locator('[data-action="lmi-export-cvxpy"]').click()
+    export_modal = page.locator("#export-modal-content")
+    export_modal.wait_for(state="visible", timeout=30000)
+    cvxpy_text = export_modal.inner_text()
+    assert "import cvxpy" in cvxpy_text, cvxpy_text[:200]
+    compile(cvxpy_text, "<ui cvxpy export>", "exec")
+    page.locator("#export-modal-close").click()
+    page.locator("#export-modal-content").wait_for(state="hidden")
+
+    stats_after_export = page.evaluate("() => app.client.getWorkerStats()")
+    assert stats_after_export["pyproxy"]["activeProxies"] == 0, stats_after_export
+
+    alert_texts = [t.strip() for t in page.locator('[role="alert"]').all_inner_texts() if t.strip()]
+    assert not alert_texts, f"Unexpected UI error alerts: {alert_texts}"
+    assert not page_errors, f"Unexpected browser page errors: {page_errors}"
+
+    evidence = {
+        "n_states": n,
+        "n_vars": prob.n_vars,
+        "wasm_packed_solve_ms": round(float(wasm_packed_report["solveMs"]), 2),
+        "ui_solve_ms": round(ui_solve_ms, 2),
+        "ui_verify_ms": round(ui_verify_ms, 2),
+        "total_packed_buffers": wasm_packed_report["totalPackedBuffers"],
+        "detached_buffers": wasm_packed_report["detachedCount"],
+        "active_proxies_after_packed_solve": wasm_packed_report["activeProxies"],
+        "active_proxies_after_ui_export": stats_after_export["pyproxy"]["activeProxies"],
+        "max_x_diff_cpython_vs_wasm": max_x_diff,
+        "objective_diff_cpython_vs_wasm": obj_diff,
+        "certificate_status": resp["result"]["certificate_status"],
+        "audit_feasibility": resp["result"]["audit_feasibility"],
+        "ui_solve_verify_export_cvxpy_passed": True,
+    }
+    print(f"[F9-WASM-CYCLE1] {json.dumps(evidence)}")
+    browser_harness.record("phase9-cycle1-packed-wasm", evidence)
+

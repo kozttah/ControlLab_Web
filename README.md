@@ -4,74 +4,111 @@
 
 [![CI](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml)
 [![Especificação](https://img.shields.io/badge/Documento_Diretor-CL--DIR--001_v1.0.0-0f172a)](./ControlLab_Web_Documento_Diretor_v1.0.md)
-[![Status](https://img.shields.io/badge/Produto-Beta-d97706)](./PROJECT_STATE.json)
+[![UX & Design](https://img.shields.io/badge/Design_Diretor-CL--UX--DIR--001_+_ADR--014-1d4ed8)](./docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md)
+[![Status](https://img.shields.io/badge/Produto-Beta_(102%2F102_WPs)-d97706)](./PROJECT_STATE.json)
 [![Licença](https://img.shields.io/badge/Licen%C3%A7a-MIT-059669)](./LICENSE)
 
-O ControlLab Web reúne um motor científico em `NumPy`/`SciPy`, modelos canônicos, diagnósticos numéricos e arquivos portáteis para ensino, pesquisa e engenharia de controle. O cálculo no navegador é executado em um Web Worker Pyodide, sem backend científico remoto obrigatório. O mesmo pacote `control_lab` pode ser utilizado em CPython local.
+O ControlLab Web reúne um motor científico em `NumPy`/`SciPy`, modelos canônicos, diagnósticos numéricos, síntese baseada em LMIs/SDP e arquivos portáteis para ensino, pesquisa e engenharia de controle. O cálculo no navegador é executado em um Web Worker Pyodide, sem backend científico remoto obrigatório. O mesmo pacote `control_lab` pode ser utilizado diretamente em CPython local.
 
-A especificação normativa é o [Documento Diretor CL-DIR-001](./ControlLab_Web_Documento_Diretor_v1.0.md), complementado pelas [decisões de arquitetura](./docs/architecture/) e pelo [Documento Diretor de Design e UX (`CL-UX-DIR-001`)](./docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md). O [PROJECT_STATE.json](./PROJECT_STATE.json) registra os gates, os WorkPackages e seus escopos de aceite.
+A especificação normativa é o [Documento Diretor CL-DIR-001](./ControlLab_Web_Documento_Diretor_v1.0.md), complementado pelas [decisões de arquitetura (`ADR-009` a `ADR-014`)](./docs/architecture/), pelo [Documento Diretor de Design e UX (`CL-UX-DIR-001`)](./docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md) e pelo [Documento Diretor da DSL de LMIs (`CL-LMI-DSL-DIR-001`)](./docs/architecture/ControlLab_Web_LMI_DSL_Design_Diretor_v1.0.md). O [PROJECT_STATE.json](./PROJECT_STATE.json) registra os gates, os WorkPackages e seus pareceres independentes de aceite.
 
 ## Testar no navegador
 
 **[Abrir ControlLab Web — versão beta](https://kozttah.github.io/ControlLab_Web/)**
 
-O endereço permite experimentar a plataforma sem instalar Python ou Node.js. Na primeira abertura, o navegador precisa baixar e inicializar o motor Pyodide e seus pacotes; esse carregamento pode demorar. Aguarde o indicador **Motor: ready** antes de confirmar um cálculo LQR. O cálculo ocorre no dispositivo e os projetos ficam no armazenamento local do navegador; exporte o arquivo `.ctrlab` para guardar ou transferir seu trabalho.
+O endereço permite utilizar todas as seis bancadas da plataforma sem instalar Python ou Node.js. Na primeira abertura, o navegador precisa baixar e inicializar o motor Pyodide e seus pacotes; esse carregamento pode demorar alguns segundos. Aguarde o indicador **Motor: ready** antes de confirmar um cálculo. Todo o processamento ocorre no próprio dispositivo e os projetos ficam no armazenamento local do navegador; exporte o arquivo `.ctrlab` para guardar ou transferir seu workspace completo (incluindo sistemas lineares, politópicos, Takagi-Sugeno, datasets e condições LMI).
 
-A versão publicada é destinada a testes de usuário e conserva os limites beta descritos abaixo. Atualizações da `main` são publicadas automaticamente após a aprovação dos jobs A–G do CI, reutilizando o mesmo artefato estático verificado. O modo offline depende de provisionamento completo, e limpar os dados do navegador remove o cache e os projetos locais.
+A versão publicada é destinada a uso e validação em estágio beta, preservando os limites documentados abaixo. Atualizações na branch `main` são publicadas automaticamente no GitHub Pages após a aprovação de todos os jobs **A–G** do CI, reutilizando exatamente o mesmo artefato estático verificado. O modo offline depende de provisionamento completo do Service Worker, e limpar os dados do navegador remove o cache e os projetos locais.
 
 ## Estado atual
 
-**Referência em 17/11/2026:** commit [`f1528bb`](https://github.com/kozttah/ControlLab_Web/commit/f1528bb6fe89b4d1a8c1b684f6bea29008de362a), com **34 WorkPackages aceitos e 5 pendentes**. Os quatro gates da Fase 0 foram aprovados pela F9 no domínio documentado. O produto permanece **beta**; a aprovação dos gates não declara todos os recursos da especificação como uma release estável.
+**Referência em 22/11/2026:** commit [`6cdb7a6`](https://github.com/kozttah/ControlLab_Web/commit/6cdb7a67694b3b78f6e02cd2ef2b89d9900cb6e0), com **102 de 102 WorkPackages aprovados pela auditoria independente F9 (`ACCEPTED_BY_F9`, 0 pendentes)**, cobrindo os quatro gates da Fase 0 e as Fases 1–8. O produto mantém explicitamente o selo **beta**: a aprovação dos WorkPackages valida cada capacidade dentro do domínio auditado, sem declarar certificação integral para casos fora das hipóteses documentadas.
 
-| Gate | Resultado | Capacidade verificada |
+| Gate / Marco | Resultado | Capacidade verificada |
 | --- | --- | --- |
 | **G-0A** | `ACCEPTED_BY_F9` | CARE/LQR 12×3, paridade CPython/Pyodide, recuperação do Worker e controle de PyProxy. |
-| **G-0B** | `ACCEPTED_BY_F9` | Solver SDP nativo no Wasm, escada A–D, auditoria primal/dual e exportadores CVXPY/YALMIP em Chromium e Firefox. |
-| **G-0C** | `ACCEPTED_BY_F9` | Arraste DOM real com Fast-Preview/commit, teclado, viewport mobile, validação dimensional e curvas temporais de estados/entradas. |
-| **G-0D** | `ACCEPTED_BY_F9` | Round-trip `.ctrlab`, downloads `.pvm` estáticos/dinâmicos e saturação, com abertura e comparação de trajetórias no PathView/PathSim. |
+| **G-0B** | `ACCEPTED_BY_F9` | Solver SDP nativo escalável no Wasm, escada A–D, auditoria primal/dual 5D e exportadores CVXPY/YALMIP em Chromium e Firefox. |
+| **G-0C** | `ACCEPTED_BY_F9` | Arraste DOM real com Fast-Preview/commit (`R-23`), teclado, viewport mobile `390×844`, validação dimensional e gráficos científicos exportáveis (SVG/PNG). |
+| **G-0D** | `ACCEPTED_BY_F9` | Round-trip `.ctrlab`, exportação `.pvm` passiva (estático/dinâmico/saturação) e scripts PathSim `0.31.0`, validados em PathView `0.21.0` / PathSim `0.31.0`. |
+| **Fases 1–8** | `ACCEPTED_BY_F9` | 6 bancadas completas, arquitetura **Workspace-First (`ADR-014`)**, DSL LMI v2.0 direta + observadores TS não medidos, ANFIS, $\mathcal{H}_\infty$ DGKF estável (`ADR-012`) e scripts PathSim (`ADR-013`). |
 
-A [execução CI dessa referência](https://github.com/kozttah/ControlLab_Web/actions/runs/44078018770) concluiu os oito jobs com sucesso, incluindo os dois perfis matemáticos, Wasm, segurança, integração e artefatos. O badge acima acompanha a `main` atual; essa execução é uma evidência vinculada ao commit indicado. Os perfis matemáticos passaram com 298 testes sem SDP opcional e 147 com SDP, sem skips. As contagens se sobrepõem entre suítes e não devem ser somadas como casos distintos.
+A [execução CI dessa referência (#45083984167)](https://github.com/kozttah/ControlLab_Web/actions/runs/45083984167) concluiu **todos os 9 jobs (A–H)** com sucesso:
 
-Evidências e limites estão no [relatório dos gates](./docs/audits/RELATORIO_STATUS_GATES_FASE0.md), no [fechamento CI e reconciliação](./docs/audits/CI_RECONCILIATION_2026-11-17.md) e nos [handoffs F9](./docs/audits/handoffs/). Relatórios de auditorias anteriores são preservados como histórico.
+- **A — Python static:** `ruff`, `mypy`, `pip check` e sanidade do pacote `control_lab`.
+- **B — CPython math (`core_no_sdp`):** **569 testes aprovados, 0 skips** (ambiente enxuto `requirements-core.lock`, sem `clarabel`, `cvxpy`, `pathview` ou `pathsim`).
+- **B — CPython math (`sdp_available`):** **378 testes aprovados, 0 skips** (incluindo oráculos independentes Clarabel/CVXPY).
+- **C — Web contracts and unit:** **152 testes aprovados** (`typecheck` rigoroso com `erasableSyntaxOnly` + 20 arquivos de teste).
+- **D — Real browser Wasm:** **14 testes aprovados** em navegador real com Pyodide.
+- **E — Browser integration and external gate:** **32 testes aprovados em Chromium** (incluindo 14 testes E2E de UX/responsividade e interoperabilidade externa) + **1 suíte em Firefox**.
+- **F — Browser security:** **8 testes aprovados** (isolamento offline real, CSP e passividade de artefatos).
+- **G — Artifacts and release gate:** **55 testes aprovados** (verificação de integridade dos 42 assets locais e reprodutibilidade do build).
+- **H — Publish beta GitHub Pages:** publicação automática do artefato verificado.
 
-## O que já pode ser demonstrado pela interface
+*(Nota: as contagens de testes entre perfis se sobrepõem parcialmente e não devem ser somadas como casos distintos.)*
 
-- **LQR:** configuração de planta e pesos, pré-visualização transitória durante o arraste do slider e confirmação pelo motor Python. O preview não é salvo como resultado científico confirmado.
-- **Resultados:** ganho, polos, curvas temporais de estados `x` e entradas `u`, erros dimensionais visíveis, navegação por teclado e layout mobile nos cenários auditados.
-- **Projetos `.ctrlab`:** salvar e reabrir o workspace LQR confirmado, preservando matrizes, revisões e opções de exportação, incluindo saturação e o DTO de controlador dinâmico.
-- **Simulação externa `.pvm`:** exportar realimentação de estados contínua/discreta, saturação de atuador e `DynamicController`, com validação de dimensões, sinal e bem-postura. A exportação dinâmica pode ser feita sem síntese LQR prévia; o fluxo ZIP da tela ainda exige um workspace LQR confirmado.
-- **Contingência SDP:** obter scripts Python/CVXPY (`.py`) ou MATLAB/YALMIP (`.m`) do problema atual, inclusive antes de confirmar uma solução.
-- **Execução local/offline:** cálculo no dispositivo após distribuição e provisionamento completo dos recursos, com integridade dos assets verificada. A instalação/build inicial pode precisar de rede.
+Evidências detalhadas estão nos [handoffs F9](./docs/audits/handoffs/), no [relatório dos gates da Fase 0](./docs/audits/RELATORIO_STATUS_GATES_FASE0.md) e no [fechamento CI](./docs/audits/CI_RECONCILIATION_2026-11-17.md). Relatórios de auditorias anteriores são preservados como histórico.
 
-A interoperabilidade foi auditada com **PathView 0.21.0 / PathSim 0.31.0**. Eventos externos e simulação multirate estão fora do domínio homologado. A validação YALMIP foi estrutural/sintática; não houve execução MATLAB nesta auditoria. As provas de desempenho usam o hardware do container, conforme `DEC-OPEN-03`, sem homologação de notebook de referência. Acessibilidade WCAG 2.2 AA e interatividade a 60 FPS são metas da especificação; os testes de teclado/mobile e de preview não constituem certificação integral dessas metas.
-
-## Motor científico e escopo de evolução
+## Arquitetura da bancada — Workspace-First (`ADR-014`) e 6 abas
 
 ![Arquitetura modular](./controllab_v1_assets/arquitetura_v1.png)
 
-O projeto organiza seis áreas de projeto e a integração com simulador externo. A tabela distingue os módulos científicos existentes dos fluxos completos de UI que ainda serão integrados e homologados. A existência de uma operação Python/RPC ou de uma card não equivale ao aceite de toda a vertical no navegador.
+A interface segue a diretriz **Workspace-First** formalizada na [ADR-014](./docs/architecture/ADR-014-workspace-centralized-system-definition.md) e incorporada como **Pilar 5** do [Documento Diretor de Design (`CL-UX-DIR-001`)](./docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md):
 
-| Área | Núcleo científico / API | Situação da interface e próximos incrementos |
+- **Workspace Dock persistente (`+ Novo` / `Editar`):** ponto único de criação, edição versionada (`#r1 → #r2`) e inspeção de todos os ativos da sessão:
+  - **Função de Transferência (`tf`)** contínua ou discreta;
+  - **Espaço de Estados / Planta Generalizada (`ss`)** com suporte opcional aos canais exógenos e de desempenho (`Bw, Dyw, Cz, Dzu, Dzw`), persistidos em `provenance.generalized_channels` em conformidade estrita com `state_space.schema.json`;
+  - **Sistema Politópico Incerto (`polytopic`)** com número **ilimitado** de vértices `(A[i], B[i], C[i], D[i])`, gerador auxiliar `±δ%` e registro canônico `TSStateSpace(kind="polytopic_uncertain")`;
+  - **Sistema Takagi-Sugeno (`ts`)** com número **ilimitado** de regras, editor de premissas `[z_min, z_max]` com classificação **Medida / Não Medida** e funções de ponderação analíticas `h_i(z)` com validação convexa em tempo real ($\sum h_i(z) = 1$, $h_i(z) \ge 0$, sem `eval`), registrando `ts_measured` ou `ts_partially_observed`;
+  - **Séries Temporais CSV (`csv`)** com particionamento treino/holdout;
+  - **Exemplos prontos** (Integrador Duplo, Massa-Mola-Amortecedor, 1ª Ordem, Planta MIMO 2×2, Dataset PRBS, Politópico 2 Vértices e TS com Premissa Não Medida) e persistência integral em `.ctrlab`.
+- **Abas de projeto focadas em parâmetros de projeto:** cada uma das 6 abas seleciona um sistema já definido no Workspace (com atalhos diretos **Editar Sistema no Workspace…** e **+ Novo Sistema**) e concentra exclusivamente os parâmetros de síntese e análise daquela disciplina:
+
+| Aba | Bancada e fluxo integrado no navegador | Núcleo científico (`control_lab`) |
 | --- | --- | --- |
-| **Identificação** | ARX, OE, subespaços, pré-processamento, PE e validação/resíduos. | Seleção de dataset, treino/holdout, gráficos e reutilização em LQR/SISO estão na próxima fila. |
-| **Frequência SISO** | Resposta em frequência, margens, lugar das raízes e compensadores. | Fluxo com gráficos, overlays, edição e commit ainda será completado e homologado. |
-| **Espaço de estados** | PBH/posto, Lyapunov/Sylvester, CARE/DARE, LQR, observadores, Kalman/LQG e simulação LTI. | Vertical LQR auditada. A UI ampliada de observadores/LQG faz parte das etapas seguintes. |
-| **Frequência MIMO** | RGA, valores singulares e funções de sensibilidade, com hipóteses e diagnósticos. | Integração visual e seleção de entradas/saídas exigem homologação própria. |
-| **Fuzzy / TS / ANFIS** | Inferência, perfil FML suportado, ANFIS e modelos TS/PDC tipados. | Aceite FML mantém escopo CPython/perfil suportado. A vertical visual completa ainda será homologada. |
-| **LMIs / SDP** | Modelagem canônica afim, templates de controle, solver nativo e verificador independente. | Motor Wasm e exportadores auditados; a experiência ampliada de modelagem/templates continua no roadmap. |
-| **PathView / PathSim** | Adaptadores `.pvm`, controladores estáticos/dinâmicos e importação passiva. | Downloads e cenários externos descritos acima aprovados em G-0D. |
+| **1. Identificação** | Upload/seleção de CSV, particionamento treino/holdout, comparação de estruturas, gráficos de validação/resíduos (ACF/CCF, FIT) e registro/reutilização do modelo no Workspace (`core.reuse_model`). | ARX, OE, Subespaços (MOESP/N4SID), pré-processamento, excitação persistente (PE) e diagnóstico de resíduos. |
+| **2. Frequência SISO** | Diagrama de Bode, Lugar das Raízes, resposta ao degrau com *datatips*, margens de estabilidade, projeto de compensadores (Lead, Lag, PID) com Fast-Preview (`R-23`) e commit autoritativo. | Resposta em frequência, margens, *root locus*, discretização e síntese SISO. |
+| **3. Espaço de Estados** | Cartões de KPIs e badges PBH, edição de pesos `Q, R, x0` com slider interativo (`R-23`), atalho para edição da planta no Workspace, observadores/Kalman (LQG), simulação temporal e exportação `.pvm`. | PBH/posto, Lyapunov/Sylvester, CARE/DARE, LQR, observadores, Kalman/LQG e simulação LTI. |
+| **4. Frequência MIMO** | Valores singulares ($\bar{\sigma}, \underline{\sigma}$), matriz RGA, curvas de sensibilidade ($S, T, KS$), pesos $W_S, W_U, W_T$ e síntese $\mathcal{H}_\infty$ com exportação `.pvm` de `DynamicController`. | RGA, valores singulares, sensibilidades MIMO e subclasse estável $\mathcal{H}_\infty$ DGKF 2-Riccati com certificado Hamiltoniano exato ([ADR-012](./docs/architecture/ADR-012-hinf-riccati-stable-subclass.md)). |
+| **5. Fuzzy, TS & ANFIS** | Editor visual de funções de pertinência e regras Mamdani/TS, superfície de controle, treinamento **ANFIS** interativo, importação/exportação FML (`IEEE 1855-2016`, perfil suportado) e exportação de script **PathSim `0.31.0`** ([ADR-013](./docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md)). | Inferência Mamdani/TS, parser/exporter FML, ANFIS e semântica tipada TS/PDC (`ADR-006`). |
+| **6. LMIs & SDPs** | Seleção de sistema do Workspace (LTI, Generalizada, Politópico ou TS), conjuntos de índices DSL, gerador de observadores TS para premissas não medidas (`dA[k]`, `dC[k]`), editor **DSL v2.0** estilo Monaco com leitura matemática interpretada e alerta BMI, tabela de progresso de iterações + botão **Cancelar**, **Certificado de Auditoria 5D**, espectro de autovalores e exportação **CVXPY (`.py`) / YALMIP (`.m`)**. | Compilador direto para SDP esparso COO (`F_k_sparse`), solver primal-dual nativo escalável, verificador espectral independente 5D e templates de controle robusto/TS. |
 
-### SDP no navegador e execução offline
+## Solver SDP nativo escalável no navegador (`ADR-010`)
 
-A [ADR-010](./docs/architecture/ADR-010-native-sdp-and-offline-exports.md) define o **solver primal-dual nativo NumPy/SciPy** como backend SDP padrão do Pyodide. Casos estruturalmente diagonais/LP usam `scipy.optimize.linprog`/HiGHS. CVXPY/Clarabel permanecem opcionais em CPython local; o bundle Wasm base não depende de empacotar seus binários C++/Rust.
+A [ADR-010](./docs/architecture/ADR-010-native-sdp-and-offline-exports.md) define o **solver primal-dual nativo em NumPy/SciPy** como backend SDP padrão no Pyodide (sem exigir binários C++/Rust de Clarabel/CVXPY no bundle Wasm). Casos estruturalmente diagonais/LP utilizam `scipy.optimize.linprog`/HiGHS. CVXPY e Clarabel permanecem disponíveis como oráculos e backends opcionais em CPython local.
 
-Cada solução é submetida ao verificador espectral independente, preservando as cinco dimensões de status. Condicionamento inadequado, gap/certificado não validado, resultado inconclusivo ou tamanho acima do envelope recomendado geram diagnóstico e recomendação de execução offline em CVXPY ou YALMIP com solver dedicado.
+- **Envelope operacional calibrado no navegador:**
+  - **Faixa rápida:** até **448 variáveis** escalares de decisão;
+  - **Teto estendido:** até **1.024 variáveis** (dimensão máxima de bloco `64`, até `65.536` entradas cônicas), com progresso iterativo exibido na tela (`Iter`, `Gap`, `Res. Primal`, `Res. Dual`, `λ_min`, `Tempo (ms)`) e **cancelamento cooperativo**.
+- **Auditoria obrigatória em 5 dimensões:** toda solução passa pelo verificador espectral independente no problema original (viabilidade primal/dual, complementaridade, condicionamento, proximidade de fronteira e validade do controlador recuperado). Problemas acima do envelope ou mal condicionados geram diagnóstico explícito e exportação direta para **CVXPY (`.py`)** ou **YALMIP (`.m`)** com laços quantificados.
+- **Técnicas e referências científicas incorporadas ao solver nativo:**
+  - **Fujisawa et al. (IEEE IPDPS 2014, `doi:10.1109/IPDPS.2014.121`):** exploração de esparsidade em `F_k` na congruência de Nesterov–Todd, montagem vetorizada (BLAS) do complemento de Schur e fatoração de Cholesky regularizada única por iteração Mehrotra.
+  - **Yurtsever, Tropp, Fercoq, Udell & Cevher (SIAM J. Matrix Anal. Appl. 2021 — SketchyCGAL §7.1.1):** equilibração por bloco via norma de Frobenius com desescalonamento exato dos multiplicadores duais (mantendo IPM de 2ª ordem para certificados duais estritos em LMIs de controle).
+  - **Ding et al. (`arXiv:2312.11801` — SpecBM):** suporte a `warm_start_x` interior para acelerar varreduras paramétricas (ex.: taxa de decaimento ou $\mathcal{H}_\infty$/BRL), com recuo automático para Fase I.
+  - **Goulart & Chen (`arXiv:2405.12762` — Clarabel §2.4–2.6):** equilibração de Ruiz multi-varredura com recorte `[1e-4, 1e4]` e transporte esparso em formato COO (`F_k_sparse`) entre o compilador TypeScript e o backend Python.
+  - **Garstka, Cannon & Goulart (IFAC 2020, `doi:10.1016/j.ifacol.2020.12.1255`):** decomposição de blocos PSD por componentes conexas do padrão de esparsidade agregada com reconstrução exata dos multiplicadores duais antes da auditoria.
 
-O envelope denso inicial do backend nativo limita 128 variáveis, dimensão máxima de bloco 48 e 16.384 entradas cônicas. Esses são limites operacionais, sujeitos a medição. A API de produção é beta; a API didática em `control_lab/experimental/sdp_educational/` permanece experimental.
+A API didática em `control_lab/experimental/sdp_educational/` permanece isolada e experimental.
+
+## Interoperabilidade PathView / PathSim e limites auditados
+
+- **`.pvm` passivo (PathView `0.21.0`):** exporta plantas `StateSpace`, realimentação de estados (`StateFeedbackController`), saturação de atuador e controladores dinâmicos contínuos/discretos (`DynamicController`, incluindo controladores MIMO $\mathcal{H}_\infty$), mantendo estritamente a passividade exigida por `R-21` ([ADR-013](./docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md)).
+- **Scripts Python PathSim `0.31.0`:** exportação determinística e passiva (`io.export_pathsim_script` / botão na Aba 5) para simulação offline de `FuzzySystem` (Mamdani/TS) e `TSStateSpace(kind="ts_measured") + PDCController`, auditada contra `scipy.integrate.solve_ivp` (`erro < 1e-4`). O bloqueio de segurança `ADR-006` para `polytopic_uncertain + PDCController` (`HYPOTHESIS_VIOLATED`) é preservado integralmente.
+- **Limites conhecidos da versão beta:** eventos externos e simulação multirate estão fora do domínio homologado; a validação YALMIP é estrutural/sintática (sem execução MATLAB no CI); as medições de desempenho usam o ambiente de container (`DEC-OPEN-03`); e os testes de acessibilidade/60 FPS verificam as jornadas auditadas sem constituir certificação externa formal completa.
+
+## Decisões de Arquitetura (ADRs)
+
+| ADR | Decisão | Documento |
+| --- | --- | --- |
+| **ADR-009** | Governança em arquivos/CI (`project_governance.py`, `ci_gate.py`, handoffs F9) para repositório em conta pessoal. | [`ADR-009`](./docs/architecture/ADR-009-personal-repository-governance.md) |
+| **ADR-010** | Solver SDP primal-dual nativo escalável no Pyodide (envelope 448/1024), auditoria 5D e exportações offline CVXPY/YALMIP. | [`ADR-010`](./docs/architecture/ADR-010-native-sdp-and-offline-exports.md) |
+| **ADR-011** | Licença MIT para código/documentação originais do ControlLab Web, preservando licenças de terceiros. | [`ADR-011`](./docs/architecture/ADR-011-mit-license-and-third-party-notices.md) |
+| **ADR-012** | Promoção da subclasse contínua regular $\mathcal{H}_\infty$ DGKF 2-Riccati a estável com certificado Hamiltoniano exato e oráculo BRL Clarabel. | [`ADR-012`](./docs/architecture/ADR-012-hinf-riccati-stable-subclass.md) |
+| **ADR-013** | Fronteira linear/saturação do `.pvm` (PathView `0.21.0`) e exportação determinística de scripts PathSim `0.31.0` para Fuzzy e TS+PDC. | [`ADR-013`](./docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md) |
+| **ADR-014** | Arquitetura **Workspace-First**: definição centralizada de sistemas (TF, SS/Generalizada, Politópico e TS sem limites artificiais) no Workspace Dock. | [`ADR-014`](./docs/architecture/ADR-014-workspace-centralized-system-definition.md) |
 
 ## Executar localmente
 
-Os comandos abaixo partem da raiz do repositório e usam shell POSIX. O CI de referência utiliza **Python 3.12.14** e **Node.js 24.22.1**; `web/package.json` admite Node 24.x. Use um ambiente Python virtual dedicado.
+Os comandos abaixo partem da raiz do repositório em shell POSIX. O CI de referência utiliza **Python 3.12.14** e **Node.js 24.22.1** (`web/package.json` admite Node 24.x). Use um ambiente virtual Python dedicado:
 
 ```bash
 python3.12 -m venv .venv
@@ -82,13 +119,13 @@ npm --prefix web run build
 python -m http.server 8000 --directory web/dist
 ```
 
-Abra **http://localhost:8000**. O build gera a distribuição estática em `web/dist/`, incluindo a wheel científica, bundles, Pyodide, manifesto de integridade, SBOM e informações de dependências. O servidor HTTP só entrega arquivos; o cálculo roda no navegador. O diretório gerado pode ser servido por hospedagem estática com contexto seguro para Service Worker; `localhost` serve para desenvolvimento.
+Abra **http://localhost:8000**. O build gera a distribuição estática em `web/dist/`, incluindo a wheel científica, bundles, Pyodide, manifesto de integridade, SBOM e informações de dependências. O servidor HTTP apenas entrega arquivos estáticos; todo o cálculo roda no navegador.
 
-O build baixa os assets listados em [`scripts/pyodide-assets.lock.json`](./scripts/pyodide-assets.lock.json) e verifica seus hashes SHA-256. O cache padrão é `~/.cache/controllab-build`; `CONTROLLAB_ASSET_CACHE` permite selecionar outro diretório. Um cache completo evita novos downloads desses assets no build. No navegador, aguarde a inicialização do motor e o provisionamento verificado antes de depender do modo offline. A disponibilidade offline não é inferida apenas da primeira abertura da página.
+O build baixa os assets listados em [`scripts/pyodide-assets.lock.json`](./scripts/pyodide-assets.lock.json) e valida seus hashes SHA-256. O cache padrão é `~/.cache/controllab-build` (configurável via `CONTROLLAB_ASSET_CACHE`). No navegador, aguarde a inicialização do motor e o provisionamento verificado antes de depender do modo offline.
 
 ## Verificação e CI
 
-No ambiente virtual científico acima, antes de adicionar dependências browser:
+No ambiente virtual científico acima (antes de instalar dependências de navegador):
 
 ```bash
 python scripts/verify_fixtures.py
@@ -100,9 +137,9 @@ python scripts/build_release.py --verify
 python scripts/check_reproducible.py
 ```
 
-O perfil `sdp_available` exige correspondência exata com `scripts/requirements-ci.lock`. Para `core_no_sdp`, crie outro ambiente virtual e instale exclusivamente `scripts/requirements-core.lock` antes de executar `python scripts/ci_math.py core_no_sdp`. Não misture dependências opcionais/browser nesses ambientes: o verificador deve rejeitar pacotes adicionais.
+O perfil `sdp_available` exige correspondência exata com `scripts/requirements-ci.lock`. Para `core_no_sdp`, crie outro ambiente virtual instalando exclusivamente `scripts/requirements-core.lock` antes de rodar `python scripts/ci_math.py core_no_sdp`. Ambos os perfis exigem **zero skips**.
 
-Para testes reais de navegador/interoperabilidade, use **outro ambiente**, mantendo o ambiente matemático isolado:
+Para testes reais de navegador, Wasm e interoperabilidade externa, utilize um **ambiente virtual separado**:
 
 ```bash
 python3.12 -m venv .venv-browser
@@ -116,45 +153,27 @@ python -m pytest tests/wasm/ tests/e2e/ tests/security/ tests/performance/ -v
 CONTROLLAB_BROWSER=firefox python -m pytest tests/wasm/ tests/e2e/ -v
 ```
 
-A instalação de dependências de sistema pelo Playwright pode exigir privilégios administrativos. As dependências oficiais PathView/PathSim estão incluídas no lock browser para as provas externas; elas não são distribuídas ao usuário da aplicação. O teste offline de segurança seleciona Chromium explicitamente, mesmo quando outros testes são configurados para Firefox. `CONTROLLAB_CHROMIUM` e `CONTROLLAB_FIREFOX` permitem apontar para executáveis compatíveis já provisionados.
+As dependências PathView/PathSim fazem parte apenas do lock de provas externas (`requirements-browser.lock`) e não são empacotadas no bundle entregue ao navegador. `CONTROLLAB_CHROMIUM` e `CONTROLLAB_FIREFOX` permitem apontar para executáveis já provisionados.
 
-O [workflow A–G](./.github/workflows/ci.yml) executa análise estática, dois perfis matemáticos, testes web, Wasm, integração, segurança e artefatos reproduzíveis. O manifesto de build é de integridade (`release_approved=false`); o aceite de capacidade fica nos registros externos F9. Ouro e tolerâncias científicas não devem ser alterados para fazer testes passarem.
-
-## Próxima fila de trabalho
-
-A fila abaixo está registrada como `PENDING` na referência de estado indicada no início. Os critérios completos, dependências e testes adicionais estão no [plano vertical](./docs/audits/NEXT_QUEUE_2026-11-17.md).
-
-| Ordem / dependência | WorkPackage | Entrega prevista |
-| --- | --- | --- |
-| Próximo elegível | `WP-V1-F1-MODEL-REUSE-RPC` | Reutilização tipada de modelos identificados e conversão TF→StateSpace pelo RPC. |
-| Após reutilização RPC | `WP-V1-F8-TYPED-WORKSPACE-INPUTS` | Seleção de insumos tipados e composição correta de payload por ferramenta. |
-| Após entradas tipadas | `WP-V1-F8-IDENTIFICATION-VERTICAL` | Dataset, ARX/subespaços, resíduos e reutilização em LQR/SISO. |
-| Após entradas tipadas | `WP-V1-F8-SISO-VERTICAL` | Gráficos, margens, compensadores e preview/commit SISO. |
-| Após as duas verticais | `WP-V1-F9-ID-SISO-BROWSER-AUDIT` | Homologação independente dos fluxos em Chromium e Firefox. |
-
-As fases seguintes do Documento Diretor incluem persistência multidomínio, UI de observadores/LQG, fuzzy/MIMO, experiência LMI ampliada e preparação da release 1.0. Os backends existentes serão reutilizados; novos aceites exigem evidência do fluxo completo e de seu domínio.
+O [workflow A–H](./.github/workflows/ci.yml) executa análise estática, os dois perfis matemáticos, testes web, Wasm, integração/E2E, segurança, artefatos reproduzíveis e publicação no GitHub Pages. Fixtures ouro e tolerâncias científicas nunca devem ser alteradas para forçar testes a passarem.
 
 ## Organização do repositório e contribuição
 
-O [AGENTS.md](./AGENTS.md) define o papel do Maestro, e o [CODEOWNERS](./CODEOWNERS) separa as oito frentes produtoras da auditoria independente F9. As frentes F1–F9 são equipes de trabalho; as fases 1–7 são etapas do produto.
+O [AGENTS.md](./AGENTS.md) define o protocolo de orquestração e o [CODEOWNERS](./CODEOWNERS) isola as oito frentes produtoras (`F1`–`F8`) da auditoria independente (`F9`):
 
 | Frente | Responsabilidade | Diretórios principais |
 | --- | --- | --- |
-| **F1** | Core, diagnósticos e I/O | `control_lab/core/`, `control_lab/diagnostics/`, `control_lab/io/` |
-| **F2** | Espaço de estados | `control_lab/statespace/` |
-| **F3** | Frequência SISO/MIMO | `control_lab/frequency/` |
-| **F4** | Identificação | `control_lab/identification/` |
-| **F5** | Fuzzy/TS/ANFIS | `control_lab/fuzzy/` |
-| **F6** | Otimização, LMIs/SDP e experimental | `control_lab/optimization/`, `control_lab/experimental/sdp_educational/` |
-| **F7** | Worker, RPC e armazenamento | `web/bridge/`, `web/worker/`, `web/storage/` |
-| **F8** | UI e gráficos | `web/app/`, `web/features/`, `web/charts/` |
-| **F9** | Contratos finais, oráculos, CI e auditoria | `contracts/`, `scripts/`, `tests/oracles/`, `tests/wasm/`, `tests/e2e/`, `docs/audits/` |
+| **F1** | Core canônico, diagnósticos e I/O (`.ctrlab`, `.pvm`, PathSim) | `control_lab/core/`, `control_lab/diagnostics/`, `control_lab/io/` |
+| **F2** | Álgebra e controle em espaço de estados | `control_lab/statespace/` |
+| **F3** | Domínio da frequência SISO e MIMO ($\mathcal{H}_\infty$ DGKF) | `control_lab/frequency/` |
+| **F4** | Identificação de sistemas | `control_lab/identification/` |
+| **F5** | Controle Fuzzy, IEEE 1855 FML, TS e ANFIS | `control_lab/fuzzy/` |
+| **F6** | Otimização, LMIs/SDP nativo escalável e solver educacional | `control_lab/optimization/`, `control_lab/experimental/sdp_educational/` |
+| **F7** | Runtime Web, protocolo RPC, Pyodide Worker e IndexedDB | `web/bridge/`, `web/worker/`, `web/storage/` |
+| **F8** | Interface TypeScript (Workspace-First, 6 abas, DSL v2.0, gráficos) | `web/app/`, `web/features/`, `web/charts/` |
+| **F9** | Contratos finais, fixtures ouro, oráculos, E2E/Wasm, CI e auditoria | `contracts/`, `scripts/`, `tests/oracles/`, `tests/wasm/`, `tests/e2e/`, `docs/` |
 
-Os testes estão em `tests/`; decisões arquiteturais em `docs/architecture/`; evidências e handoffs em `docs/audits/`. O pacote e sua configuração estão em [`pyproject.toml`](./pyproject.toml), e o frontend em [`web/package.json`](./web/package.json).
-
-A [ADR-009](./docs/architecture/ADR-009-personal-repository-governance.md) aceita a restrição externa da conta pessoal do GitHub. A qualidade e o bloqueio de release são verificados em arquivos/CI por `project_governance.py`, `ci_gate.py` e pareceres F9, sem pressupor proteção de branch disponível no servidor.
-
-Contribuições devem respeitar ownership, tipos e revisões canônicas, convenção de sinal e hipóteses numéricas explícitas. Resultados confirmados vêm do motor Python e passam por verificação independente. Cada entrega recebe testes aplicáveis e handoff com os dez itens do Apêndice E, preservando fixtures ouro e tolerâncias. Consulte também as [informações de dependências](./docs/legal/DEPENDENCIES.md).
+Consulte também [`pyproject.toml`](./pyproject.toml), [`web/package.json`](./web/package.json) e [`docs/legal/DEPENDENCIES.md`](./docs/legal/DEPENDENCIES.md). Contribuições devem respeitar isolamento de frentes, tipos e revisões canônicas, convenção de sinal, verificação independente no motor Python e o checklist de 10 itens do Apêndice E.
 
 ## Licença e autoria
 

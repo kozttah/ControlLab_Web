@@ -112,11 +112,18 @@ export interface CanonicalSDPProblemJson {
   recovery_plan: null;
 }
 
+export interface LmiFusionStats {
+  originalBlocks: number;
+  fusedBlocks: number;
+  eliminatedSymmetricPairs: number;
+}
+
 export interface LmiCompileResult {
   problem: CanonicalSDPProblemJson;
   nVars: number;
   blockCount: number;
   variableNames: string[];
+  fusionStats: LmiFusionStats;
 }
 
 interface AffineMatrix {
@@ -661,6 +668,57 @@ function symmetrizeSquareInPlace(arr: Float64Array, dim: number): void {
       arr[c * dim + r] = avg;
     }
   }
+}
+
+function areSymmetrizedArraysEqual(
+  arrA: Float64Array | undefined,
+  arrB: Float64Array | undefined,
+  dim: number,
+  tol: number,
+): boolean {
+  for (let r = 0; r < dim; r += 1) {
+    const rOff = r * dim;
+    for (let c = r; c < dim; c += 1) {
+      const va = arrA
+        ? r === c
+          ? arrA[rOff + c]
+          : 0.5 * (arrA[rOff + c] + arrA[c * dim + r])
+        : 0;
+      const vb = arrB
+        ? r === c
+          ? arrB[rOff + c]
+          : 0.5 * (arrB[rOff + c] + arrB[c * dim + r])
+        : 0;
+      if (Math.abs(va - vb) > tol) return false;
+    }
+  }
+  return true;
+}
+
+function areSymmetrizedAffinesEqual(
+  a: AffineMatrix,
+  b: AffineMatrix,
+  tol = 1e-12,
+): boolean {
+  if (a.rows !== b.rows || a.cols !== b.cols || a.rows !== a.cols) {
+    return false;
+  }
+  const dim = a.rows;
+  if (!areSymmetrizedArraysEqual(a.constMat, b.constMat, dim, tol)) {
+    return false;
+  }
+  for (const [k, arrA] of a.terms.entries()) {
+    if (!areSymmetrizedArraysEqual(arrA, b.terms.get(k), dim, tol)) {
+      return false;
+    }
+  }
+  for (const [k, arrB] of b.terms.entries()) {
+    if (a.terms.has(k)) continue;
+    if (!areSymmetrizedArraysEqual(undefined, arrB, dim, tol)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function float64ToTensor2D(arr: Float64Array, rows: number, cols: number): CanonicalTensor2D {
@@ -1423,9 +1481,29 @@ export function compileLmiDslToCanonicalSdp(
   // Constraints -> PSD blocks
   const blocks: CanonicalSDPBlockJson[] = [];
   let blockCounter = 0;
+  let originalBlocks = 0;
+  let eliminatedSymmetricPairs = 0;
 
   for (const con of parsed.constraints) {
     const bindings = expandQuantifierBindings(con.quantifier, systemN, indexRanges);
+
+    // Check if eligible for automatic symmetric double-sum fusion (Tuan et al. 2001; Sala & Ariño 2007):
+    // Doubly-quantified constraint (v0, v1) with identical index bounds and no asymmetric guard.
+    let canCheckSymmetricFusion = false;
+    let symVar0 = "";
+    let symVar1 = "";
+    if (con.quantifier && con.quantifier.vars.length === 2 && !con.quantifier.condition) {
+      const [v0, v1] = con.quantifier.vars;
+      const r0 = indexRanges.get(v0) ?? { start: 1, end: systemN };
+      const r1 = indexRanges.get(v1) ?? { start: 1, end: systemN };
+      if (r0.start === r1.start && r0.end === r1.end && r0.end > r0.start) {
+        canCheckSymmetricFusion = true;
+        symVar0 = v0;
+        symVar1 = v1;
+      }
+    }
+    const upperTriangleCache = canCheckSymmetricFusion ? new Map<string, AffineMatrix>() : null;
+
     for (const binding of bindings) {
       const lhs = evalExpr(con.lhsRaw, binding);
       const rhs = evalExpr(con.rhsRaw, binding);
@@ -1447,6 +1525,23 @@ export function compileLmiDslToCanonicalSdp(
         throw new Error(
           `Restrição LMI na linha ${con.line} deve ser quadrada, obtido (${diff.rows}×${diff.cols}).`,
         );
+      }
+
+      const blocksForThisBinding = con.operator === "==" ? 2 : 1;
+      originalBlocks += blocksForThisBinding;
+
+      if (upperTriangleCache) {
+        const iVal = binding[symVar0];
+        const jVal = binding[symVar1];
+        if (iVal < jVal) {
+          upperTriangleCache.set(`${iVal},${jVal}`, diff);
+        } else if (iVal > jVal) {
+          const mirrorDiff = upperTriangleCache.get(`${jVal},${iVal}`);
+          if (mirrorDiff && areSymmetrizedAffinesEqual(diff, mirrorDiff)) {
+            eliminatedSymmetricPairs += 1;
+            continue;
+          }
+        }
       }
 
       const dim = diff.rows;
@@ -1616,5 +1711,10 @@ export function compileLmiDslToCanonicalSdp(
     nVars,
     blockCount: blocks.length,
     variableNames,
+    fusionStats: {
+      originalBlocks,
+      fusedBlocks: blocks.length,
+      eliminatedSymmetricPairs,
+    },
   };
 }

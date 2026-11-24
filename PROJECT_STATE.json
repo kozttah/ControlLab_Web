@@ -27,7 +27,7 @@
       "2026-11-21": 12,
       "2026-11-22": 13,
       "2026-11-23": 1,
-      "2026-11-24": 1
+      "2026-11-24": 2
     }
   },
   "audit_reference": {
@@ -6535,12 +6535,20 @@
         "T-SDP-D2"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "acceptance_requirements": [
         "Montagem do complemento de Schur por formulas F1/F2 de Fujisawa-Kojima-Nakata (1997) sem alocar temporarios densos (m, n, n)",
         "Pre-processamento simbolico remove colunas F_k nulas, duplicadas ou linearmente dependentes com reconstrucao exata de primal/dual antes da auditoria 5D"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f6_phase9_cycle3_fujisawa_f1f2_sparse_schur_and_symbolic_column_preprocessing",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-03-F6-FUJISAWA-F1F2-PREPROCESS.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-03-F6-FUJISAWA-F1F2-PREPROCESS.md",
+        "tests/unit/f6/test_phase9_cycle3_f1f2_preprocess.py",
+        "tests/oracles/test_phase9_cycle3_f1f2_oracle.py"
       ]
     },
     {
@@ -6564,12 +6572,20 @@
         "T-SDP-D1"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "acceptance_requirements": [
         "lmi_dsl_compiler.ts detecta e funde somas duplas simetricas politopicas/TS (Tuan et al. 2001; Sala & Arino 2007) reduzindo blocos PSD redundantes sem alterar semantica matematica",
         "Exportadores CVXPY/YALMIP refletem fielmente as restricoes fundidas com metadados claros de compilacao"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f8_phase9_cycle3_dsl_symmetric_fusion_and_generic_recover_display_tab6",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-03B-F8-DSL-SYMMETRIC-FUSION.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-03B-F8-DSL-SYMMETRIC-FUSION.md",
+        "tests/unit/f8/lmi_dsl_v2.test.ts",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
       ]
     },
     {
@@ -6599,12 +6615,21 @@
         "T-WASM-01"
       ],
       "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/oracles/ tests/wasm/test_real_runtime.py tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "acceptance_requirements": [
         "Benchmark comparativo F1/F2 + fusao simetrica medido em CPython e Chromium Pyodide real com paridade clarabel_direct e auditoria 5D intacta",
         "Handoffs Apendice E dos pacotes 03, 03B e 03C aprovados pela F9"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_phase9_cycle3_f1f2_preprocess_symmetric_fusion_independent_oracle_and_chromium_e2e_audit",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-03C-F9-F1F2-BENCHMARK-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-03C-F9-F1F2-BENCHMARK-AUDIT.md",
+        "tests/oracles/test_phase9_cycle3_f1f2_oracle.py",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py",
+        "tests/wasm/test_real_runtime.py"
       ]
     },
     {

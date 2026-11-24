@@ -1002,8 +1002,8 @@ export function parseLmiDsl(
       continue;
     }
 
-    // forall <vars> [where <cond>]: [inline body]
-    const forallMatch = /^forall\s+(.+?)(?:\s+where\s+(.+?))?\s*:\s*(.*)$/i.exec(lineTxt);
+    // forall / for <vars> [where <cond>]: [inline body]
+    const forallMatch = /^(?:forall|for)\s+(.+?)(?:\s+where\s+(.+?))?\s*:\s*(.*)$/i.exec(lineTxt);
     if (forallMatch) {
       const q = buildQuantifier(forallMatch[1], forallMatch[2], effectiveSystemN, indexRanges);
       const inlineBody = forallMatch[3].trim();
@@ -1121,14 +1121,30 @@ export function parseLmiDsl(
       continue;
     }
 
-    // recover K = ... or recover K[i] = ...
+    // recover K = ... or recover K[i] = ... [for i [where ...]]
     const recMatch = /^recover\s+([A-Za-z_][A-Za-z0-9_]*(?:\s*\[\s*[A-Za-z0-9_,\s]+\s*\])?)\s*=\s*(.+)$/i.exec(
       lineTxt,
     );
     if (recMatch) {
       const lhs = recMatch[1].trim();
-      const rhs = recMatch[2].trim();
-      const q = activeForall?.quantifier;
+      let rhs = recMatch[2].trim();
+      let q = activeForall?.quantifier;
+      const trailingForMatch =
+        /^([\s\S]+?)\s+(?:forall|for)\s+([A-Za-z_][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z_][A-Za-z0-9_]*)*)(?:\s+where\s+(.+))?$/i.exec(
+          rhs,
+        );
+      if (trailingForMatch) {
+        rhs = trailingForMatch[1].trim();
+        if (!q) {
+          q = buildQuantifier(
+            trailingForMatch[2],
+            trailingForMatch[3],
+            effectiveSystemN,
+            indexRanges,
+          );
+        }
+      }
+      const rhsExpanded = expandMacrosInExpr(rhs, macroMap);
       if (activeForall) {
         activeForall.hasBody = true;
       }
@@ -1136,9 +1152,9 @@ export function parseLmiDsl(
       recoveries.push({
         line: stmt.line,
         lhs,
-        rhs,
+        rhs: rhsExpanded,
         ...(q ? { quantifier: q } : {}),
-        mathText: `${qPrefix}Recuperação: ${formatLmiMathExpression(lhs)} = ${formatLmiMathExpression(rhs)}`,
+        mathText: `${qPrefix}Recuperação: ${formatLmiMathExpression(lhs)} = ${formatLmiMathExpression(rhsExpanded)}`,
       });
       if (forallMatch) {
         activeForall = null;

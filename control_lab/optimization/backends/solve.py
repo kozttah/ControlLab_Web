@@ -135,6 +135,10 @@ def solve(
                 diagnostics["hsde_summary"] = dict(raw_out["hsde_summary"])
             if "hsde_certificate" in raw_out and raw_out["hsde_certificate"] is not None:
                 diagnostics["hsde_certificate"] = str(raw_out["hsde_certificate"])
+            if "schur_assembly_modes" in raw_out and raw_out["schur_assembly_modes"] is not None:
+                diagnostics["schur_assembly_modes"] = dict(raw_out["schur_assembly_modes"])
+            if "preprocessing_summary" in raw_out and raw_out["preprocessing_summary"] is not None:
+                diagnostics["preprocessing_summary"] = dict(raw_out["preprocessing_summary"])
         else:
             raw_warnings.append(
                 WarningItem(

@@ -51,6 +51,9 @@ import {
   type PackedSparseCooTypedArrays,
 } from "../../../web/features/views/lmi_dsl_compiler.ts";
 import {
+  evaluateAllRecoveries,
+} from "../../../web/features/views/lmi_recover_eval.ts";
+import {
   evaluateMathExpression,
   validateConvexMembershipFunctions,
 } from "../../../web/features/views/lmi_ts_mf_eval.ts";
@@ -2037,6 +2040,330 @@ test("WP-PHASE9-01C-F8-PACKED-COO-COMPILER: F_k_packed alinhado zero-copy, parid
 
   app.destroy();
 });
+
+test("WP-PHASE9-03B: Fusão automática de somas duplas simétricas (ADR-015), preservação de assimétricas e solve CPython validated_dual", async () => {
+  const verts3 = [
+    { A: [[0, 1], [-1.5, -0.5]], B: [[0], [1]], C: [[1, 0]], D: [[0]] },
+    { A: [[0, 1], [-2.5, -0.8]], B: [[0], [1.1]], C: [[1, 0]], D: [[0]] },
+    { A: [[0, 1], [-3.2, -1.1]], B: [[0], [0.9]], C: [[1, 0]], D: [[0]] },
+  ];
+  const ctx3: LmiCompileContext = {
+    A: verts3[0].A,
+    B: verts3[0].B,
+    C: verts3[0].C,
+    D: verts3[0].D,
+    vertices: verts3,
+  };
+
+  // 1. Symmetric double-sum with N_r = 3: 9 double-sum blocks -> 6 (3 pairs eliminated)
+  const symDsl3 = [
+    "system ts rules=3 index=i,j premises=measured",
+    "var Q sym(n)",
+    "var Y[i] rect(m, n)",
+    "Q > 0",
+    "for i, j: (A[i]*Q + B[i]*Y[j] + A[j]*Q + B[j]*Y[i]) + (A[i]*Q + B[i]*Y[j] + A[j]*Q + B[j]*Y[i])' < 0",
+    "recover K[i] = Y[i] * inv(Q) for i",
+  ].join("\n");
+
+  const parsedSym3 = parseLmiDsl(symDsl3);
+  assert.equal(parsedSym3.valid, true, `Erros inesperados: ${JSON.stringify(parsedSym3.errors)}`);
+  const compiledSym3 = compileLmiDslToCanonicalSdp(parsedSym3, ctx3);
+  assert.equal(compiledSym3.fusionStats.originalBlocks, 10, "1 (Q>0) + 9 (3x3) = 10 blocos originais");
+  assert.equal(compiledSym3.fusionStats.fusedBlocks, 7, "1 (Q>0) + 6 (3*4/2) = 7 blocos após fusão");
+  assert.equal(compiledSym3.fusionStats.eliminatedSymmetricPairs, 3, "N_r=3 deve fundir 3 pares simétricos");
+  assert.equal(compiledSym3.blockCount, 7);
+
+  // 2. Symmetric double-sum with N_r = 4: 16 double-sum blocks -> 10 (6 pairs eliminated)
+  const verts4 = [
+    ...verts3,
+    { A: [[0, 1], [-4.0, -1.4]], B: [[0], [1.2]], C: [[1, 0]], D: [[0]] },
+  ];
+  const symDsl4 = symDsl3.replace("rules=3", "rules=4");
+  const compiledSym4 = compileLmiDslToCanonicalSdp(parseLmiDsl(symDsl4), {
+    ...ctx3,
+    vertices: verts4,
+  });
+  assert.equal(compiledSym4.fusionStats.originalBlocks, 17);
+  assert.equal(compiledSym4.fusionStats.fusedBlocks, 11);
+  assert.equal(compiledSym4.fusionStats.eliminatedSymmetricPairs, 6);
+
+  // 3. Asymmetric double-sum with N_r = 3 must NOT be falsely merged!
+  const asymDsl3 = [
+    "system ts rules=3 index=i,j premises=measured",
+    "var Q sym(n)",
+    "var Y[i] rect(m, n)",
+    "Q > 0",
+    "for i, j: A[i]*Q + Q*A[i]' + B[i]*Y[j] + Y[j]'*B[i]' < 0",
+  ].join("\n");
+  const parsedAsym3 = parseLmiDsl(asymDsl3);
+  assert.equal(parsedAsym3.valid, true);
+  const compiledAsym3 = compileLmiDslToCanonicalSdp(parsedAsym3, ctx3);
+  assert.equal(compiledAsym3.fusionStats.eliminatedSymmetricPairs, 0, "Blocos assimétricos NÃO podem ser fundidos");
+  assert.equal(compiledAsym3.fusionStats.fusedBlocks, 10);
+  assert.equal(compiledAsym3.blockCount, 10);
+
+  // 4. Solve fused N_r = 3 problem via CPython -> validated_dual!
+  const extractedSym = extractTensorsToBinaryBuffers({ problem: compiledSym3.problem });
+  const solveResp = dispatchPythonWithBinaryBuffers(
+    {
+      api_version: RPC_API_VERSION,
+      request_id: "fusion-sym-3-1",
+      project_id: "proj-fusion-sym",
+      project_revision: 1,
+      operation: "optimization.solve",
+      payload: extractedSym.replaced,
+      options: {},
+      timeout_policy: { hard_timeout_ms: 30000 },
+    },
+    extractedSym.buffers,
+  ) as {
+    status: string;
+    result: Record<string, unknown>;
+  };
+  assert.equal(solveResp.status, "success");
+  assert.equal(solveResp.result.certificate_status, "validated_dual");
+  assert.equal(solveResp.result.audit_feasibility, "strictly_feasible");
+
+  // 5. LmiView displays fusion badge when symmetric pairs are fused
+  let resolveDone!: () => void;
+  const donePromise = new Promise<void>((r) => {
+    resolveDone = r;
+  });
+  class FusionStubClient extends StubLmiClient {
+    public override async execute(req: RpcRequest, opts?: ExecuteOptions): Promise<RpcResponse> {
+      if (req.operation === "optimization.solve") {
+        const base = await super.execute(req, opts);
+        setTimeout(() => resolveDone(), 20);
+        return {
+          ...base,
+          result: solveResp.result,
+        };
+      }
+      return super.execute(req, opts);
+    }
+  }
+
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client: new FusionStubClient(),
+    project_id: "proj-fusion-badge",
+  });
+  await app.client.init();
+  app.shell.switchTab("optimization_lmi");
+
+  const editorEl = root.querySelector<FakeElement>("#lmi-code-editor")!;
+  editorEl.value = symDsl3;
+  editorEl.dispatchEvent("input");
+  root.querySelector('[data-action="lmi-solve"]')!.dispatchEvent("click");
+  await donePromise;
+
+  const fusionBadge = root.querySelector<FakeElement>("#lmi-fusion-badge")!;
+  assert.equal(fusionBadge.hasAttribute("hidden"), false, "Badge de fusão deve ficar visível");
+  assert.ok(
+    fusionBadge.textContent.includes("3 pares simétricos fundidos"),
+    `Esperado '3 pares simétricos fundidos' em '${fusionBadge.textContent}'`,
+  );
+  const gainText = root.querySelector("#lmi-recovered-gain")!.textContent;
+  assert.ok(gainText.includes("K[1]") && gainText.includes("K[2]") && gainText.includes("K[3]"));
+
+  app.destroy();
+});
+
+test("WP-PHASE9-03B: Avaliador genérico zero-eval de recover (lmi_recover_eval.ts) e exibição completa em #lmi-recovered-gain", async () => {
+  const evalPath = fileURLToPath(
+    new URL("../../../web/features/views/lmi_recover_eval.ts", import.meta.url),
+  );
+  const evalSource = fs.readFileSync(evalPath, "utf8");
+  assert.equal(/\beval\s*\(/.test(evalSource), false, "lmi_recover_eval.ts não pode conter eval()");
+  assert.equal(/new\s+Function\b/.test(evalSource), false, "lmi_recover_eval.ts não pode conter new Function");
+
+  // 1. Direct evaluator check: P = inv(Q), K = Y * inv(Q), alpha_eff = trace(P) / 2, gamma = sqrt(mu)
+  const multiRecDsl = [
+    "var Q sym(n)",
+    "var Y rect(m, n)",
+    "var mu scalar",
+    "Q > 0",
+    "mu > 0",
+    "A*Q + Q*A' + B*Y + Y'*B' < 0",
+    "recover P = inv(Q)",
+    "recover K = Y * inv(Q)",
+    "recover alpha_eff = trace(P) / 2",
+    "recover gamma = sqrt(mu)",
+  ].join("\n");
+  const parsedMulti = parseLmiDsl(multiRecDsl);
+  assert.equal(parsedMulti.valid, true);
+  assert.equal(parsedMulti.recoveries.length, 4);
+
+  const solvedMulti = {
+    Q: { rows: 2, cols: 2, data: [2, 0, 0, 4] },
+    Y: { rows: 1, cols: 2, data: [-4, -12] },
+    mu: { rows: 1, cols: 1, data: [9] },
+  };
+  const evalMulti = evaluateAllRecoveries({
+    parsed: parsedMulti,
+    solvedVariables: solvedMulti,
+  });
+  assert.equal(evalMulti.length, 4);
+  assert.equal(evalMulti[0].label, "P");
+  assert.equal(evalMulti[0].ok, true);
+  assert.ok(Math.abs(evalMulti[0].value!.data[0] - 0.5) < 1e-12);
+  assert.ok(Math.abs(evalMulti[0].value!.data[3] - 0.25) < 1e-12);
+
+  assert.equal(evalMulti[1].label, "K");
+  assert.equal(evalMulti[1].ok, true);
+  assert.ok(Math.abs(evalMulti[1].value!.data[0] - -2) < 1e-12);
+  assert.ok(Math.abs(evalMulti[1].value!.data[1] - -3) < 1e-12);
+
+  assert.equal(evalMulti[2].label, "alpha_eff");
+  assert.equal(evalMulti[2].ok, true);
+  assert.ok(Math.abs(evalMulti[2].value!.data[0] - 0.375) < 1e-12);
+
+  assert.equal(evalMulti[3].label, "gamma");
+  assert.equal(evalMulti[3].ok, true);
+  assert.ok(Math.abs(evalMulti[3].value!.data[0] - 3.0) < 1e-12);
+
+  // 2. Quantified recover F[i] = M[i] * inv(W) (i=1..2) + custom G_obs = inv(X) * R + singular warning
+  const quantRecDsl = [
+    "system ts rules=2 index=i premises=measured",
+    "var W sym(n)",
+    "var M[i] rect(m, n)",
+    "var X sym(n)",
+    "var R rect(n, p)",
+    "W > 0",
+    "recover F[i] = M[i] * inv(W)",
+    "recover G_obs = inv(X) * R",
+    "recover S_bad = inv(ZeroMat)",
+  ].join("\n");
+  const parsedQuant = parseLmiDsl(quantRecDsl);
+  assert.equal(parsedQuant.valid, true);
+  const evalQuant = evaluateAllRecoveries({
+    parsed: parsedQuant,
+    solvedVariables: {
+      W: { rows: 2, cols: 2, data: [2, 0, 0, 2] },
+      "M[1]": { rows: 1, cols: 2, data: [4, -2] },
+      "M[2]": { rows: 1, cols: 2, data: [-6, 8] },
+      X: { rows: 2, cols: 2, data: [4, 0, 0, 5] },
+      R: { rows: 2, cols: 1, data: [8, 15] },
+      ZeroMat: { rows: 2, cols: 2, data: [0, 0, 0, 0] },
+    },
+  });
+  assert.equal(evalQuant.length, 4);
+  assert.equal(evalQuant[0].label, "F[1]");
+  assert.deepEqual(evalQuant[0].value!.data, [2, -1]);
+  assert.equal(evalQuant[1].label, "F[2]");
+  assert.deepEqual(evalQuant[1].value!.data, [-3, 4]);
+  assert.equal(evalQuant[2].label, "G_obs");
+  assert.deepEqual(evalQuant[2].value!.data, [2, 3]);
+  assert.equal(evalQuant[3].label, "S_bad");
+  assert.equal(evalQuant[3].ok, false);
+  assert.ok(evalQuant[3].error?.toLowerCase().includes("singular"));
+
+  // 3. Full DOM rendering in LmiView (#lmi-recovered-gain) for:
+  //    (a) 4 recover directives, (b) quantified F[1]/F[2] + G_obs, (c) NO recover directive -> solved decision vars!
+  let nextVarsPayload: Record<string, unknown> = {};
+  let pendingResolve: (() => void) | null = null;
+  const waitSolve = () =>
+    new Promise<void>((resolve) => {
+      pendingResolve = resolve;
+    });
+
+  class RecoverStubClient extends StubLmiClient {
+    public override async execute(req: RpcRequest, opts?: ExecuteOptions): Promise<RpcResponse> {
+      const base = await super.execute(req, opts);
+      if (req.operation === "optimization.solve") {
+        setTimeout(() => {
+          pendingResolve?.();
+          pendingResolve = null;
+        }, 20);
+        return {
+          ...base,
+          result: {
+            solver_status: "optimal",
+            audit_feasibility: "strictly_feasible",
+            certificate_status: "validated_dual",
+            conditioning: { status: "well_conditioned", condition_number: 4.0 },
+            controller_validity: "verified_under_assumptions",
+            residuals: { primal_block_min_eigs: [0.1, 0.2] },
+            variables: nextVarsPayload,
+          },
+        };
+      }
+      return base;
+    }
+  }
+
+  const doc = new FakeDocument();
+  const root = doc.createElement("div");
+  const app = mountControlLabApp(root as unknown as HTMLElement, {
+    client: new RecoverStubClient(),
+    project_id: "proj-recover-ui",
+  });
+  await app.client.init();
+  app.shell.switchTab("optimization_lmi");
+
+  const editorEl = root.querySelector<FakeElement>("#lmi-code-editor")!;
+  const solveBtn = root.querySelector<FakeElement>('[data-action="lmi-solve"]')!;
+  const gainEl = root.querySelector<FakeElement>("#lmi-recovered-gain")!;
+
+  // (a) 4 recover directives
+  nextVarsPayload = {
+    Q: { shape: [2, 2], dtype: "float64", order: "C", data: [2, 0, 0, 4] },
+    Y: { shape: [1, 2], dtype: "float64", order: "C", data: [-4, -12] },
+    mu: { shape: [1, 1], dtype: "float64", order: "C", data: [9] },
+  };
+  editorEl.value = multiRecDsl;
+  editorEl.dispatchEvent("input");
+  let p = waitSolve();
+  solveBtn.dispatchEvent("click");
+  await p;
+
+  const textA = gainEl.textContent;
+  assert.ok(textA.includes("P"), `Esperado P em '${textA}'`);
+  assert.ok(textA.includes("0.5000") && textA.includes("0.2500"), `Valores de P ausentes em '${textA}'`);
+  assert.ok(textA.includes("Ganho recuperado K"), `Esperado Ganho recuperado K em '${textA}'`);
+  assert.ok(textA.includes("-2.0000") && textA.includes("-3.0000"), `Valores de K ausentes em '${textA}'`);
+  assert.ok(textA.includes("alpha_eff") && textA.includes("0.3750"), `Esperado alpha_eff=0.3750 em '${textA}'`);
+  assert.ok(textA.includes("gamma") && textA.includes("3.0000"), `Esperado gamma=3.0000 em '${textA}'`);
+
+  // (b) Quantified F[i] + custom G_obs + singular warning
+  nextVarsPayload = {
+    W: { shape: [2, 2], dtype: "float64", order: "C", data: [2, 0, 0, 2] },
+    "M[1]": { shape: [1, 2], dtype: "float64", order: "C", data: [4, -2] },
+    "M[2]": { shape: [1, 2], dtype: "float64", order: "C", data: [-6, 8] },
+    X: { shape: [2, 2], dtype: "float64", order: "C", data: [4, 0, 0, 5] },
+    R: { shape: [2, 1], dtype: "float64", order: "C", data: [8, 15] },
+    ZeroMat: { shape: [2, 2], dtype: "float64", order: "C", data: [0, 0, 0, 0] },
+  };
+  editorEl.value = quantRecDsl;
+  editorEl.dispatchEvent("input");
+  p = waitSolve();
+  solveBtn.dispatchEvent("click");
+  await p;
+
+  const textB = gainEl.textContent;
+  assert.ok(textB.includes("F[1]") && textB.includes("2.0000") && textB.includes("-1.0000"), `F[1] ausente em '${textB}'`);
+  assert.ok(textB.includes("F[2]") && textB.includes("-3.0000") && textB.includes("4.0000"), `F[2] ausente em '${textB}'`);
+  assert.ok(textB.includes("G_obs") && textB.includes("3.0000"), `G_obs ausente em '${textB}'`);
+  assert.ok(textB.includes("S_bad") && textB.toLowerCase().includes("singular"), `Aviso de singularidade ausente em '${textB}'`);
+
+  // (c) DSL with NO recover directive -> displays solved decision variables!
+  nextVarsPayload = {
+    P_lyap: { shape: [2, 2], dtype: "float64", order: "C", data: [1.5, 0.25, 0.25, 2.5] },
+  };
+  editorEl.value = ["var P_lyap sym(n)", "P_lyap > 0", "A'*P_lyap + P_lyap*A < 0"].join("\n");
+  editorEl.dispatchEvent("input");
+  p = waitSolve();
+  solveBtn.dispatchEvent("click");
+  await p;
+
+  const textC = gainEl.textContent;
+  assert.ok(textC.includes("Variáveis de decisão obtidas"), `Esperado resumo de variáveis obtidas em '${textC}'`);
+  assert.ok(textC.includes("P_lyap") && textC.includes("1.5000") && textC.includes("2.5000"), `P_lyap ausente em '${textC}'`);
+
+  app.destroy();
+});
+
 
 
 

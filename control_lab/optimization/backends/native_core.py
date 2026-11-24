@@ -127,6 +127,7 @@ class NativeSolverConfig:
     warm_start_x: tuple[float, ...] | None = None
     use_hsde: bool = True
     max_gondzio_correctors: int = 2
+    schur_mode: str = "auto"
 
     @classmethod
     def from_options(cls, options: Mapping[str, Any] | None = None) -> NativeSolverConfig:
@@ -149,6 +150,7 @@ class NativeSolverConfig:
             "warm_start_x",
             "use_hsde",
             "max_gondzio_correctors",
+            "schur_mode",
         }
         kwargs: dict[str, Any] = {}
         for k, v in options.items():
@@ -182,6 +184,8 @@ class NativeSolverConfig:
             raise ValidationError("max_gondzio_correctors must be an integer in [0, 10].")
         if not isinstance(cfg.use_hsde, bool):
             raise ValidationError("use_hsde must be boolean.")
+        if cfg.schur_mode not in ("auto", "F3_blas"):
+            raise ValidationError("schur_mode must be 'auto' or 'F3_blas'.")
         for key in ("tol_gap", "tol_feas", "tol_psd", "strict_margin", "step_fraction", "sigma_min", "sigma_max", "unbounded_norm_threshold"):
             value = getattr(cfg, key)
             if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)) or not math.isfinite(value) or value <= 0:
@@ -199,13 +203,26 @@ class NativeSolverConfig:
         return cfg
 
 
+_SQRT2 = math.sqrt(2.0)
+_INV_SQRT2 = 1.0 / _SQRT2
+_F2_CHUNK_SIZE = 32
+
+
 @dataclass(frozen=True)
 class _InternalConeBlock:
     """Bloco simétrico interno (bloco PSD original ou desigualdade escalar 1x1).
 
-    Pré-computa metadados esparsos `(rows, cols, vals)` para matrizes `F_k` com baixa
-    densidade (Fujisawa et al., IEEE IPDPS 2014) e colunas vetorizadas `_F_cols` para
-    avaliações BLAS sem laços Python.
+    Implementa seleção automática das fórmulas de montagem de Schur esparsa F1/F2/F3
+    (Fujisawa, Kojima & Nakata, Math. Program. 79(1-3):235-253, 1997,
+    doi:10.1007/BF02614319):
+    - `LP_1D`: bloco escalar `1x1` agrupado no cone LP 1D unificado.
+    - `F1`: bloco PSD ultra-esparso (`nnz_k <= max(4, n_b // 2)` e `nnz_upper_k <= 4`),
+      avalia $H_{ij} = \\sum v_1 v_2 W_{qr} W_{sp}$ diretamente dos tripletos triangulares
+      superiores sem alocar matrizes `(n_b, n_b)` intermediárias nem `cols` denso.
+    - `F2`: bloco PSD moderadamente esparso (`avg_nnz < 0.25 * n_b^2`),
+      avalia $B_j = F_j W$ e $H_{:, j} = \\mathcal{F}_{\\text{sparse}} (W B_j)$ em lotes
+      esparsos C/BLAS sem alocar `cols` denso `(n_b^2, n_act)`.
+    - `F3_blas`: fallback denso vetorizado `cols.T @ cols` (`dsyrk`/`dgemm`).
     """
 
     name: str
@@ -214,52 +231,267 @@ class _InternalConeBlock:
     F_terms: dict[int, np.ndarray]
     is_ineq_slack: bool = False
     ineq_index: int | None = None
+    force_schur_mode: str = "auto"
+    build_schur_index: bool = True
     _active_keys: np.ndarray = field(init=False, repr=False, compare=False)
-    _F_cols: np.ndarray = field(init=False, repr=False, compare=False)
+    _F_cols: np.ndarray | None = field(init=False, repr=False, compare=False)
     _f_norm_sum: float = field(init=False, repr=False, compare=False)
     _sparse_terms: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = field(
+        init=False, repr=False, compare=False
+    )
+    schur_mode: str = field(init=False, repr=False, compare=False)
+    _f1_P: np.ndarray | None = field(init=False, repr=False, compare=False)
+    _f1_Q: np.ndarray | None = field(init=False, repr=False, compare=False)
+    _f1_V: np.ndarray | None = field(init=False, repr=False, compare=False)
+    _F_flat_csr: scipy.sparse.csr_matrix | None = field(init=False, repr=False, compare=False)
+    _F_vert_chunks: tuple[tuple[int, int, scipy.sparse.csr_matrix], ...] = field(
         init=False, repr=False, compare=False
     )
 
     def __post_init__(self) -> None:
         keys = sorted(self.F_terms.keys())
         active_keys = np.asarray(keys, dtype=np.intp)
-        n2 = self.dim * self.dim
-        if keys:
-            f_cols = np.empty((n2, len(keys)), dtype=np.float64)
-            f_norm_sum = 0.0
-            sparse_terms: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
-            # Sparse congruence G^{-T} F_k G^{-1} via G_invT[rows].T @ (vals[:,None]*G_invT[cols])
-            # costs nnz * n^2 flops vs 2 * n^3 dense; strictly faster when nnz <= min(0.25*n^2, n).
-            nnz_limit = min(int(0.25 * n2), self.dim) if self.dim >= 4 else 0
+        n_act = len(keys)
+        dim = self.dim
+        n2 = dim * dim
+
+        f_norm_sum = 0.0
+        sparse_terms: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+        f1_P: np.ndarray | None = None
+        f1_Q: np.ndarray | None = None
+        f1_V: np.ndarray | None = None
+        F_flat_csr: scipy.sparse.csr_matrix | None = None
+        F_vert_chunks: tuple[tuple[int, int, scipy.sparse.csr_matrix], ...] = ()
+        f_cols: np.ndarray | None = None
+
+        if dim == 1:
+            schur_mode = "LP_1D"
+            f_cols = np.empty((1, n_act), dtype=np.float64)
             for idx, j in enumerate(keys):
-                fj = self.F_terms[j]
-                f_cols[:, idx] = fj.ravel()
-                f_norm_sum += float(np.linalg.norm(fj, "fro"))
-                if nnz_limit > 0:
-                    rows, cols = np.nonzero(np.abs(fj) > 0.0)
-                    if 0 < rows.size <= nnz_limit:
-                        sparse_terms[j] = (rows, cols, fj[rows, cols])
-        else:
+                val = float(self.F_terms[j][0, 0])
+                f_cols[0, idx] = val
+                f_norm_sum += abs(val)
+        elif n_act == 0:
+            schur_mode = "F3_blas"
             f_cols = np.zeros((n2, 0), dtype=np.float64)
-            f_norm_sum = 0.0
-            sparse_terms = {}
+        else:
+            # Coletar estatísticas de esparsidade sobre termos simetrizados
+            nnz_full_list: list[int] = []
+            nnz_up_list: list[int] = []
+            triplets_full: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+            triplets_up: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+            nnz_limit = min(int(0.25 * n2), dim) if dim >= 4 else 0
+            total_nnz = 0
+            for j in keys:
+                fj = self.F_terms[j]
+                fj_sym = 0.5 * (fj + fj.T)
+                r_all, c_all = np.nonzero(np.abs(fj_sym) > 0.0)
+                v_all = fj_sym[r_all, c_all]
+                nnz_j = int(r_all.size)
+                total_nnz += nnz_j
+                nnz_full_list.append(nnz_j)
+                triplets_full.append((r_all, c_all, v_all))
+                f_norm_sum += float(np.linalg.norm(v_all))
+                if nnz_limit > 0 and 0 < nnz_j <= nnz_limit:
+                    sparse_terms[j] = (r_all, c_all, v_all)
+                up_mask = r_all <= c_all
+                r_up = r_all[up_mask]
+                c_up = c_all[up_mask]
+                v_up = v_all[up_mask]
+                nnz_up_list.append(int(r_up.size))
+                triplets_up.append((r_up, c_up, v_up))
+
+            max_nnz_full = max(nnz_full_list)
+            max_nnz_up = max(nnz_up_list)
+
+            if self.force_schur_mode == "F3_blas" or dim < 4:
+                schur_mode = "F3_blas"
+            elif max_nnz_full <= max(4, dim // 2) and max_nnz_up <= 4:
+                schur_mode = "F1"
+            elif total_nnz < int(0.25 * n2 * n_act):
+                schur_mode = "F2"
+            else:
+                schur_mode = "F3_blas"
+
+            if schur_mode in ("F1", "F2") and self.build_schur_index:
+                # Construir CSR achatado (n_act, n2) para operações forward/adjoint/F2 sem alocar _F_cols denso
+                flat_rows_parts: list[np.ndarray] = []
+                flat_cols_parts: list[np.ndarray] = []
+                flat_vals_parts: list[np.ndarray] = []
+                for idx, (r_all, c_all, v_all) in enumerate(triplets_full):
+                    if r_all.size > 0:
+                        flat_rows_parts.append(np.full((r_all.size,), idx, dtype=np.int32))
+                        flat_cols_parts.append((r_all * dim + c_all).astype(np.int32, copy=False))
+                        flat_vals_parts.append(v_all)
+                if flat_rows_parts:
+                    F_flat_csr = scipy.sparse.csr_matrix(
+                        (
+                            np.concatenate(flat_vals_parts),
+                            (np.concatenate(flat_rows_parts), np.concatenate(flat_cols_parts)),
+                        ),
+                        shape=(n_act, n2),
+                        dtype=np.float64,
+                    )
+                else:
+                    F_flat_csr = scipy.sparse.csr_matrix((n_act, n2), dtype=np.float64)
+
+                if schur_mode == "F1":
+                    k_up = max(1, max_nnz_up)
+                    f1_P = np.zeros((n_act, k_up), dtype=np.intp)
+                    f1_Q = np.zeros((n_act, k_up), dtype=np.intp)
+                    f1_V = np.zeros((n_act, k_up), dtype=np.float64)
+                    for idx, (r_up, c_up, v_up) in enumerate(triplets_up):
+                        cnt = r_up.size
+                        if cnt > 0:
+                            f1_P[idx, :cnt] = r_up
+                            f1_Q[idx, :cnt] = c_up
+                            scales = np.where(r_up == c_up, _INV_SQRT2, _SQRT2)
+                            f1_V[idx, :cnt] = v_up * scales
+                else:
+                    # schur_mode == "F2": pré-fatiar blocos verticais esparsos (c_len * dim, dim)
+                    chunks: list[tuple[int, int, scipy.sparse.csr_matrix]] = []
+                    for start in range(0, n_act, _F2_CHUNK_SIZE):
+                        end = min(start + _F2_CHUNK_SIZE, n_act)
+                        c_len = end - start
+                        vr_parts: list[np.ndarray] = []
+                        vc_parts: list[np.ndarray] = []
+                        vv_parts: list[np.ndarray] = []
+                        for local_i, idx in enumerate(range(start, end)):
+                            r_all, c_all, v_all = triplets_full[idx]
+                            if r_all.size > 0:
+                                vr_parts.append((r_all + local_i * dim).astype(np.int32, copy=False))
+                                vc_parts.append(c_all.astype(np.int32, copy=False))
+                                vv_parts.append(v_all)
+                        if vr_parts:
+                            f_vert = scipy.sparse.csr_matrix(
+                                (
+                                    np.concatenate(vv_parts),
+                                    (np.concatenate(vr_parts), np.concatenate(vc_parts)),
+                                ),
+                                shape=(c_len * dim, dim),
+                                dtype=np.float64,
+                            )
+                        else:
+                            f_vert = scipy.sparse.csr_matrix((c_len * dim, dim), dtype=np.float64)
+                        chunks.append((start, end, f_vert))
+                    F_vert_chunks = tuple(chunks)
+            else:
+                # F3_blas: manter caminho denso vetorizado + congruência esparsa opcional
+                f_cols = np.empty((n2, n_act), dtype=np.float64)
+                for idx, j in enumerate(keys):
+                    fj = self.F_terms[j]
+                    f_cols[:, idx] = fj.ravel()
+
         object.__setattr__(self, "_active_keys", active_keys)
         object.__setattr__(self, "_F_cols", f_cols)
         object.__setattr__(self, "_f_norm_sum", f_norm_sum)
         object.__setattr__(self, "_sparse_terms", sparse_terms)
+        object.__setattr__(self, "schur_mode", schur_mode)
+        object.__setattr__(self, "_f1_P", f1_P)
+        object.__setattr__(self, "_f1_Q", f1_Q)
+        object.__setattr__(self, "_f1_V", f1_V)
+        object.__setattr__(self, "_F_flat_csr", F_flat_csr)
+        object.__setattr__(self, "_F_vert_chunks", F_vert_chunks)
+
+    def dense_F_cols(self) -> np.ndarray:
+        """Retorna representação densa `(dim^2, n_act)` sob demanda (usada apenas na montagem única de A_cone)."""
+        if self._F_cols is not None:
+            return self._F_cols
+        assert self._F_flat_csr is not None
+        return np.asarray(self._F_flat_csr.T.toarray(), dtype=np.float64)
+
+    def forward_active(self, v_act: np.ndarray, out: np.ndarray) -> None:
+        """Calcula out = sum_i v_act[i] * F_{k_i} sem alocar temporários densos."""
+        if self._F_cols is not None:
+            np.matmul(self._F_cols, v_act, out=out.ravel())
+        else:
+            assert self._F_flat_csr is not None
+            out.ravel()[:] = self._F_flat_csr.T @ v_act
+
+    def adjoint_active(self, U: np.ndarray, out: np.ndarray) -> None:
+        """Calcula out[i] = <F_{k_i}, U> para todas as variáveis ativas do bloco."""
+        if self._F_cols is not None:
+            np.matmul(self._F_cols.T, U.ravel(), out=out)
+        else:
+            assert self._F_flat_csr is not None
+            out[:] = self._F_flat_csr @ U.ravel()
+
+    def assemble_schur_block(self, W: np.ndarray, out_gram: np.ndarray) -> np.ndarray:
+        """Monta a contribuição de Schur H_block[i, j] = tr(F_{k_i} W F_{k_j} W) via F1 ou F2.
+
+        Requer `W` simétrica positiva definida `(dim, dim)` e `out_gram` de forma `(n_act, n_act)`.
+        """
+        n_act = int(self._active_keys.size)
+        if n_act == 0:
+            return out_gram
+        if self.schur_mode == "F1":
+            assert self._f1_P is not None and self._f1_Q is not None and self._f1_V is not None
+            P = self._f1_P
+            Q = self._f1_Q
+            V = self._f1_V
+            k_up = P.shape[1]
+            out_gram.fill(0.0)
+            for a in range(k_up):
+                pa = P[:, a]
+                qa = Q[:, a]
+                va = V[:, a]
+                for b in range(a, k_up):
+                    pb = P[:, b]
+                    qb = Q[:, b]
+                    vb = V[:, b]
+                    w_term = (
+                        W[np.ix_(qa, pb)] * W[np.ix_(pa, qb)]
+                        + W[np.ix_(pa, pb)] * W[np.ix_(qa, qb)]
+                    )
+                    term = (va[:, None] * vb[None, :]) * w_term
+                    out_gram += term
+                    if b != a:
+                        out_gram += term.T
+            return out_gram
+        if self.schur_mode == "F2":
+            assert self._F_flat_csr is not None
+            dim = self.dim
+            n2 = dim * dim
+            F_flat = self._F_flat_csr
+            for start, end, F_vert_chunk in self._F_vert_chunks:
+                c_len = end - start
+                B_chunk = (F_vert_chunk @ W).reshape((c_len, dim, dim))
+                M_chunk = np.matmul(W, B_chunk).reshape((c_len, n2))
+                out_gram[:, start:end] = F_flat @ M_chunk.T
+            out_gram += out_gram.T
+            out_gram *= 0.5
+            return out_gram
+        # Fallback direto para F3_blas (usado em validação unitária direta com matriz W)
+        dim = self.dim
+        n2 = dim * dim
+        F_dense = self.dense_F_cols()
+        for idx in range(n_act):
+            fj = F_dense[:, idx].reshape((dim, dim))
+            mj = W @ fj @ W
+            out_gram[:, idx] = F_dense.T @ mj.ravel()
+        out_gram += out_gram.T
+        out_gram *= 0.5
+        return out_gram
 
     def evaluate(self, z: np.ndarray) -> np.ndarray:
         if self._active_keys.size == 0:
             return 0.5 * (self.F0 + self.F0.T)
-        lin = (self._F_cols @ z[self._active_keys]).reshape((self.dim, self.dim))
+        if self._F_cols is not None:
+            lin = (self._F_cols @ z[self._active_keys]).reshape((self.dim, self.dim))
+        else:
+            assert self._F_flat_csr is not None
+            lin = (self._F_flat_csr.T @ z[self._active_keys]).reshape((self.dim, self.dim))
         res = self.F0 + lin
         return 0.5 * (res + res.T)
 
     def evaluate_linear(self, dz: np.ndarray) -> np.ndarray:
         if self._active_keys.size == 0:
             return np.zeros((self.dim, self.dim), dtype=np.float64)
-        res = (self._F_cols @ dz[self._active_keys]).reshape((self.dim, self.dim))
+        if self._F_cols is not None:
+            res = (self._F_cols @ dz[self._active_keys]).reshape((self.dim, self.dim))
+        else:
+            assert self._F_flat_csr is not None
+            res = (self._F_flat_csr.T @ dz[self._active_keys]).reshape((self.dim, self.dim))
         return 0.5 * (res + res.T)
 
     def evaluate_into(self, z: np.ndarray, out: np.ndarray, tmp: np.ndarray) -> np.ndarray:
@@ -271,7 +503,7 @@ class _InternalConeBlock:
             z_act = z
         else:
             z_act = z[self._active_keys]
-        np.matmul(self._F_cols, z_act, out=tmp.ravel())
+        self.forward_active(z_act, tmp)
         tmp += self.F0
         return _sym_into(tmp, out)
 
@@ -755,6 +987,18 @@ def _gondzio_psd_delta_M(
     return True
 
 
+def _count_schur_modes(blocks: Sequence[_InternalConeBlock]) -> dict[str, int]:
+    """Conta quantos blocos usam cada fórmula de montagem de Schur (F1, F2, F3_blas, LP_1D)."""
+    counts = {"F1": 0, "F2": 0, "F3_blas": 0, "LP_1D": 0}
+    for blk in blocks:
+        mode = blk.schur_mode
+        if mode in counts:
+            counts[mode] += 1
+        else:
+            counts["F3_blas"] += 1
+    return counts
+
+
 def _run_primal_dual_cone_loop(
     blocks: Sequence[_InternalConeBlock],
     c_vec: np.ndarray,
@@ -939,7 +1183,8 @@ def _run_primal_dual_cone_loop(
     cho_Z_psd: list[tuple[np.ndarray, bool]] = []
     R_p_psd_bufs: list[np.ndarray] = []
     R_p_hat_bufs: list[np.ndarray] = []
-    cols_bufs: list[np.ndarray] = []
+    cols_bufs: list[np.ndarray | None] = []
+    W_psd_bufs: list[np.ndarray] = []
     gram_bufs: list[np.ndarray | None] = []
     dS_tilde_aff_bufs: list[np.ndarray] = []
     dZ_tilde_aff_bufs: list[np.ndarray] = []
@@ -947,6 +1192,7 @@ def _run_primal_dual_cone_loop(
     dZ_psd_bufs: list[np.ndarray] = []
     tmp1_bufs: list[np.ndarray] = []
     tmp2_bufs: list[np.ndarray] = []
+    tmp3_bufs: list[np.ndarray] = []
     act_vec_bufs: list[np.ndarray | None] = []
     is_full_m: list[bool] = []
     G_invT_psd: list[np.ndarray] = [np.empty((0, 0), dtype=np.float64)] * n_psd_blocks
@@ -996,7 +1242,10 @@ def _run_primal_dual_cone_loop(
         cho_Z_psd.append(cho_z)
         R_p_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
         R_p_hat_bufs.append(np.empty((dim, dim), dtype=np.float64))
-        cols_bufs.append(np.empty((dim * dim, n_act), dtype=np.float64))
+        cols_bufs.append(
+            None if blk.schur_mode in ("F1", "F2") else np.empty((dim * dim, n_act), dtype=np.float64)
+        )
+        W_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
         gram_bufs.append(np.empty((n_act, n_act), dtype=np.float64) if n_act > 0 else None)
         dS_tilde_aff_bufs.append(np.empty((dim, dim), dtype=np.float64))
         dZ_tilde_aff_bufs.append(np.empty((dim, dim), dtype=np.float64))
@@ -1004,10 +1253,35 @@ def _run_primal_dual_cone_loop(
         dZ_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
         tmp1_bufs.append(tmp1_b)
         tmp2_bufs.append(tmp2_b)
+        tmp3_bufs.append(np.empty((dim, dim), dtype=np.float64))
         act_vec_bufs.append(np.empty((n_act,), dtype=np.float64) if n_act > 0 else None)
         is_full_m.append(
             n_act == m and n_act > 0 and int(blk._active_keys[0]) == 0 and int(blk._active_keys[-1]) == m - 1
         )
+
+    def _psd_adjoint_hat(pos: int, T_mat: np.ndarray, act_buf: np.ndarray) -> None:
+        cols_b = cols_bufs[pos]
+        if cols_b is not None:
+            np.matmul(cols_b.T, T_mat.ravel(), out=act_buf)
+        else:
+            G_invT_b = G_invT_psd[pos]
+            t2 = tmp2_bufs[pos]
+            t3 = tmp3_bufs[pos]
+            np.matmul(G_invT_b, T_mat, out=t2)
+            np.matmul(t2, G_invT_b.T, out=t3)
+            psd_blocks[pos].adjoint_active(t3, act_buf)
+
+    def _psd_forward_hat(pos: int, v_act: np.ndarray, out_mat: np.ndarray) -> None:
+        cols_b = cols_bufs[pos]
+        if cols_b is not None:
+            np.matmul(cols_b, v_act, out=out_mat.ravel())
+        else:
+            G_invT_b = G_invT_psd[pos]
+            t2 = tmp2_bufs[pos]
+            t3 = tmp3_bufs[pos]
+            psd_blocks[pos].forward_active(v_act, t2)
+            np.matmul(G_invT_b.T, t2, out=t3)
+            np.matmul(t3, G_invT_b, out=out_mat)
 
     # Pré-computar metadados de Fase I (sub-blocos de Farkas e índices originais) fora do laço
     n_check_p1 = check_farkas_on_blocks if check_farkas_on_blocks is not None else n_blocks
@@ -1114,7 +1388,7 @@ def _run_primal_dual_cone_loop(
             if blk._active_keys.size > 0:
                 act_buf = act_vec_bufs[pos]
                 assert act_buf is not None
-                np.matmul(blk._F_cols.T, Z_b.ravel(), out=act_buf)
+                blk.adjoint_active(Z_b, act_buf)
                 if is_full_m[pos]:
                     adj += act_buf
                 else:
@@ -1293,7 +1567,7 @@ def _run_primal_dual_cone_loop(
         else:
             H.fill(0.0)
 
-        # 2b. Blocos PSD (dim >= 2): congruência NT esparsa + montagem BLAS in-place em H
+        # 2b. Blocos PSD (dim >= 2): montagem de Schur F1/F2 esparsa ou F3 BLAS denso in-place em H
         for pos, blk in enumerate(psd_blocks):
             _, G_invT_b, lam_b = _nt_scaling_factors(cho_S_psd[pos], cho_Z_psd[pos])
             G_invT_psd[pos] = G_invT_b
@@ -1303,18 +1577,7 @@ def _run_primal_dual_cone_loop(
             cols = cols_bufs[pos]
             tmp1 = tmp1_bufs[pos]
             tmp2 = tmp2_bufs[pos]
-            sparse_terms = blk._sparse_terms
-            for idx, j_raw in enumerate(active_keys):
-                j = int(j_raw)
-                sp = sparse_terms.get(j)
-                if sp is not None:
-                    r_sp, c_sp, v_sp = sp
-                    np.matmul(G_invT_b[r_sp, :].T, v_sp[:, None] * G_invT_b[c_sp, :], out=tmp1)
-                else:
-                    np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
-                    np.matmul(tmp2, G_invT_b, out=tmp1)
-                _sym_into(tmp1, tmp2)
-                cols[:, idx] = tmp2.ravel()
+
             np.matmul(G_invT_b.T, R_p_psd_bufs[pos], out=tmp1)
             np.matmul(tmp1, G_invT_b, out=tmp2)
             _sym_into(tmp2, R_p_hat_bufs[pos])
@@ -1322,7 +1585,26 @@ def _run_primal_dual_cone_loop(
             if n_act > 0:
                 gram = gram_bufs[pos]
                 assert gram is not None
-                np.matmul(cols.T, cols, out=gram)
+                if cols is None:
+                    # Fórmulas F1 / F2 (Fujisawa-Kojima-Nakata 1997): W = G_invT @ G_invT.T
+                    W_b = W_psd_bufs[pos]
+                    np.matmul(G_invT_b, G_invT_b.T, out=tmp1)
+                    _sym_into(tmp1, W_b)
+                    blk.assemble_schur_block(W_b, gram)
+                else:
+                    sparse_terms = blk._sparse_terms
+                    for idx, j_raw in enumerate(active_keys):
+                        j = int(j_raw)
+                        sp = sparse_terms.get(j)
+                        if sp is not None:
+                            r_sp, c_sp, v_sp = sp
+                            np.matmul(G_invT_b[r_sp, :].T, v_sp[:, None] * G_invT_b[c_sp, :], out=tmp1)
+                        else:
+                            np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
+                            np.matmul(tmp2, G_invT_b, out=tmp1)
+                        _sym_into(tmp1, tmp2)
+                        cols[:, idx] = tmp2.ravel()
+                    np.matmul(cols.T, cols, out=gram)
                 if is_full_m[pos]:
                     H += gram
                 else:
@@ -1357,7 +1639,7 @@ def _run_primal_dual_cone_loop(
                 tmp1[diag_psd[pos], diag_psd[pos]] -= lam_psd[pos]
                 act_buf = act_vec_bufs[pos]
                 assert act_buf is not None
-                np.matmul(cols_bufs[pos].T, tmp1.ravel(), out=act_buf)
+                _psd_adjoint_hat(pos, tmp1, act_buf)
                 if is_full_m[pos]:
                     rhs_aff += act_buf
                 else:
@@ -1450,7 +1732,7 @@ def _run_primal_dual_cone_loop(
             dz_t = dZ_tilde_aff_bufs[pos]
             if active_keys.size > 0:
                 dz_act = dz_aff if is_full_m[pos] else dz_aff[active_keys]
-                np.matmul(cols_bufs[pos], dz_act, out=tmp1.ravel())
+                _psd_forward_hat(pos, dz_act, tmp1)
                 tmp1 -= R_p_hat_bufs[pos]
                 _sym_into(tmp1, ds_t)
             else:
@@ -1540,7 +1822,7 @@ def _run_primal_dual_cone_loop(
                 np.add(M_cor_b, R_p_hat_bufs[pos], out=tmp1)
                 act_buf = act_vec_bufs[pos]
                 assert act_buf is not None
-                np.matmul(cols_bufs[pos].T, tmp1.ravel(), out=act_buf)
+                _psd_adjoint_hat(pos, tmp1, act_buf)
                 if is_full_m[pos]:
                     rhs_cor += act_buf
                 else:
@@ -1594,7 +1876,7 @@ def _run_primal_dual_cone_loop(
             dz_t = dZ_tilde_aff_bufs[pos]
             if active_keys.size > 0:
                 dz_act = dz if is_full_m[pos] else dz[active_keys]
-                np.matmul(cols_bufs[pos], dz_act, out=tmp1.ravel())
+                _psd_forward_hat(pos, dz_act, tmp1)
                 tmp1 -= R_p_hat_bufs[pos]
                 _sym_into(tmp1, ds_t)
             else:
@@ -1673,7 +1955,7 @@ def _run_primal_dual_cone_loop(
                         if active_keys.size > 0:
                             act_buf = act_vec_bufs[pos]
                             assert act_buf is not None
-                            np.matmul(cols_bufs[pos].T, dM_b.ravel(), out=act_buf)
+                            _psd_adjoint_hat(pos, dM_b, act_buf)
                             if is_full_m[pos]:
                                 rhs_gon += act_buf
                             else:
@@ -1730,7 +2012,7 @@ def _run_primal_dual_cone_loop(
                     tmp2 = tmp2_bufs[pos]
                     if active_keys.size > 0:
                         ddz_act = ddz_g if is_full_m[pos] else ddz_g[active_keys]
-                        np.matmul(cols_bufs[pos], ddz_act, out=tmp1.ravel())
+                        _psd_forward_hat(pos, ddz_act, tmp1)
                         dds_t = _sym(tmp1)
                     else:
                         dds_t = np.zeros((blk.dim, blk.dim), dtype=np.float64)
@@ -1965,7 +2247,9 @@ def _run_primal_dual_cone_loop(
         dual_scale = 1.0 + c_norm
         for blk, Z_b in zip(blocks, Z_list, strict=True):
             if blk._active_keys.size > 0:
-                adj[blk._active_keys] += blk._F_cols.T @ Z_b.ravel()
+                act_f = np.empty((blk._active_keys.size,), dtype=np.float64)
+                blk.adjoint_active(Z_b, act_f)
+                adj[blk._active_keys] += act_f
                 dual_scale += blk._f_norm_sum * float(np.linalg.norm(Z_b, "fro"))
         r_d_rel = float(np.linalg.norm(c_vec - adj) / dual_scale)
         if min_eig_p >= -1e-7 and r_d_rel <= 1e-6 and rel_gap <= 1e-6:
@@ -2013,6 +2297,7 @@ def _run_primal_dual_cone_loop(
         lp_vec_buf,
         lp_vec_buf2,
         cols_bufs,
+        W_psd_bufs,
         gram_bufs,
         S_psd_list,
         Z_psd_list,
@@ -2033,6 +2318,7 @@ def _run_primal_dual_cone_loop(
         dZ_psd_bufs,
         tmp1_bufs,
         tmp2_bufs,
+        tmp3_bufs,
         act_vec_bufs,
         G_invT_psd,
         lam_psd,
@@ -2052,6 +2338,7 @@ def _run_primal_dual_cone_loop(
         "factorizations": factorizations,
         "gondzio_correctors_attempted": gondzio_attempted,
         "gondzio_correctors_accepted": gondzio_accepted,
+        "schur_assembly_modes": _count_schur_modes(blocks),
     }
 
 
@@ -2226,7 +2513,8 @@ def _run_hsde_cone_loop(
     R_p_psd_bufs: list[np.ndarray] = []
     R_p_hat_bufs: list[np.ndarray] = []
     F0_hat_bufs: list[np.ndarray] = []
-    cols_bufs: list[np.ndarray] = []
+    cols_bufs: list[np.ndarray | None] = []
+    W_psd_bufs: list[np.ndarray] = []
     gram_bufs: list[np.ndarray | None] = []
     dS_tilde_aff_bufs: list[np.ndarray] = []
     dZ_tilde_aff_bufs: list[np.ndarray] = []
@@ -2238,6 +2526,7 @@ def _run_hsde_cone_loop(
     dZ_psd_bufs: list[np.ndarray] = []
     tmp1_bufs: list[np.ndarray] = []
     tmp2_bufs: list[np.ndarray] = []
+    tmp3_bufs: list[np.ndarray] = []
     act_vec_bufs: list[np.ndarray | None] = []
     is_full_m: list[bool] = []
     G_psd: list[np.ndarray] = [np.empty((0, 0), dtype=np.float64)] * n_psd_blocks
@@ -2276,7 +2565,10 @@ def _run_hsde_cone_loop(
         R_p_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
         R_p_hat_bufs.append(np.empty((dim, dim), dtype=np.float64))
         F0_hat_bufs.append(np.empty((dim, dim), dtype=np.float64))
-        cols_bufs.append(np.empty((dim * dim, n_act), dtype=np.float64))
+        cols_bufs.append(
+            None if blk.schur_mode in ("F1", "F2") else np.empty((dim * dim, n_act), dtype=np.float64)
+        )
+        W_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
         gram_bufs.append(np.empty((n_act, n_act), dtype=np.float64) if n_act > 0 else None)
         dS_tilde_aff_bufs.append(np.empty((dim, dim), dtype=np.float64))
         dZ_tilde_aff_bufs.append(np.empty((dim, dim), dtype=np.float64))
@@ -2288,10 +2580,35 @@ def _run_hsde_cone_loop(
         dZ_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
         tmp1_bufs.append(np.empty((dim, dim), dtype=np.float64))
         tmp2_bufs.append(np.empty((dim, dim), dtype=np.float64))
+        tmp3_bufs.append(np.empty((dim, dim), dtype=np.float64))
         act_vec_bufs.append(np.empty((n_act,), dtype=np.float64) if n_act > 0 else None)
         is_full_m.append(
             n_act == m and n_act > 0 and int(blk._active_keys[0]) == 0 and int(blk._active_keys[-1]) == m - 1
         )
+
+    def _psd_adjoint_hat(pos: int, T_mat: np.ndarray, act_buf: np.ndarray) -> None:
+        cols_b = cols_bufs[pos]
+        if cols_b is not None:
+            np.matmul(cols_b.T, T_mat.ravel(), out=act_buf)
+        else:
+            G_invT_b = G_invT_psd[pos]
+            t2 = tmp2_bufs[pos]
+            t3 = tmp3_bufs[pos]
+            np.matmul(G_invT_b, T_mat, out=t2)
+            np.matmul(t2, G_invT_b.T, out=t3)
+            psd_blocks[pos].adjoint_active(t3, act_buf)
+
+    def _psd_forward_hat(pos: int, v_act: np.ndarray, out_mat: np.ndarray) -> None:
+        cols_b = cols_bufs[pos]
+        if cols_b is not None:
+            np.matmul(cols_b, v_act, out=out_mat.ravel())
+        else:
+            G_invT_b = G_invT_psd[pos]
+            t2 = tmp2_bufs[pos]
+            t3 = tmp3_bufs[pos]
+            psd_blocks[pos].forward_active(v_act, t2)
+            np.matmul(G_invT_b.T, t2, out=t3)
+            np.matmul(t3, G_invT_b, out=out_mat)
 
     history: list[IterationRecord] = []
     iter_log: list[dict[str, Any]] = iteration_log if iteration_log is not None else []
@@ -2366,12 +2683,12 @@ def _run_hsde_cone_loop(
                 tmp1 = tmp1_bufs[pos]
                 if blk._active_keys.size > 0:
                     z_act = z if is_full_m[pos] else z[blk._active_keys]
-                    np.matmul(blk._F_cols, z_act, out=tmp1.ravel())
+                    blk.forward_active(z_act, tmp1)
                     tmp1 += tau * blk.F0
                     _sym_into(tmp1, S_ev)
                     act_buf = act_vec_bufs[pos]
                     assert act_buf is not None
-                    np.matmul(blk._F_cols.T, Z_b.ravel(), out=act_buf)
+                    blk.adjoint_active(Z_b, act_buf)
                     if is_full_m[pos]:
                         adj += act_buf
                     else:
@@ -2510,7 +2827,9 @@ def _run_hsde_cone_loop(
                         adj_s = np.zeros((m,), dtype=np.float64)
                         for b, Zb in zip(blocks, Z_strict, strict=True):
                             if b._active_keys.size > 0:
-                                adj_s[b._active_keys] += b._F_cols.T @ Zb.ravel()
+                                act_s = np.empty((b._active_keys.size,), dtype=np.float64)
+                                b.adjoint_active(Zb, act_s)
+                                adj_s[b._active_keys] += act_s
                         farkas_dual_res_rel = float(np.linalg.norm(adj_s) / max(1e-15, abs(farkas_obj_s)))
                         farkas_objective = farkas_obj_s
                         _record_hsde_log(0.0)
@@ -2576,18 +2895,6 @@ def _run_hsde_cone_loop(
                 cols = cols_bufs[pos]
                 tmp1 = tmp1_bufs[pos]
                 tmp2 = tmp2_bufs[pos]
-                sparse_terms = blk._sparse_terms
-                for idx, j_raw in enumerate(active_keys):
-                    j = int(j_raw)
-                    sp = sparse_terms.get(j)
-                    if sp is not None:
-                        r_sp, c_sp, v_sp = sp
-                        np.matmul(G_invT_b[r_sp, :].T, v_sp[:, None] * G_invT_b[c_sp, :], out=tmp1)
-                    else:
-                        np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
-                        np.matmul(tmp2, G_invT_b, out=tmp1)
-                    _sym_into(tmp1, tmp2)
-                    cols[:, idx] = tmp2.ravel()
 
                 np.matmul(G_invT_b.T, blk.F0, out=tmp1)
                 np.matmul(tmp1, G_invT_b, out=tmp2)
@@ -2602,8 +2909,27 @@ def _run_hsde_cone_loop(
                     gram = gram_bufs[pos]
                     act_buf = act_vec_bufs[pos]
                     assert gram is not None and act_buf is not None
-                    np.matmul(cols.T, cols, out=gram)
-                    np.matmul(cols.T, F0_hat_bufs[pos].ravel(), out=act_buf)
+                    if cols is None:
+                        W_b = W_psd_bufs[pos]
+                        np.matmul(G_invT_b, G_invT_b.T, out=tmp1)
+                        _sym_into(tmp1, W_b)
+                        blk.assemble_schur_block(W_b, gram)
+                        _psd_adjoint_hat(pos, F0_hat_bufs[pos], act_buf)
+                    else:
+                        sparse_terms = blk._sparse_terms
+                        for idx, j_raw in enumerate(active_keys):
+                            j = int(j_raw)
+                            sp = sparse_terms.get(j)
+                            if sp is not None:
+                                r_sp, c_sp, v_sp = sp
+                                np.matmul(G_invT_b[r_sp, :].T, v_sp[:, None] * G_invT_b[c_sp, :], out=tmp1)
+                            else:
+                                np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
+                                np.matmul(tmp2, G_invT_b, out=tmp1)
+                            _sym_into(tmp1, tmp2)
+                            cols[:, idx] = tmp2.ravel()
+                        np.matmul(cols.T, cols, out=gram)
+                        np.matmul(cols.T, F0_hat_bufs[pos].ravel(), out=act_buf)
                     if is_full_m[pos]:
                         H += gram
                         g0 += act_buf
@@ -2657,7 +2983,7 @@ def _run_hsde_cone_loop(
                 tmp1 = tmp1_bufs[pos]
                 if active_keys.size > 0:
                     u0_act = u0_vec if is_full_m[pos] else u0_vec[active_keys]
-                    np.matmul(cols_bufs[pos], u0_act, out=tmp1.ravel())
+                    _psd_forward_hat(pos, u0_act, tmp1)
                     r_f0_b = _sym(F0_hat_bufs[pos] - tmp1)
                 else:
                     r_f0_b = F0_hat_bufs[pos].copy()
@@ -2729,7 +3055,7 @@ def _run_hsde_cone_loop(
                 if active_keys.size > 0:
                     act_buf = act_vec_bufs[pos]
                     assert act_buf is not None
-                    np.matmul(cols_bufs[pos].T, tmp1.ravel(), out=act_buf)
+                    _psd_adjoint_hat(pos, tmp1, act_buf)
                     if is_full_m[pos]:
                         rhs_buf += act_buf
                     else:
@@ -2771,7 +3097,7 @@ def _run_hsde_cone_loop(
                 dz_t = dZ_tilde_aff_bufs[pos]
                 if active_keys.size > 0:
                     dz_act = dz_aff if is_full_m[pos] else dz_aff[active_keys]
-                    np.matmul(cols_bufs[pos], dz_act, out=tmp1.ravel())
+                    _psd_forward_hat(pos, dz_act, tmp1)
                 else:
                     tmp1.fill(0.0)
                 tmp1 += dtau_aff * F0_hat_bufs[pos]
@@ -2861,7 +3187,7 @@ def _run_hsde_cone_loop(
                 if active_keys.size > 0:
                     act_buf = act_vec_bufs[pos]
                     assert act_buf is not None
-                    np.matmul(cols_bufs[pos].T, tmp1.ravel(), out=act_buf)
+                    _psd_adjoint_hat(pos, tmp1, act_buf)
                     if is_full_m[pos]:
                         rhs_buf += act_buf
                     else:
@@ -2904,7 +3230,7 @@ def _run_hsde_cone_loop(
                 dz_t = dZ_tilde_cor_bufs[pos]
                 if active_keys.size > 0:
                     dz_act = dz if is_full_m[pos] else dz[active_keys]
-                    np.matmul(cols_bufs[pos], dz_act, out=tmp1.ravel())
+                    _psd_forward_hat(pos, dz_act, tmp1)
                 else:
                     tmp1.fill(0.0)
                 tmp1 += dtau * F0_hat_bufs[pos]
@@ -2986,7 +3312,7 @@ def _run_hsde_cone_loop(
                             if active_keys.size > 0:
                                 act_buf = act_vec_bufs[pos]
                                 assert act_buf is not None
-                                np.matmul(cols_bufs[pos].T, dM_b.ravel(), out=act_buf)
+                                _psd_adjoint_hat(pos, dM_b, act_buf)
                                 if is_full_m[pos]:
                                     rhs_buf += act_buf
                                 else:
@@ -3036,7 +3362,7 @@ def _run_hsde_cone_loop(
                         tmp1 = tmp1_bufs[pos]
                         if active_keys.size > 0:
                             ddz_act = ddz_g if is_full_m[pos] else ddz_g[active_keys]
-                            np.matmul(cols_bufs[pos], ddz_act, out=tmp1.ravel())
+                            _psd_forward_hat(pos, ddz_act, tmp1)
                         else:
                             tmp1.fill(0.0)
                         tmp1 += ddtau_g * F0_hat_bufs[pos]
@@ -3230,7 +3556,9 @@ def _run_hsde_cone_loop(
                 dual_scale_f = 1.0 + c_norm
                 for blk, Z_b in zip(blocks, Z_list, strict=True):
                     if blk._active_keys.size > 0:
-                        adj[blk._active_keys] += blk._F_cols.T @ Z_b.ravel()
+                        act_f = np.empty((blk._active_keys.size,), dtype=np.float64)
+                        blk.adjoint_active(Z_b, act_f)
+                        adj[blk._active_keys] += act_f
                         dual_scale_f += blk._f_norm_sum * float(np.linalg.norm(Z_b, "fro"))
                 r_d_rel_f = float(np.linalg.norm(c_vec - adj) / dual_scale_f)
                 if min_eig_p_f >= -1e-7 and r_d_rel_f <= 1e-6 and rel_gap_f <= 1e-6:
@@ -3260,6 +3588,7 @@ def _run_hsde_cone_loop(
             "factorizations": factorizations,
             "gondzio_correctors_attempted": gondzio_attempted,
             "gondzio_correctors_accepted": gondzio_accepted,
+            "schur_assembly_modes": _count_schur_modes(blocks),
         }
     finally:
         del (
@@ -3301,6 +3630,7 @@ def _run_hsde_cone_loop(
             lp_vec_buf,
             lp_vec_buf2,
             cols_bufs,
+            W_psd_bufs,
             gram_bufs,
             S_psd_list,
             Z_psd_list,
@@ -3326,6 +3656,7 @@ def _run_hsde_cone_loop(
             dZ_psd_bufs,
             tmp1_bufs,
             tmp2_bufs,
+            tmp3_bufs,
             act_vec_bufs,
             G_psd,
             G_invT_psd,
@@ -3445,6 +3776,7 @@ def _decompose_sparse_psd_blocks(
                     F_terms=sub_F_terms,
                     is_ineq_slack=blk.is_ineq_slack,
                     ineq_index=blk.ineq_index,
+                    build_schur_index=False,
                 )
             )
             mapping.append((sub_idx, verts))
@@ -3530,10 +3862,186 @@ def _ruiz_equilibrate_blocks(
                 F_terms={j: fj * (eb * float(d[j])) for j, fj in b.F_terms.items()},
                 is_ineq_slack=b.is_ineq_slack,
                 ineq_index=b.ineq_index,
+                build_schur_index=False,
             )
         )
     c_y_eq = d * c_y
     return scaled_blocks, c_y_eq, e, d
+
+
+@dataclass(frozen=True)
+class _SymbolicPreprocessPlan:
+    """Plano de pré-processamento simbólico de colunas (eliminação de zeros e fusão de duplicatas)."""
+
+    original_n_vars: int
+    kept_vars: np.ndarray
+    orig_to_red: dict[int, int]
+    eliminated_zero_vars: tuple[int, ...]
+    merged_duplicate_vars: tuple[tuple[int, int, float], ...]
+    free_nonzero_cost_vars: tuple[tuple[int, float], ...]
+
+    @property
+    def reduced_n_vars(self) -> int:
+        return int(self.kept_vars.size)
+
+    @property
+    def summary(self) -> dict[str, int]:
+        return {
+            "original_n_vars": int(self.original_n_vars),
+            "reduced_n_vars": int(self.kept_vars.size),
+            "eliminated_zero_vars": int(len(self.eliminated_zero_vars)),
+            "merged_duplicate_vars": int(len(self.merged_duplicate_vars)),
+            "free_nonzero_cost_vars": int(len(self.free_nonzero_cost_vars)),
+        }
+
+    def reconstruct_x(self, x_red: np.ndarray) -> np.ndarray:
+        """Reconstrói vetor primal completo x na dimensão original (zeros em colunas eliminadas/fundidas)."""
+        if self.kept_vars.size == self.original_n_vars and not self.merged_duplicate_vars:
+            return np.asarray(x_red, dtype=np.float64).copy()
+        x_full = np.zeros((self.original_n_vars,), dtype=np.float64)
+        if self.kept_vars.size > 0:
+            x_full[self.kept_vars] = x_red
+        return x_full
+
+    def map_warm_start(self, x_ws_orig: np.ndarray) -> np.ndarray:
+        """Projeta warm_start_x original para variáveis reduzidas preservando x_k1 + alpha * x_k2."""
+        if self.kept_vars.size == 0:
+            return np.zeros((0,), dtype=np.float64)
+        x_ws_red = np.asarray(x_ws_orig[self.kept_vars], dtype=np.float64).copy()
+        for orig_k, rep_red_idx, alpha in self.merged_duplicate_vars:
+            x_ws_red[rep_red_idx] += alpha * float(x_ws_orig[orig_k])
+        return x_ws_red
+
+    def free_recession_direction(self) -> np.ndarray:
+        """Constrói direção recessiva unitária a partir de variáveis livres com custo não-nulo."""
+        d_free = np.zeros((self.original_n_vars,), dtype=np.float64)
+        for orig_k, ck in self.free_nonzero_cost_vars:
+            d_free[orig_k] = -ck
+        nrm = float(np.linalg.norm(d_free))
+        if nrm > 0.0:
+            d_free /= nrm
+        return d_free
+
+
+def _preprocess_symbolic_columns(problem: CanonicalSDPProblem) -> _SymbolicPreprocessPlan:
+    """Detecta e elimina colunas nulas e colunas colineares/duplicadas em O(nnz_total) via hash esparso.
+
+    - Coluna nula (`F_{b,k} == 0`, `H[:,k] == 0`, `E[:,k] == 0`):
+      - Se `c_k == 0`: eliminada (`x_k = 0.0` na reconstrução).
+      - Se `c_k != 0`: registrada em `free_nonzero_cost_vars` para certificação exata de
+        ilimitabilidade (caso primal factível) ou infactibilidade primal (Farkas).
+    - Colunas colineares (`F_{b,k2} == alpha * F_{b,k1}`, `H[:,k2] == alpha * H[:,k1]`,
+      `E[:,k2] == alpha * E[:,k1]`, `c[k2] == alpha * c[k1]` com `alpha != 0`):
+      fundidas em `x_{k1}_tilde = x_{k1} + alpha * x_{k2}` (reconstrução `x_{k1} = x_{k1}_tilde`,
+      `x_{k2} = 0`), preservando primalidade e dualidade exatas sem comparações densas O(m^2).
+    """
+    n_vars = problem.n_vars
+    c_vec = problem.c
+    col_keys: list[list[int]] = [[] for _ in range(n_vars)]
+    col_vals: list[list[float]] = [[] for _ in range(n_vars)]
+
+    # 1. Coletar entradas não-nulas dos blocos PSD em ordem canônica (section=0)
+    for b_idx, blk in enumerate(problem.blocks):
+        dim = blk.dim
+        b_shift = int(b_idx) << 32
+        for k, fk in blk.F_terms.items():
+            fk_sym = 0.5 * (fk + fk.T)
+            nz_r, nz_c = np.nonzero(np.abs(fk_sym) > 1e-15)
+            if nz_r.size == 0:
+                continue
+            flat_idx = nz_r.astype(np.int64) * dim + nz_c.astype(np.int64)
+            vals = fk_sym[nz_r, nz_c]
+            ck_list = col_keys[k]
+            cv_list = col_vals[k]
+            for f_i, v_i in zip(flat_idx.tolist(), vals.tolist()):
+                ck_list.append(b_shift | int(f_i))
+                cv_list.append(float(v_i))
+
+    # 2. Coletar entradas não-nulas de H (desigualdades lineares, section=1)
+    if problem.n_ineq > 0:
+        sec_h = 1 << 48
+        nz_r, nz_c = np.nonzero(np.abs(problem.H) > 1e-15)
+        if nz_r.size > 0:
+            vals_h = problem.H[nz_r, nz_c]
+            for r_i, c_i, v_i in zip(nz_r.tolist(), nz_c.tolist(), vals_h.tolist()):
+                col_keys[c_i].append(sec_h | int(r_i))
+                col_vals[c_i].append(float(v_i))
+
+    # 3. Coletar entradas não-nulas de E (igualdades lineares, section=2)
+    if problem.n_eq > 0:
+        sec_e = 2 << 48
+        nz_r, nz_c = np.nonzero(np.abs(problem.E) > 1e-15)
+        if nz_r.size > 0:
+            vals_e = problem.E[nz_r, nz_c]
+            for r_i, c_i, v_i in zip(nz_r.tolist(), nz_c.tolist(), vals_e.tolist()):
+                col_keys[c_i].append(sec_e | int(r_i))
+                col_vals[c_i].append(float(v_i))
+
+    kept_vars: list[int] = []
+    eliminated_zero_vars: list[int] = []
+    merged_duplicate_vars: list[tuple[int, int, float]] = []
+    free_nonzero_cost_vars: list[tuple[int, float]] = []
+
+    # Buckets de hash esparso: hash_key -> lista de (rep_red_idx, rep_orig_k, rep_keys, rep_vals, rep_pivot)
+    buckets: dict[tuple[int, bytes, bytes], list[tuple[int, int, np.ndarray, np.ndarray, float]]] = {}
+
+    for k in range(n_vars):
+        ck_list = col_keys[k]
+        if not ck_list:
+            ck_val = float(c_vec[k])
+            if abs(ck_val) <= 1e-15:
+                eliminated_zero_vars.append(k)
+            else:
+                free_nonzero_cost_vars.append((k, ck_val))
+            continue
+
+        keys_arr = np.asarray(ck_list, dtype=np.int64)
+        vals_arr = np.asarray(col_vals[k], dtype=np.float64)
+        pivot_pos = int(np.argmax(np.abs(vals_arr)))
+        pivot = float(vals_arr[pivot_pos])
+        norm_vals = vals_arr / pivot
+        h_key = (int(keys_arr.size), keys_arr.tobytes(), np.round(norm_vals, 9).tobytes())
+
+        matched = False
+        cand_list = buckets.get(h_key)
+        if cand_list is not None:
+            ck_val = float(c_vec[k])
+            v_scale = max(1.0, float(np.max(np.abs(vals_arr))))
+            for rep_red_idx, rep_orig_k, rep_keys, rep_vals, rep_pivot in cand_list:
+                if not np.array_equal(keys_arr, rep_keys):
+                    continue
+                alpha = pivot / rep_pivot
+                if not math.isfinite(alpha) or alpha == 0.0:
+                    continue
+                if float(np.max(np.abs(vals_arr - alpha * rep_vals))) > 1e-12 * v_scale:
+                    continue
+                c_rep = float(c_vec[rep_orig_k])
+                c_scale_pair = max(1.0, abs(ck_val), abs(alpha * c_rep))
+                if abs(ck_val - alpha * c_rep) > 1e-12 * c_scale_pair:
+                    continue
+                merged_duplicate_vars.append((k, rep_red_idx, float(alpha)))
+                matched = True
+                break
+
+        if not matched:
+            rep_red_idx = len(kept_vars)
+            kept_vars.append(k)
+            entry = (rep_red_idx, k, keys_arr, vals_arr, pivot)
+            if cand_list is None:
+                buckets[h_key] = [entry]
+            else:
+                cand_list.append(entry)
+
+    kept_arr = np.asarray(kept_vars, dtype=np.intp)
+    orig_to_red = {orig_k: red_i for red_i, orig_k in enumerate(kept_vars)}
+    return _SymbolicPreprocessPlan(
+        original_n_vars=n_vars,
+        kept_vars=kept_arr,
+        orig_to_red=orig_to_red,
+        eliminated_zero_vars=tuple(eliminated_zero_vars),
+        merged_duplicate_vars=tuple(merged_duplicate_vars),
+        free_nonzero_cost_vars=tuple(free_nonzero_cost_vars),
+    )
 
 
 def solve_native_raw(
@@ -3543,7 +4051,8 @@ def solve_native_raw(
     """Resolve CanonicalSDPProblem pelo método didático de Pontos Interiores Primal-Dual.
 
     Retorna dicionário compatível com `SDPBackend.solve_raw` e `verify()`, enriquecido
-    com o histórico completo do caminho central (`history`, `phase1_summary`, `phase2_summary`).
+    com o histórico completo do caminho central (`history`, `phase1_summary`, `phase2_summary`,
+    `hsde_summary`, `schur_assembly_modes`, `preprocessing_summary`).
     """
     if not isinstance(problem, CanonicalSDPProblem):
         raise ValidationError(
@@ -3557,48 +4066,146 @@ def solve_native_raw(
     opt_cancel = options.get("cancel_check") if isinstance(options, Mapping) else None
     cancel_cb = opt_cancel if callable(opt_cancel) else get_cancel_check()
 
-    n_vars = problem.n_vars
+    # -----------------------------------------------------------------------
+    # Passo 0: Pré-processamento simbólico de colunas redundantes (ADR-015 Ciclo 3)
+    # -----------------------------------------------------------------------
+    pre_plan = _preprocess_symbolic_columns(problem)
+    preprocessing_summary = pre_plan.summary
+    has_free_nonzero_cost = len(pre_plan.free_nonzero_cost_vars) > 0
+    zero_schur_modes = {"F1": 0, "F2": 0, "F3_blas": 0, "LP_1D": 0}
+
+    n_vars_orig = problem.n_vars
+    n_vars = pre_plan.reduced_n_vars
     n_psd = problem.n_blocks
     n_eq = problem.n_eq
     n_ineq = problem.n_ineq
-    c_orig = problem.c.copy()
+    c_orig = (
+        np.zeros((n_vars,), dtype=np.float64)
+        if has_free_nonzero_cost
+        else (problem.c[pre_plan.kept_vars].copy() if n_vars > 0 else np.zeros((0,), dtype=np.float64))
+    )
     c0_orig = float(problem.c0)
+    E_mat = problem.E[:, pre_plan.kept_vars] if n_eq > 0 else np.zeros((0, n_vars), dtype=np.float64)
+    H_mat = problem.H[:, pre_plan.kept_vars] if n_ineq > 0 else np.zeros((0, n_vars), dtype=np.float64)
+    red_psd_terms: list[dict[int, np.ndarray]] = [
+        {pre_plan.orig_to_red[k]: fk for k, fk in blk.F_terms.items() if k in pre_plan.orig_to_red}
+        for blk in problem.blocks
+    ]
     warnings_out: list[WarningItem] = []
+
+    def _finalize_feasible_or_unbounded_free(
+        x_red_vec: np.ndarray,
+        *,
+        iterations_count: int,
+        factorizations_count: int,
+        schur_modes: dict[str, int],
+        phase1_sum: dict[str, Any] | None = None,
+        phase2_sum: dict[str, Any] | None = None,
+        hsde_sum: dict[str, Any] | None = None,
+        decomp_sum: dict[str, Any] | None = None,
+        all_hist: list[IterationRecord] | None = None,
+    ) -> dict[str, Any]:
+        """Quando há variáveis livres com custo não-nulo, qualquer ponto factível certifica dual_infeasible."""
+        x_feas_full = pre_plan.reconstruct_x(x_red_vec)
+        d_free = pre_plan.free_recession_direction()
+        out_free: dict[str, Any] = {
+            "backend": "native_primal_dual",
+            "maturity": "beta",
+            "experimental": False,
+            "method": "primal_dual_hsde_nt_mehrotra_gondzio",
+            "solver_status": "dual_infeasible",
+            "raw_status": "symbolic_free_variable_unbounded",
+            "hsde_certificate": "dual_infeasible",
+            "iterations": int(iterations_count),
+            "factorizations": int(factorizations_count),
+            "solve_time": float(time.perf_counter() - t_start),
+            "objective": None,
+            "feasible_x0": x_feas_full,
+            "recession_direction": d_free,
+            "history": [h.to_dict() for h in (all_hist or [])] if cfg.record_history else [],
+            "iteration_log": iteration_log,
+            "preprocessing_summary": preprocessing_summary,
+            "schur_assembly_modes": schur_modes,
+            "warnings": warnings_out,
+        }
+        if phase1_sum is not None:
+            out_free["phase1_summary"] = phase1_sum
+        if phase2_sum is not None:
+            out_free["phase2_summary"] = phase2_sum
+        if hsde_sum is not None:
+            out_free["hsde_summary"] = hsde_sum
+        if decomp_sum is not None:
+            out_free["decomposition_summary"] = decomp_sum
+        return out_free
 
     # -----------------------------------------------------------------------
     # Passo 1: Redução de igualdades lineares E x = d via SVD (sem inv!)
     # -----------------------------------------------------------------------
     if n_eq > 0:
-        U_eq, s_eq, Vt_eq = scipy.linalg.svd(problem.E, full_matrices=True, check_finite=True)
-        s_max_eq = float(s_eq[0]) if s_eq.size > 0 else 0.0
-        rank_eq = int(np.sum(s_eq > 1e-12 * max(1.0, s_max_eq)))
-        x_eq = np.zeros((n_vars,), dtype=np.float64)
-        for i in range(rank_eq):
-            coeff = float(np.dot(U_eq[:, i], problem.d)) / float(s_eq[i])
-            x_eq = x_eq + coeff * Vt_eq[i, :]
-        res_eq = problem.E @ x_eq - problem.d
-        if float(np.linalg.norm(res_eq)) > 1e-8 * (1.0 + float(np.linalg.norm(problem.d))):
-            nu_farkas = -res_eq
-            if float(np.dot(problem.d, nu_farkas)) > 0.0:
-                nu_farkas = -nu_farkas
-            return {
-                "backend": "native_primal_dual",
-                "maturity": "beta",
-                "experimental": False,
-                "method": "primal_dual_nt_mehrotra_interior_point",
-                "solver_status": "primal_infeasible",
-                "raw_status": "algebraic_equality_infeasible",
-                "iterations": 0,
-                "solve_time": float(time.perf_counter() - t_start),
-                "objective": None,
-                "farkas_Z": [np.zeros((b.dim, b.dim), dtype=np.float64) for b in problem.blocks],
-                "farkas_eq": nu_farkas,
-                "farkas_ineq": np.zeros((n_ineq,), dtype=np.float64) if n_ineq > 0 else None,
-                "history": [],
-                "iteration_log": iteration_log,
-                "warnings": warnings_out,
-            }
-        N_eq = Vt_eq[rank_eq:, :].T  # (n_vars, n_vars - rank_eq)
+        if n_vars == 0:
+            res_eq = -problem.d
+            if float(np.linalg.norm(res_eq)) > 1e-8 * (1.0 + float(np.linalg.norm(problem.d))):
+                nu_farkas = -res_eq
+                if float(np.dot(problem.d, nu_farkas)) > 0.0:
+                    nu_farkas = -nu_farkas
+                return {
+                    "backend": "native_primal_dual",
+                    "maturity": "beta",
+                    "experimental": False,
+                    "method": "primal_dual_nt_mehrotra_interior_point",
+                    "solver_status": "primal_infeasible",
+                    "raw_status": "algebraic_equality_infeasible",
+                    "iterations": 0,
+                    "solve_time": float(time.perf_counter() - t_start),
+                    "objective": None,
+                    "farkas_Z": [np.zeros((b.dim, b.dim), dtype=np.float64) for b in problem.blocks],
+                    "farkas_eq": nu_farkas,
+                    "farkas_ineq": np.zeros((n_ineq,), dtype=np.float64) if n_ineq > 0 else None,
+                    "history": [],
+                    "iteration_log": iteration_log,
+                    "preprocessing_summary": preprocessing_summary,
+                    "schur_assembly_modes": zero_schur_modes,
+                    "warnings": warnings_out,
+                }
+            U_eq = np.zeros((n_eq, 0), dtype=np.float64)
+            s_eq = np.zeros((0,), dtype=np.float64)
+            Vt_eq = np.zeros((0, 0), dtype=np.float64)
+            rank_eq = 0
+            x_eq = np.zeros((0,), dtype=np.float64)
+            N_eq = np.zeros((0, 0), dtype=np.float64)
+        else:
+            U_eq, s_eq, Vt_eq = scipy.linalg.svd(E_mat, full_matrices=True, check_finite=True)
+            s_max_eq = float(s_eq[0]) if s_eq.size > 0 else 0.0
+            rank_eq = int(np.sum(s_eq > 1e-12 * max(1.0, s_max_eq)))
+            x_eq = np.zeros((n_vars,), dtype=np.float64)
+            for i in range(rank_eq):
+                coeff = float(np.dot(U_eq[:, i], problem.d)) / float(s_eq[i])
+                x_eq = x_eq + coeff * Vt_eq[i, :]
+            res_eq = E_mat @ x_eq - problem.d
+            if float(np.linalg.norm(res_eq)) > 1e-8 * (1.0 + float(np.linalg.norm(problem.d))):
+                nu_farkas = -res_eq
+                if float(np.dot(problem.d, nu_farkas)) > 0.0:
+                    nu_farkas = -nu_farkas
+                return {
+                    "backend": "native_primal_dual",
+                    "maturity": "beta",
+                    "experimental": False,
+                    "method": "primal_dual_nt_mehrotra_interior_point",
+                    "solver_status": "primal_infeasible",
+                    "raw_status": "algebraic_equality_infeasible",
+                    "iterations": 0,
+                    "solve_time": float(time.perf_counter() - t_start),
+                    "objective": None,
+                    "farkas_Z": [np.zeros((b.dim, b.dim), dtype=np.float64) for b in problem.blocks],
+                    "farkas_eq": nu_farkas,
+                    "farkas_ineq": np.zeros((n_ineq,), dtype=np.float64) if n_ineq > 0 else None,
+                    "history": [],
+                    "iteration_log": iteration_log,
+                    "preprocessing_summary": preprocessing_summary,
+                    "schur_assembly_modes": zero_schur_modes,
+                    "warnings": warnings_out,
+                }
+            N_eq = Vt_eq[rank_eq:, :].T  # (n_vars, n_vars - rank_eq)
     else:
         U_eq = np.zeros((0, 0), dtype=np.float64)
         s_eq = np.zeros((0,), dtype=np.float64)
@@ -3622,34 +4229,63 @@ def solve_native_raw(
     # Passo 2: Construir blocos cônicos internos no subespaço y (x = x_eq + N_eq y)
     # -----------------------------------------------------------------------
     m_y = int(N_eq.shape[1])
-    c_y = N_eq.T @ c_orig
-    c0_y = c0_orig + float(np.dot(c_orig, x_eq))
+    c_y = N_eq.T @ c_orig if m_y > 0 else np.zeros((0,), dtype=np.float64)
+    c0_y = c0_orig + (float(np.dot(c_orig, x_eq)) if n_vars > 0 else 0.0)
 
     y_blocks: list[_InternalConeBlock] = []
     if n_eq == 0:
-        for blk in problem.blocks:
+        for blk, r_terms in zip(problem.blocks, red_psd_terms, strict=True):
             F0_y = blk.F0.copy()
             F_terms_y = {
                 j: fk.copy()
-                for j, fk in blk.F_terms.items()
+                for j, fk in r_terms.items()
                 if float(np.linalg.norm(fk, "fro")) > 1e-15
             }
-            y_blocks.append(_InternalConeBlock(name=blk.name, dim=blk.dim, F0=F0_y, F_terms=F_terms_y))
+            y_blocks.append(
+                _InternalConeBlock(
+                    name=blk.name,
+                    dim=blk.dim,
+                    F0=F0_y,
+                    F_terms=F_terms_y,
+                    force_schur_mode=cfg.schur_mode,
+                    build_schur_index=False,
+                )
+            )
     else:
-        for blk in problem.blocks:
-            F0_y = blk.evaluate(x_eq)
+        for blk, r_terms in zip(problem.blocks, red_psd_terms, strict=True):
+            F0_y = blk.F0.copy()
+            for k_r, fk in r_terms.items():
+                xk = float(x_eq[k_r])
+                if xk != 0.0:
+                    F0_y = F0_y + xk * fk
+            F0_y = _sym(F0_y)
             F_terms_y = {}
             for j in range(m_y):
-                mat_j = blk.evaluate_linear(N_eq[:, j])
+                col_j = N_eq[:, j]
+                mat_j = np.zeros((blk.dim, blk.dim), dtype=np.float64)
+                for k_r, fk in r_terms.items():
+                    vj = float(col_j[k_r])
+                    if vj != 0.0:
+                        mat_j = mat_j + vj * fk
+                mat_j = _sym(mat_j)
                 if float(np.linalg.norm(mat_j, "fro")) > 1e-15:
                     F_terms_y[j] = mat_j
-            y_blocks.append(_InternalConeBlock(name=blk.name, dim=blk.dim, F0=F0_y, F_terms=F_terms_y))
+            y_blocks.append(
+                _InternalConeBlock(
+                    name=blk.name,
+                    dim=blk.dim,
+                    F0=F0_y,
+                    F_terms=F_terms_y,
+                    force_schur_mode=cfg.schur_mode,
+                    build_schur_index=False,
+                )
+            )
 
     for i_idx in range(n_ineq):
-        h_row = problem.H[i_idx, :]
-        h_val = float(problem.h[i_idx]) if n_eq == 0 else float(problem.h[i_idx] - np.dot(h_row, x_eq))
+        h_row = H_mat[i_idx, :]
+        h_val = float(problem.h[i_idx]) if (n_eq == 0 or n_vars == 0) else float(problem.h[i_idx] - np.dot(h_row, x_eq))
         F0_ineq = np.array([[h_val]], dtype=np.float64)
-        h_y = -h_row if n_eq == 0 else -(N_eq.T @ h_row)
+        h_y = -h_row if n_eq == 0 else (-(N_eq.T @ h_row) if m_y > 0 else np.zeros((0,), dtype=np.float64))
         nz_cols = np.flatnonzero(np.abs(h_y) > 1e-15)
         F_terms_ineq: dict[int, np.ndarray] = {
             int(j): np.array([[float(h_y[j])]], dtype=np.float64) for j in nz_cols
@@ -3676,16 +4312,24 @@ def solve_native_raw(
 
     def _full_adjoint_x(Z_all: Sequence[np.ndarray], d_ineq: np.ndarray | None) -> np.ndarray:
         adj_x = np.zeros((n_vars,), dtype=np.float64)
-        for blk, Z_b in zip(problem.blocks, Z_all[:n_psd], strict=True):
-            for k, fk in blk.F_terms.items():
+        for r_terms, Z_b in zip(red_psd_terms, Z_all[:n_psd], strict=True):
+            for k, fk in r_terms.items():
                 adj_x[k] += float(np.sum(fk * Z_b))
-        if d_ineq is not None and n_ineq > 0:
-            adj_x = adj_x - (problem.H.T @ d_ineq)
+        if d_ineq is not None and n_ineq > 0 and n_vars > 0:
+            adj_x = adj_x - (H_mat.T @ d_ineq)
         return adj_x
 
     if len(y_blocks) == 0:
+        if has_free_nonzero_cost:
+            return _finalize_feasible_or_unbounded_free(
+                x_eq,
+                iterations_count=0,
+                factorizations_count=0,
+                schur_modes=zero_schur_modes,
+            )
         if float(np.linalg.norm(c_y)) <= 1e-12:
             nu_opt = _recover_eq_dual(np.zeros((n_vars,), dtype=np.float64), c_orig)
+            x_full_0 = pre_plan.reconstruct_x(x_eq)
             return {
                 "backend": "native_primal_dual",
                 "maturity": "beta",
@@ -3695,16 +4339,18 @@ def solve_native_raw(
                 "raw_status": "unconstrained_nullspace_optimal",
                 "iterations": 0,
                 "solve_time": float(time.perf_counter() - t_start),
-                "x": x_eq,
-                "objective": c0_y,
+                "x": x_full_0,
+                "objective": float(problem.evaluate_objective(x_full_0)),
                 "dual_Z": [],
                 "dual_eq": nu_opt,
                 "dual_ineq": None,
                 "history": [],
                 "iteration_log": iteration_log,
+                "preprocessing_summary": preprocessing_summary,
+                "schur_assembly_modes": zero_schur_modes,
                 "warnings": warnings_out,
             }
-        d_ray = -(N_eq @ (c_y / float(np.linalg.norm(c_y))))
+        d_ray = pre_plan.reconstruct_x(-(N_eq @ (c_y / float(np.linalg.norm(c_y)))))
         return {
             "backend": "native_primal_dual",
             "maturity": "beta",
@@ -3715,19 +4361,29 @@ def solve_native_raw(
             "iterations": 0,
             "solve_time": float(time.perf_counter() - t_start),
             "objective": None,
-            "feasible_x0": x_eq,
+            "feasible_x0": pre_plan.reconstruct_x(x_eq),
             "recession_direction": d_ray,
             "history": [],
             "iteration_log": iteration_log,
+            "preprocessing_summary": preprocessing_summary,
+            "schur_assembly_modes": zero_schur_modes,
             "warnings": warnings_out,
         }
 
     if m_y == 0:
         min_eigs = [float(np.min(np.linalg.eigvalsh(b.F0))) for b in y_blocks]
         if min(min_eigs) >= -cfg.tol_psd:
+            if has_free_nonzero_cost:
+                return _finalize_feasible_or_unbounded_free(
+                    x_eq,
+                    iterations_count=0,
+                    factorizations_count=0,
+                    schur_modes=_count_schur_modes(y_blocks),
+                )
             Z_zero = [np.zeros((b.dim, b.dim), dtype=np.float64) for b in y_blocks]
             dZ, d_ineq = _split_duals(Z_zero)
             nu_opt = _recover_eq_dual(np.zeros((n_vars,), dtype=np.float64), c_orig)
+            x_full_0 = pre_plan.reconstruct_x(x_eq)
             return {
                 "backend": "native_primal_dual",
                 "maturity": "beta",
@@ -3737,13 +4393,15 @@ def solve_native_raw(
                 "raw_status": "fixed_by_equalities_optimal",
                 "iterations": 0,
                 "solve_time": float(time.perf_counter() - t_start),
-                "x": x_eq,
-                "objective": c0_y,
+                "x": x_full_0,
+                "objective": float(problem.evaluate_objective(x_full_0)),
                 "dual_Z": dZ,
                 "dual_eq": nu_opt,
                 "dual_ineq": d_ineq,
                 "history": [],
                 "iteration_log": iteration_log,
+                "preprocessing_summary": preprocessing_summary,
+                "schur_assembly_modes": _count_schur_modes(y_blocks),
                 "warnings": warnings_out,
             }
         b_bad = int(np.argmin(min_eigs))
@@ -3769,6 +4427,8 @@ def solve_native_raw(
             "farkas_ineq": f_ineq,
             "history": [],
             "iteration_log": iteration_log,
+            "preprocessing_summary": preprocessing_summary,
+            "schur_assembly_modes": _count_schur_modes(y_blocks),
             "warnings": warnings_out,
         }
 
@@ -3812,7 +4472,7 @@ def solve_native_raw(
     for b in y_blocks_eq:
         bsz = b.dim * b.dim
         if b._active_keys.size > 0:
-            A_cone[row_ofs : row_ofs + bsz, b._active_keys] = b._F_cols
+            A_cone[row_ofs : row_ofs + bsz, b._active_keys] = b.dense_F_cols()
         row_ofs += bsz
 
     col_norms = np.linalg.norm(A_cone, axis=0)
@@ -3841,6 +4501,7 @@ def solve_native_raw(
                 F_terms={j: fj * col_inv[j] for j, fj in b.F_terms.items()},
                 is_ineq_slack=b.is_ineq_slack,
                 ineq_index=b.ineq_index,
+                force_schur_mode=cfg.schur_mode,
             )
             for b in y_blocks_eq
         ]
@@ -3874,6 +4535,7 @@ def solve_native_raw(
                     F_terms=F_terms_z,
                     is_ineq_slack=b.is_ineq_slack,
                     ineq_index=b.ineq_index,
+                    force_schur_mode=cfg.schur_mode,
                 )
             )
 
@@ -3881,6 +4543,7 @@ def solve_native_raw(
             return s_cone[:rank_cone] * (Vt_cone[:rank_cone, :] @ y_vec)
 
     del A_cone
+    schur_modes_z = _count_schur_modes(z_blocks)
 
     all_history: list[IterationRecord] = []
     phase1_summary: dict[str, Any] = {"executed": False, "iterations": 0, "status": "skipped", "warm_start_used": False}
@@ -3901,9 +4564,9 @@ def solve_native_raw(
     z0 = np.zeros((m_z,), dtype=np.float64)
     warm_start_used = False
     if cfg.warm_start_x is not None:
-        if len(cfg.warm_start_x) != n_vars:
+        if len(cfg.warm_start_x) != n_vars_orig:
             raise ValidationError(
-                f"warm_start_x deve ter comprimento {n_vars}, recebido {len(cfg.warm_start_x)}."
+                f"warm_start_x deve ter comprimento {n_vars_orig}, recebido {len(cfg.warm_start_x)}."
             )
         x_ws = np.asarray(cfg.warm_start_x, dtype=np.float64)
         eq_err_ws = (
@@ -3917,7 +4580,8 @@ def solve_native_raw(
         )
         min_slack_ineq_ws = float(np.min(problem.h - problem.H @ x_ws)) if n_ineq > 0 else float("inf")
         if eq_err_ws <= 1e-8 and min(min_eig_psd_ws, min_slack_ineq_ws) > 1e-8:
-            y_ws = N_eq.T @ (x_ws - x_eq)
+            x_ws_red = pre_plan.map_warm_start(x_ws)
+            y_ws = N_eq.T @ (x_ws_red - x_eq)
             z_ws = _project_y_to_z(y_ws / d_ruiz)
             min_eig_z_ws = min(_min_eig_sym(b.evaluate(z_ws)) for b in z_blocks)
             if min_eig_z_ws > 1e-8:
@@ -3956,6 +4620,7 @@ def solve_native_raw(
         )
         hsde_status = str(hsde_out["solver_status"])
         hsde_cert = str(hsde_out.get("hsde_certificate", "none"))
+        hsde_modes = dict(hsde_out.get("schur_assembly_modes", schur_modes_z))
         hsde_summary = {
             "executed": True,
             "iterations": len(hsde_out["history"]),
@@ -3975,7 +4640,20 @@ def solve_native_raw(
         if hsde_status in ("optimal", "optimal_inaccurate"):
             all_history.extend(hsde_out["history"])
             z_final = hsde_out["z"]
-            x_final = x_eq + N_eq @ (d_ruiz * (Q_R @ z_final))
+            x_final_red = x_eq + N_eq @ (d_ruiz * (Q_R @ z_final))
+            if has_free_nonzero_cost:
+                return _finalize_feasible_or_unbounded_free(
+                    x_final_red,
+                    iterations_count=len(all_history),
+                    factorizations_count=int(hsde_out["factorizations"]),
+                    schur_modes=hsde_modes,
+                    phase1_sum=phase1_summary,
+                    phase2_sum=phase2_summary,
+                    hsde_sum=hsde_summary,
+                    decomp_sum=decomposition_summary,
+                    all_hist=all_history,
+                )
+            x_final = pre_plan.reconstruct_x(x_final_red)
             Z_final_all = _unscale_and_reassemble_duals(hsde_out["Z_list"])
             dZ, d_ineq = _split_duals(Z_final_all)
             adj_x = _full_adjoint_x(Z_final_all, d_ineq)
@@ -4012,6 +4690,8 @@ def solve_native_raw(
                 "phase2_summary": phase2_summary,
                 "hsde_summary": hsde_summary,
                 "decomposition_summary": decomposition_summary,
+                "preprocessing_summary": preprocessing_summary,
+                "schur_assembly_modes": hsde_modes,
                 "warnings": warnings_out,
             }
 
@@ -4044,6 +4724,8 @@ def solve_native_raw(
                 "phase2_summary": phase2_summary,
                 "hsde_summary": hsde_summary,
                 "decomposition_summary": decomposition_summary,
+                "preprocessing_summary": preprocessing_summary,
+                "schur_assembly_modes": hsde_modes,
                 "warnings": warnings_out,
             }
 
@@ -4060,8 +4742,8 @@ def solve_native_raw(
                         break
             if z_feas_cand is not None:
                 all_history.extend(hsde_out["history"])
-                x_feas_h = x_eq + N_eq @ (d_ruiz * (Q_R @ z_feas_cand))
-                d_x = N_eq @ (d_ruiz * (Q_R @ d_z))
+                x_feas_h = pre_plan.reconstruct_x(x_eq + N_eq @ (d_ruiz * (Q_R @ z_feas_cand)))
+                d_x = pre_plan.reconstruct_x(N_eq @ (d_ruiz * (Q_R @ d_z)))
                 return {
                     "backend": "native_primal_dual",
                     "maturity": "beta",
@@ -4084,6 +4766,8 @@ def solve_native_raw(
                     "phase2_summary": phase2_summary,
                     "hsde_summary": hsde_summary,
                     "decomposition_summary": decomposition_summary,
+                    "preprocessing_summary": preprocessing_summary,
+                    "schur_assembly_modes": hsde_modes,
                     "warnings": warnings_out,
                 }
 
@@ -4093,13 +4777,20 @@ def solve_native_raw(
     if not warm_start_used and (init_min_eig <= cfg.strict_margin or is_pure_feasibility):
         # Construir problema auxiliar de Fase I:
         #   min_{z, t}  t   s.t.   F_b(z) + t I_{n_b} >= 0,  t_cap + t >= 0
-        # Se for problema de pura factibilidade (c=0), adicionar caixa suave sobre z para centralizar bem Q
         t_cap = 1.0
         p1_blocks: list[_InternalConeBlock] = []
         for b in z_blocks:
             terms_p1 = dict(b.F_terms)
             terms_p1[m_z] = np.eye(b.dim, dtype=np.float64)
-            p1_blocks.append(_InternalConeBlock(name=b.name, dim=b.dim, F0=b.F0, F_terms=terms_p1))
+            p1_blocks.append(
+                _InternalConeBlock(
+                    name=b.name,
+                    dim=b.dim,
+                    F0=b.F0,
+                    F_terms=terms_p1,
+                    force_schur_mode=cfg.schur_mode,
+                )
+            )
 
         # Bloco de limitante inferior de t: t_cap + t >= 0
         p1_blocks.append(
@@ -4140,6 +4831,7 @@ def solve_native_raw(
             cancel_check=cancel_cb,
         )
         all_history.extend(p1_out["history"])
+        p1_modes = dict(p1_out.get("schur_assembly_modes", schur_modes_z))
         phase1_summary = {
             "executed": True,
             "iterations": len(p1_out["history"]),
@@ -4194,10 +4886,13 @@ def solve_native_raw(
                     "phase2_summary": phase2_summary,
                     "hsde_summary": hsde_summary,
                     "decomposition_summary": decomposition_summary,
+                    "preprocessing_summary": preprocessing_summary,
+                    "schur_assembly_modes": p1_modes,
                     "warnings": warnings_out,
                 }
 
-            x_cand = x_eq + N_eq @ (d_ruiz * (Q_R @ z_cand))
+            x_cand_red = x_eq + N_eq @ (d_ruiz * (Q_R @ z_cand))
+            x_cand = pre_plan.reconstruct_x(x_cand_red)
             cand_feasible_bound = cand_min_eig >= -1e-12 and float(np.linalg.norm(z_cand)) <= cfg.unbounded_norm_threshold
             warnings_out.append(
                 WarningItem(
@@ -4222,6 +4917,8 @@ def solve_native_raw(
                 "iteration_log": iteration_log,
                 "phase1_summary": phase1_summary,
                 "phase2_summary": phase2_summary,
+                "preprocessing_summary": preprocessing_summary,
+                "schur_assembly_modes": p1_modes,
                 "warnings": warnings_out,
             }
             if cand_feasible_bound:
@@ -4231,11 +4928,24 @@ def solve_native_raw(
     # -----------------------------------------------------------------------
     # Passo 5: Checar direções livres no núcleo N_cone (ex.: variável livre no objetivo)
     # -----------------------------------------------------------------------
-    x_feas0 = x_eq + N_eq @ (d_ruiz * (Q_R @ z0))
+    x_feas0_red = x_eq + N_eq @ (d_ruiz * (Q_R @ z0))
+    if has_free_nonzero_cost:
+        return _finalize_feasible_or_unbounded_free(
+            x_feas0_red,
+            iterations_count=len(all_history),
+            factorizations_count=int(phase1_summary.get("factorizations", 0)),
+            schur_modes=schur_modes_z,
+            phase1_sum=phase1_summary,
+            phase2_sum=phase2_summary,
+            hsde_sum=hsde_summary,
+            decomp_sum=decomposition_summary,
+            all_hist=all_history,
+        )
+    x_feas0 = pre_plan.reconstruct_x(x_feas0_red)
     if float(np.linalg.norm(c_null)) > 1e-12:
         # Variável livre sem restrições com custo não nulo -> problema ilimitado certificado!
         d_y = d_ruiz * (-(Q_N @ (c_null / float(np.linalg.norm(c_null)))))
-        d_x = N_eq @ d_y
+        d_x = pre_plan.reconstruct_x(N_eq @ d_y)
         return {
             "backend": "native_primal_dual",
             "maturity": "beta",
@@ -4253,6 +4963,8 @@ def solve_native_raw(
             "phase1_summary": phase1_summary,
             "phase2_summary": phase2_summary,
             "decomposition_summary": decomposition_summary,
+            "preprocessing_summary": preprocessing_summary,
+            "schur_assembly_modes": schur_modes_z,
             "warnings": warnings_out,
         }
 
@@ -4282,6 +4994,8 @@ def solve_native_raw(
             "phase2_summary": phase2_summary,
             "hsde_summary": hsde_summary,
             "decomposition_summary": decomposition_summary,
+            "preprocessing_summary": preprocessing_summary,
+            "schur_assembly_modes": schur_modes_z,
             "warnings": warnings_out,
         }
 
@@ -4313,6 +5027,7 @@ def solve_native_raw(
     p2_status = str(p2_out["solver_status"])
     p1_facs = int(phase1_summary.get("factorizations", 0))
     p2_facs = int(p2_out.get("factorizations", 0))
+    p2_modes = dict(p2_out.get("schur_assembly_modes", schur_modes_z))
     phase2_summary = {
         "executed": True,
         "iterations": len(p2_out["history"]),
@@ -4322,7 +5037,7 @@ def solve_native_raw(
 
     if p2_status == "dual_infeasible":
         d_z = p2_out["recession_candidate"]
-        d_x = N_eq @ (d_ruiz * (Q_R @ d_z)) if d_z is not None else None
+        d_x = pre_plan.reconstruct_x(N_eq @ (d_ruiz * (Q_R @ d_z))) if d_z is not None else None
         return {
             "backend": "native_primal_dual",
             "maturity": "beta",
@@ -4344,11 +5059,13 @@ def solve_native_raw(
             "phase2_summary": phase2_summary,
             "hsde_summary": hsde_summary,
             "decomposition_summary": decomposition_summary,
+            "preprocessing_summary": preprocessing_summary,
+            "schur_assembly_modes": p2_modes,
             "warnings": warnings_out,
         }
 
     z_final = p2_out["z"]
-    x_final = x_eq + N_eq @ (d_ruiz * (Q_R @ z_final))
+    x_final = pre_plan.reconstruct_x(x_eq + N_eq @ (d_ruiz * (Q_R @ z_final)))
     Z_final_all = _unscale_and_reassemble_duals(p2_out["Z_list"])
     dZ, d_ineq = _split_duals(Z_final_all)
     adj_x = _full_adjoint_x(Z_final_all, d_ineq)
@@ -4386,5 +5103,7 @@ def solve_native_raw(
         "phase2_summary": phase2_summary,
         "hsde_summary": hsde_summary,
         "decomposition_summary": decomposition_summary,
+        "preprocessing_summary": preprocessing_summary,
+        "schur_assembly_modes": p2_modes,
         "warnings": warnings_out,
     }

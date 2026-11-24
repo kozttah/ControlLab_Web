@@ -68,8 +68,14 @@ import {
   compileLmiDslToCanonicalSdp,
   type LmiCompileContext,
   type LmiDeltaVertexMatrices,
+  type LmiFusionStats,
   type LmiVertexMatrices,
 } from "./lmi_dsl_compiler.ts";
+import {
+  evaluateAllRecoveries,
+  type DenseMatrixValue,
+  type EvaluatedRecoveryEntry,
+} from "./lmi_recover_eval.ts";
 import {
   validateConvexMembershipFunctions,
   type TsConvexityValidationResult,
@@ -151,6 +157,9 @@ interface LmiSolveSnapshot {
   recoveredIndexedK?: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }>;
   recoveredIndexedL?: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }>;
   recoveredScalars?: Array<{ name: string; value: number }>;
+  recoveredEntries: EvaluatedRecoveryEntry[];
+  solvedVariables: Array<{ name: string; mat: DenseMatrixValue }>;
+  fusionStats: LmiFusionStats | null;
   warnings: string[];
   provenance: Provenance | null;
   iterationLog: SolverProgress[];
@@ -403,6 +412,7 @@ export function renderLmiViewHtml(): string {
     `<div class="lmi-sys-head">`,
     `<h4>Caracterização do Sistema &amp; Conjuntos de Índices</h4>`,
     `<span id="lmi-expanded-blocks-badge" class="badge badge-sufficient">2 blocos LMI expandidos</span>`,
+    `<span id="lmi-fusion-badge" class="badge badge-exact" hidden></span>`,
     `</div>`,
     `<div class="lmi-sys-class-row lmi-workspace-selector-row">`,
     `<label for="lmi-workspace-system-select">Sistema do Workspace</label>`,
@@ -522,6 +532,7 @@ export class LmiView {
 
   // Zona 2 Workspace-First DOM references
   private readonly expandedBlocksBadgeEl: HTMLElement | null;
+  private readonly fusionBadgeEl: HTMLElement | null;
   private readonly workspaceSystemSelectEl: HTMLSelectElement | null;
   private readonly selectedSystemSummaryEl: HTMLElement | null;
   private readonly tsUnmeasuredPanelEl: HTMLElement | null;
@@ -545,6 +556,7 @@ export class LmiView {
   private savedPresets: SavedLmiPreset[] = [];
   private lastSolve: LmiSolveSnapshot | null = null;
   private lastSolveProblemSource: LastSolveProblemSource | null = null;
+  private lastFusionStats: LmiFusionStats | null = null;
   private liveIterations: SolverProgress[] = [];
   private activeSolveRequestId: string | null = null;
 
@@ -582,6 +594,7 @@ export class LmiView {
     this.spectrumTableSlotEl = this.container.querySelector<HTMLElement>("#lmi-spectrum-table-slot");
 
     this.expandedBlocksBadgeEl = this.container.querySelector<HTMLElement>("#lmi-expanded-blocks-badge");
+    this.fusionBadgeEl = this.container.querySelector<HTMLElement>("#lmi-fusion-badge");
     this.workspaceSystemSelectEl = this.container.querySelector<HTMLSelectElement>("#lmi-workspace-system-select");
     this.selectedSystemSummaryEl = this.container.querySelector<HTMLElement>("#lmi-selected-system-summary");
     this.tsUnmeasuredPanelEl = this.container.querySelector<HTMLElement>("#lmi-ts-unmeasured-panel");
@@ -986,6 +999,7 @@ export class LmiView {
     const syncFromEditor = (): void => {
       if (!this.codeEditorEl) return;
       this.currentDsl = this.codeEditorEl.value;
+      this.lastFusionStats = null;
       this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
       this.renderCharacterizationCard();
       this.renderEditorAndMath();
@@ -1166,6 +1180,7 @@ export class LmiView {
 
   public loadDsl(dsl: string): void {
     this.currentDsl = dsl;
+    this.lastFusionStats = null;
     if (this.codeEditorEl) {
       this.codeEditorEl.value = dsl;
     }
@@ -1365,14 +1380,34 @@ export class LmiView {
     };
   }
 
+  private renderFusionBadge(): void {
+    if (!this.fusionBadgeEl) return;
+    const stats = this.lastFusionStats;
+    if (stats && stats.eliminatedSymmetricPairs > 0) {
+      const n = stats.eliminatedSymmetricPairs;
+      this.fusionBadgeEl.textContent =
+        n === 1
+          ? `1 par simétrico fundido (${stats.originalBlocks} → ${stats.fusedBlocks})`
+          : `${n} pares simétricos fundidos (${stats.originalBlocks} → ${stats.fusedBlocks})`;
+      setElHidden(this.fusionBadgeEl, false);
+    } else {
+      this.fusionBadgeEl.textContent = "";
+      setElHidden(this.fusionBadgeEl, true);
+    }
+  }
+
   private materializePayloadFromSource(
     source: LastSolveProblemSource,
   ): Record<string, unknown> {
     if (source.kind === "override") {
+      this.lastFusionStats = null;
+      this.renderFusionBadge();
       return { problem: structuredClone(source.problem) };
     }
     try {
       const compiled = compileLmiDslToCanonicalSdp(source.parsed, source.compileCtx);
+      this.lastFusionStats = compiled.fusionStats;
+      this.renderFusionBadge();
       return { problem: compiled.problem };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1435,24 +1470,33 @@ export class LmiView {
     const recoveredIndexedK: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }> = [];
     const recoveredIndexedL: Array<{ label: string; mat: { rows: number; cols: number; data: number[] } }> = [];
     const recoveredScalars: Array<{ name: string; value: number }> = [];
+    const solvedVarsMap: Record<string, DenseMatrixValue> = {};
+    const solvedVariables: Array<{ name: string; mat: DenseMatrixValue }> = [];
 
     if (isPlainObject(res.variables)) {
       const vars = res.variables as Record<string, unknown>;
-      const qMat = extractRealTensor2D(vars.Q);
-      const pMat = extractRealTensor2D(vars.P);
-      const yMat = extractRealTensor2D(vars.Y) ?? extractRealTensor2D(vars.Y_i);
+      for (const [varKey, varVal] of Object.entries(vars)) {
+        const t = extractRealTensor2D(varVal);
+        if (t) {
+          solvedVarsMap[varKey] = t;
+          solvedVariables.push({ name: varKey, mat: t });
+        }
+      }
+
+      const qMat = solvedVarsMap.Q ?? null;
+      const pMat = solvedVarsMap.P ?? null;
+      const yMat = solvedVarsMap.Y ?? solvedVarsMap.Y_i ?? null;
       if (!recoveredK && qMat && yMat) {
         recoveredK = formatGainFromQY(qMat, yMat);
       }
 
-      for (const [varKey, varVal] of Object.entries(vars)) {
+      for (const [varKey, t] of Object.entries(solvedVarsMap)) {
         const idxMatch = /^Y\[(\d+)\]$/.exec(varKey);
         if (idxMatch) {
           const idx = idxMatch[1];
-          const yiMat = extractRealTensor2D(varVal);
-          const piMat = extractRealTensor2D(vars[`P[${idx}]`]) ?? qMat;
-          if (yiMat && piMat) {
-            const ki = formatGainFromQY(piMat, yiMat);
+          const piMat = solvedVarsMap[`P[${idx}]`] ?? qMat;
+          if (piMat) {
+            const ki = formatGainFromQY(piMat, t);
             if (ki) {
               recoveredIndexedK.push({ label: `K[${idx}]`, mat: ki });
             }
@@ -1461,22 +1505,46 @@ export class LmiView {
         const nIdxMatch = /^N\[(\d+)\]$/.exec(varKey);
         if (nIdxMatch && pMat) {
           const idx = nIdxMatch[1];
-          const niMat = extractRealTensor2D(varVal);
-          if (niMat) {
-            const li = formatObserverGainFromPN(pMat, niMat);
-            if (li) {
-              recoveredIndexedL.push({ label: `L[${idx}]`, mat: li });
-            }
+          const li = formatObserverGainFromPN(pMat, t);
+          if (li) {
+            recoveredIndexedL.push({ label: `L[${idx}]`, mat: li });
           }
         }
-        const t = extractRealTensor2D(varVal);
-        if (t && t.rows === 1 && t.cols === 1 && t.data.length === 1 && Number.isFinite(t.data[0])) {
+        if (t.rows === 1 && t.cols === 1 && t.data.length === 1 && Number.isFinite(t.data[0])) {
           recoveredScalars.push({ name: varKey, value: t.data[0] });
         }
       }
       if (!recoveredK && recoveredIndexedK.length > 0) {
         recoveredK = recoveredIndexedK[0].mat;
       }
+    }
+
+    const effectiveSolvedVariables =
+      solvedVariables.length > 0
+        ? solvedVariables
+        : operation === "optimization.verify" && this.lastSolve
+          ? this.lastSolve.solvedVariables
+          : solvedVariables;
+
+    const effectiveSolvedVarsMap: Record<string, DenseMatrixValue> =
+      solvedVariables.length > 0
+        ? solvedVarsMap
+        : Object.fromEntries(effectiveSolvedVariables.map((item) => [item.name, item.mat]));
+
+    let recoveredEntries: EvaluatedRecoveryEntry[] = [];
+    if (
+      problemSource.kind === "compiled" &&
+      problemSource.parsed.recoveries.length > 0 &&
+      effectiveSolvedVariables.length > 0
+    ) {
+      recoveredEntries = evaluateAllRecoveries({
+        parsed: problemSource.parsed,
+        compileCtx: problemSource.compileCtx,
+        solvedVariables: effectiveSolvedVarsMap,
+      });
+    } else if (operation === "optimization.verify" && this.lastSolve) {
+      recoveredEntries = this.lastSolve.recoveredEntries;
+      if (!recoveredK) recoveredK = this.lastSolve.recoveredK;
     }
 
     const rawSol: Record<string, unknown> = {};
@@ -1536,6 +1604,9 @@ export class LmiView {
       recoveredIndexedK,
       recoveredIndexedL,
       recoveredScalars,
+      recoveredEntries,
+      solvedVariables: effectiveSolvedVariables,
+      fusionStats: this.lastFusionStats ? { ...this.lastFusionStats } : null,
       warnings: resp.warnings.map((w) => (typeof w === "string" ? w : w.message)),
       provenance: resp.provenance as Provenance,
       iterationLog: parsedLog,
@@ -1758,6 +1829,7 @@ export class LmiView {
       const count = this.parsed.expandedBlockCount;
       this.expandedBlocksBadgeEl.textContent = `${count} bloco${count === 1 ? "" : "s"} LMI expandido${count === 1 ? "" : "s"}`;
     }
+    this.renderFusionBadge();
 
     if (this.selectedSystemSummaryEl) {
       const domainLabel = desc.dt === null ? "Contínuo" : `Discreto (dt=${desc.dt} s)`;
@@ -2146,6 +2218,13 @@ export class LmiView {
           `<div class="warning-callout" role="alert"><strong>Recomendação ADR-010:</strong> ${diverges ? "O status do solver diverge da auditoria independente. " : ""}Verifique condicionamento/resíduos ou utilize <strong>Exportar CVXPY / YALMIP</strong> para rodar em solver externo (MOSEK/Clarabel/SDPT3).</div>`,
         );
       }
+      if (s.fusionStats && s.fusionStats.eliminatedSymmetricPairs > 0) {
+        const n = s.fusionStats.eliminatedSymmetricPairs;
+        const pairLabel = n === 1 ? "1 par simétrico fundido" : `${n} pares simétricos fundidos`;
+        alerts.push(
+          `<p class="json-format-hint"><strong>Fusão simétrica (ADR-015):</strong> ${escapeHtml(pairLabel)} (${s.fusionStats.originalBlocks} → ${s.fusionStats.fusedBlocks} blocos LMI).</p>`,
+        );
+      }
       if (s.warnings.length > 0) {
         alerts.push(
           `<p class="json-format-hint">${s.warnings.map((w) => escapeHtml(w)).join(" | ")}</p>`,
@@ -2155,51 +2234,87 @@ export class LmiView {
     }
 
     if (this.recoveredGainEl) {
-      let kHtml: string;
-      const parts: string[] = [];
-      if (s.recoveredIndexedK && s.recoveredIndexedK.length > 0) {
-        parts.push(
-          ...s.recoveredIndexedK.map((item) => {
-            const fmt = formatMatrixDisplay(item.mat.data, item.mat.rows, item.mat.cols, decimals)
-              .map((r) => `[${r.join(", ")}]`)
-              .join("; ");
-            return `<strong>Ganho recuperado ${escapeHtml(item.label)}:</strong> <code>${escapeHtml(fmt)}</code>`;
-          }),
-        );
-      }
-      if (s.recoveredIndexedL && s.recoveredIndexedL.length > 0) {
-        parts.push(
-          ...s.recoveredIndexedL.map((item) => {
-            const fmt = formatMatrixDisplay(item.mat.data, item.mat.rows, item.mat.cols, decimals)
-              .map((r) => `[${r.join(", ")}]`)
-              .join("; ");
-            return `<strong>Ganho do observador ${escapeHtml(item.label)}:</strong> <code>${escapeHtml(fmt)}</code>`;
-          }),
-        );
-      }
-      if (parts.length > 0) {
-        kHtml = parts.join(" | ");
-      } else {
-        const kFormatted = s.recoveredK
-          ? formatMatrixDisplay(s.recoveredK.data, s.recoveredK.rows, s.recoveredK.cols, decimals)
-              .map((r) => `[${r.join(", ")}]`)
-              .join("; ")
-          : null;
-        kHtml = kFormatted
-          ? `<strong>Ganho recuperado K = Y Q⁻¹:</strong> <code>${escapeHtml(kFormatted)}</code>`
-          : `<strong>Ganho K:</strong> N/D para esta formulação`;
-      }
-      const scalarHtml =
-        s.recoveredScalars && s.recoveredScalars.length > 0
-          ? s.recoveredScalars
-              .map((sc) => ` | <strong>${escapeHtml(sc.name)}:</strong> <code>${formatNumericDisplay(sc.value, decimals)}</code>`)
-              .join("")
-          : "";
+      const formatValue = (mat: DenseMatrixValue, isScalar = false): string => {
+        if ((isScalar || (mat.rows === 1 && mat.cols === 1)) && mat.data.length === 1) {
+          return formatNumericDisplay(mat.data[0], decimals);
+        }
+        return formatMatrixDisplay(mat.data, mat.rows, mat.cols, decimals)
+          .map((r) => `[${r.join(", ")}]`)
+          .join("; ");
+      };
+
       const objHtml =
         s.objective !== null
-          ? ` | <strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code>`
+          ? `<div class="lmi-recovered-item"><strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code></div>`
           : "";
-      this.recoveredGainEl.innerHTML = `<p>${kHtml}${scalarHtml}${objHtml}</p>`;
+
+      if (s.recoveredEntries.length > 0) {
+        const rowsHtml = s.recoveredEntries.map((entry) => {
+          const isK = entry.label === "K" || /^K\[/.test(entry.label);
+          const isL = entry.label === "L" || /^L\[/.test(entry.label);
+          const displayLabel = isK
+            ? `Ganho recuperado ${entry.label}`
+            : isL
+              ? `Ganho do observador ${entry.label}`
+              : entry.label;
+          if (!entry.ok || !entry.value) {
+            return `<div class="lmi-recovered-item warning-callout" role="status"><strong>${escapeHtml(displayLabel)}</strong> <code>(${escapeHtml(entry.formula)})</code>: aviso na recuperação — ${escapeHtml(entry.error ?? "expressão não avaliada")}</div>`;
+          }
+          const formatted = formatValue(entry.value, Boolean(entry.isScalar));
+          return `<div class="lmi-recovered-item"><strong>${escapeHtml(displayLabel)}</strong> <code>(${escapeHtml(entry.formula)})</code>: <code>${escapeHtml(formatted)}</code></div>`;
+        });
+        this.recoveredGainEl.innerHTML = `<div class="lmi-recovered-list">${rowsHtml.join("")}${objHtml}</div>`;
+      } else if (s.recoveredK || (s.recoveredIndexedK && s.recoveredIndexedK.length > 0) || (s.recoveredIndexedL && s.recoveredIndexedL.length > 0)) {
+        const parts: string[] = [];
+        if (s.recoveredIndexedK && s.recoveredIndexedK.length > 0) {
+          parts.push(
+            ...s.recoveredIndexedK.map(
+              (item) =>
+                `<strong>Ganho recuperado ${escapeHtml(item.label)}:</strong> <code>${escapeHtml(formatValue(item.mat))}</code>`,
+            ),
+          );
+        }
+        if (s.recoveredIndexedL && s.recoveredIndexedL.length > 0) {
+          parts.push(
+            ...s.recoveredIndexedL.map(
+              (item) =>
+                `<strong>Ganho do observador ${escapeHtml(item.label)}:</strong> <code>${escapeHtml(formatValue(item.mat))}</code>`,
+            ),
+          );
+        }
+        const kHtml =
+          parts.length > 0
+            ? parts.join(" | ")
+            : `<strong>Ganho recuperado K = Y Q⁻¹:</strong> <code>${escapeHtml(formatValue(s.recoveredK!))}</code>`;
+        const scalarHtml =
+          s.recoveredScalars && s.recoveredScalars.length > 0
+            ? s.recoveredScalars
+                .map(
+                  (sc) =>
+                    ` | <strong>${escapeHtml(sc.name)}:</strong> <code>${formatNumericDisplay(sc.value, decimals)}</code>`,
+                )
+                .join("")
+            : "";
+        const objInline =
+          s.objective !== null
+            ? ` | <strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code>`
+            : "";
+        this.recoveredGainEl.innerHTML = `<p>${kHtml}${scalarHtml}${objInline}</p>`;
+      } else if (s.solvedVariables.length > 0) {
+        const varsHtml = s.solvedVariables
+          .map(
+            (v) =>
+              `<div class="lmi-recovered-item"><strong>${escapeHtml(v.name)}</strong> (${v.mat.rows}×${v.mat.cols}): <code>${escapeHtml(formatValue(v.mat))}</code></div>`,
+          )
+          .join("");
+        this.recoveredGainEl.innerHTML = `<details class="lmi-solved-vars-details" open><summary>Variáveis de decisão obtidas (${s.solvedVariables.length})</summary><div class="lmi-recovered-list">${varsHtml}${objHtml}</div></details>`;
+      } else {
+        const objInline =
+          s.objective !== null
+            ? ` | <strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code>`
+            : "";
+        this.recoveredGainEl.innerHTML = `<p><strong>Ganho K:</strong> N/D para esta formulação${objInline}</p>`;
+      }
     }
 
     if (s.iterationLog.length > 0) {

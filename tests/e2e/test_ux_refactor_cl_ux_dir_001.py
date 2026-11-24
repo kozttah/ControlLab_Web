@@ -1846,4 +1846,125 @@ def test_ux_workspace_first_system_definition_polytopic_ts_and_tab6(browser_harn
     )
 
 
+def test_ux_phase9_cycle3_generic_recover_and_symmetric_fusion(browser_harness):
+    """Test 15: Phase 9 Cycle 3 — Generic multi-recover display (P, K, trP) and symmetric doubly-quantified fusion badge on Tab 6."""
+    import re
+
+    page = mount_ui(browser_harness, "e2e-ux-phase9-cycle3", {"width": 1280, "height": 800})
+
+    # 1. Navigate to Tab 6 (optimization_lmi)
+    page.locator('button[data-tab-id="optimization_lmi"]').click()
+    page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
+    page.locator("#lmi-workspace-panel").wait_for(state="visible")
+
+    # 2. Enter LTI stabilization DSL with multiple custom recover directives (P, K, trP)
+    multi_recover_dsl = "\n".join(
+        [
+            "system lti",
+            "var Q sym(n)",
+            "var Y rect(m, n)",
+            "Q > 0",
+            "A*Q + Q*A' + B*Y + Y'*B' + 0.5*Q < 0",
+            "minimize trace(Q)",
+            "recover P = inv(Q)",
+            "recover K = Y * inv(Q)",
+            "recover trP = trace(P)",
+        ]
+    )
+    editor = page.locator("#lmi-code-editor")
+    editor.fill(multi_recover_dsl)
+
+    page.locator("#btn-lmi-solve").click()
+    page.wait_for_function(
+        """() => {
+            const cert = document.querySelector('#lmi-certificate-panel')?.textContent || '';
+            const rec = document.querySelector('#lmi-recovered-gain')?.textContent || '';
+            return cert.includes('validated_dual')
+                && rec.includes('inv(Q)')
+                && rec.includes('Y * inv(Q)')
+                && rec.includes('trace(P)');
+        }""",
+        timeout=45000,
+    )
+
+    rec_el = page.locator("#lmi-recovered-gain")
+    rec_el.wait_for(state="visible")
+    rec_items = rec_el.locator(".lmi-recovered-item")
+    assert rec_items.count() >= 3, f"Expected at least 3 recovered items, got {rec_items.count()}"
+
+    rec_texts = [rec_items.nth(idx).inner_text() for idx in range(rec_items.count())]
+    rec_joined = "\n".join(rec_texts)
+    assert "NaN" not in rec_joined and "Infinity" not in rec_joined and "aviso na recuperação" not in rec_joined, (
+        f"Unexpected non-finite or failed recover item in #lmi-recovered-gain: {rec_joined!r}"
+    )
+
+    found_p = [t for t in rec_texts if "P" in t and "inv(Q)" in t and "trP" not in t and "K" not in t]
+    found_k = [t for t in rec_texts if "K" in t and "Y * inv(Q)" in t]
+    found_trp = [t for t in rec_texts if "trP" in t and "trace(P)" in t]
+    assert len(found_p) == 1, f"Expected P = inv(Q) item in #lmi-recovered-gain, got: {rec_texts}"
+    assert len(found_k) == 1, f"Expected K = Y * inv(Q) item in #lmi-recovered-gain, got: {rec_texts}"
+    assert len(found_trp) == 1, f"Expected trP = trace(P) item in #lmi-recovered-gain, got: {rec_texts}"
+
+    num_pattern = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?")
+    for label, text in (("P", found_p[0]), ("K", found_k[0]), ("trP", found_trp[0])):
+        value_part = text.split(":", 1)[-1]
+        nums = num_pattern.findall(value_part)
+        assert len(nums) >= 1, f"Expected finite numeric value for {label}, got: {text!r}"
+        for tok in nums:
+            val = float(tok)
+            assert val == val and abs(val) < 1e12, f"Non-finite/exploded value for {label}: {val}"
+
+    # 3. Load polytopic_2v example -> enter symmetric doubly-quantified DSL -> verify #lmi-fusion-badge & Pyodide solve
+    page.select_option("#dock-example-select", "polytopic_2v")
+    page.locator("#btn-dock-load-example").click()
+    page.wait_for_function(
+        "() => Array.from(document.querySelectorAll('#lmi-workspace-system-select option')).some((o) => o.value.startsWith('poly-2v-demo#'))"
+    )
+    page.select_option("#lmi-workspace-system-select", "poly-2v-demo#1")
+
+    sym_fusion_dsl = "\n".join(
+        [
+            "system polytopic vertices=2 index=i,j",
+            "var Q sym(n)",
+            "var Y[i] rect(m, n)",
+            "Q > 0",
+            "for i, j: (A[i]*Q + B[i]*Y[j] + A[j]*Q + B[j]*Y[i]) + (A[i]*Q + B[i]*Y[j] + A[j]*Q + B[j]*Y[i])' < 0",
+            "recover K[i] = Y[i] * inv(Q) for i",
+        ]
+    )
+    editor.fill(sym_fusion_dsl)
+    page.locator("#btn-lmi-solve").click()
+    page.wait_for_function(
+        """() => {
+            const cert = document.querySelector('#lmi-certificate-panel')?.textContent || '';
+            const badge = document.querySelector('#lmi-fusion-badge');
+            const rec = document.querySelector('#lmi-recovered-gain')?.textContent || '';
+            return cert.includes('validated_dual')
+                && badge && !badge.hidden && (badge.textContent || '').includes('simétrico')
+                && rec.includes('K[1]') && rec.includes('K[2]');
+        }""",
+        timeout=45000,
+    )
+
+    fusion_badge = page.locator("#lmi-fusion-badge")
+    fusion_badge.wait_for(state="visible")
+    fusion_badge_text = fusion_badge.inner_text()
+    assert "1 par simétrico fundido" in fusion_badge_text and "5 → 4" in fusion_badge_text, (
+        f"Expected symmetric fusion badge '1 par simétrico fundido (5 → 4)', got: {fusion_badge_text!r}"
+    )
+
+    fused_rec_text = page.locator("#lmi-recovered-gain").inner_text()
+    assert "K[1]" in fused_rec_text and "K[2]" in fused_rec_text
+    assert "NaN" not in fused_rec_text and "Infinity" not in fused_rec_text
+
+    browser_harness.record(
+        "e2e-ux-phase9-cycle3",
+        {
+            "recovered_items": rec_texts,
+            "fusion_badge": fusion_badge_text,
+            "fused_recovered_gains": fused_rec_text,
+        },
+    )
+
+
 

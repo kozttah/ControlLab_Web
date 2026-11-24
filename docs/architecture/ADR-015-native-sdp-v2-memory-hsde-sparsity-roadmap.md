@@ -52,13 +52,14 @@ A arquitetura **Native SDP v2.0** apoia-se em cinco pilares complementares, impl
 4. **Pilar 4 — Pré-processamento Simbólico e Fusão Simétrica de Somas Duplas:**
    - Eliminação simbólica pré-solver de colunas nulas, duplicadas ou linearmente dependentes em `F_k` (com recuperação exata do vetor primal/dual completo pós-resolução).
    - Fusão automática de somas duplas simétricas em LMIs politópicas e Takagi–Sugeno ($\Upsilon_{ij} + \Upsilon_{ji} \prec 0$ para $i < j$) diretamente no compilador `lmi_dsl_compiler.ts`, reduzindo quase pela metade o número de blocos PSD gerados sem perda de suficiência (relaxações de Tuan et al. / Sala & Ariño).
-5. **Pilar 5 — Decomposição Cordal por Cliques Maximais e Fatoração Esparsa de Schur (`splu`):**
+5. **Pilar 5 — Decomposição Cordal, Schur Esparso (`splu`) e Gram Cônico Esparso (`A_cone_csc`):**
    - Decomposição cordal de blocos PSD conexos esparsos por extensão cordal, enumeração de cliques maximais, fusão controlada na árvore de cliques (*clique-tree merging*) e acoplamento de sobreposições usando apenas Python puro + `scipy.sparse.csgraph`, com reconstrução exata dos multiplicadores duais no bloco original antes da auditoria 5D.
-   - Fatoração adaptativa esparsa do complemento de Schur via `scipy.sparse.linalg.splu` (SuperLU nativo do SciPy/Pyodide) com ordenações redutoras de preenchimento (`MMD_AT_PLUS_A` / `COLAMD`) quando a densidade simbólica de `H` for `< 30%`, com recuo transparente (*fallback*) para Cholesky denso nos demais casos.
+   - Fatoração adaptativa esparsa do complemento de Schur via `scipy.sparse.linalg.splu` (SuperLU nativo do SciPy/Pyodide) com ordenações redutoras de preenchimento (`MMD_AT_PLUS_A` / `COLAMD`) quando a densidade simbólica de `H` for `< 25%` e `m ≥ 60`, com recuo transparente (*fallback*) para Cholesky denso nos demais casos.
+   - Construção pré-solver esparsa `scipy.sparse.csc_matrix` (`A_cone_csc` + Gram `G_cone_sp`) com verificação de posto cheio $O(\text{nnz})$ via Gershgorin ou `splu` simétrica sem materializar matrizes densas `(total_entries, m)`, habilitando a recalibração segura do `BROWSER_ENVELOPE` para **`1792` rápido / `3072` estendido** (`max_block_dimension = 96`, `max_cone_entries = 131072`).
 
 ---
 
-## 4. Plano de Execução em 4 Ciclos (`Phase9-Native-SDP-Scalability-v2`)
+## 4. Plano de Execução em 5 Ciclos (`Phase9-Native-SDP-Scalability-v2`, **118/118 WPs `ACCEPTED_BY_F9`**)
 
 | Ciclo | WorkPackages | Frentes | Status | Trilha de Commits & Evidência Medida |
 |---|---|---|---|---|
@@ -66,27 +67,35 @@ A arquitetura **Native SDP v2.0** apoia-se em cinco pilares complementares, impl
 | **Ciclo 1 (Memória `wasm32` Zero-Copy & Cone LP 1D)** | `WP-PHASE9-01A` (`F6`), `WP-PHASE9-01B` (`F7`), `WP-PHASE9-01C` (`F8`), `WP-PHASE9-01D` (`F9`) | `F6`, `F7`, `F8`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `d20acb8` — `F_k_packed` (`Int32Array`/`Float64Array`) via `Transferable` → `memoryview`/`np.frombuffer`, buffers *in-place* (`H, W, S, dX, dZ`), cone LP 1D unificado e auditoria F9 em Chromium Wasm. |
 | **Ciclo 2 (HSDE & Gondzio)** | `WP-PHASE9-02` (`F6`), `WP-PHASE9-02B` (`F9`) | `F6`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `f776cfb` — HSDE em fase única com certificados Farkas primal/dual e múltiplos corretores de centralidade de Gondzio ($O(m^2)$ sobre a mesma Cholesky); oráculo F9 contra `clarabel_direct` e `T-SDP-A2`/`T-SDP-A3`. |
 | **Ciclo 3 (Fujisawa F1/F2 & Pré-processamento / Fusão Simétrica)** | `WP-PHASE9-03` (`F6`), `WP-PHASE9-03B` (`F8`), `WP-PHASE9-03C` (`F9`) | `F6`, `F8`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `60c1867` — Fórmulas esparsas F1/F2 de Fujisawa, remoção simbólica de colunas redundantes em `F_k`, fusão simétrica $\Upsilon_{ij} + \Upsilon_{ji} \prec 0$ em `lmi_dsl_compiler.ts` e exibição genérica de `recover` na Aba 6. |
-| **Ciclo 4 (Decomposição Cordal & Schur Esparso `splu`)** | `WP-PHASE9-04` (`F6`), `WP-PHASE9-04B` (`F9`) | `F6`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | Fechamento da Fase 9 (`115/115` WPs): cliques maximais + árvore de cliques + completação PSD exata (sem `linalg.inv`), `scipy.sparse.linalg.splu` adaptativo e recalibração de desempenho em Chromium Pyodide Wasm. |
+| **Ciclo 4 (Decomposição Cordal & Schur Esparso `splu`)** | `WP-PHASE9-04` (`F6`), `WP-PHASE9-04B` (`F9`) | `F6`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `1ba1bb5` — Cliques maximais + árvore de cliques + completação PSD exata (sem `linalg.inv`) e `scipy.sparse.linalg.splu` adaptativo (`n=28` em `0.77s` no Chromium Pyodide Wasm). |
+| **Ciclo 5 (Gram Cônico Esparso CSC & Recalibração `1792/3072`)** | `WP-PHASE9-05A` (`F6`), `WP-PHASE9-05B` (`F8`), `WP-PHASE9-05C` (`F9`) | `F6`, `F8`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | Fechamento **118/118 WPs**: `A_cone_csc` + `G_cone_sp` (Gershgorin / `splu` simétrica), recalibração empírica do `BROWSER_ENVELOPE` para `1792 / 3072 / 96 / 131072` e validação real em Chromium Pyodide Wasm (`n=48..80`). |
 
 ### Evidência Medida de Encerramento (CPython vs. Chromium Pyodide Wasm vs. Clarabel)
 
-Medição independente com a *wheel* final contendo os 4 ciclos da Fase 9 (`BROWSER_ENVELOPE` mantido em `448` rápido / `1024` estendido):
+Medição independente com a *wheel* final da Fase 9 e **`BROWSER_ENVELOPE` recalibrado (`fast_max_variables = 1792`, `max_variables = 3072`, `max_block_dimension = 96`, `max_cone_entries = 131072`)**:
 
-- **`continuous_stabilization_lmi` (`n=16..28`, `152..434 vars`):**
+- **Ganho Fase 5 → Fase 9 v2.0 em `continuous_stabilization_lmi` (`n=16..28`, `152..434 vars`):**
   - `n=16` (`152 vars`): CPython `59.5ms` (era `495.8ms`, **`8.3×`**) | Chromium Wasm `152.3ms` (era `808.1ms`, **`5.3×`**) | Clarabel `44.8ms` | `validated_dual`
   - `n=20` (`230 vars`): CPython `99.3ms` (era `776.6ms`, **`7.8×`**) | Chromium Wasm `220.2ms` (era `1793.6ms`, **`8.1×`**) | Clarabel `74.8ms` | `validated_dual`
   - `n=24` (`324 vars`): CPython `158.6ms` (era `1667.5ms`, **`10.5×`**) | Chromium Wasm `410.4ms` (era `4105.7ms`, **`10.0×`**) | Clarabel `150.9ms` | `validated_dual`
   - `n=28` (`434 vars`): CPython `244.1ms` (era `3221.4ms`, **`13.2×`**) | Chromium Wasm `765.4ms` (era `9721.2ms`, **`12.7×`**) | Clarabel `263.4ms` | `validated_dual`
 - **Decomposição Cordal (`chordal_banded_d20`, `dim=20 → clique_max_dim=4`, 9 cliques):** CPython `73.2ms` | Chromium Wasm `144.1ms` | Clarabel `13.9ms` (`|Δobj| = 8.89e-10`) | `validated_dual` no bloco original `20×20`.
 - **Schur Esparso `splu` (`sparse_schur_m159`, `m=159`):** CPython `177.4ms` (`splu`) vs. `239.0ms` (`dense`) | Chromium Wasm `371.3ms` (`splu`) vs. `387.7ms` (`dense`) | Clarabel `47.6ms` (`|Δobj| = 1.73e-8`) | `validated_dual`.
+- **Escalonamento em Alta Ordem no Chromium + Pyodide Wasm (*fresh worker*, `n=56..80`):**
+  - `fresh_denseA_n56` (`1,708 vars`, `dim=56`, `A` 100% densa, `dense_cholesky`): **`8.20s`** (`754 MiB` heap Wasm, `validated_dual`) → fundamenta `fast_max_variables = 1792` (`n ≤ 56` estabilização / `n ≤ 44` $\mathcal{H}_\infty$ em `< 10s`);
+  - `fresh_chain_n64` (`2,208 vars`, `dim=64`, `dense_cholesky`): **`8.59s`** (`1,157 MiB` heap Wasm, `validated_dual`);
+  - `fresh_diag_n72` (`2,700 vars`, `dim=72`, `sparse_splu`): **`7.71s`** (`1,608 MiB` heap Wasm, `validated_dual`);
+  - `fresh_chain_n72` (`2,772 vars`, `dim=72`, `dense_cholesky`): **`14.85s`** (`1,706 MiB` heap Wasm, `validated_dual`);
+  - `fresh_diag_n80` (`3,320 vars`, `dim=80`, `sparse_splu`): **`11.79s`** (`2,424 MiB` heap Wasm, `validated_dual`);
+  - Teto OOM `wasm32` observado em torno de `n=96` (`4,656 vars`, `> 3.5 GiB`) → `max_variables = 3072` ($n \le 76$) preserva **`> 1.5 GiB` de margem de segurança** no navegador.
 
 ---
 
 ## 5. Invariante Inegociável de Verificação Científica
 
-Em **todos** os 4 ciclos da Fase 9, sem exceção:
+Em **todos** os 5 ciclos da Fase 9, sem exceção:
 
-1. **Auditoria Independente 5D no Problema Original:** toda solução produzida após empacotamento `F_k_packed`, escalonamento de Ruiz, HSDE, pré-processamento simbólico, fusão simétrica ou decomposição cordal **DEVE** ser desescalonada e reconstruída integralmente no espaço original não escalonado e não decomposto antes de passar pela verificação independente de 5 dimensões em `control_lab/optimization/verification/`.
+1. **Auditoria Independente 5D no Problema Original:** toda solução produzida após empacotamento `F_k_packed`, escalonamento de Ruiz, Gram cônico esparso `A_cone_csc`, HSDE, pré-processamento simbólico, fusão simétrica ou decomposição cordal **DEVE** ser desescalonada e reconstruída integralmente no espaço original não escalonado e não decomposto antes de passar pela verificação independente de 5 dimensões em `control_lab/optimization/verification/`.
 2. **Paridade Estrita com o Oráculo Independente:** toda entrega é confrontada pela Frente `F9` contra o oráculo independente `clarabel_direct` (`tests/oracles/`) e contra a escada normativa `T-SDP-A1..D2` (`G-0B`) **sem qualquer relaxamento de tolerâncias** (`1e-8` / critérios da `ADR-010` e `CL-DIR-001`).
 3. **Retrocompatibilidade:** o transporte denso `F_k` e o transporte COO JSON `F_k_sparse` permanecem suportados durante e após a introdução do caminho rápido `F_k_packed`, garantindo que scripts, fixtures ouro e testes legados continuem 100% funcionais.
 

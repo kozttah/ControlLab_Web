@@ -57,6 +57,7 @@ import {
   evaluateMathExpression,
   validateConvexMembershipFunctions,
 } from "../../../web/features/views/lmi_ts_mf_eval.ts";
+import { BROWSER_ENVELOPE } from "../../../web/features/views/lmi_view.ts";
 import { cpythonLoader } from "../f7/cpython_runtime.mjs";
 import {
   compareCanonicalSdpFromDictSolve,
@@ -596,7 +597,7 @@ test("WP-LMI-V2-02: Zona 2 Workspace-First (LTI generalizada, Politópica 10 vé
   app.destroy();
 });
 
-test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelope n<=28 / n<=20 H∞", async () => {
+test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelope calibrado Phase 9 v2 (n<=56 / n<=44 H∞)", async () => {
   class ProgressStubClient extends StubLmiClient {
     public readonly progressListeners = new Set<SolverProgressListener>();
     public emitLiveDuringSolve = true;
@@ -741,7 +742,14 @@ test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelo
   assert.equal(rowsAfterLog.length, 56, "75 iterações devem compactar em 15 iniciais + 1 resumo + 40 finais");
   assert.ok(root.querySelector("#lmi-solver-progress-tbody")!.textContent.includes("20 iterações intermediárias omitidas"));
 
-  // 3. Updated browser envelope checks: n=24 allowed for general feasibility, n=30 exceeds, n=22 exceeds for Hinf
+  // 3. Calibrated Phase 9 v2 browser envelope checks (1792 / 3072 / 96 / 131072; n<=56 general, n<=44 Hinf, blocks<=64)
+  assert.deepEqual(BROWSER_ENVELOPE, {
+    fast_max_variables: 1792,
+    max_variables: 3072,
+    max_block_dimension: 96,
+    max_cone_entries: 131072,
+  });
+
   const makePlant = (n: number) => {
     const aData = Array.from({ length: n * n }, (_, k) => (Math.floor(k / n) === k % n ? -1 : 0));
     const bData = Array.from({ length: n }, (_, i) => (i === n - 1 ? 1 : 0));
@@ -759,36 +767,62 @@ test("WP-PHASE3-S3-F8: Live subscribeProgress, post-solve iteration_log e envelo
   };
 
   const editorEl = root.querySelector<FakeElement>("#lmi-code-editor")!;
-
-  // General stabilization with n=24 (n_vars = 300 <= 448) -> hidden
-  app.shell.getLqrWorkspace().updatePlant(makePlant(24));
-  editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
-  editorEl.dispatchEvent("input");
   const banner = root.querySelector<FakeElement>("#lmi-envelope-banner")!;
-  assert.equal(banner.hasAttribute("hidden"), true, "n=24 em factibilidade geral deve ficar dentro do envelope");
 
-  // General stabilization with n=30 (> 28, n_vars = 465 in 449..1024) -> visible extended tier
-  app.shell.getLqrWorkspace().updatePlant(makePlant(30));
+  // General stabilization with n=56 (n_vars = 1596 <= 1792) -> hidden (fast tier)
+  app.shell.getLqrWorkspace().updatePlant(makePlant(56));
   editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
   editorEl.dispatchEvent("input");
-  assert.equal(banner.hasAttribute("hidden"), false, "n=30 deve exibir aviso de faixa estendida");
-  assert.ok(banner.textContent.includes("Execução longa no navegador"));
-  assert.ok(banner.textContent.includes("Cancelar"));
+  assert.equal(banner.hasAttribute("hidden"), true, "n=56 em factibilidade geral deve ficar na faixa rápida");
 
-  // Hinf norm minimization with n=22 (> 20, n_vars <= 1024) -> visible extended tier
-  app.shell.getLqrWorkspace().updatePlant(makePlant(22));
+  // Hinf norm minimization with n=44 (n_vars = 1035 <= 1792, n <= 44) -> hidden (fast tier)
+  app.shell.getLqrWorkspace().updatePlant(makePlant(44));
   const hinfTpl = LMI_DSL_TEMPLATES.find((t) => t.id === "hinf_brl")!;
   editorEl.value = hinfTpl.dsl;
   editorEl.dispatchEvent("input");
-  assert.equal(banner.hasAttribute("hidden"), false, "n=22 em H∞ (> 20) deve exibir aviso do envelope");
-  assert.ok(banner.textContent.includes("Execução longa no navegador"));
+  assert.equal(banner.hasAttribute("hidden"), true, "n=44 em H∞ deve ficar na faixa rápida");
 
-  // General stabilization with n=46 (n_vars = 1081 > 1024) -> visible hard limit
-  app.shell.getLqrWorkspace().updatePlant(makePlant(46));
+  // Moderate polytopic/TS double-sum up to 64 expanded blocks stays in fast tier, > 64 triggers extended tier
+  app.shell.getLqrWorkspace().updatePlant(makePlant(4));
+  editorEl.value = ["var Q sym(n)", ...Array.from({ length: 64 }, () => "Q > 0")].join("\n");
+  editorEl.dispatchEvent("input");
+  assert.equal(banner.hasAttribute("hidden"), true, "64 blocos LMI com n=4 deve ficar na faixa rápida");
+
+  editorEl.value = ["var Q sym(n)", ...Array.from({ length: 65 }, () => "Q > 0")].join("\n");
+  editorEl.dispatchEvent("input");
+  assert.equal(banner.hasAttribute("hidden"), false, "65 blocos LMI (> 64) deve exibir aviso de faixa estendida");
+  assert.ok((banner.getAttribute("class") ?? "").includes("lmi-envelope-extended"));
+
+  // General stabilization with n=60 (> 56, n_vars = 1830 in 1793..3072) -> visible extended tier
+  app.shell.getLqrWorkspace().updatePlant(makePlant(60));
   editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
   editorEl.dispatchEvent("input");
-  assert.equal(banner.hasAttribute("hidden"), false, "n=46 (1081 vars > 1024) deve exibir limite máximo");
-  assert.ok(banner.textContent.includes("max_variables=1024"));
+  assert.equal(banner.hasAttribute("hidden"), false, "n=60 deve exibir aviso de faixa estendida");
+  assert.ok((banner.getAttribute("class") ?? "").includes("lmi-envelope-extended"));
+  assert.ok(!(banner.getAttribute("class") ?? "").includes("lmi-envelope-hard-limit"));
+  assert.ok(banner.textContent.includes("Execução longa no navegador"));
+  assert.ok(banner.textContent.includes("Cancelar"));
+  assert.ok(banner.textContent.includes("1792"));
+  assert.ok(banner.textContent.includes("max_variables=3072"));
+
+  // Hinf norm minimization with n=46 (> 44, n_vars = 1128 <= 3072) -> visible extended tier
+  app.shell.getLqrWorkspace().updatePlant(makePlant(46));
+  editorEl.value = hinfTpl.dsl;
+  editorEl.dispatchEvent("input");
+  assert.equal(banner.hasAttribute("hidden"), false, "n=46 em H∞ (> 44) deve exibir aviso de faixa estendida");
+  assert.ok((banner.getAttribute("class") ?? "").includes("lmi-envelope-extended"));
+  assert.ok(banner.textContent.includes("Execução longa no navegador"));
+
+  // General stabilization with n=80 (n_vars = 3240 > 3072) -> visible hard limit
+  app.shell.getLqrWorkspace().updatePlant(makePlant(80));
+  editorEl.value = "var Q sym(n)\nQ > 0\nA*Q + Q*A' < 0";
+  editorEl.dispatchEvent("input");
+  assert.equal(banner.hasAttribute("hidden"), false, "n=80 (3240 vars > 3072) deve exibir limite máximo");
+  assert.ok((banner.getAttribute("class") ?? "").includes("lmi-envelope-hard-limit"));
+  assert.ok(!(banner.getAttribute("class") ?? "").includes("lmi-envelope-extended"));
+  assert.ok(banner.textContent.includes("max_variables=3072"));
+  assert.ok(banner.textContent.includes("max_block_dimension=96"));
+  assert.ok(banner.textContent.includes("max_cone_entries=131072"));
   assert.ok(banner.textContent.includes("Exportar CVXPY / YALMIP"));
 
   app.destroy();

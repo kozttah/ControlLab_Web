@@ -5,7 +5,7 @@
 [![CI](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml)
 [![Especificação](https://img.shields.io/badge/Documento_Diretor-CL--DIR--001_v1.0.0-0f172a)](./ControlLab_Web_Documento_Diretor_v1.0.md)
 [![UX & Design](https://img.shields.io/badge/Design_Diretor-CL--UX--DIR--001_+_ADR--014-1d4ed8)](./docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md)
-[![Status](https://img.shields.io/badge/Produto-Beta_(115%2F115_WPs)-d97706)](./PROJECT_STATE.json)
+[![Status](https://img.shields.io/badge/Produto-Beta_(118%2F118_WPs)-d97706)](./PROJECT_STATE.json)
 [![Licença](https://img.shields.io/badge/Licen%C3%A7a-MIT-059669)](./LICENSE)
 
 O ControlLab Web reúne um motor científico em `NumPy`/`SciPy`, modelos canônicos, diagnósticos numéricos, síntese baseada em LMIs/SDP e arquivos portáteis para ensino, pesquisa e engenharia de controle. O cálculo no navegador é executado em um Web Worker Pyodide, sem backend científico remoto obrigatório. O mesmo pacote `control_lab` pode ser utilizado diretamente em CPython local.
@@ -22,7 +22,7 @@ A versão publicada é destinada a uso e validação em estágio beta, preservan
 
 ## Estado atual
 
-**Referência em 24/11/2026:** **115 de 115 WorkPackages aprovados pela auditoria independente F9 (`ACCEPTED_BY_F9`, 0 pendentes)**, cobrindo os quatro gates da Fase 0 e as Fases 1–9 (incluindo os 4 ciclos da arquitetura **Native SDP v2.0 — `ADR-015`**). O produto mantém explicitamente o selo **beta**: a aprovação dos WorkPackages valida cada capacidade dentro do domínio auditado, sem declarar certificação integral para casos fora das hipóteses documentadas.
+**Referência em 24/11/2026:** **118 de 118 WorkPackages aprovados pela auditoria independente F9 (`ACCEPTED_BY_F9`, 0 pendentes)**, cobrindo os quatro gates da Fase 0 e as Fases 1–9 (incluindo os 5 ciclos da arquitetura **Native SDP v2.0 — `ADR-015`** e a recalibração do `BROWSER_ENVELOPE` para `1.792 / 3.072` variáveis). O produto mantém explicitamente o selo **beta**: a aprovação dos WorkPackages valida cada capacidade dentro do domínio auditado, sem declarar certificação integral para casos fora das hipóteses documentadas.
 
 | Gate / Marco | Resultado | Capacidade verificada |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ A versão publicada é destinada a uso e validação em estágio beta, preservan
 | **G-0C** | `ACCEPTED_BY_F9` | Arraste DOM real com Fast-Preview/commit (`R-23`), teclado, viewport mobile `390×844`, validação dimensional e gráficos científicos exportáveis (SVG/PNG). |
 | **G-0D** | `ACCEPTED_BY_F9` | Round-trip `.ctrlab`, exportação `.pvm` passiva (estático/dinâmico/saturação) e scripts PathSim `0.31.0`, validados em PathView `0.21.0` / PathSim `0.31.0`. |
 | **Fases 1–8** | `ACCEPTED_BY_F9` | 6 bancadas completas, arquitetura **Workspace-First (`ADR-014`)**, DSL LMI v2.0 direta + observadores TS não medidos, ANFIS, $\mathcal{H}_\infty$ DGKF estável (`ADR-012`) e scripts PathSim (`ADR-013`). |
-| **Fase 9 (`ADR-015`)** | `ACCEPTED_BY_F9` | Solver SDP Nativo v2.0: `F_k_packed` *zero-copy*, cone LP 1D, workspace *in-place*, HSDE + Gondzio, Fujisawa F1/F2, fusão simétrica DSL + `recover` genérico na Aba 6, decomposição cordal por cliques maximais e Schur esparso adaptativo `splu` (`n=28` em `0.77s` no Chromium Wasm, `12.7×` mais rápido). |
+| **Fase 9 (`ADR-015`)** | `ACCEPTED_BY_F9` | Solver SDP Nativo v2.0: `F_k_packed` *zero-copy*, cone LP 1D, workspace *in-place*, HSDE + Gondzio, Fujisawa F1/F2, fusão simétrica DSL + `recover` na Aba 6, decomposição cordal, Schur esparso `splu` e Gram cônico esparso `A_cone_csc` — envelope recalibrado **`1.792 / 3.072` variáveis** (`n=28` em `0.77s`, `n=56` denso em `8.20s`, `n=72` esparso em `7.71s` no Chromium Wasm). |
 
 A [execução CI dessa referência (#45083984167)](https://github.com/kozttah/ControlLab_Web/actions/runs/45083984167) concluiu **todos os 9 jobs (A–H)** com sucesso:
 
@@ -77,12 +77,13 @@ A interface segue a diretriz **Workspace-First** formalizada na [ADR-014](./docs
 
 As decisões [ADR-010](./docs/architecture/ADR-010-native-sdp-and-offline-exports.md) e [ADR-015](./docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md) definem o **solver primal-dual nativo v2.0 em NumPy/SciPy** como backend SDP padrão no Pyodide (sem exigir binários C++/Rust de Clarabel/CVXPY no bundle Wasm). Casos estruturalmente diagonais/LP utilizam `scipy.optimize.linprog`/HiGHS. CVXPY e Clarabel permanecem disponíveis como oráculos e backends opcionais em CPython local.
 
-- **Envelope operacional calibrado no navegador:**
-  - **Faixa rápida:** até **448 variáveis** escalares de decisão (`n=28` em estabilização contínua resolvido em **`0.765s`** no Chromium Pyodide Wasm, **`12.7×`** mais rápido que a Fase 5);
-  - **Teto estendido:** até **1.024 variáveis** (dimensão máxima de bloco `64`, até `65.536` entradas cônicas), com progresso iterativo exibido na tela (`Iter`, `Gap`, `Res. Primal`, `Res. Dual`, `λ_min`, `Tempo (ms)`) e **cancelamento cooperativo**.
-- **Auditoria obrigatória em 5 dimensões:** toda solução passa pelo verificador espectral independente no problema original (viabilidade primal/dual, complementaridade, condicionamento, proximidade de fronteira e validade do controlador recuperado). Problemas acima do envelope ou mal condicionados geram diagnóstico explícito e exportação direta para **CVXPY (`.py`)** ou **YALMIP (`.m`)** com laços quantificados.
+- **Envelope operacional calibrado no navegador (`BROWSER_ENVELOPE`):**
+  - **Faixa rápida (`fast_max_variables = 1792`, `< 10s`):** até **1.792 variáveis** escalares de decisão ($n \le 56$ em estabilização/factibilidade geral, $n \le 44$ em síntese $\mathcal{H}_\infty$ e até `64` blocos LMI expandidos; no Chromium Pyodide Wasm: `n=28` em **`0.765s`**, `n=56` com `A` 100% densa em **`8.20s`** / `754 MiB`);
+  - **Teto estendido (`max_variables = 3072`, `max_block_dimension = 96`, `max_cone_entries = 131072`):** até **3.072 variáveis** ($n \le 76$ estados; no Chromium Pyodide Wasm: `n=64` acoplada em **`8.59s`** / `1.16 GiB`, `n=72` esparsa `splu` em **`7.71s`** / `1.61 GiB`, `n=72` acoplada em **`14.85s`** / `1.71 GiB`), preservando **`> 1,5 GiB` de margem** abaixo do teto OOM `wasm32` (`~n=96`), com progresso iterativo exibido na tela (`Iter`, `Gap`, `Res. Primal`, `Res. Dual`, `λ_min`, `Tempo (ms)`) e **cancelamento cooperativo**.
+- **Auditoria obrigatória em 5 dimensões:** toda solução passa pelo verificador espectral independente no problema original (viabilidade primal/dual, complementaridade, condicionamento, proximidade de fronteira e validade do controlador recuperado). Problemas acima do envelope (`RESOURCE_LIMIT`) ou mal condicionados geram diagnóstico explícito e exportação direta para **CVXPY (`.py`)** ou **YALMIP (`.m`)** com laços quantificados.
 - **Arquitetura v2.0 (Fase 9 — `ADR-015`) e referências científicas incorporadas:**
   - **Transporte *zero-copy* `F_k_packed`, workspace *in-place* e cone LP 1D:** `Int32Array`/`Float64Array` via `Transferable` → Pyodide `memoryview`/`np.frombuffer`, buffers reutilizados (`H, W, S, dX, dZ`) e caminho vetorial 1D unificado para blocos PSD `1×1`.
+  - **Gram Cônico Esparso Pré-Solver (`A_cone_csc` + `G_cone_sp`):** construção `scipy.sparse.csc_matrix` com verificação de posto cheio $O(\text{nnz})$ via dominância diagonal de Gershgorin ou `splu` simétrica sem materializar matrizes densas `(total_entries, m)`.
   - **HSDE (Ye–Todd–Mizuno 1994; de Klerk–Roos–Terlaky 1998) + Múltiplos Corretores de Gondzio (1996):** embedding homogêneo autodual em fase única com certificados Farkas primal/dual e corretores $O(m^2)$ reutilizando a mesma fatoração de Cholesky.
   - **Fujisawa, Kojima & Nakata (1997) / Fujisawa et al. (IEEE IPDPS 2014):** seleção adaptativa das fórmulas esparsas **F1/F2** na montagem do complemento de Schur sem temporários densos `(m, n, n)` + remoção simbólica pré-solver de colunas redundantes em `F_k` e fusão simétrica automática ($\Upsilon_{ij} + \Upsilon_{ji} \prec 0$, Tuan et al. 2001 / Sala & Ariño 2007).
   - **Decomposição Cordal por Cliques Maximais & Schur Esparso Adaptativo (`splu`):** cliques maximais, árvore de cliques (`scipy.sparse.csgraph`) e completação PSD exata de máxima entropia sem `linalg.inv` (Vandenberghe & Andersen 2015; Garstka, Cannon & Goulart, IFAC 2020) + fatoração esparsa adaptativa via `scipy.sparse.linalg.splu` (SuperLU, Demmel et al. 1999) quando a densidade simbólica de `H` é `< 25%` e `m ≥ 60`.
@@ -101,12 +102,12 @@ A API didática em `control_lab/experimental/sdp_educational/` permanece isolada
 | ADR | Decisão | Documento |
 | --- | --- | --- |
 | **ADR-009** | Governança em arquivos/CI (`project_governance.py`, `ci_gate.py`, handoffs F9) para repositório em conta pessoal. | [`ADR-009`](./docs/architecture/ADR-009-personal-repository-governance.md) |
-| **ADR-010** | Solver SDP primal-dual nativo escalável no Pyodide (envelope 448/1024), auditoria 5D e exportações offline CVXPY/YALMIP. | [`ADR-010`](./docs/architecture/ADR-010-native-sdp-and-offline-exports.md) |
+| **ADR-010** | Solver SDP primal-dual nativo escalável no Pyodide (envelope calibrado `1792 / 3072`), auditoria 5D e exportações offline CVXPY/YALMIP. | [`ADR-010`](./docs/architecture/ADR-010-native-sdp-and-offline-exports.md) |
 | **ADR-011** | Licença MIT para código/documentação originais do ControlLab Web, preservando licenças de terceiros. | [`ADR-011`](./docs/architecture/ADR-011-mit-license-and-third-party-notices.md) |
 | **ADR-012** | Promoção da subclasse contínua regular $\mathcal{H}_\infty$ DGKF 2-Riccati a estável com certificado Hamiltoniano exato e oráculo BRL Clarabel. | [`ADR-012`](./docs/architecture/ADR-012-hinf-riccati-stable-subclass.md) |
 | **ADR-013** | Fronteira linear/saturação do `.pvm` (PathView `0.21.0`) e exportação determinística de scripts PathSim `0.31.0` para Fuzzy e TS+PDC. | [`ADR-013`](./docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md) |
 | **ADR-014** | Arquitetura **Workspace-First**: definição centralizada de sistemas (TF, SS/Generalizada, Politópico e TS sem limites artificiais) no Workspace Dock. | [`ADR-014`](./docs/architecture/ADR-014-workspace-centralized-system-definition.md) |
-| **ADR-015** | Solver SDP Nativo v2.0 (Fase 9): `F_k_packed` *zero-copy*, LP 1D, HSDE + Gondzio, Fujisawa F1/F2, fusão simétrica DSL, decomposição cordal e Schur esparso `splu`. | [`ADR-015`](./docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md) |
+| **ADR-015** | Solver SDP Nativo v2.0 (Fase 9): `F_k_packed` *zero-copy*, LP 1D, Gram esparso `A_cone_csc`, HSDE + Gondzio, Fujisawa F1/F2, fusão simétrica DSL, decomposição cordal e Schur esparso `splu`. | [`ADR-015`](./docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md) |
 
 ## Executar localmente
 

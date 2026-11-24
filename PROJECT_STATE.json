@@ -27,7 +27,7 @@
       "2026-11-21": 12,
       "2026-11-22": 13,
       "2026-11-23": 1,
-      "2026-11-24": 3
+      "2026-11-24": 4
     }
   },
   "audit_reference": {
@@ -6719,6 +6719,138 @@
         "tests/wasm/test_real_runtime.py",
         "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
       ]
+    },
+    {
+      "wp_id": "WP-PHASE9-05A-F6-SPARSE-GRAM-ENVELOPE",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F6: Ciclo 5 — Matriz conica esparsa CSC (A_cone_csc + G_cone_sp Gershgorin/splu) e recalibracao do BROWSER_ENVELOPE para 1792/3072 variaveis",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-04B-F9-CHORDAL-ENVELOPE-RECALIBRATION"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "acceptance_requirements": [
+        "Substituicao de A_cone denso e A_col_scaled.T @ A_col_scaled por scipy.sparse.csc_matrix (G_cone_sp) com verificacao de posto cheio via Gershgorin O(nnz) ou splu simetrica sem materializar matriz densa",
+        "Recalibracao do BROWSER_ENVELOPE em native.py para fast_max_variables=1792, max_variables=3072, max_block_dimension=96 e max_cone_entries=131072 validada com n=48 (1224 vars) contra clarabel_direct"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f6_phase9_cycle5_sparse_csc_cone_gram_and_calibrated_3072_browser_envelope",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-05A-F6-SPARSE-GRAM-ENVELOPE.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-05A-F6-SPARSE-GRAM-ENVELOPE.md",
+        "control_lab/optimization/backends/native.py",
+        "control_lab/optimization/backends/native_core.py",
+        "tests/unit/f6/test_native_sdp_and_exports.py",
+        "tests/unit/f6/test_phase9_cycle4_chordal_sparse_schur.py"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-05B-F8-UPDATE-ENVELOPE-UI",
+      "front": "f8-ui-charts",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F8: Ciclo 5 — Sincronizacao do BROWSER_ENVELOPE (1792/3072/96/131072) e limiares interativos (n<=56 geral, n<=44 Hinf, <=64 blocos) na Aba 6",
+      "allowed_paths": [
+        "web/features/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-05A-F6-SPARSE-GRAM-ENVELOPE"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-23",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-UI-01",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "acceptance_requirements": [
+        "Sincronizacao exata de BROWSER_ENVELOPE (1792/3072/96/131072) em lmi_view.ts com native.py",
+        "Banners de faixa rapida (n<=56 geral, n<=44 Hinf, <=64 blocos), faixa estendida (1793..3072 com log iterativo + Cancelar) e teto rigido (>3072 com recomendacao Exportar CVXPY / YALMIP) cobertos em lmi_dsl_v2.test.ts"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f8_phase9_cycle5_calibrated_3072_envelope_banners_and_unit_tests",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-05B-F8-UPDATE-ENVELOPE-UI.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-05B-F8-UPDATE-ENVELOPE-UI.md",
+        "web/features/views/lmi_view.ts",
+        "tests/unit/f8/lmi_dsl_v2.test.ts"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-05C-F9-ENVELOPE-3072-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F9: Ciclo 5 — Auditoria independente do envelope 1792/3072 em Chromium Pyodide Wasm real (n=48 / 1224 vars < 5s), ADR-010/ADR-015 e fechamento 118/118 WPs",
+      "allowed_paths": [
+        "tests/oracles/",
+        "tests/wasm/",
+        "tests/e2e/",
+        "docs/architecture/",
+        "docs/audits/",
+        "PROJECT_STATE.json",
+        "README.md"
+      ],
+      "dependencies": [
+        "WP-PHASE9-05A-F6-SPARSE-GRAM-ENVELOPE",
+        "WP-PHASE9-05B-F8-UPDATE-ENVELOPE-UI"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/oracles/ tests/wasm/test_real_runtime.py tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
+      "status": "ACCEPTED_BY_F9",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "acceptance_requirements": [
+        "Prova real em Chromium + Pyodide Wasm validando capabilities (1792/3072/96/131072), resolucao n=48 (1224 variaveis > teto legado 1024) em < 5s com validated_dual e RESOURCE_LIMIT em 3073 variaveis",
+        "Atualizacao formal de ADR-010, ADR-015 e README.md com a tabela de escalonamento Wasm (n=28..80) e encerramento 118/118 WorkPackages ACCEPTED_BY_F9"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_phase9_cycle5_sparse_gram_3072_envelope_real_wasm_proof_and_118_of_118_closure",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-05C-F9-ENVELOPE-3072-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-05C-F9-ENVELOPE-3072-AUDIT.md",
+        "tests/oracles/test_phase9_cycle4_chordal_oracle.py",
+        "tests/wasm/test_real_runtime.py",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py",
+        "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+        "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+        "README.md"
+      ]
     }
   ],
   "audit_history": [
@@ -6817,10 +6949,10 @@
       "status": "ACCEPTED",
       "authority": "project_coordinator",
       "decision_date": "2026-11-22",
-      "decision": "Evolve the native pure NumPy/SciPy Pyodide SDP solver (ADR-010) across 4 cycles (Phase9-Native-SDP-Scalability-v2): (1) zero-copy TypedArray packed COO F_k_packed transport via Transferable -> Pyodide memoryview/np.frombuffer, pre-allocated in-place IPM workspace, and unified 1D LP cone for 1x1 PSD blocks; (2) single-phase Homogeneous Self-Dual Embedding (HSDE) with Farkas certificates and Gondzio multiple centrality correctors; (3) Fujisawa F1/F2 sparse Schur assembly, symbolic F_k redundancy elimination, and automatic symmetric double-sum fusion in lmi_dsl_compiler.ts; (4) maximal-clique chordal decomposition (scipy.sparse.csgraph) and adaptive sparse Schur factorization (scipy.sparse.linalg.splu) — explicitly rejecting localhost companion servers, external compiled clarabel.wasm forks, wasm64/COOP-COEP shims, and dual ADMM/SCS solvers, while preserving exact 5D independent verification on the original unscaled/undecomposed problem and clarabel_direct oracle parity without relaxing tolerances",
+      "decision": "Evolve the native pure NumPy/SciPy Pyodide SDP solver (ADR-010) across 5 cycles (Phase9-Native-SDP-Scalability-v2): (1) zero-copy TypedArray packed COO F_k_packed transport via Transferable -> Pyodide memoryview/np.frombuffer, pre-allocated in-place IPM workspace, and unified 1D LP cone for 1x1 PSD blocks; (2) single-phase Homogeneous Self-Dual Embedding (HSDE) with Farkas certificates and Gondzio multiple centrality correctors; (3) Fujisawa F1/F2 sparse Schur assembly, symbolic F_k redundancy elimination, and automatic symmetric double-sum fusion in lmi_dsl_compiler.ts; (4) maximal-clique chordal decomposition (scipy.sparse.csgraph) and adaptive sparse Schur factorization (scipy.sparse.linalg.splu); (5) sparse CSC cone Gram (A_cone_csc + G_cone_sp Gershgorin/symmetric splu) recalibrating BROWSER_ENVELOPE to 1792 fast / 3072 extended (max_block_dimension=96, max_cone_entries=131072) — explicitly rejecting localhost companion servers, external compiled clarabel.wasm forks, wasm64/COOP-COEP shims, and dual ADMM/SCS solvers, while preserving exact 5D independent verification on the original unscaled/undecomposed problem and clarabel_direct oracle parity without relaxing tolerances",
       "scope": "phase9_native_sdp_scalability_v2_zero_install_pyodide_roadmap",
       "evidence_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
-      "review_ref": "docs/audits/handoffs/WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015.md"
+      "review_ref": "docs/audits/handoffs/WP-PHASE9-05C-F9-ENVELOPE-3072-AUDIT.md"
     }
   }
 }

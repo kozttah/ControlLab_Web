@@ -289,6 +289,8 @@ class _InternalConeBlock:
         elif n_act == 0:
             schur_mode = "F3_blas"
             f_cols = np.zeros((n2, 0), dtype=np.float64)
+        elif not self.build_schur_index:
+            schur_mode = "F3_blas"
         else:
             # Coletar estatísticas de esparsidade sobre termos simetrizados
             nnz_full_list: list[int] = []
@@ -409,27 +411,38 @@ class _InternalConeBlock:
         object.__setattr__(self, "_F_vert_chunks", F_vert_chunks)
 
     def dense_F_cols(self) -> np.ndarray:
-        """Retorna representação densa `(dim^2, n_act)` sob demanda (usada apenas na montagem única de A_cone)."""
+        """Retorna representação densa `(dim^2, n_act)` sob demanda."""
         if self._F_cols is not None:
             return self._F_cols
-        assert self._F_flat_csr is not None
-        return np.asarray(self._F_flat_csr.T.toarray(), dtype=np.float64)
+        if self._F_flat_csr is not None:
+            return np.asarray(self._F_flat_csr.T.toarray(), dtype=np.float64)
+        out_cols = np.empty((self.dim * self.dim, self._active_keys.size), dtype=np.float64)
+        for idx, j in enumerate(self._active_keys.tolist()):
+            out_cols[:, idx] = self.F_terms[j].ravel()
+        return out_cols
 
     def forward_active(self, v_act: np.ndarray, out: np.ndarray) -> None:
         """Calcula out = sum_i v_act[i] * F_{k_i} sem alocar temporários densos."""
         if self._F_cols is not None:
             np.matmul(self._F_cols, v_act, out=out.ravel())
-        else:
-            assert self._F_flat_csr is not None
+        elif self._F_flat_csr is not None:
             out.ravel()[:] = self._F_flat_csr.T @ v_act
+        else:
+            out.fill(0.0)
+            for idx, j in enumerate(self._active_keys.tolist()):
+                vj = float(v_act[idx])
+                if vj != 0.0:
+                    out += vj * self.F_terms[j]
 
     def adjoint_active(self, U: np.ndarray, out: np.ndarray) -> None:
         """Calcula out[i] = <F_{k_i}, U> para todas as variáveis ativas do bloco."""
         if self._F_cols is not None:
             np.matmul(self._F_cols.T, U.ravel(), out=out)
-        else:
-            assert self._F_flat_csr is not None
+        elif self._F_flat_csr is not None:
             out[:] = self._F_flat_csr @ U.ravel()
+        else:
+            for idx, j in enumerate(self._active_keys.tolist()):
+                out[idx] = float(np.sum(self.F_terms[j] * U))
 
     def assemble_schur_block(self, W: np.ndarray, out_gram: np.ndarray) -> np.ndarray:
         """Monta a contribuição de Schur H_block[i, j] = tr(F_{k_i} W F_{k_j} W) via F1 ou F2.
@@ -493,9 +506,14 @@ class _InternalConeBlock:
             return 0.5 * (self.F0 + self.F0.T)
         if self._F_cols is not None:
             lin = (self._F_cols @ z[self._active_keys]).reshape((self.dim, self.dim))
-        else:
-            assert self._F_flat_csr is not None
+        elif self._F_flat_csr is not None:
             lin = (self._F_flat_csr.T @ z[self._active_keys]).reshape((self.dim, self.dim))
+        else:
+            lin = np.zeros((self.dim, self.dim), dtype=np.float64)
+            for j in self._active_keys.tolist():
+                zj = float(z[j])
+                if zj != 0.0:
+                    lin += zj * self.F_terms[j]
         res = self.F0 + lin
         return 0.5 * (res + res.T)
 
@@ -504,9 +522,14 @@ class _InternalConeBlock:
             return np.zeros((self.dim, self.dim), dtype=np.float64)
         if self._F_cols is not None:
             res = (self._F_cols @ dz[self._active_keys]).reshape((self.dim, self.dim))
-        else:
-            assert self._F_flat_csr is not None
+        elif self._F_flat_csr is not None:
             res = (self._F_flat_csr.T @ dz[self._active_keys]).reshape((self.dim, self.dim))
+        else:
+            res = np.zeros((self.dim, self.dim), dtype=np.float64)
+            for j in self._active_keys.tolist():
+                dzj = float(dz[j])
+                if dzj != 0.0:
+                    res += dzj * self.F_terms[j]
         return 0.5 * (res + res.T)
 
     def evaluate_into(self, z: np.ndarray, out: np.ndarray, tmp: np.ndarray) -> np.ndarray:
@@ -1452,6 +1475,16 @@ def _run_primal_dual_cone_loop(
     dense_factorizations = 0
     gondzio_attempted = 0
     gondzio_accepted = 0
+    best_opt_score = float("inf")
+    best_opt_rp = float("inf")
+    best_opt_rd = float("inf")
+    best_opt_state: tuple[
+        np.ndarray,
+        np.ndarray | None,
+        np.ndarray | None,
+        list[np.ndarray],
+        list[tuple[np.ndarray, bool]],
+    ] | None = None
 
     for it in range(max_iter):
         if callable(cancel_check) and cancel_check():
@@ -1690,6 +1723,61 @@ def _run_primal_dual_cone_loop(
             _record_iter_log(0.0)
             solver_status = "optimal"
             break
+
+        # Salvaguarda de piso numérico float64 em Fase II (paridade com HSDE 1b'):
+        # se já atingimos <= 1e-9 em primal/dual/gap e os resíduos voltam a crescer >10x
+        # por condicionamento extremo de H perto de mu ~ 1e-14, restaurar melhor iterado.
+        if check_farkas_on_blocks is None and min_eig_p >= -1e-8:
+            cur_score_p2 = max(rel_gap, comp_rel, r_d_rel, primal_slack_err)
+            if cur_score_p2 <= 1e-9 and cur_score_p2 < best_opt_score:
+                best_opt_score = cur_score_p2
+                best_opt_rp = primal_slack_err
+                best_opt_rd = r_d_rel
+                best_opt_state = (
+                    z.copy(),
+                    z_lp.copy() if z_lp is not None else None,
+                    s_lp.copy() if s_lp is not None else None,
+                    [Zb.copy() for Zb in Z_psd_list],
+                    [(cho_S_psd[pos][0].copy(), cho_S_psd[pos][1]) for pos in range(n_psd_blocks)],
+                )
+            elif (
+                best_opt_state is not None
+                and best_opt_score <= 1e-9
+                and (
+                    primal_slack_err > 10.0 * max(best_opt_rp, 1e-12)
+                    or r_d_rel > 10.0 * max(best_opt_rd, 1e-12)
+                )
+            ):
+                np.copyto(z, best_opt_state[0])
+                if q_lp > 0 and best_opt_state[1] is not None and best_opt_state[2] is not None:
+                    assert z_lp is not None and s_lp is not None
+                    np.copyto(z_lp, best_opt_state[1])
+                    np.copyto(s_lp, best_opt_state[2])
+                for pos in range(n_psd_blocks):
+                    np.copyto(Z_psd_list[pos], best_opt_state[3][pos])
+                    cho_S_psd[pos] = best_opt_state[4][pos]
+                history.append(
+                    IterationRecord(
+                        iteration=it,
+                        phase=phase_label,
+                        mu=mu,
+                        primal_obj=primal_obj,
+                        dual_obj=dual_obj,
+                        duality_gap=gap,
+                        dual_residual_rel=r_d_rel,
+                        eq_residual_rel=0.0,
+                        min_eig_primal=min_eig_p,
+                        min_eig_dual=min_eig_d,
+                        alpha_primal=0.0,
+                        alpha_dual=0.0,
+                        kkt_condition_number=1.0,
+                        sigma=0.0,
+                        step_norm=0.0,
+                    )
+                )
+                _record_iter_log(0.0)
+                solver_status = "optimal"
+                break
 
         # 2. Escalonamento de Nesterov-Todd (NT) e montagem in-place da matriz de Schur H
         # 2a. Cone LP 1D unificado (blocos 1x1): w_lp = z_lp / s_lp, H = F_lp.T @ (w_lp[:, None] * F_lp)
@@ -4882,14 +4970,17 @@ def solve_native_raw(
                     "schur_assembly_modes": zero_schur_modes,
                     "warnings": warnings_out,
                 }
-            N_eq = Vt_eq[rank_eq:, :].T  # (n_vars, n_vars - rank_eq)
+            N_eq: np.ndarray | None = Vt_eq[rank_eq:, :].T  # (n_vars, n_vars - rank_eq)
     else:
         U_eq = np.zeros((0, 0), dtype=np.float64)
         s_eq = np.zeros((0,), dtype=np.float64)
-        Vt_eq = np.eye(n_vars, dtype=np.float64)
+        Vt_eq = np.zeros((0, 0), dtype=np.float64)
         rank_eq = 0
         x_eq = np.zeros((n_vars,), dtype=np.float64)
-        N_eq = np.eye(n_vars, dtype=np.float64)
+        N_eq = None
+
+    def _map_y_to_x_delta(y_vec: np.ndarray) -> np.ndarray:
+        return y_vec if N_eq is None else (N_eq @ y_vec)
 
     def _recover_eq_dual(adj_full: np.ndarray, rhs_c: np.ndarray) -> np.ndarray | None:
         """Recupera multiplicador nu de E^T nu = adj_full - rhs_c via SVD de E."""
@@ -4905,8 +4996,12 @@ def solve_native_raw(
     # -----------------------------------------------------------------------
     # Passo 2: Construir blocos cônicos internos no subespaço y (x = x_eq + N_eq y)
     # -----------------------------------------------------------------------
-    m_y = int(N_eq.shape[1])
-    c_y = N_eq.T @ c_orig if m_y > 0 else np.zeros((0,), dtype=np.float64)
+    m_y = n_vars if N_eq is None else int(N_eq.shape[1])
+    c_y = (
+        c_orig.copy()
+        if N_eq is None
+        else (N_eq.T @ c_orig if m_y > 0 else np.zeros((0,), dtype=np.float64))
+    )
     c0_y = c0_orig + (float(np.dot(c_orig, x_eq)) if n_vars > 0 else 0.0)
 
     y_blocks: list[_InternalConeBlock] = []
@@ -5027,7 +5122,7 @@ def solve_native_raw(
                 "schur_assembly_modes": zero_schur_modes,
                 "warnings": warnings_out,
             }
-        d_ray = pre_plan.reconstruct_x(-(N_eq @ (c_y / float(np.linalg.norm(c_y)))))
+        d_ray = pre_plan.reconstruct_x(-_map_y_to_x_delta(c_y / float(np.linalg.norm(c_y))))
         return {
             "backend": "native_primal_dual",
             "maturity": "beta",
@@ -5158,31 +5253,105 @@ def solve_native_raw(
         return decomp_plan.reassemble_duals(Z_chordal_completed)
 
     # -----------------------------------------------------------------------
-    # Passo 3: Equilíbrio de colunas preservando esparsidade ou SVD se rank-deficiente
+    # Passo 3: Equilíbrio esparso de colunas (CSC) ou SVD se rank-deficiente
     # -----------------------------------------------------------------------
     total_entries = sum(b.dim * b.dim for b in y_blocks_eq)
-    A_cone = np.zeros((total_entries, m_y_aug), dtype=np.float64)
+    cone_rows_parts: list[np.ndarray] = []
+    cone_cols_parts: list[np.ndarray] = []
+    cone_vals_parts: list[np.ndarray] = []
+    lp_cone_rows: list[int] = []
+    lp_cone_cols: list[int] = []
+    lp_cone_vals: list[float] = []
     row_ofs = 0
     for b in y_blocks_eq:
         bsz = b.dim * b.dim
-        if b._active_keys.size > 0:
-            A_cone[row_ofs : row_ofs + bsz, b._active_keys] = b.dense_F_cols()
+        if b.dim == 1:
+            for j, fj in b.F_terms.items():
+                val = float(fj[0, 0])
+                if val != 0.0:
+                    lp_cone_rows.append(row_ofs)
+                    lp_cone_cols.append(j)
+                    lp_cone_vals.append(val)
+        else:
+            for j, fj in b.F_terms.items():
+                flat_fj = fj.ravel()
+                nz_idx = np.flatnonzero(flat_fj)
+                if nz_idx.size > 0:
+                    cone_rows_parts.append(nz_idx + row_ofs)
+                    cone_cols_parts.append(np.full(nz_idx.shape, j, dtype=np.int64))
+                    cone_vals_parts.append(flat_fj[nz_idx])
         row_ofs += bsz
 
-    col_norms = np.linalg.norm(A_cone, axis=0)
+    if lp_cone_vals:
+        cone_rows_parts.append(np.asarray(lp_cone_rows, dtype=np.int64))
+        cone_cols_parts.append(np.asarray(lp_cone_cols, dtype=np.int64))
+        cone_vals_parts.append(np.asarray(lp_cone_vals, dtype=np.float64))
+
+    if cone_vals_parts:
+        A_cone_csc = scipy.sparse.csc_matrix(
+            (
+                np.concatenate(cone_vals_parts),
+                (np.concatenate(cone_rows_parts), np.concatenate(cone_cols_parts)),
+            ),
+            shape=(total_entries, m_y_aug),
+            dtype=np.float64,
+        )
+    else:
+        A_cone_csc = scipy.sparse.csc_matrix((total_entries, m_y_aug), dtype=np.float64)
+    del cone_rows_parts, cone_cols_parts, cone_vals_parts, lp_cone_rows, lp_cone_cols, lp_cone_vals
+
+    col_norms = np.sqrt(np.asarray(A_cone_csc.power(2).sum(axis=0)).ravel())
     use_sparse_col_scaling = False
     if m_y_aug > 0 and float(np.min(col_norms)) > 1e-12:
-        A_col_scaled = A_cone / col_norms[None, :]
-        G_cone = _sym(A_col_scaled.T @ A_col_scaled)
-        cho_cone = _safe_cholesky(G_cone)
-        if cho_cone is not None:
-            diag_lc = np.abs(np.diag(cho_cone[0]))
-            if diag_lc.size > 0 and float(np.max(diag_lc)) / max(float(np.min(diag_lc)), 1e-15) < 1e5:
+        col_inv_cand = 1.0 / col_norms
+        A_col_scaled_csc = A_cone_csc @ scipy.sparse.diags(col_inv_cand, format="csc")
+        G_cone_sp = (A_col_scaled_csc.T @ A_col_scaled_csc).tocsc()
+        del A_col_scaled_csc
+
+        if m_y_aug >= 48 and (G_cone_sp.nnz / float(m_y_aug * m_y_aug)) < 0.30:
+            # 1) Condição suficiente O(nnz) de Gershgorin (dominância diagonal estrita => SPD garantido)
+            g_diag = G_cone_sp.diagonal()
+            g_abs_row_sum = np.asarray(np.abs(G_cone_sp).sum(axis=1)).ravel()
+            if float(np.min(2.0 * g_diag - g_abs_row_sum)) > 1e-6:
                 use_sparse_col_scaling = True
+            else:
+                # 2) Fatoração SuperLU esparsa simétrica sem materializar matriz densa (m, m)
+                G_cone_sym_csc = (0.5 * (G_cone_sp + G_cone_sp.T)).tocsc()
+                checked_sparse = False
+                try:
+                    lu_cone = scipy.sparse.linalg.splu(
+                        G_cone_sym_csc,
+                        permc_spec="MMD_AT_PLUS_A",
+                        diag_pivot_thresh=0.01,
+                        options={"SymmetricMode": True},
+                    )
+                    diag_u = np.abs(lu_cone.U.diagonal())
+                    if diag_u.size > 0 and np.all(np.isfinite(diag_u)):
+                        u_max = float(np.max(diag_u))
+                        u_min = float(np.min(diag_u))
+                        if u_max > 0.0 and u_min > 1e-10 and (u_max / max(u_min, 1e-15)) < 1e10:
+                            use_sparse_col_scaling = True
+                        checked_sparse = True
+                except (RuntimeError, ValueError) as exc:
+                    if "singular" in str(exc).lower():
+                        checked_sparse = True
+                del G_cone_sym_csc
+                if not checked_sparse and not use_sparse_col_scaling:
+                    cho_cone = _safe_cholesky(_sym(G_cone_sp.toarray()))
+                    if cho_cone is not None:
+                        diag_lc = np.abs(np.diag(cho_cone[0]))
+                        if diag_lc.size > 0 and float(np.max(diag_lc)) / max(float(np.min(diag_lc)), 1e-15) < 1e5:
+                            use_sparse_col_scaling = True
+        else:
+            cho_cone = _safe_cholesky(_sym(G_cone_sp.toarray()))
+            if cho_cone is not None:
+                diag_lc = np.abs(np.diag(cho_cone[0]))
+                if diag_lc.size > 0 and float(np.max(diag_lc)) / max(float(np.min(diag_lc)), 1e-15) < 1e5:
+                    use_sparse_col_scaling = True
+        del G_cone_sp
 
     if use_sparse_col_scaling:
         col_inv = 1.0 / col_norms
-        Q_R = np.diag(col_inv)
         Q_N = np.zeros((m_y_aug, 0), dtype=np.float64)
         m_z = m_y_aug
         c_z = col_inv * c_y_eq
@@ -5200,10 +5369,15 @@ def solve_native_raw(
             for b in y_blocks_eq
         ]
 
+        def _map_z_to_y(z_vec: np.ndarray) -> np.ndarray:
+            return col_inv * z_vec
+
         def _project_y_to_z(y_vec: np.ndarray) -> np.ndarray:
             return col_norms * y_vec
     else:
+        A_cone = A_cone_csc.toarray()
         _, s_cone, Vt_cone = scipy.linalg.svd(A_cone, full_matrices=(total_entries < m_y_aug), check_finite=True)
+        del A_cone
         s_cone_max = float(s_cone[0]) if s_cone.size > 0 else 0.0
         rank_cone = int(np.sum(s_cone > 1e-12 * max(1.0, s_cone_max)))
         # Escalar pelas inversas dos valores singulares para que as matrizes base em z sejam ortonormais
@@ -5233,10 +5407,17 @@ def solve_native_raw(
                 )
             )
 
+        def _map_z_to_y(z_vec: np.ndarray) -> np.ndarray:
+            return Q_R @ z_vec
+
         def _project_y_to_z(y_vec: np.ndarray) -> np.ndarray:
             return s_cone[:rank_cone] * (Vt_cone[:rank_cone, :] @ y_vec)
 
-    del A_cone
+    del A_cone_csc
+
+    def _map_z_to_x_delta(z_vec: np.ndarray) -> np.ndarray:
+        return _map_y_to_x_delta((d_ruiz * _map_z_to_y(z_vec))[:m_y])
+
     schur_modes_z = _count_schur_modes(z_blocks)
 
     all_history: list[IterationRecord] = []
@@ -5275,7 +5456,7 @@ def solve_native_raw(
         min_slack_ineq_ws = float(np.min(problem.h - problem.H @ x_ws)) if n_ineq > 0 else float("inf")
         if eq_err_ws <= 1e-8 and min(min_eig_psd_ws, min_slack_ineq_ws) > 1e-8:
             x_ws_red = pre_plan.map_warm_start(x_ws)
-            y_ws = N_eq.T @ (x_ws_red - x_eq)
+            y_ws = (x_ws_red - x_eq) if N_eq is None else (N_eq.T @ (x_ws_red - x_eq))
             z_ws = _project_y_to_z(y_ws / d_ruiz)
             min_eig_z_ws = min(_min_eig_sym(b.evaluate(z_ws)) for b in z_blocks)
             if min_eig_z_ws > 1e-8:
@@ -5338,7 +5519,7 @@ def solve_native_raw(
         if hsde_status in ("optimal", "optimal_inaccurate"):
             all_history.extend(hsde_out["history"])
             z_final = hsde_out["z"]
-            x_final_red = x_eq + N_eq @ ((d_ruiz * (Q_R @ z_final))[:m_y])
+            x_final_red = x_eq + _map_z_to_x_delta(z_final)
             if has_free_nonzero_cost:
                 return _finalize_feasible_or_unbounded_free(
                     x_final_red,
@@ -5444,8 +5625,8 @@ def solve_native_raw(
                         break
             if z_feas_cand is not None:
                 all_history.extend(hsde_out["history"])
-                x_feas_h = pre_plan.reconstruct_x(x_eq + N_eq @ ((d_ruiz * (Q_R @ z_feas_cand))[:m_y]))
-                d_x = pre_plan.reconstruct_x(N_eq @ ((d_ruiz * (Q_R @ d_z))[:m_y]))
+                x_feas_h = pre_plan.reconstruct_x(x_eq + _map_z_to_x_delta(z_feas_cand))
+                d_x = pre_plan.reconstruct_x(_map_z_to_x_delta(d_z))
                 return {
                     "backend": "native_primal_dual",
                     "maturity": "beta",
@@ -5601,7 +5782,7 @@ def solve_native_raw(
                     "warnings": warnings_out,
                 }
 
-            x_cand_red = x_eq + N_eq @ ((d_ruiz * (Q_R @ z_cand))[:m_y])
+            x_cand_red = x_eq + _map_z_to_x_delta(z_cand)
             x_cand = pre_plan.reconstruct_x(x_cand_red)
             cand_feasible_bound = cand_min_eig >= -1e-12 and float(np.linalg.norm(z_cand)) <= cfg.unbounded_norm_threshold
             warnings_out.append(
@@ -5638,7 +5819,7 @@ def solve_native_raw(
     # -----------------------------------------------------------------------
     # Passo 5: Checar direções livres no núcleo N_cone (ex.: variável livre no objetivo)
     # -----------------------------------------------------------------------
-    x_feas0_red = x_eq + N_eq @ ((d_ruiz * (Q_R @ z0))[:m_y])
+    x_feas0_red = x_eq + _map_z_to_x_delta(z0)
     if has_free_nonzero_cost:
         return _finalize_feasible_or_unbounded_free(
             x_feas0_red,
@@ -5655,7 +5836,7 @@ def solve_native_raw(
     if float(np.linalg.norm(c_null)) > 1e-12:
         # Variável livre sem restrições com custo não nulo -> problema ilimitado certificado!
         d_y = (d_ruiz * (-(Q_N @ (c_null / float(np.linalg.norm(c_null))))))[:m_y]
-        d_x = pre_plan.reconstruct_x(N_eq @ d_y)
+        d_x = pre_plan.reconstruct_x(_map_y_to_x_delta(d_y))
         return {
             "backend": "native_primal_dual",
             "maturity": "beta",
@@ -5755,7 +5936,7 @@ def solve_native_raw(
 
     if p2_status == "dual_infeasible":
         d_z = p2_out["recession_candidate"]
-        d_x = pre_plan.reconstruct_x(N_eq @ ((d_ruiz * (Q_R @ d_z))[:m_y])) if d_z is not None else None
+        d_x = pre_plan.reconstruct_x(_map_z_to_x_delta(d_z)) if d_z is not None else None
         return {
             "backend": "native_primal_dual",
             "maturity": "beta",
@@ -5785,7 +5966,7 @@ def solve_native_raw(
         }
 
     z_final = p2_out["z"]
-    x_final = pre_plan.reconstruct_x(x_eq + N_eq @ ((d_ruiz * (Q_R @ z_final))[:m_y]))
+    x_final = pre_plan.reconstruct_x(x_eq + _map_z_to_x_delta(z_final))
     Z_final_all = _unscale_and_reassemble_duals(p2_out["Z_list"])
     dZ, d_ineq = _split_duals(Z_final_all)
     adj_x = _full_adjoint_x(Z_final_all, d_ineq)

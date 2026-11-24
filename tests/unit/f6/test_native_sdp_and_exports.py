@@ -129,10 +129,10 @@ def test_native_options_validation(options):
 
 def test_browser_envelope_448_and_n24_stabilization():
     assert BROWSER_ENVELOPE == {
-        'max_variables': 1024,
-        'fast_max_variables': 448,
-        'max_block_dimension': 64,
-        'max_cone_entries': 65536,
+        'max_variables': 3072,
+        'fast_max_variables': 1792,
+        'max_block_dimension': 96,
+        'max_cone_entries': 131072,
     }
     n = 24
     A = np.diag([-1.0 - 0.1 * i for i in range(n - 1)] + [0.5])

@@ -112,6 +112,12 @@ json.dumps({'platform':sys.platform,'assay':assay.to_dict(),'exports':exports, '
     assert report['assay']['data']['overall_passed'], report
     native = report['assay']['data']['backends']['native_primal_dual']
     assert native['capabilities']['psd'] and not native['capabilities']['experimental']
+    assert native['capabilities']['browser_envelope'] == {
+        'max_variables': 3072,
+        'fast_max_variables': 1792,
+        'max_block_dimension': 96,
+        'max_cone_entries': 131072,
+    }
     assert all(c['passed'] for c in native['cases'].values())
     assert all(e['offline_recommended'] and e['python_syntax'] and e['yalmip_syntax'] for e in report['exports'])
     browser_harness.record('g0b-native-adr010',report)
@@ -338,4 +344,167 @@ def test_wasm_phase9_cycle1_packed_zero_copy_transfer_and_solve(browser_harness)
     }
     print(f"[F9-WASM-CYCLE1] {json.dumps(evidence)}")
     browser_harness.record("phase9-cycle1-packed-wasm", evidence)
+
+
+def test_wasm_phase9_05c_envelope_3072_and_n48_stabilization(browser_harness):
+    """WP-PHASE9-05C real Chromium + Pyodide Wasm proof: 1792/3072 envelope, n=48 (1224 vars) solve <5s, and 3073 RESOURCE_LIMIT."""
+    from control_lab.optimization import continuous_stabilization_lmi, solve as solve_sdp
+
+    expected_envelope = {
+        "fast_max_variables": 1792,
+        "max_variables": 3072,
+        "max_block_dimension": 96,
+        "max_cone_entries": 131072,
+    }
+
+    # 1. Build deterministic n=48 stabilization LMI (1224 vars > legacy 1024 cap) and solve in CPython for parity
+    n = 48
+    alpha = 0.20
+    A = np.diag([-1.0 - 0.08 * i for i in range(n - 1)] + [0.45]).astype(np.float64)
+    for i in range(n - 1):
+        A[i, i + 1] = 0.15
+    B = np.zeros((n, 1), dtype=np.float64)
+    B[-1, 0] = 1.0
+    B[-2, 0] = 0.20
+    prob_48 = continuous_stabilization_lmi(A, B, alpha=alpha)
+    assert prob_48.n_vars == 1224
+
+    cpython_res = solve_sdp(prob_48, backend="native_primal_dual")
+    assert cpython_res.status in ("success", "warning"), cpython_res.error
+    assert cpython_res.data["certificate_status"] == "validated_dual"
+    obj_cpython = float(cpython_res.data["objective"])
+
+    base = prob_48.to_dict()
+    js_blocks = []
+    for blk, blk_dict in zip(prob_48.blocks, base["blocks"], strict=True):
+        k_list, r_list, c_list, v_list = [], [], [], []
+        for k, fk in blk.F_terms.items():
+            rows, cols = np.nonzero(np.abs(fk) > 0.0)
+            for r, c_col in zip(rows.tolist(), cols.tolist(), strict=True):
+                k_list.append(int(k))
+                r_list.append(int(r))
+                c_list.append(int(c_col))
+                v_list.append(float(fk[r, c_col]))
+        js_blocks.append(
+            {
+                "name": blk_dict["name"],
+                "F0": blk_dict["F0"],
+                "n_vars": prob_48.n_vars,
+                "k_idx": k_list,
+                "rows": r_list,
+                "cols": c_list,
+                "vals": v_list,
+            }
+        )
+
+    page = browser_harness.page
+    wasm_report = page.evaluate(
+        """async ({c, c0, name, blocks}) => {
+            const capReq = {
+                api_version: '1.0',
+                request_id: crypto.randomUUID(),
+                project_id: 'f9-phase9-05c-wasm',
+                project_revision: 1,
+                operation: 'optimization.capabilities',
+                payload: { backend: 'native_primal_dual' },
+                options: {},
+                timeout_policy: { hard_timeout_ms: 30000 },
+            };
+            const capResp = await app.client.execute(capReq, { commitOnSuccess: false });
+
+            const packedBlocks = blocks.map((b) => ({
+                name: b.name,
+                F0: b.F0,
+                n_vars: b.n_vars,
+                F_k_packed: {
+                    k_idx: new Int32Array(b.k_idx),
+                    rows: new Int32Array(b.rows),
+                    cols: new Int32Array(b.cols),
+                    vals: new Float64Array(b.vals),
+                },
+            }));
+            const solveReq = {
+                api_version: '1.0',
+                request_id: crypto.randomUUID(),
+                project_id: 'f9-phase9-05c-wasm',
+                project_revision: 1,
+                operation: 'optimization.solve',
+                payload: {
+                    problem: { name, c, c0, blocks: packedBlocks },
+                    backend: 'native_primal_dual',
+                },
+                options: {},
+                timeout_policy: { hard_timeout_ms: 60000 },
+            };
+            const t0 = performance.now();
+            const solveResp = await app.client.execute(solveReq, { commitOnSuccess: false });
+            const solveMs = performance.now() - t0;
+
+            const overReq = {
+                api_version: '1.0',
+                request_id: crypto.randomUUID(),
+                project_id: 'f9-phase9-05c-wasm',
+                project_revision: 1,
+                operation: 'optimization.solve',
+                payload: {
+                    problem: {
+                        name: 'over_3072_limit',
+                        c: { data: new Array(3073).fill(1.0), shape: [3073], dtype: 'float64', order: 'C' },
+                        c0: 0.0,
+                        blocks: [],
+                    },
+                    backend: 'native_primal_dual',
+                },
+                options: {},
+                timeout_policy: { hard_timeout_ms: 30000 },
+            };
+            const overResp = await app.client.execute(overReq, { commitOnSuccess: false });
+            const workerStats = await app.client.getWorkerStats();
+            return { capResp, solveResp, solveMs, overResp, workerStats };
+        }""",
+        {
+            "c": base["c"],
+            "c0": base.get("c0", 0.0),
+            "name": base.get("name", "f9_stab_n48"),
+            "blocks": js_blocks,
+        },
+    )
+
+    # 1) Verify capabilities reports the calibrated 1792/3072/96/131072 envelope
+    cap_resp = wasm_report["capResp"]
+    assert cap_resp["status"] == "success", cap_resp
+    native_caps = cap_resp["result"]["capabilities"]
+    assert native_caps["browser_envelope"] == expected_envelope, native_caps["browser_envelope"]
+
+    # 2) Verify n=48 (1,224 vars > 1,024) solves in < 5s with validated_dual in real Pyodide Wasm
+    solve_resp = wasm_report["solveResp"]
+    solve_ms = float(wasm_report["solveMs"])
+    assert solve_resp["status"] in ("success", "warning"), solve_resp
+    assert solve_resp["result"]["backend"] == "native_primal_dual"
+    assert solve_resp["result"]["certificate_status"] == "validated_dual"
+    assert solve_ms < 5000.0, f"Expected n=48 (1224 vars) Wasm solve < 5000ms, got {solve_ms:.2f}ms"
+    obj_wasm = float(solve_resp["result"]["objective"])
+    assert abs(obj_wasm - obj_cpython) < 1e-6, f"Wasm ({obj_wasm}) vs CPython ({obj_cpython})"
+
+    # 3) Verify exceeding max_variables=3072 (3073 vars) returns RESOURCE_LIMIT with CVXPY/YALMIP guidance
+    over_resp = wasm_report["overResp"]
+    assert over_resp["status"] == "failure", over_resp
+    assert over_resp["error"]["code"] == "RESOURCE_LIMIT", over_resp["error"]
+    assert "CVXPY" in over_resp["error"]["message"] and "YALMIP" in over_resp["error"]["message"]
+    assert over_resp["diagnostics"]["offline_recommended"] is True
+    assert wasm_report["workerStats"]["pyproxy"]["activeProxies"] == 0, wasm_report["workerStats"]
+
+    evidence_05c = {
+        "n_states": n,
+        "n_vars": prob_48.n_vars,
+        "browser_envelope": native_caps["browser_envelope"],
+        "wasm_n48_solve_ms": round(solve_ms, 2),
+        "certificate_status": solve_resp["result"]["certificate_status"],
+        "objective_diff_cpython_vs_wasm": abs(obj_wasm - obj_cpython),
+        "over_3073_error_code": over_resp["error"]["code"],
+        "active_proxies": wasm_report["workerStats"]["pyproxy"]["activeProxies"],
+    }
+    print(f"[F9-WASM-05C] {json.dumps(evidence_05c)}")
+    browser_harness.record("phase9-05c-envelope-3072-wasm", evidence_05c)
+
 

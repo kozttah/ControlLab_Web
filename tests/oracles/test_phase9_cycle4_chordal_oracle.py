@@ -285,3 +285,64 @@ def test_f9_cycle4_dense_psd_bypasses_chordal_and_sparse_schur() -> None:
     audited = verify(prob, _extract_solution_for_verify(res.data))
     assert audited.status in ("success", "warning"), audited.error
     assert audited.data["certificate_status"] == "validated_dual"
+
+
+# ---------------------------------------------------------------------------
+# 4. Calibrated Sparse-Gram Browser Envelope (1792 / 3072 / 96 / 131072)
+# ---------------------------------------------------------------------------
+
+
+def test_f9_phase9_05c_sparse_gram_envelope_3072_oracle() -> None:
+    """Independent F9 audit of calibrated 3072/1792/96/131072 envelope and n=48 (1224 vars) stabilization."""
+    from control_lab.optimization import continuous_stabilization_lmi, recover_controller
+    from control_lab.optimization.backends.native import BROWSER_ENVELOPE
+
+    assert BROWSER_ENVELOPE == {
+        "max_variables": 3072,
+        "fast_max_variables": 1792,
+        "max_block_dimension": 96,
+        "max_cone_entries": 131072,
+    }
+
+    # n=48 has 48*49//2 + 48 = 1224 decision variables (above legacy 1024 cap, inside fast_max_variables=1792)
+    n = 48
+    alpha = 0.20
+    A = np.diag([-1.0 - 0.08 * i for i in range(n - 1)] + [0.45]).astype(np.float64)
+    for i in range(n - 1):
+        A[i, i + 1] = 0.15
+    B = np.zeros((n, 1), dtype=np.float64)
+    B[-1, 0] = 1.0
+    B[-2, 0] = 0.20
+    prob_48 = continuous_stabilization_lmi(A, B, alpha=alpha)
+    assert prob_48.n_vars == 1224
+
+    res_nat = solve(prob_48, backend="native_primal_dual")
+    assert res_nat.status in ("success", "warning"), res_nat.error
+    assert res_nat.data is not None
+    assert res_nat.data["certificate_status"] == "validated_dual"
+
+    audited = verify(prob_48, _extract_solution_for_verify(res_nat.data))
+    assert audited.status in ("success", "warning"), audited.error
+    assert audited.data["certificate_status"] == "validated_dual"
+
+    ctrl = recover_controller(prob_48, res_nat)
+    assert ctrl.data is not None
+    assert ctrl.data["controller_validity"] == "verified_under_assumptions"
+    K = tensor_to_array(ctrl.data["K"], expected_ndim=2, dtype="float64")
+    assert float(np.max(np.linalg.eigvals(A + B @ K).real)) < -alpha
+
+    if _clarabel_available():
+        res_cl = solve(prob_48, backend="clarabel_direct")
+        assert res_cl.data is not None
+        assert res_cl.data["certificate_status"] == "validated_dual"
+        assert abs(float(res_nat.data["objective"]) - float(res_cl.data["objective"])) < 1e-6
+
+    # Exceeding max_variables=3072 (3073 vars) returns RESOURCE_LIMIT with CVXPY/YALMIP guidance
+    prob_over = CanonicalSDPProblem(c=np.ones(3073, dtype=np.float64))
+    res_over = solve(prob_over, backend="native_primal_dual")
+    assert res_over.status == "failure"
+    assert res_over.error is not None
+    assert res_over.error.code == "RESOURCE_LIMIT"
+    assert "CVXPY" in res_over.error.message and "YALMIP" in res_over.error.message
+    assert res_over.diagnostics["offline_recommended"] is True
+

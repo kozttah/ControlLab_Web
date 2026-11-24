@@ -447,3 +447,86 @@ def test_native_core_ast_zero_linalg_inv_cycle4() -> None:
             assert not (
                 isinstance(node.value, ast.Attribute) and node.value.attr == "linalg"
             ), f"Forbidden linalg.inv detected in {path}"
+
+
+# ---------------------------------------------------------------------------
+# 4. WP-PHASE9-05A: Sparse CSC Gram & Calibrated Browser Envelope (3072 vars)
+# ---------------------------------------------------------------------------
+
+
+def test_phase9_05a_sparse_gram_n48_stabilization_and_envelope_3072() -> None:
+    """Verify calibrated 3072/1792/96/131072 envelope, n=48 (1224 vars) solve + Clarabel parity, and 3073 limit."""
+    from control_lab.diagnostics import ResourceLimitError
+    from control_lab.optimization import continuous_stabilization_lmi, recover_controller
+    from control_lab.optimization.backends.native import BROWSER_ENVELOPE, NativePrimalDualBackend
+
+    assert BROWSER_ENVELOPE == {
+        "max_variables": 3072,
+        "fast_max_variables": 1792,
+        "max_block_dimension": 96,
+        "max_cone_entries": 131072,
+    }
+
+    # n=48 has 48*49//2 + 48 = 1224 decision variables (above legacy 1024 cap, inside fast_max_variables=1792)
+    n = 48
+    alpha = 0.2
+    A = np.diag([-1.0 - 0.08 * i for i in range(n - 1)] + [0.45])
+    B = np.zeros((n, 1), dtype=np.float64)
+    B[-1, 0] = 1.0
+    prob_48 = continuous_stabilization_lmi(A, B, alpha=alpha)
+    assert prob_48.n_vars == 1224
+
+    res_nat = solve(prob_48, backend="native_primal_dual")
+    res_cl = solve(prob_48, backend="clarabel_direct")
+
+    assert res_nat.status != "failure", res_nat.error
+    assert res_cl.status != "failure", res_cl.error
+    assert res_nat.data is not None and res_cl.data is not None
+    assert res_nat.data["certificate_status"] == "validated_dual"
+    assert res_cl.data["certificate_status"] == "validated_dual"
+    assert float(res_nat.data["objective"]) == pytest.approx(float(res_cl.data["objective"]), abs=1e-6)
+
+    ctrl_nat = recover_controller(prob_48, res_nat)
+    assert ctrl_nat.data is not None
+    assert ctrl_nat.data["controller_validity"] == "verified_under_assumptions"
+    K_nat = tensor_to_array(ctrl_nat.data["K"])
+    assert float(np.max(np.linalg.eigvals(A + B @ K_nat).real)) < -alpha
+
+    # n_vars = 3073 cleanly triggers ResourceLimitError / RESOURCE_LIMIT
+    prob_over = CanonicalSDPProblem(c=np.ones(3073, dtype=np.float64))
+    with pytest.raises(ResourceLimitError):
+        NativePrimalDualBackend().solve_raw(prob_over)
+    res_over = solve(prob_over, backend="native_primal_dual")
+    assert res_over.status == "failure"
+    assert res_over.error is not None and res_over.error.code == "RESOURCE_LIMIT"
+
+
+def test_phase9_05a_sparse_gram_rank_deficient_svd_fallback_m52() -> None:
+    """3-column linear dependence at m=52 (surviving pairwise symbolic dedup) triggers SVD fallback accurately."""
+    n_indep = 51
+    n_vars = 52
+    c = np.ones((n_vars,), dtype=np.float64)
+    # Column 51 = Column 0 + Column 1 (non-collinear pairwise, rank-deficient in 3-column span), c[51] = c[0] + c[1] = 2
+    c[51] = 2.0
+    blocks = []
+    for k in range(n_indep):
+        f_terms = {k: np.array([[1.0]], dtype=np.float64)}
+        if k in (0, 1):
+            f_terms[51] = np.array([[1.0]], dtype=np.float64)
+        blocks.append(
+            SDPBlock(
+                name=f"lb_{k}",
+                F0=np.array([[-1.0]], dtype=np.float64),
+                F_k=f_terms,
+                n_vars=n_vars,
+            )
+        )
+    prob = CanonicalSDPProblem(name="rank_def_m52", c=c, blocks=blocks)
+    res_nat = solve(prob, backend="native_primal_dual")
+    res_cl = solve(prob, backend="clarabel_direct")
+    assert res_nat.status != "failure", res_nat.error
+    assert res_nat.data is not None and res_cl.data is not None
+    assert res_nat.data["certificate_status"] == "validated_dual"
+    assert float(res_nat.data["objective"]) == pytest.approx(51.0, abs=1e-6)
+    assert float(res_nat.data["objective"]) == pytest.approx(float(res_cl.data["objective"]), abs=1e-6)
+

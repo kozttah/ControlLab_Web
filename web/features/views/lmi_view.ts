@@ -170,10 +170,10 @@ type LastSolveProblemSource =
   | { kind: "compiled"; parsed: LmiDslParseResult; compileCtx: LmiCompileContext };
 
 export const BROWSER_ENVELOPE = {
-  fast_max_variables: 448,
-  max_variables: 1024,
-  max_block_dimension: 64,
-  max_cone_entries: 65536,
+  fast_max_variables: 1792,
+  max_variables: 3072,
+  max_block_dimension: 96,
+  max_cone_entries: 131072,
 } as const;
 
 function setElHidden(el: Element | null | undefined, hidden: boolean): void {
@@ -1976,7 +1976,7 @@ export class LmiView {
       const tpl = this.parsed.inferredTemplate;
       const isHinf = tpl === "hinf_brl" || tpl === "hinf_generalized_brl";
       const nVars = this.estimateDslVariables(dims);
-      const maxNForFast = isHinf ? 20 : 28;
+      const maxNForFast = isHinf ? 44 : 56;
       const estMaxBlockDim = isHinf ? dims.n + 2 : dims.n;
       const estConeEntries = this.parsed.expandedBlockCount * estMaxBlockDim * estMaxBlockDim;
       const exceedsHardLimit =
@@ -1987,7 +1987,7 @@ export class LmiView {
         !exceedsHardLimit &&
         (nVars > BROWSER_ENVELOPE.fast_max_variables ||
           dims.n > maxNForFast ||
-          this.parsed.expandedBlockCount > 32);
+          this.parsed.expandedBlockCount > 64);
 
       if (exceedsHardLimit) {
         setElHidden(this.envelopeBannerEl, false);

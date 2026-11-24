@@ -1262,7 +1262,10 @@ def test_ux_phase4_lmi_dsl_direct_sdp_compiler_solve(browser_harness):
     page.wait_for_function("() => app.shell.getActiveTab() === 'optimization_lmi'")
     page.locator("#lmi-workspace-panel").wait_for(state="visible")
     page.wait_for_function(
-        "() => Array.from(document.querySelectorAll('#lmi-workspace-system-select option')).some((o) => o.value.startsWith('poly-2v-demo#'))"
+        """() => {
+            const vals = Array.from(document.querySelectorAll('#lmi-workspace-system-select option')).map((o) => o.value);
+            return vals.some((v) => v.startsWith('poly-2v-demo#')) && vals.some((v) => v.startsWith('ts-unmeasured-2r-demo#'));
+        }"""
     )
 
     # 1. Quantified polytopic_robust template -> #btn-lmi-solve -> validated_dual/feasible + recovered K

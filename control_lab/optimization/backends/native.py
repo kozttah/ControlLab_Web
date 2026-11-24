@@ -7,12 +7,12 @@ from ..modeling.canonical import CanonicalSDPProblem
 from .base import SDPBackend
 from .native_core import NativeSolverConfig, solve_native_raw
 
-# Dense Schur systems and cone factorizations bound browser memory and latency.
+# Sparse CSC cone Gram + adaptive Schur/chordal factorizations bound browser memory and latency.
 BROWSER_ENVELOPE = {
-    "max_variables": 1024,
-    "fast_max_variables": 448,
-    "max_block_dimension": 64,
-    "max_cone_entries": 65536,
+    "max_variables": 3072,
+    "fast_max_variables": 1792,
+    "max_block_dimension": 96,
+    "max_cone_entries": 131072,
 }
 
 

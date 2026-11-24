@@ -131,6 +131,10 @@ def solve(
             }
             if "iteration_log" in raw_out and raw_out["iteration_log"] is not None:
                 diagnostics["iteration_log"] = list(raw_out["iteration_log"])
+            if "hsde_summary" in raw_out and raw_out["hsde_summary"] is not None:
+                diagnostics["hsde_summary"] = dict(raw_out["hsde_summary"])
+            if "hsde_certificate" in raw_out and raw_out["hsde_certificate"] is not None:
+                diagnostics["hsde_certificate"] = str(raw_out["hsde_certificate"])
         else:
             raw_warnings.append(
                 WarningItem(

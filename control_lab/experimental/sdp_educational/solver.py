@@ -59,7 +59,10 @@ from control_lab.optimization.backends.native_core import (
 
 
 def solve_sdp_educational_raw(problem, options=None):
-    raw = solve_native_raw(problem, options)
+    edu_opts = {"use_hsde": False}
+    if options is not None:
+        edu_opts.update(dict(options))
+    raw = solve_native_raw(problem, edu_opts)
     raw.update(backend="educational_primal_dual", maturity="experimental", experimental=True)
     return raw
 

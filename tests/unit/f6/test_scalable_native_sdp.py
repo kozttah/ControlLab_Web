@@ -126,7 +126,8 @@ def test_warm_start_capability_and_decay_rate_sweep() -> None:
     raw_cold = solve_native_raw(prob_next)
     raw_warm = solve_native_raw(prob_next, options={"warm_start_x": x_prev})
 
-    assert raw_cold["phase1_summary"]["executed"] is True
+    assert raw_cold["hsde_summary"]["executed"] is True
+    assert raw_warm["hsde_summary"]["executed"] is False
     assert raw_warm["phase1_summary"]["executed"] is False
     assert raw_warm["phase1_summary"]["warm_start_used"] is True
     assert raw_warm["iterations"] < raw_cold["iterations"]
@@ -138,7 +139,7 @@ def test_warm_start_capability_and_decay_rate_sweep() -> None:
 
 
 def test_warm_start_hinf_brl_minimization_and_fallback() -> None:
-    """Warm-start reduces Phase-1/total iterations on H-inf BRL minimization and falls back cleanly if infeasible."""
+    """Warm-start bypasses Phase 1/HSDE on H-inf BRL minimization and falls back cleanly if infeasible."""
     suite = _build_gate_0b_suite()
     prob_fixed = suite["CTRL_BRL_D2_FIXED"]["problem"]
     prob_min = suite["CTRL_BRL_D2_MIN"]["problem"]
@@ -146,24 +147,27 @@ def test_warm_start_hinf_brl_minimization_and_fallback() -> None:
     raw_fixed = solve_native_raw(prob_fixed)
     x_ws_interior = np.concatenate([raw_fixed["x"], [5.0]])
 
-    raw_cold = solve_native_raw(prob_min)
+    raw_cold_hsde = solve_native_raw(prob_min)
+    raw_cold_p1p2 = solve_native_raw(prob_min, options={"use_hsde": False})
     raw_warm = solve_native_raw(prob_min, options={"warm_start_x": x_ws_interior})
 
-    assert raw_cold["phase1_summary"]["iterations"] > 0
+    assert raw_cold_hsde["hsde_summary"]["executed"] is True
+    assert raw_cold_p1p2["phase1_summary"]["iterations"] > 0
     assert raw_warm["phase1_summary"]["iterations"] == 0
     assert raw_warm["phase1_summary"]["warm_start_used"] is True
-    assert raw_warm["iterations"] < raw_cold["iterations"]
+    assert raw_warm["hsde_summary"]["executed"] is False
+    assert raw_warm["iterations"] < raw_cold_p1p2["iterations"]
 
     res_cold = solve(prob_min, backend="native_primal_dual")
     res_warm = solve(prob_min, backend="native_primal_dual", options={"warm_start_x": x_ws_interior})
     assert res_warm.data["certificate_status"] == "validated_dual"
     assert res_warm.data["objective"] == pytest.approx(res_cold.data["objective"], abs=1e-6)
 
-    # Infeasible warm-start must fall back to Phase 1 gracefully without failing
+    # Infeasible warm-start must fall back to HSDE/Phase 1 gracefully without failing
     x_infeasible = np.zeros((prob_min.n_vars,), dtype=np.float64)
     raw_fb = solve_native_raw(prob_min, options={"warm_start_x": x_infeasible})
     assert raw_fb["phase1_summary"]["warm_start_used"] is False
-    assert raw_fb["phase1_summary"]["executed"] is True
+    assert raw_fb["hsde_summary"]["executed"] is True or raw_fb["phase1_summary"]["executed"] is True
     res_fb = solve(prob_min, backend="native_primal_dual", options={"warm_start_x": x_infeasible})
     assert res_fb.data["certificate_status"] == "validated_dual"
 

@@ -27,6 +27,7 @@ from typing import Any, Callable, Mapping, Sequence
 import numpy as np
 import scipy.linalg
 import scipy.sparse
+import scipy.sparse.linalg
 from control_lab.core.tensors import ensure_finite_float64
 from control_lab.diagnostics import CancelledError, ValidationError, WarningItem
 from ..modeling.canonical import CanonicalSDPProblem
@@ -128,6 +129,10 @@ class NativeSolverConfig:
     use_hsde: bool = True
     max_gondzio_correctors: int = 2
     schur_mode: str = "auto"
+    sparse_schur_density_threshold: float = 0.30
+    sparse_schur_min_dim: int = 48
+    schur_factorization_mode: str = "auto"
+    use_chordal: bool = True
 
     @classmethod
     def from_options(cls, options: Mapping[str, Any] | None = None) -> NativeSolverConfig:
@@ -151,6 +156,10 @@ class NativeSolverConfig:
             "use_hsde",
             "max_gondzio_correctors",
             "schur_mode",
+            "sparse_schur_density_threshold",
+            "sparse_schur_min_dim",
+            "schur_factorization_mode",
+            "use_chordal",
         }
         kwargs: dict[str, Any] = {}
         for k, v in options.items():
@@ -171,7 +180,7 @@ class NativeSolverConfig:
             else:
                 kwargs[k] = v
         cfg = cls(**kwargs)
-        for key in ("max_iter", "phase1_max_iter"):
+        for key in ("max_iter", "phase1_max_iter", "sparse_schur_min_dim"):
             value = getattr(cfg, key)
             if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 1:
                 raise ValidationError(f"{key} must be a positive integer.")
@@ -184,12 +193,18 @@ class NativeSolverConfig:
             raise ValidationError("max_gondzio_correctors must be an integer in [0, 10].")
         if not isinstance(cfg.use_hsde, bool):
             raise ValidationError("use_hsde must be boolean.")
+        if not isinstance(cfg.use_chordal, bool):
+            raise ValidationError("use_chordal must be boolean.")
         if cfg.schur_mode not in ("auto", "F3_blas"):
             raise ValidationError("schur_mode must be 'auto' or 'F3_blas'.")
-        for key in ("tol_gap", "tol_feas", "tol_psd", "strict_margin", "step_fraction", "sigma_min", "sigma_max", "unbounded_norm_threshold"):
+        if cfg.schur_factorization_mode not in ("auto", "dense_cholesky", "sparse_splu"):
+            raise ValidationError("schur_factorization_mode must be 'auto', 'dense_cholesky', or 'sparse_splu'.")
+        for key in ("tol_gap", "tol_feas", "tol_psd", "strict_margin", "step_fraction", "sigma_min", "sigma_max", "unbounded_norm_threshold", "sparse_schur_density_threshold"):
             value = getattr(cfg, key)
             if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)) or not math.isfinite(value) or value <= 0:
                 raise ValidationError(f"{key} must be a finite positive scalar.")
+        if cfg.sparse_schur_density_threshold > 1.0:
+            raise ValidationError("sparse_schur_density_threshold must be in (0, 1].")
         if not 0 < cfg.sigma_min <= cfg.sigma_max < 1:
             raise ValidationError("Require 0 < sigma_min <= sigma_max < 1.")
         if not isinstance(cfg.record_history, bool):
@@ -582,7 +597,14 @@ def _max_step_to_psd_boundary(cho_M: tuple[np.ndarray, bool], dM: np.ndarray) ->
 
 @dataclass(frozen=True)
 class _FactoredSymmetricSystem:
-    """Fatoração em cache do sistema de Schur simétrico pré-condicionado por Jacobi."""
+    """Fatoração em cache do sistema de Schur simétrico pré-condicionado por Jacobi.
+
+    Suporta dois modos adaptativos:
+    - `"dense_cholesky"`: Cholesky regularizado (`scipy.linalg.cho_factor`).
+    - `"sparse_splu"`: SuperLU esparso (`scipy.sparse.linalg.splu`, permc_spec="MMD_AT_PLUS_A",
+      Demmel, Eisenstat, Gilbert, Li & Liu, SIAM J. Matrix Anal. Appl. 1999,
+      doi:10.1137/S0895479895291765) com refino iterativo em $O(\\mathrm{nnz})$.
+    """
 
     n: int
     H_scaled: np.ndarray
@@ -590,6 +612,9 @@ class _FactoredSymmetricSystem:
     cho: tuple[np.ndarray, bool] | None
     cond: float
     regularized: bool
+    splu: Any | None = None
+    H_scaled_csc: scipy.sparse.csc_matrix | None = None
+    mode: str = "dense_cholesky"
 
 
 def _factor_symmetric_system(
@@ -598,12 +623,16 @@ def _factor_symmetric_system(
     H_scaled_buf: np.ndarray | None = None,
     H_work_buf: np.ndarray | None = None,
     inv_d_buf: np.ndarray | None = None,
+    sparse_density_threshold: float = 0.30,
+    sparse_min_dim: int = 48,
+    factorization_mode: str = "auto",
 ) -> _FactoredSymmetricSystem:
-    """Fatora H uma única vez por iteração com Jacobi + Cholesky regularizado (Fujisawa et al., IPDPS 2014).
+    """Fatora H uma única vez por iteração com Jacobi + SuperLU esparso ou Cholesky regularizado.
 
-    Estima o condicionamento em O(m) pela razão dos elementos diagonais do fator de Cholesky
-    `(max(diag(L)) / max(min(diag(L)), 1e-15)) ** 2`, evitando SVD O(m^3) a cada iteração.
-    Suporta buffers pré-alocados (`H_scaled_buf`, `H_work_buf`, `inv_d_buf`) para execução in-place.
+    Referências:
+    - Fujisawa et al., IEEE IPDPS 2014 (doi:10.1109/IPDPS.2014.121)
+    - Demmel, Eisenstat, Gilbert, Li & Liu, SIAM J. Matrix Anal. Appl. 1999
+      (SuperLU, doi:10.1137/S0895479895291765)
     """
     n = int(H.shape[0])
     if n == 0:
@@ -614,6 +643,7 @@ def _factor_symmetric_system(
             cho=None,
             cond=1.0,
             regularized=False,
+            mode="dense_cholesky",
         )
 
     H_scaled = H_scaled_buf if H_scaled_buf is not None else np.empty((n, n), dtype=np.float64)
@@ -642,8 +672,81 @@ def _factor_symmetric_system(
         ratio = l_max / max(l_min, 1e-15)
         return float(min(1e16, ratio * ratio))
 
+    def _cond_from_splu(lu_fac: Any) -> tuple[float, float, float]:
+        diag_u = np.abs(lu_fac.U.diagonal())
+        if diag_u.size == 0:
+            return 1.0, 1.0, 1.0
+        u_max = float(np.max(diag_u))
+        u_min = float(np.min(diag_u))
+        if u_max <= 0.0 or not math.isfinite(u_max) or not math.isfinite(u_min):
+            return 1e16, 0.0, 0.0
+        return float(min(1e16, u_max / max(u_min, 1e-15))), u_min, u_max
+
     finite_ok = bool(np.all(np.isfinite(H_scaled)))
     if finite_ok:
+        # Seleção adaptativa de SuperLU esparso (scipy.sparse.linalg.splu)
+        try_sparse = False
+        if factorization_mode == "sparse_splu":
+            try_sparse = True
+        elif factorization_mode == "auto" and n >= sparse_min_dim:
+            nnz_h = int(np.count_nonzero(H_scaled))
+            if (nnz_h / float(n * n)) < sparse_density_threshold:
+                try_sparse = True
+
+        if try_sparse:
+            H_csc = scipy.sparse.csc_matrix(H_scaled)
+            cond_limit = 1e11 if factorization_mode == "auto" else 1e15
+            try:
+                lu = scipy.sparse.linalg.splu(
+                    H_csc,
+                    permc_spec="MMD_AT_PLUS_A",
+                    diag_pivot_thresh=0.01,
+                    options={"SymmetricMode": True},
+                )
+                cond_lu, u_min, u_max = _cond_from_splu(lu)
+                if u_max > 0.0 and u_min > 1e-14 * max(1.0, u_max) and cond_lu < cond_limit:
+                    return _FactoredSymmetricSystem(
+                        n=n,
+                        H_scaled=H_scaled,
+                        inv_d=inv_d,
+                        cho=None,
+                        cond=cond_lu,
+                        regularized=False,
+                        splu=lu,
+                        H_scaled_csc=H_csc,
+                        mode="sparse_splu",
+                    )
+            except (RuntimeError, ValueError):
+                pass
+
+            # Se modo forçado "sparse_splu", tenta regularização diagonal antes de recuar para Cholesky
+            if factorization_mode == "sparse_splu":
+                h_scale_sp = max(1.0, float(np.max(np.abs(H_scaled))))
+                for reg_exp in (1e-13, 1e-11, 1e-9):
+                    H_csc_reg = (H_csc + scipy.sparse.diags(np.full(n, reg_exp * h_scale_sp), format="csc")).tocsc()
+                    try:
+                        lu_reg = scipy.sparse.linalg.splu(
+                            H_csc_reg,
+                            permc_spec="MMD_AT_PLUS_A",
+                            diag_pivot_thresh=0.01,
+                            options={"SymmetricMode": True},
+                        )
+                        cond_reg, u_min_r, u_max_r = _cond_from_splu(lu_reg)
+                        if u_max_r > 0.0 and u_min_r > 1e-14 * max(1.0, u_max_r) and cond_reg < 1e15:
+                            return _FactoredSymmetricSystem(
+                                n=n,
+                                H_scaled=H_scaled,
+                                inv_d=inv_d,
+                                cho=None,
+                                cond=cond_reg,
+                                regularized=True,
+                                splu=lu_reg,
+                                H_scaled_csc=H_csc,
+                                mode="sparse_splu",
+                            )
+                    except (RuntimeError, ValueError):
+                        continue
+
         try:
             cho: tuple[np.ndarray, bool] | None = scipy.linalg.cho_factor(
                 H_work, lower=True, overwrite_a=True, check_finite=False
@@ -658,6 +761,7 @@ def _factor_symmetric_system(
                 cho=cho,
                 cond=_cond_from_cho(cho),
                 regularized=False,
+                mode="dense_cholesky",
             )
 
         # Regularização diagonal adaptativa no espaço escalonado sem alocar eye(n)
@@ -680,6 +784,7 @@ def _factor_symmetric_system(
                     cho=cho_reg,
                     cond=_cond_from_cho(cho_reg),
                     regularized=True,
+                    mode="dense_cholesky",
                 )
 
     return _FactoredSymmetricSystem(
@@ -689,6 +794,7 @@ def _factor_symmetric_system(
         cho=None,
         cond=1e16,
         regularized=True,
+        mode="dense_cholesky",
     )
 
 
@@ -701,13 +807,43 @@ def _solve_factored_symmetric(
     res_s_buf: np.ndarray | None = None,
     mv_buf: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Resolve H dx = rhs usando a fatoração em cache + até 2 passos de refino iterativo."""
+    """Resolve H dx = rhs usando a fatoração em cache (SuperLU ou Cholesky) + até 2 passos de refino iterativo."""
     if fac.n == 0:
         if out is not None:
             return out
         return np.zeros((0,), dtype=np.float64)
 
     rhs_scaled = np.multiply(fac.inv_d, rhs, out=rhs_scaled_buf) if rhs_scaled_buf is not None else fac.inv_d * rhs
+    if fac.splu is not None:
+        sol_s = np.asarray(fac.splu.solve(rhs_scaled), dtype=np.float64)
+        if fac.H_scaled_csc is not None:
+            res_s = rhs_scaled - (fac.H_scaled_csc @ sol_s)
+        else:
+            res_s = rhs_scaled - fac.H_scaled @ sol_s
+        res_norm = float(np.linalg.norm(res_s))
+        rhs_norm = float(np.linalg.norm(rhs_scaled))
+        for _ in range(2):
+            if res_norm <= 1e-15 * (1.0 + rhs_norm):
+                break
+            corr_s = np.asarray(fac.splu.solve(res_s), dtype=np.float64)
+            if not np.all(np.isfinite(corr_s)):
+                break
+            cand_s = sol_s + corr_s
+            if fac.H_scaled_csc is not None:
+                new_res_s = rhs_scaled - (fac.H_scaled_csc @ cand_s)
+            else:
+                new_res_s = rhs_scaled - fac.H_scaled @ cand_s
+            new_res_norm = float(np.linalg.norm(new_res_s))
+            if new_res_norm < res_norm:
+                sol_s = cand_s
+                res_s = new_res_s
+                res_norm = new_res_norm
+            else:
+                break
+        if out is not None:
+            return np.multiply(fac.inv_d, sol_s, out=out)
+        return np.asarray(fac.inv_d * sol_s, dtype=np.float64)
+
     if fac.cho is not None:
         sol_s = scipy.linalg.cho_solve(fac.cho, rhs_scaled, check_finite=True)
         if mv_buf is not None and res_s_buf is not None:
@@ -1016,6 +1152,9 @@ def _run_primal_dual_cone_loop(
     check_farkas_on_blocks: int | None = None,
     unbounded_norm_threshold: float = 1e7,
     max_gondzio_correctors: int = 2,
+    sparse_schur_density_threshold: float = 0.30,
+    sparse_schur_min_dim: int = 48,
+    schur_factorization_mode: str = "auto",
     t_start: float | None = None,
     iteration_log: list[dict[str, Any]] | None = None,
     progress_callback: Callable[[dict[str, Any]], Any] | None = None,
@@ -1309,6 +1448,8 @@ def _run_primal_dual_cone_loop(
     farkas_candidate: list[np.ndarray] | None = None
     recession_candidate: np.ndarray | None = None
     factorizations = 0
+    sparse_factorizations = 0
+    dense_factorizations = 0
     gondzio_attempted = 0
     gondzio_accepted = 0
 
@@ -1612,9 +1753,19 @@ def _run_primal_dual_cone_loop(
 
         # Fatorar o sistema de Schur uma única vez por iteração usando buffers pré-alocados
         fac_H = _factor_symmetric_system(
-            H, H_scaled_buf=H_scaled_buf, H_work_buf=H_work_buf, inv_d_buf=inv_d_buf
+            H,
+            H_scaled_buf=H_scaled_buf,
+            H_work_buf=H_work_buf,
+            inv_d_buf=inv_d_buf,
+            sparse_density_threshold=sparse_schur_density_threshold,
+            sparse_min_dim=sparse_schur_min_dim,
+            factorization_mode=schur_factorization_mode,
         )
         factorizations += 1
+        if fac_H.mode == "sparse_splu":
+            sparse_factorizations += 1
+        else:
+            dense_factorizations += 1
         cond_H = fac_H.cond
 
         # 3. Passo Preditor Afim de Mehrotra (sigma = 0)
@@ -2339,6 +2490,11 @@ def _run_primal_dual_cone_loop(
         "gondzio_correctors_attempted": gondzio_attempted,
         "gondzio_correctors_accepted": gondzio_accepted,
         "schur_assembly_modes": _count_schur_modes(blocks),
+        "schur_factorization_mode": (
+            "sparse_splu"
+            if sparse_factorizations > 0 and sparse_factorizations >= dense_factorizations
+            else "dense_cholesky"
+        ),
     }
 
 
@@ -2355,6 +2511,9 @@ def _run_hsde_cone_loop(
     sigma_min: float,
     sigma_max: float,
     max_gondzio_correctors: int = 2,
+    sparse_schur_density_threshold: float = 0.30,
+    sparse_schur_min_dim: int = 48,
+    schur_factorization_mode: str = "auto",
     t_start: float | None = None,
     iteration_log: list[dict[str, Any]] | None = None,
     progress_callback: Callable[[dict[str, Any]], Any] | None = None,
@@ -2621,6 +2780,8 @@ def _run_hsde_cone_loop(
     farkas_objective: float | None = None
     recession_candidate: np.ndarray | None = None
     factorizations = 0
+    sparse_factorizations = 0
+    dense_factorizations = 0
     gondzio_attempted = 0
     gondzio_accepted = 0
     best_opt_score = float("inf")
@@ -2940,9 +3101,19 @@ def _run_hsde_cone_loop(
             # Fatorar H uma única vez por iteração e resolver u0 = H^{-1} g0, uc = H^{-1} c_vec
             # para calcular d_tau = kappa/tau + ||F0_hat - A_hat(u0)||^2 + c^T uc sem cancelamento catastrófico!
             fac_H = _factor_symmetric_system(
-                H, H_scaled_buf=H_scaled_buf, H_work_buf=H_work_buf, inv_d_buf=inv_d_buf
+                H,
+                H_scaled_buf=H_scaled_buf,
+                H_work_buf=H_work_buf,
+                inv_d_buf=inv_d_buf,
+                sparse_density_threshold=sparse_schur_density_threshold,
+                sparse_min_dim=sparse_schur_min_dim,
+                factorization_mode=schur_factorization_mode,
             )
             factorizations += 1
+            if fac_H.mode == "sparse_splu":
+                sparse_factorizations += 1
+            else:
+                dense_factorizations += 1
             cond_H = fac_H.cond
 
             u0_vec = _solve_factored_symmetric(
@@ -3589,6 +3760,11 @@ def _run_hsde_cone_loop(
             "gondzio_correctors_attempted": gondzio_attempted,
             "gondzio_correctors_accepted": gondzio_accepted,
             "schur_assembly_modes": _count_schur_modes(blocks),
+            "schur_factorization_mode": (
+                "sparse_splu"
+                if sparse_factorizations > 0 and sparse_factorizations >= dense_factorizations
+                else "dense_cholesky"
+            ),
         }
     finally:
         del (
@@ -3788,6 +3964,507 @@ def _decompose_sparse_psd_blocks(
         n_original_blocks=len(blocks),
         n_decomposed_blocks=len(decomposed_blocks),
         decomposed_block_indices=tuple(decomposed_indices),
+    )
+
+
+def _min_degree_ordering(adj_bool: np.ndarray) -> tuple[list[int], list[frozenset[int]]]:
+    """Calcula ordenação de eliminação Minimum Degree e cliques de eliminação cordal.
+
+    Referência: Vandenberghe & Andersen (2015, Found. Trends Optim., doi:10.1561/2400000006).
+    """
+    dim = int(adj_bool.shape[0])
+    adj_sets: list[set[int]] = [
+        {int(j) for j in np.flatnonzero(adj_bool[i]) if int(j) != i}
+        for i in range(dim)
+    ]
+    remaining = set(range(dim))
+    ordering: list[int] = []
+    elim_cliques: list[frozenset[int]] = []
+
+    for _ in range(dim):
+        v = min(remaining, key=lambda u: (len(adj_sets[u]), u))
+        nbrs = adj_sets[v]
+        ordering.append(v)
+        elim_cliques.append(frozenset(nbrs | {v}))
+        for u in nbrs:
+            adj_u = adj_sets[u]
+            adj_u.discard(v)
+            adj_u.update(nbrs)
+            adj_u.discard(u)
+        adj_sets[v].clear()
+        remaining.remove(v)
+
+    return ordering, elim_cliques
+
+
+def _chordal_clique_tree_and_merge(
+    elim_cliques: Sequence[frozenset[int]],
+) -> tuple[list[tuple[int, ...]], list[int]]:
+    """Extrai cliques maximais, constrói árvore de cliques (MWST) e aplica clique-merging.
+
+    Referências:
+    - Vandenberghe & Andersen (2015, doi:10.1561/2400000006, Theorem 4.2)
+    - Garstka, Cannon & Goulart (IFAC 2020, doi:10.1016/j.ifacol.2020.12.1255)
+    """
+    unique_cliques = sorted(set(elim_cliques), key=lambda c: (-len(c), sorted(c)))
+    maximal: list[frozenset[int]] = []
+    for c in unique_cliques:
+        if not any(c <= m for m in maximal):
+            maximal.append(c)
+
+    if len(maximal) <= 1:
+        return [tuple(sorted(maximal[0]))] if maximal else [], [-1] if maximal else []
+
+    L = len(maximal)
+    in_tree = [False] * L
+    in_tree[0] = True
+    parent_raw = [-1] * L
+    topo_order = [0]
+
+    for _ in range(L - 1):
+        best_w = -1
+        best_u = -1
+        best_p = -1
+        for u in range(L):
+            if in_tree[u]:
+                continue
+            cu = maximal[u]
+            for p in topo_order:
+                w = len(cu & maximal[p])
+                if w > best_w or (w == best_w and (u < best_u or (u == best_u and p < best_p))):
+                    best_w = w
+                    best_u = u
+                    best_p = p
+        in_tree[best_u] = True
+        parent_raw[best_u] = best_p
+        topo_order.append(best_u)
+
+    old_to_new = {old: new for new, old in enumerate(topo_order)}
+    cliques: list[set[int]] = [set(maximal[old]) for old in topo_order]
+    parents: list[int] = [
+        -1 if parent_raw[old] == -1 else old_to_new[parent_raw[old]]
+        for old in topo_order
+    ]
+    alive = [True] * L
+
+    # Clique-tree merging guloso (Garstka, Cannon & Goulart 2020):
+    # funde (c, p) quando |C_c U C_p|^3 <= |C_c|^3 + |C_p|^3 ou sobreposição quase total.
+    while True:
+        best_gain: int | None = None
+        best_c = -1
+        for c in range(1, L):
+            if not alive[c]:
+                continue
+            p = parents[c]
+            if p < 0 or not alive[p]:
+                continue
+            sz_c = len(cliques[c])
+            sz_p = len(cliques[p])
+            union_sz = len(cliques[c] | cliques[p])
+            delta_cube = union_sz ** 3 - (sz_c ** 3 + sz_p ** 3)
+            if delta_cube <= 0 or (union_sz - sz_p) <= 1 or (union_sz - sz_c) <= 1:
+                if best_gain is None or delta_cube < best_gain:
+                    best_gain = delta_cube
+                    best_c = c
+        if best_c < 0:
+            break
+        p = parents[best_c]
+        cliques[p] |= cliques[best_c]
+        for k in range(L):
+            if alive[k] and parents[k] == best_c:
+                parents[k] = p
+        alive[best_c] = False
+
+    alive_indices = [k for k in range(L) if alive[k]]
+    remap = {old: new for new, old in enumerate(alive_indices)}
+    merged_cliques = [tuple(sorted(cliques[k])) for k in alive_indices]
+    merged_parents = [-1 if parents[k] < 0 else remap[parents[k]] for k in alive_indices]
+    return merged_cliques, merged_parents
+
+
+def _chordal_psd_complete(
+    dim: int,
+    cliques: Sequence[tuple[int, ...]],
+    parents: Sequence[int],
+    clique_duals: Sequence[np.ndarray],
+) -> np.ndarray:
+    """Completação PSD exata de máxima entropia ao longo da árvore de cliques (sem linalg.inv).
+
+    Dado Z_l >= 0 consistente nos separadores S_l = C_l cap C_{parent[l]}, reconstrói Z >= 0
+    na dimensão original satisfazendo Z[C_l, C_l] = Z_l para todo l = 0..L-1 via complemento
+    de Schur sequencial (Vandenberghe & Andersen 2015, Section 10.2 / Algorithm 10.1).
+    """
+    Z = np.zeros((dim, dim), dtype=np.float64)
+    if not cliques:
+        return Z
+
+    verts0 = np.asarray(cliques[0], dtype=np.intp)
+    Z[np.ix_(verts0, verts0)] = _sym(clique_duals[0])
+    included = set(cliques[0])
+
+    for c in range(1, len(cliques)):
+        C_c = cliques[c]
+        Z_c = _sym(clique_duals[c])
+        loc = {v: i for i, v in enumerate(C_c)}
+        B = [v for v in C_c if v in included]
+        C_new = [v for v in C_c if v not in included]
+        if not C_new:
+            continue
+        A = sorted(included - set(B))
+
+        C_arr = np.asarray(C_new, dtype=np.intp)
+        C_loc = np.asarray([loc[v] for v in C_new], dtype=np.intp)
+        Z[np.ix_(C_arr, C_arr)] = Z_c[np.ix_(C_loc, C_loc)]
+
+        if B:
+            B_arr = np.asarray(B, dtype=np.intp)
+            B_loc = np.asarray([loc[v] for v in B], dtype=np.intp)
+            Z_BC = Z_c[np.ix_(B_loc, C_loc)]
+            Z[np.ix_(B_arr, C_arr)] = Z_BC
+            Z[np.ix_(C_arr, B_arr)] = Z_BC.T
+
+            if A:
+                A_arr = np.asarray(A, dtype=np.intp)
+                Z_AB = Z[np.ix_(A_arr, B_arr)]
+                Z_BB = _sym(Z[np.ix_(B_arr, B_arr)])
+                evals_b, evecs_b = scipy.linalg.eigh(Z_BB)
+                lam_max_b = float(np.max(evals_b)) if evals_b.size > 0 else 0.0
+                if lam_max_b > 1e-14:
+                    tol_b = max(1e-12 * max(1.0, lam_max_b), 1e-14)
+                    mask_b = evals_b > tol_b
+                    if np.any(mask_b):
+                        Q_b = evecs_b[:, mask_b]
+                        inv_l = 1.0 / evals_b[mask_b]
+                        Z_AC = (Z_AB @ Q_b) @ (inv_l[:, None] * (Q_b.T @ Z_BC))
+                        Z[np.ix_(A_arr, C_arr)] = Z_AC
+                        Z[np.ix_(C_arr, A_arr)] = Z_AC.T
+
+        included.update(C_new)
+
+    return _sym(Z)
+
+
+@dataclass(frozen=True)
+class _ChordalBlockMapping:
+    """Mapa de reconstrução de um bloco PSD (decomposto em cliques cordais ou intacto)."""
+
+    orig_dim: int
+    is_chordal: bool
+    sub_indices: tuple[int, ...]
+    cliques: tuple[tuple[int, ...], ...]
+    parents: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class _ChordalDecompositionPlan:
+    """Plano de decomposição cordal exata por cliques maximais (Teorema de Agler/Grone)."""
+
+    decomposed_blocks: list[_InternalConeBlock]
+    c_aug: np.ndarray
+    m_orig: int
+    m_aug: int
+    mappings: tuple[_ChordalBlockMapping, ...]
+    decomposed_blocks_count: int
+    original_max_dim: int
+    clique_max_dim: int
+    num_cliques: int
+    aux_vars_added: int
+
+    @property
+    def summary(self) -> dict[str, int]:
+        return {
+            "decomposed_blocks": int(self.decomposed_blocks_count),
+            "original_max_dim": int(self.original_max_dim),
+            "clique_max_dim": int(self.clique_max_dim),
+            "num_cliques": int(self.num_cliques),
+            "aux_vars_added": int(self.aux_vars_added),
+        }
+
+    def reassemble_duals(self, sub_duals: Sequence[np.ndarray]) -> list[np.ndarray]:
+        """Reconstrói matrizes duais Z_b na dimensão de entrada via completação PSD cordal."""
+        assembled: list[np.ndarray] = []
+        for mp in self.mappings:
+            if not mp.is_chordal:
+                assembled.append(_sym(sub_duals[mp.sub_indices[0]]))
+            else:
+                clique_zs = [sub_duals[idx] for idx in mp.sub_indices]
+                assembled.append(_chordal_psd_complete(mp.orig_dim, mp.cliques, mp.parents, clique_zs))
+        return assembled
+
+
+def _chordal_clique_decompose_psd_blocks(
+    blocks: Sequence[_InternalConeBlock],
+    c_y: np.ndarray,
+    m_y: int,
+    *,
+    enabled: bool = True,
+    min_dim: int = 8,
+    max_density: float = 0.55,
+) -> _ChordalDecompositionPlan:
+    """Decompõe blocos PSD conexos esparsos em cliques maximais cordais (equivalência exata).
+
+    Formulação dual exata via Teorema de Agler/Grone:
+    Para um bloco conexo S(y) = F_0 + sum_k y_k F_k >= 0 com grafo de esparsidade cordal
+    C_0, ..., C_{L-1} em árvore de cliques, atribui cada entrada (p, q) à raiz l_root(p, q)
+    e introduz variáveis escalares auxiliares de sobreposição v_{c, p, q} (com custo zero)
+    somando +v no clique c e -v no clique pai parent[c], de modo que:
+        sum_{l=0}^{L-1} E_{C_l}^T S_l(y, v) E_{C_l} == S(y)   identicamente.
+    No dual, a estacionariedade em v impõe (Z_c)_{p,q} = (Z_{parent[c]})_{p,q} em todos os
+    separadores, garantindo completação PSD exata Z >= 0 no bloco original.
+
+    Referências:
+    - Vandenberghe & Andersen (2015, doi:10.1561/2400000006)
+    - Garstka, Cannon & Goulart (IFAC 2020, doi:10.1016/j.ifacol.2020.12.1255)
+    """
+    psd_dims = [b.dim for b in blocks if not b.is_ineq_slack]
+    max_psd_dim = max(psd_dims) if psd_dims else 0
+
+    if not enabled:
+        mappings_noop = tuple(
+            _ChordalBlockMapping(
+                orig_dim=blk.dim,
+                is_chordal=False,
+                sub_indices=(idx,),
+                cliques=(tuple(range(blk.dim)),),
+                parents=(-1,),
+            )
+            for idx, blk in enumerate(blocks)
+        )
+        return _ChordalDecompositionPlan(
+            decomposed_blocks=list(blocks),
+            c_aug=c_y.copy(),
+            m_orig=m_y,
+            m_aug=m_y,
+            mappings=mappings_noop,
+            decomposed_blocks_count=0,
+            original_max_dim=max_psd_dim,
+            clique_max_dim=max_psd_dim,
+            num_cliques=0,
+            aux_vars_added=0,
+        )
+
+    out_blocks: list[_InternalConeBlock] = []
+    mappings: list[_ChordalBlockMapping] = []
+    next_var_idx = m_y
+    decomposed_count = 0
+    decomp_orig_max = 0
+    decomp_clique_max = 0
+    total_cliques = 0
+
+    for blk in blocks:
+        if blk.is_ineq_slack or blk.dim < min_dim:
+            sub_idx = len(out_blocks)
+            out_blocks.append(blk)
+            mappings.append(
+                _ChordalBlockMapping(
+                    orig_dim=blk.dim,
+                    is_chordal=False,
+                    sub_indices=(sub_idx,),
+                    cliques=(tuple(range(blk.dim)),),
+                    parents=(-1,),
+                )
+            )
+            continue
+
+        dim = blk.dim
+        adj = np.abs(blk.F0) > 0.0
+        for fk in blk.F_terms.values():
+            adj |= np.abs(fk) > 0.0
+        adj |= adj.T
+        np.fill_diagonal(adj, False)
+
+        nnz_off = int(np.count_nonzero(adj))
+        density = (nnz_off + dim) / float(dim * dim)
+        if density >= max_density:
+            sub_idx = len(out_blocks)
+            out_blocks.append(blk)
+            mappings.append(
+                _ChordalBlockMapping(
+                    orig_dim=dim,
+                    is_chordal=False,
+                    sub_indices=(sub_idx,),
+                    cliques=(tuple(range(dim)),),
+                    parents=(-1,),
+                )
+            )
+            continue
+
+        _, elim_cliques = _min_degree_ordering(adj)
+        cliques, parents = _chordal_clique_tree_and_merge(elim_cliques)
+        if len(cliques) < 2:
+            sub_idx = len(out_blocks)
+            out_blocks.append(blk)
+            mappings.append(
+                _ChordalBlockMapping(
+                    orig_dim=dim,
+                    is_chordal=False,
+                    sub_indices=(sub_idx,),
+                    cliques=(tuple(range(dim)),),
+                    parents=(-1,),
+                )
+            )
+            continue
+
+        max_c_sz = max(len(c) for c in cliques)
+        separators: list[tuple[int, ...]] = [()]
+        num_aux_block = 0
+        for c_idx in range(1, len(cliques)):
+            p_idx = parents[c_idx]
+            sep = tuple(sorted(set(cliques[c_idx]) & set(cliques[p_idx])))
+            separators.append(sep)
+            s_len = len(sep)
+            num_aux_block += (s_len * (s_len + 1)) // 2
+
+        if max_c_sz >= dim or num_aux_block > max(64, dim * 3):
+            sub_idx = len(out_blocks)
+            out_blocks.append(blk)
+            mappings.append(
+                _ChordalBlockMapping(
+                    orig_dim=dim,
+                    is_chordal=False,
+                    sub_indices=(sub_idx,),
+                    cliques=(tuple(range(dim)),),
+                    parents=(-1,),
+                )
+            )
+            continue
+
+        # Decomposição cordal aprovada! Construir sub-blocos de clique e variáveis auxiliares
+        L = len(cliques)
+        clique_locs: list[dict[int, int]] = [{v: i for i, v in enumerate(c)} for c in cliques]
+
+        # Para cada par (u, v) com u <= v presente no grafo cordal, encontrar a raiz l_root(u, v)
+        # (menor índice de clique contendo ambos u e v, válido pela ordem topológica da árvore)
+        pair_owner: dict[tuple[int, int], int] = {}
+        for l_idx, c_verts in enumerate(cliques):
+            n_c = len(c_verts)
+            for a_i in range(n_c):
+                u = c_verts[a_i]
+                for b_i in range(a_i, n_c):
+                    v = c_verts[b_i]
+                    key = (u, v)
+                    if key not in pair_owner:
+                        pair_owner[key] = l_idx
+
+        clique_F0: list[np.ndarray] = [np.zeros((len(c), len(c)), dtype=np.float64) for c in cliques]
+        clique_F_terms: list[dict[int, np.ndarray]] = [{} for _ in range(L)]
+
+        # Atribuir entradas não-nulas de F0 à raiz l_root(u, v)
+        nz_r0, nz_c0 = np.nonzero(blk.F0)
+        for r_raw, c_raw in zip(nz_r0, nz_c0, strict=True):
+            u, v = int(r_raw), int(c_raw)
+            if u > v:
+                continue
+            val = float(blk.F0[u, v])
+            if val == 0.0:
+                continue
+            owner = pair_owner[(u, v)]
+            lu = clique_locs[owner][u]
+            lv = clique_locs[owner][v]
+            clique_F0[owner][lu, lv] = val
+            if lu != lv:
+                clique_F0[owner][lv, lu] = val
+
+        # Atribuir entradas não-nulas de cada F_k à raiz l_root(u, v)
+        for k_var, fk in blk.F_terms.items():
+            nz_rk, nz_ck = np.nonzero(fk)
+            for r_raw, c_raw in zip(nz_rk, nz_ck, strict=True):
+                u, v = int(r_raw), int(c_raw)
+                if u > v:
+                    continue
+                val = float(fk[u, v])
+                if val == 0.0:
+                    continue
+                owner = pair_owner[(u, v)]
+                terms_l = clique_F_terms[owner]
+                mat_l = terms_l.get(k_var)
+                if mat_l is None:
+                    dim_l = len(cliques[owner])
+                    mat_l = np.zeros((dim_l, dim_l), dtype=np.float64)
+                    terms_l[k_var] = mat_l
+                lu = clique_locs[owner][u]
+                lv = clique_locs[owner][v]
+                mat_l[lu, lv] = val
+                if lu != lv:
+                    mat_l[lv, lu] = val
+
+        # Introduzir variáveis auxiliares de sobreposição ao longo das arestas (c_idx, p_idx)
+        for c_idx in range(1, L):
+            p_idx = parents[c_idx]
+            sep = separators[c_idx]
+            loc_c = clique_locs[c_idx]
+            loc_p = clique_locs[p_idx]
+            dim_c = len(cliques[c_idx])
+            dim_p = len(cliques[p_idx])
+            s_len = len(sep)
+            for a_i in range(s_len):
+                u = sep[a_i]
+                for b_i in range(a_i, s_len):
+                    v = sep[b_i]
+                    aux_j = next_var_idx
+                    next_var_idx += 1
+
+                    mat_c = np.zeros((dim_c, dim_c), dtype=np.float64)
+                    lcu, lcv = loc_c[u], loc_c[v]
+                    mat_c[lcu, lcv] = 1.0
+                    if lcu != lcv:
+                        mat_c[lcv, lcu] = 1.0
+                    clique_F_terms[c_idx][aux_j] = mat_c
+
+                    mat_p = np.zeros((dim_p, dim_p), dtype=np.float64)
+                    lpu, lpv = loc_p[u], loc_p[v]
+                    mat_p[lpu, lpv] = -1.0
+                    if lpu != lpv:
+                        mat_p[lpv, lpu] = -1.0
+                    clique_F_terms[p_idx][aux_j] = mat_p
+
+        sub_indices: list[int] = []
+        for l_idx, c_verts in enumerate(cliques):
+            sub_idx = len(out_blocks)
+            out_blocks.append(
+                _InternalConeBlock(
+                    name=f"{blk.name}__ch{l_idx}",
+                    dim=len(c_verts),
+                    F0=_sym(clique_F0[l_idx]),
+                    F_terms=clique_F_terms[l_idx],
+                    is_ineq_slack=blk.is_ineq_slack,
+                    ineq_index=blk.ineq_index,
+                    build_schur_index=False,
+                )
+            )
+            sub_indices.append(sub_idx)
+
+        mappings.append(
+            _ChordalBlockMapping(
+                orig_dim=dim,
+                is_chordal=True,
+                sub_indices=tuple(sub_indices),
+                cliques=tuple(cliques),
+                parents=tuple(parents),
+            )
+        )
+        decomposed_count += 1
+        decomp_orig_max = max(decomp_orig_max, dim)
+        decomp_clique_max = max(decomp_clique_max, max_c_sz)
+        total_cliques += L
+
+    aux_added = next_var_idx - m_y
+    if aux_added > 0:
+        c_aug = np.concatenate([c_y, np.zeros((aux_added,), dtype=np.float64)])
+    else:
+        c_aug = c_y.copy()
+
+    return _ChordalDecompositionPlan(
+        decomposed_blocks=out_blocks,
+        c_aug=c_aug,
+        m_orig=m_y,
+        m_aug=next_var_idx,
+        mappings=tuple(mappings),
+        decomposed_blocks_count=decomposed_count,
+        original_max_dim=decomp_orig_max if decomposed_count > 0 else max_psd_dim,
+        clique_max_dim=decomp_clique_max if decomposed_count > 0 else max_psd_dim,
+        num_cliques=total_cliques,
+        aux_vars_added=aux_added,
     )
 
 
@@ -4445,15 +5122,31 @@ def solve_native_raw(
     }
 
     # -----------------------------------------------------------------------
-    # Passo 2.5: Equilibração de Ruiz multi-varredura com recorte [1e-4, 1e4]
-    # (Goulart & Chen, 2024, arXiv:2405.12762, Clarabel §2.4 & §2.6)
-    # Desescala tanto primal x (via d_ruiz) quanto dual Z_b = e_b * Z'_b e
-    # remonta blocos decompostos antes da auditoria independente no problema original.
+    # Passo 2.4b: Decomposição cordal por cliques maximais em blocos PSD conexos esparsos
+    # (Vandenberghe & Andersen 2015, doi:10.1561/2400000006; Garstka et al., IFAC 2020)
     # -----------------------------------------------------------------------
-    y_blocks_eq, c_y_eq, e_ruiz, d_ruiz = _ruiz_equilibrate_blocks(
+    chordal_plan = _chordal_clique_decompose_psd_blocks(
         y_blocks_dec,
         c_y,
         m_y,
+        enabled=(cfg.use_chordal and cfg.warm_start_x is None),
+    )
+    y_blocks_ch = chordal_plan.decomposed_blocks
+    c_y_ch = chordal_plan.c_aug
+    m_y_aug = chordal_plan.m_aug
+    chordal_summary = chordal_plan.summary
+
+    # -----------------------------------------------------------------------
+    # Passo 2.5: Equilibração de Ruiz multi-varredura com recorte [1e-4, 1e4]
+    # (Goulart & Chen, 2024, arXiv:2405.12762, Clarabel §2.4 & §2.6)
+    # Desescala tanto primal x (via d_ruiz) quanto dual Z_b = e_b * Z'_b e
+    # remonta blocos decompostos (completação PSD cordal + componentes conexas)
+    # antes da auditoria independente no problema original.
+    # -----------------------------------------------------------------------
+    y_blocks_eq, c_y_eq, e_ruiz, d_ruiz = _ruiz_equilibrate_blocks(
+        y_blocks_ch,
+        c_y_ch,
+        m_y_aug,
         max_sweeps=5,
         min_scale=1e-4,
         max_scale=1e4,
@@ -4461,13 +5154,14 @@ def solve_native_raw(
 
     def _unscale_and_reassemble_duals(Z_sub_scaled: Sequence[np.ndarray]) -> list[np.ndarray]:
         Z_sub_unscaled = [_sym(float(eb) * Z_b) for Z_b, eb in zip(Z_sub_scaled, e_ruiz, strict=True)]
-        return decomp_plan.reassemble_duals(Z_sub_unscaled)
+        Z_chordal_completed = chordal_plan.reassemble_duals(Z_sub_unscaled)
+        return decomp_plan.reassemble_duals(Z_chordal_completed)
 
     # -----------------------------------------------------------------------
     # Passo 3: Equilíbrio de colunas preservando esparsidade ou SVD se rank-deficiente
     # -----------------------------------------------------------------------
     total_entries = sum(b.dim * b.dim for b in y_blocks_eq)
-    A_cone = np.zeros((total_entries, m_y), dtype=np.float64)
+    A_cone = np.zeros((total_entries, m_y_aug), dtype=np.float64)
     row_ofs = 0
     for b in y_blocks_eq:
         bsz = b.dim * b.dim
@@ -4477,7 +5171,7 @@ def solve_native_raw(
 
     col_norms = np.linalg.norm(A_cone, axis=0)
     use_sparse_col_scaling = False
-    if m_y > 0 and float(np.min(col_norms)) > 1e-12:
+    if m_y_aug > 0 and float(np.min(col_norms)) > 1e-12:
         A_col_scaled = A_cone / col_norms[None, :]
         G_cone = _sym(A_col_scaled.T @ A_col_scaled)
         cho_cone = _safe_cholesky(G_cone)
@@ -4489,8 +5183,8 @@ def solve_native_raw(
     if use_sparse_col_scaling:
         col_inv = 1.0 / col_norms
         Q_R = np.diag(col_inv)
-        Q_N = np.zeros((m_y, 0), dtype=np.float64)
-        m_z = m_y
+        Q_N = np.zeros((m_y_aug, 0), dtype=np.float64)
+        m_z = m_y_aug
         c_z = col_inv * c_y_eq
         c_null = np.zeros((0,), dtype=np.float64)
         z_blocks = [
@@ -4509,12 +5203,12 @@ def solve_native_raw(
         def _project_y_to_z(y_vec: np.ndarray) -> np.ndarray:
             return col_norms * y_vec
     else:
-        _, s_cone, Vt_cone = scipy.linalg.svd(A_cone, full_matrices=(total_entries < m_y), check_finite=True)
+        _, s_cone, Vt_cone = scipy.linalg.svd(A_cone, full_matrices=(total_entries < m_y_aug), check_finite=True)
         s_cone_max = float(s_cone[0]) if s_cone.size > 0 else 0.0
         rank_cone = int(np.sum(s_cone > 1e-12 * max(1.0, s_cone_max)))
         # Escalar pelas inversas dos valores singulares para que as matrizes base em z sejam ortonormais
-        Q_R = Vt_cone[:rank_cone, :].T / s_cone[:rank_cone]  # (m_y, rank_cone)
-        Q_N = Vt_cone[rank_cone:, :].T                       # (m_y, m_y - rank_cone)
+        Q_R = Vt_cone[:rank_cone, :].T / s_cone[:rank_cone]  # (m_y_aug, rank_cone)
+        Q_N = Vt_cone[rank_cone:, :].T                       # (m_y_aug, m_y_aug - rank_cone)
 
         m_z = rank_cone
         c_z = Q_R.T @ c_y_eq
@@ -4613,6 +5307,9 @@ def solve_native_raw(
             sigma_min=cfg.sigma_min,
             sigma_max=cfg.sigma_max,
             max_gondzio_correctors=cfg.max_gondzio_correctors,
+            sparse_schur_density_threshold=cfg.sparse_schur_density_threshold,
+            sparse_schur_min_dim=cfg.sparse_schur_min_dim,
+            schur_factorization_mode=cfg.schur_factorization_mode,
             t_start=t_start,
             iteration_log=iteration_log,
             progress_callback=progress_cb,
@@ -4621,6 +5318,7 @@ def solve_native_raw(
         hsde_status = str(hsde_out["solver_status"])
         hsde_cert = str(hsde_out.get("hsde_certificate", "none"))
         hsde_modes = dict(hsde_out.get("schur_assembly_modes", schur_modes_z))
+        hsde_fac_mode = str(hsde_out.get("schur_factorization_mode", "dense_cholesky"))
         hsde_summary = {
             "executed": True,
             "iterations": len(hsde_out["history"]),
@@ -4640,7 +5338,7 @@ def solve_native_raw(
         if hsde_status in ("optimal", "optimal_inaccurate"):
             all_history.extend(hsde_out["history"])
             z_final = hsde_out["z"]
-            x_final_red = x_eq + N_eq @ (d_ruiz * (Q_R @ z_final))
+            x_final_red = x_eq + N_eq @ ((d_ruiz * (Q_R @ z_final))[:m_y])
             if has_free_nonzero_cost:
                 return _finalize_feasible_or_unbounded_free(
                     x_final_red,
@@ -4690,8 +5388,10 @@ def solve_native_raw(
                 "phase2_summary": phase2_summary,
                 "hsde_summary": hsde_summary,
                 "decomposition_summary": decomposition_summary,
+                "chordal_summary": chordal_summary,
                 "preprocessing_summary": preprocessing_summary,
                 "schur_assembly_modes": hsde_modes,
+                "schur_factorization_mode": hsde_fac_mode,
                 "warnings": warnings_out,
             }
 
@@ -4724,8 +5424,10 @@ def solve_native_raw(
                 "phase2_summary": phase2_summary,
                 "hsde_summary": hsde_summary,
                 "decomposition_summary": decomposition_summary,
+                "chordal_summary": chordal_summary,
                 "preprocessing_summary": preprocessing_summary,
                 "schur_assembly_modes": hsde_modes,
+                "schur_factorization_mode": hsde_fac_mode,
                 "warnings": warnings_out,
             }
 
@@ -4742,8 +5444,8 @@ def solve_native_raw(
                         break
             if z_feas_cand is not None:
                 all_history.extend(hsde_out["history"])
-                x_feas_h = pre_plan.reconstruct_x(x_eq + N_eq @ (d_ruiz * (Q_R @ z_feas_cand)))
-                d_x = pre_plan.reconstruct_x(N_eq @ (d_ruiz * (Q_R @ d_z)))
+                x_feas_h = pre_plan.reconstruct_x(x_eq + N_eq @ ((d_ruiz * (Q_R @ z_feas_cand))[:m_y]))
+                d_x = pre_plan.reconstruct_x(N_eq @ ((d_ruiz * (Q_R @ d_z))[:m_y]))
                 return {
                     "backend": "native_primal_dual",
                     "maturity": "beta",
@@ -4766,8 +5468,10 @@ def solve_native_raw(
                     "phase2_summary": phase2_summary,
                     "hsde_summary": hsde_summary,
                     "decomposition_summary": decomposition_summary,
+                    "chordal_summary": chordal_summary,
                     "preprocessing_summary": preprocessing_summary,
                     "schur_assembly_modes": hsde_modes,
+                    "schur_factorization_mode": hsde_fac_mode,
                     "warnings": warnings_out,
                 }
 
@@ -4825,6 +5529,9 @@ def solve_native_raw(
             check_farkas_on_blocks=len(z_blocks),
             unbounded_norm_threshold=cfg.unbounded_norm_threshold,
             max_gondzio_correctors=cfg.max_gondzio_correctors,
+            sparse_schur_density_threshold=cfg.sparse_schur_density_threshold,
+            sparse_schur_min_dim=cfg.sparse_schur_min_dim,
+            schur_factorization_mode=cfg.schur_factorization_mode,
             t_start=t_start,
             iteration_log=iteration_log,
             progress_callback=progress_cb,
@@ -4832,6 +5539,7 @@ def solve_native_raw(
         )
         all_history.extend(p1_out["history"])
         p1_modes = dict(p1_out.get("schur_assembly_modes", schur_modes_z))
+        p1_fac_mode = str(p1_out.get("schur_factorization_mode", "dense_cholesky"))
         phase1_summary = {
             "executed": True,
             "iterations": len(p1_out["history"]),
@@ -4886,12 +5594,14 @@ def solve_native_raw(
                     "phase2_summary": phase2_summary,
                     "hsde_summary": hsde_summary,
                     "decomposition_summary": decomposition_summary,
+                    "chordal_summary": chordal_summary,
                     "preprocessing_summary": preprocessing_summary,
                     "schur_assembly_modes": p1_modes,
+                    "schur_factorization_mode": p1_fac_mode,
                     "warnings": warnings_out,
                 }
 
-            x_cand_red = x_eq + N_eq @ (d_ruiz * (Q_R @ z_cand))
+            x_cand_red = x_eq + N_eq @ ((d_ruiz * (Q_R @ z_cand))[:m_y])
             x_cand = pre_plan.reconstruct_x(x_cand_red)
             cand_feasible_bound = cand_min_eig >= -1e-12 and float(np.linalg.norm(z_cand)) <= cfg.unbounded_norm_threshold
             warnings_out.append(
@@ -4928,7 +5638,7 @@ def solve_native_raw(
     # -----------------------------------------------------------------------
     # Passo 5: Checar direções livres no núcleo N_cone (ex.: variável livre no objetivo)
     # -----------------------------------------------------------------------
-    x_feas0_red = x_eq + N_eq @ (d_ruiz * (Q_R @ z0))
+    x_feas0_red = x_eq + N_eq @ ((d_ruiz * (Q_R @ z0))[:m_y])
     if has_free_nonzero_cost:
         return _finalize_feasible_or_unbounded_free(
             x_feas0_red,
@@ -4944,7 +5654,7 @@ def solve_native_raw(
     x_feas0 = pre_plan.reconstruct_x(x_feas0_red)
     if float(np.linalg.norm(c_null)) > 1e-12:
         # Variável livre sem restrições com custo não nulo -> problema ilimitado certificado!
-        d_y = d_ruiz * (-(Q_N @ (c_null / float(np.linalg.norm(c_null)))))
+        d_y = (d_ruiz * (-(Q_N @ (c_null / float(np.linalg.norm(c_null))))))[:m_y]
         d_x = pre_plan.reconstruct_x(N_eq @ d_y)
         return {
             "backend": "native_primal_dual",
@@ -4963,8 +5673,10 @@ def solve_native_raw(
             "phase1_summary": phase1_summary,
             "phase2_summary": phase2_summary,
             "decomposition_summary": decomposition_summary,
+            "chordal_summary": chordal_summary,
             "preprocessing_summary": preprocessing_summary,
             "schur_assembly_modes": schur_modes_z,
+            "schur_factorization_mode": "dense_cholesky",
             "warnings": warnings_out,
         }
 
@@ -4994,8 +5706,10 @@ def solve_native_raw(
             "phase2_summary": phase2_summary,
             "hsde_summary": hsde_summary,
             "decomposition_summary": decomposition_summary,
+            "chordal_summary": chordal_summary,
             "preprocessing_summary": preprocessing_summary,
             "schur_assembly_modes": schur_modes_z,
+            "schur_factorization_mode": "dense_cholesky",
             "warnings": warnings_out,
         }
 
@@ -5018,6 +5732,9 @@ def solve_native_raw(
         check_farkas_on_blocks=None,
         unbounded_norm_threshold=cfg.unbounded_norm_threshold,
         max_gondzio_correctors=cfg.max_gondzio_correctors,
+        sparse_schur_density_threshold=cfg.sparse_schur_density_threshold,
+        sparse_schur_min_dim=cfg.sparse_schur_min_dim,
+        schur_factorization_mode=cfg.schur_factorization_mode,
         t_start=t_start,
         iteration_log=iteration_log,
         progress_callback=progress_cb,
@@ -5028,6 +5745,7 @@ def solve_native_raw(
     p1_facs = int(phase1_summary.get("factorizations", 0))
     p2_facs = int(p2_out.get("factorizations", 0))
     p2_modes = dict(p2_out.get("schur_assembly_modes", schur_modes_z))
+    p2_fac_mode = str(p2_out.get("schur_factorization_mode", "dense_cholesky"))
     phase2_summary = {
         "executed": True,
         "iterations": len(p2_out["history"]),
@@ -5037,7 +5755,7 @@ def solve_native_raw(
 
     if p2_status == "dual_infeasible":
         d_z = p2_out["recession_candidate"]
-        d_x = pre_plan.reconstruct_x(N_eq @ (d_ruiz * (Q_R @ d_z))) if d_z is not None else None
+        d_x = pre_plan.reconstruct_x(N_eq @ ((d_ruiz * (Q_R @ d_z))[:m_y])) if d_z is not None else None
         return {
             "backend": "native_primal_dual",
             "maturity": "beta",
@@ -5059,13 +5777,15 @@ def solve_native_raw(
             "phase2_summary": phase2_summary,
             "hsde_summary": hsde_summary,
             "decomposition_summary": decomposition_summary,
+            "chordal_summary": chordal_summary,
             "preprocessing_summary": preprocessing_summary,
             "schur_assembly_modes": p2_modes,
+            "schur_factorization_mode": p2_fac_mode,
             "warnings": warnings_out,
         }
 
     z_final = p2_out["z"]
-    x_final = pre_plan.reconstruct_x(x_eq + N_eq @ (d_ruiz * (Q_R @ z_final)))
+    x_final = pre_plan.reconstruct_x(x_eq + N_eq @ ((d_ruiz * (Q_R @ z_final))[:m_y]))
     Z_final_all = _unscale_and_reassemble_duals(p2_out["Z_list"])
     dZ, d_ineq = _split_duals(Z_final_all)
     adj_x = _full_adjoint_x(Z_final_all, d_ineq)
@@ -5103,7 +5823,9 @@ def solve_native_raw(
         "phase2_summary": phase2_summary,
         "hsde_summary": hsde_summary,
         "decomposition_summary": decomposition_summary,
+        "chordal_summary": chordal_summary,
         "preprocessing_summary": preprocessing_summary,
         "schur_assembly_modes": p2_modes,
+        "schur_factorization_mode": p2_fac_mode,
         "warnings": warnings_out,
     }

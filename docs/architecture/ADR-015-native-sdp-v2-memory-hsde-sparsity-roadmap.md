@@ -60,13 +60,25 @@ A arquitetura **Native SDP v2.0** apoia-se em cinco pilares complementares, impl
 
 ## 4. Plano de Execução em 4 Ciclos (`Phase9-Native-SDP-Scalability-v2`)
 
-| Ciclo | WorkPackages | Frentes | Escopo Técnico Principal |
-|---|---|---|---|
-| **Ciclo 0 (Roadmap)** | `WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015` | `F9` | Formalização da `ADR-015`, adendo em `ADR-010`, registro dos 12 WPs da Fase 9 em `PROJECT_STATE.json` e handoff F9. |
-| **Ciclo 1 (Memória `wasm32` Zero-Copy & Cone LP 1D)** | `WP-PHASE9-01A` (`F6`), `WP-PHASE9-01B` (`F7`), `WP-PHASE9-01C` (`F8`), `WP-PHASE9-01D` (`F9`) | `F6`, `F7`, `F8`, `F9` | Formato `F_k_packed` (`Int32Array`/`Float64Array`) via `Transferable` → `memoryview`/`np.frombuffer`; buffers *in-place* pré-alocados (`H, W, S, dX, dZ` com `out=...`); cone LP 1D unificado para blocos `1x1`; auditoria F9 de memória e regressão em navegador real. |
-| **Ciclo 2 (HSDE & Gondzio)** | `WP-PHASE9-02` (`F6`), `WP-PHASE9-02B` (`F9`) | `F6`, `F9` | Embedding Homogêneo Autodual (HSDE) em fase única com certificados Farkas primal/dual e múltiplos corretores de centralidade de Gondzio ($O(m^2)$ sobre a mesma Cholesky); auditoria F9 contra oráculo `clarabel_direct` e casos infactíveis/ilimitados (`T-SDP-A2`, `T-SDP-A3`). |
-| **Ciclo 3 (Fujisawa F1/F2 & Pré-processamento / Fusão Simétrica)** | `WP-PHASE9-03` (`F6`), `WP-PHASE9-03B` (`F8`), `WP-PHASE9-03C` (`F9`) | `F6`, `F8`, `F9` | Fórmulas esparsas F1/F2 de Fujisawa na montagem de `H` sem temporários densos `(m, n, n)`; remoção simbólica de colunas redundantes em `F_k`; fusão simétrica automática $\Upsilon_{ij} + \Upsilon_{ji} \prec 0$ em `lmi_dsl_compiler.ts`; auditoria e benchmark F9. |
-| **Ciclo 4 (Decomposição Cordal & Schur Esparso `splu`)** | `WP-PHASE9-04` (`F6`), `WP-PHASE9-04B` (`F9`) | `F6`, `F9` | Decomposição cordal por cliques maximais + fusão de árvore de cliques em `scipy.sparse.csgraph` com reconstrução exata de duais; Schur esparso adaptativo (`scipy.sparse.linalg.splu`, `MMD_AT_PLUS_A`/`COLAMD`) para densidade `< 30%`; recalibração formal do `BROWSER_ENVELOPE` com evidência em navegador real. |
+| Ciclo | WorkPackages | Frentes | Status | Trilha de Commits & Evidência Medida |
+|---|---|---|---|---|
+| **Ciclo 0 (Roadmap)** | `WP-PHASE9-00-F9-SDP-V2-ROADMAP-ADR015` | `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `d20acb8` — Formalização da `ADR-015`, adendo em `ADR-010` e registro dos WPs da Fase 9 em `PROJECT_STATE.json`. |
+| **Ciclo 1 (Memória `wasm32` Zero-Copy & Cone LP 1D)** | `WP-PHASE9-01A` (`F6`), `WP-PHASE9-01B` (`F7`), `WP-PHASE9-01C` (`F8`), `WP-PHASE9-01D` (`F9`) | `F6`, `F7`, `F8`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `d20acb8` — `F_k_packed` (`Int32Array`/`Float64Array`) via `Transferable` → `memoryview`/`np.frombuffer`, buffers *in-place* (`H, W, S, dX, dZ`), cone LP 1D unificado e auditoria F9 em Chromium Wasm. |
+| **Ciclo 2 (HSDE & Gondzio)** | `WP-PHASE9-02` (`F6`), `WP-PHASE9-02B` (`F9`) | `F6`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `f776cfb` — HSDE em fase única com certificados Farkas primal/dual e múltiplos corretores de centralidade de Gondzio ($O(m^2)$ sobre a mesma Cholesky); oráculo F9 contra `clarabel_direct` e `T-SDP-A2`/`T-SDP-A3`. |
+| **Ciclo 3 (Fujisawa F1/F2 & Pré-processamento / Fusão Simétrica)** | `WP-PHASE9-03` (`F6`), `WP-PHASE9-03B` (`F8`), `WP-PHASE9-03C` (`F9`) | `F6`, `F8`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `60c1867` — Fórmulas esparsas F1/F2 de Fujisawa, remoção simbólica de colunas redundantes em `F_k`, fusão simétrica $\Upsilon_{ij} + \Upsilon_{ji} \prec 0$ em `lmi_dsl_compiler.ts` e exibição genérica de `recover` na Aba 6. |
+| **Ciclo 4 (Decomposição Cordal & Schur Esparso `splu`)** | `WP-PHASE9-04` (`F6`), `WP-PHASE9-04B` (`F9`) | `F6`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | Fechamento da Fase 9 (`115/115` WPs): cliques maximais + árvore de cliques + completação PSD exata (sem `linalg.inv`), `scipy.sparse.linalg.splu` adaptativo e recalibração de desempenho em Chromium Pyodide Wasm. |
+
+### Evidência Medida de Encerramento (CPython vs. Chromium Pyodide Wasm vs. Clarabel)
+
+Medição independente com a *wheel* final contendo os 4 ciclos da Fase 9 (`BROWSER_ENVELOPE` mantido em `448` rápido / `1024` estendido):
+
+- **`continuous_stabilization_lmi` (`n=16..28`, `152..434 vars`):**
+  - `n=16` (`152 vars`): CPython `59.5ms` (era `495.8ms`, **`8.3×`**) | Chromium Wasm `152.3ms` (era `808.1ms`, **`5.3×`**) | Clarabel `44.8ms` | `validated_dual`
+  - `n=20` (`230 vars`): CPython `99.3ms` (era `776.6ms`, **`7.8×`**) | Chromium Wasm `220.2ms` (era `1793.6ms`, **`8.1×`**) | Clarabel `74.8ms` | `validated_dual`
+  - `n=24` (`324 vars`): CPython `158.6ms` (era `1667.5ms`, **`10.5×`**) | Chromium Wasm `410.4ms` (era `4105.7ms`, **`10.0×`**) | Clarabel `150.9ms` | `validated_dual`
+  - `n=28` (`434 vars`): CPython `244.1ms` (era `3221.4ms`, **`13.2×`**) | Chromium Wasm `765.4ms` (era `9721.2ms`, **`12.7×`**) | Clarabel `263.4ms` | `validated_dual`
+- **Decomposição Cordal (`chordal_banded_d20`, `dim=20 → clique_max_dim=4`, 9 cliques):** CPython `73.2ms` | Chromium Wasm `144.1ms` | Clarabel `13.9ms` (`|Δobj| = 8.89e-10`) | `validated_dual` no bloco original `20×20`.
+- **Schur Esparso `splu` (`sparse_schur_m159`, `m=159`):** CPython `177.4ms` (`splu`) vs. `239.0ms` (`dense`) | Chromium Wasm `371.3ms` (`splu`) vs. `387.7ms` (`dense`) | Clarabel `47.6ms` (`|Δobj| = 1.73e-8`) | `validated_dual`.
 
 ---
 

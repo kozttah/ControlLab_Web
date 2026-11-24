@@ -42,14 +42,30 @@ Medição independente de estabilização LTI contínua (`continuous_stabilizati
 | `n=28` (`434 vars`) | `3221.4ms` | `9721.2ms` (14 it) | `273.0ms` | `validated_dual` | Limite interativo (`max_variables=448`) |
 | `n=30` (`495 vars`) | `4293.8ms` | `16424.9ms` (15 it) | `359.9ms` | `validated_dual` | Acima de `< 10s` — exportação offline recomendada |
 
-## Evolução Planejada (ADR-015 — Fase 9)
+## Evolução Concluída — Fase 9 (`ADR-015` — Native SDP v2.0, `ACCEPTED_BY_F9`)
 
-A continuidade de escalabilidade do solver `native_primal_dual` na **Fase 9 (`Phase9-Native-SDP-Scalability-v2`)** é formalizada na [`ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md`](ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md), preservando integralmente a execução 100% *zero-install* em NumPy/SciPy puro no Pyodide (rejeitando servidor local `localhost`, forks binários Wasm externos, `wasm64`/COOP-COEP e solvers paralelos de 1ª ordem) e mantendo inegociável a auditoria 5D independente no problema original sem relaxamento de tolerâncias. A evolução divide-se em 4 ciclos sequenciais:
+A escalabilidade do solver `native_primal_dual` na **Fase 9 (`Phase9-Native-SDP-Scalability-v2`)**, formalizada na [`ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md`](ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md), foi integralmente implementada e auditada pela Frente F9 em 4 ciclos sequenciais, preservando 100% da execução *zero-install* em NumPy/SciPy puro no Pyodide e a auditoria 5D independente no problema original sem relaxamento de tolerâncias:
 
-1. **Ciclo 1 (`WP-PHASE9-01A..01D`):** transporte *zero-copy* empacotado (`F_k_packed` via `TypedArray`/`Transferable` → Pyodide `memoryview`/`np.frombuffer`), buffers *in-place* pré-alocados no laço IPM (`H, W, S, dX, dZ`) e caminho vetorial 1D unificado para blocos PSD `1x1`.
-2. **Ciclo 2 (`WP-PHASE9-02`, `WP-PHASE9-02B`):** Embedding Homogêneo Autodual (HSDE) em fase única com certificados Farkas primal/dual e múltiplos corretores de centralidade de Gondzio reutilizando a fatoração de Cholesky ($O(m^2)$).
-3. **Ciclo 3 (`WP-PHASE9-03`, `WP-PHASE9-03B`, `WP-PHASE9-03C`):** montagem esparsa do complemento de Schur pelas fórmulas F1/F2 de Fujisawa, remoção simbólica de colunas redundantes em `F_k` e fusão simétrica automática ($\Upsilon_{ij} + \Upsilon_{ji} \prec 0$) no compilador `lmi_dsl_compiler.ts`.
-4. **Ciclo 4 (`WP-PHASE9-04`, `WP-PHASE9-04B`):** decomposição cordal por cliques maximais com fusão em árvore de cliques (`scipy.sparse.csgraph`) + fatoração esparsa adaptativa de Schur via `scipy.sparse.linalg.splu` (quando densidade simbólica $< 30\%$) e recalibração formal do `BROWSER_ENVELOPE` em navegador real.
+1. **Ciclo 1 (`WP-PHASE9-01A..01D` — `ACCEPTED_BY_F9`):** transporte *zero-copy* empacotado (`F_k_packed` via `TypedArray`/`Transferable` → Pyodide `memoryview`/`np.frombuffer`), buffers *in-place* pré-alocados no laço IPM (`H, W, S, dX, dZ`) e caminho vetorial 1D unificado para blocos PSD `1x1`.
+2. **Ciclo 2 (`WP-PHASE9-02`, `WP-PHASE9-02B` — `ACCEPTED_BY_F9`):** Embedding Homogêneo Autodual (HSDE) em fase única com certificados Farkas primal/dual e múltiplos corretores de centralidade de Gondzio reutilizando a fatoração de Cholesky ($O(m^2)$).
+3. **Ciclo 3 (`WP-PHASE9-03`, `WP-PHASE9-03B`, `WP-PHASE9-03C` — `ACCEPTED_BY_F9`):** montagem esparsa do complemento de Schur pelas fórmulas F1/F2 de Fujisawa, remoção simbólica de colunas redundantes em `F_k`, fusão simétrica automática ($\Upsilon_{ij} + \Upsilon_{ji} \prec 0$) no compilador `lmi_dsl_compiler.ts` e exibição genérica de variáveis recuperadas (`recover`) na Aba 6.
+4. **Ciclo 4 (`WP-PHASE9-04`, `WP-PHASE9-04B` — `ACCEPTED_BY_F9`):** decomposição cordal por cliques maximais com árvore de cliques e completação PSD exata de máxima entropia (`scipy.sparse.csgraph`, sem `linalg.inv`) + fatoração esparsa adaptativa de Schur via `scipy.sparse.linalg.splu` (quando densidade simbólica $< 25\%$ e $m \ge 60$).
+
+### Benchmark Comparativo Fase 5 vs. Fase 9 v2.0 (CPython vs. Chromium Pyodide Wasm vs. Clarabel)
+
+Medição independente reproduzível com a *wheel* de produção (`web/dist/wheels/control_lab-1.0.0-py3-none-any.whl`) mantendo inalterado o envelope operacional `BROWSER_ENVELOPE` (`fast_max_variables=448`, `max_variables=1024`, `max_block_dimension=64`, `max_cone_entries=65536`):
+
+| Problema / Dimensão | Fase 5 CPython | Fase 9 v2 CPython (Ganho) | Fase 5 Chromium Wasm | Fase 9 v2 Chromium Wasm (Ganho) | Clarabel (`clarabel_direct`) | Certificado Independente |
+|---|---|---|---|---|---|---|
+| `stab n=16` (`152 vars`, F1/F2) | `495.8ms` | **`59.5ms`** (`8.3×`) | `808.1ms` (13 it) | **`152.3ms`** (6 it, `5.3×`) | `44.8ms` | `validated_dual` (`Δobj = 0.0`) |
+| `stab n=20` (`230 vars`, F1/F2) | `776.6ms` | **`99.3ms`** (`7.8×`) | `1793.6ms` (13 it) | **`220.2ms`** (6 it, `8.1×`) | `74.8ms` | `validated_dual` (`Δobj = 0.0`) |
+| `stab n=24` (`324 vars`, F1/F2) | `1667.5ms` | **`158.6ms`** (`10.5×`) | `4105.7ms` (13 it) | **`410.4ms`** (6 it, `10.0×`) | `150.9ms` | `validated_dual` (`Δobj = 0.0`) |
+| `stab n=28` (`434 vars`, F1/F2) | `3221.4ms` | **`244.1ms`** (`13.2×`) | `9721.2ms` (14 it) | **`765.4ms`** (6 it, `12.7×`) | `263.4ms` | `validated_dual` (`Δobj = 0.0`) |
+| `chordal_banded_d20` (`dim=20 → clique_max=4`, 9 cliques, `39 vars`) | — | **`73.2ms`** (10 it) | — | **`144.1ms`** (10 it) | `13.9ms` (`Δobj = 8.9e-10`) | `validated_dual` (`λ_min(Z) ≥ -1e-8`) |
+| `sparse_schur_m159` (`m=159`, `splu` vs. `dense`) | — | **`177.4ms`** (`splu`) vs. `239.0ms` (`dense`) | — | **`371.3ms`** (`splu`) vs. `387.7ms` (`dense`) | `47.6ms` (`Δobj = 1.7e-8`) | `validated_dual` (`sparse_splu`) |
+
+**Conclusão de recalibração do envelope:** o limite interativo `fast_max_variables = 448` (`n = 28` em estabilização contínua) passou de `9.72s` para **`0.765s`** em Chromium Pyodide Wasm (`12.7×` mais rápido, `< 1s` real), preservando ampla folga de latência e memória linear `wasm32` dentro do `BROWSER_ENVELOPE` (`448` rápido / `1024` estendido) sem necessidade de relaxar limites ou tolerâncias.
+
 
 
 

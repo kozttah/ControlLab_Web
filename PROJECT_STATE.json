@@ -27,7 +27,7 @@
       "2026-11-21": 12,
       "2026-11-22": 13,
       "2026-11-23": 1,
-      "2026-11-24": 2
+      "2026-11-24": 3
     }
   },
   "audit_reference": {
@@ -6654,12 +6654,20 @@
         "T-SDP-D2"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "acceptance_requirements": [
         "Decomposicao cordal por cliques maximais + clique-tree merging e acoplamento de sobreposicao (Vandenberghe & Andersen 2015; Garstka-Cannon-Goulart 2020) em Python puro + scipy.sparse.csgraph com reconstrucao exata de duais originais",
         "Fatoracao esparsa adaptativa de Schur via scipy.sparse.linalg.splu (SuperLU MMD_AT_PLUS_A/COLAMD, Demmel et al. 1999) quando densidade simbolica < 30% com fallback transparente para Cholesky denso"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f6_phase9_cycle4_chordal_maximal_cliques_psd_completion_and_adaptive_sparse_schur_splu",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-04-F6-CHORDAL-CLIQUES-SPARSE-SCHUR.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-04-F6-CHORDAL-CLIQUES-SPARSE-SCHUR.md",
+        "tests/unit/f6/test_phase9_cycle4_chordal_sparse_schur.py",
+        "tests/oracles/test_phase9_cycle4_chordal_oracle.py"
       ]
     },
     {
@@ -6693,12 +6701,23 @@
         "T-WASM-01"
       ],
       "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/oracles/ tests/wasm/test_real_runtime.py tests/e2e/test_ux_refactor_cl_ux_dir_001.py -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "design_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "acceptance_requirements": [
         "Reconstrucao exata de duais cordais validada contra auditoria 5D original e oraculo clarabel_direct sem relaxar tolerancias",
         "Benchmark real em navegador Pyodide documentado em ADR-010/ADR-015 com recalibracao evidenciada do BROWSER_ENVELOPE e encerramento da Fase 9"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_phase9_cycle4_chordal_splu_oracle_chromium_wasm_benchmark_envelope_recalibration_and_phase9_closure",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-04B-F9-CHORDAL-ENVELOPE-RECALIBRATION.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-04B-F9-CHORDAL-ENVELOPE-RECALIBRATION.md",
+        "tests/oracles/test_phase9_cycle4_chordal_oracle.py",
+        "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+        "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+        "tests/wasm/test_real_runtime.py",
+        "tests/e2e/test_ux_refactor_cl_ux_dir_001.py"
       ]
     }
   ],

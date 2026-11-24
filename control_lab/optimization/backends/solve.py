@@ -139,6 +139,10 @@ def solve(
                 diagnostics["schur_assembly_modes"] = dict(raw_out["schur_assembly_modes"])
             if "preprocessing_summary" in raw_out and raw_out["preprocessing_summary"] is not None:
                 diagnostics["preprocessing_summary"] = dict(raw_out["preprocessing_summary"])
+            if "chordal_summary" in raw_out and raw_out["chordal_summary"] is not None:
+                diagnostics["chordal_summary"] = dict(raw_out["chordal_summary"])
+            if "schur_factorization_mode" in raw_out and raw_out["schur_factorization_mode"] is not None:
+                diagnostics["schur_factorization_mode"] = str(raw_out["schur_factorization_mode"])
         else:
             raw_warnings.append(
                 WarningItem(

@@ -373,6 +373,24 @@ jobs:
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3; verified 2026-11-17
         with:
           path: web/dist/
+      - name: Wait for github-pages artifact indexing
+        if: steps.current.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 20); do
+            count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?name=github-pages&per_page=10" --jq '.total_count')"
+            if [ "${count:-0}" -ge 1 ]; then
+              echo "Artifact github-pages indexed on attempt ${attempt} (total_count=${count})."
+              exit 0
+            fi
+            echo "Waiting for github-pages artifact metadata indexing (attempt ${attempt}/20)..."
+            sleep 2
+          done
+          echo "::error::Artifact github-pages was not indexed within 40s."
+          exit 1
       - name: Deploy the tested beta
         if: steps.current.outputs.eligible == 'true'
         id: deployment

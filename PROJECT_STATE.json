@@ -6851,6 +6851,83 @@
         "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
         "README.md"
       ]
+    },
+    {
+      "wp_id": "WP-PHASE9-06A-F6-SVEC-SCHUR-AND-STAGNATION",
+      "front": "f6-optimization-lmi",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F6: Ciclo 6 — Vetorizacao simetrica svec em F2/F3_blas (sem aliasing in-place) e criterio de estagnacao na salvaguarda 1b' do HSDE",
+      "allowed_paths": [
+        "control_lab/optimization/",
+        "tests/unit/f6/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-05C-F9-ENVELOPE-3072-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "references": [
+        "Todd, Toh & Tutuncu (1998), On the Nesterov-Todd Direction in Semidefinite Programming, SIAM J. Optim.",
+        "Goulart & Chen (2024), Clarabel: An Interior-Point Solver for Conic Programs with Quadratic Objectives, arXiv:2405.12762 (§2.2, §2.6, §3.1)"
+      ],
+      "acceptance_requirements": [
+        "T1 (svec F2): Construir F_svec_csr de dimensao (n_act, dim*(dim+1)//2) com isometria exata <A,B>_F = svec(A)^T svec(B) (escala sqrt(2) fora da diagonal) e pre-fatiar visoes zero-copy F_svec_tail junto com _F_vert_chunks em _InternalConeBlock.__post_init__, reduzindo ~2x FLOPs/RAM de csr_matvecs em F2",
+        "T1 (svec F3_blas + zero aliasing): Substituir C_3d += C_3d.swapaxes(-1, -2) por simetrizacao/extracao svec livre de aliasing de memoria e montar cols/gram = cols.T @ cols em dimensao svec dim*(dim+1)//2 nos loops HSDE (_run_hsde_cone_loop) e padrao (_run_primal_dual_cone_loop)",
+        "T6 (estagnacao 1b'): Adicionar contador best_opt_stagnant na salvaguarda 1b' do HSDE (Clarabel §2.6) para encerrar restaurando best_opt_state apos >= 3 iteracoes sem melhora >= 10% quando best_opt_score <= 1e-9 (ou <= 1e-8 sob mal-condicionamento cond_H >= 1e10), mantendo tol_gap intacto em problemas bem-condicionados e sem relaxar verify() 5D",
+        "Nota de escopo: T3 (projecao esparsa via A_cone_csr[row_ofs:row_ofs+bsz, :] @ Q_R no fallback SVD) ja foi entregue e validada no commit 1cfbaae"
+      ]
+    },
+    {
+      "wp_id": "WP-PHASE9-06B-F9-SVEC-STAGNATION-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase9-Native-SDP-Scalability-v2",
+      "title": "F9: Ciclo 6 — Auditoria independente da isometria svec (F2/F3_blas), estagnacao 1b' (BlkDiag_24x8), paridade Clarabel/Wasm e atualizacao da ADR-015",
+      "allowed_paths": [
+        "tests/oracles/",
+        "tests/wasm/",
+        "docs/architecture/",
+        "docs/audits/",
+        "PROJECT_STATE.json",
+        "README.md"
+      ],
+      "dependencies": [
+        "WP-PHASE9-06A-F6-SVEC-SCHUR-AND-STAGNATION"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-SDP-A1",
+        "T-SDP-A2",
+        "T-SDP-A3",
+        "T-SDP-B1",
+        "T-SDP-C1",
+        "T-SDP-D1",
+        "T-SDP-D2",
+        "T-WASM-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/oracles/ tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+      "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
+      "acceptance_requirements": [
+        "Oraculo independente F9 validando isometria svec, ausencia de aliasing de memoria em F3_blas, parada antecipada sem spin de 80 iteracoes em problema bloco-diagonal rigido (ex. BlkDiag_24x8) e paridade < 1e-6 contra clarabel_direct com verify() 5D intacto",
+        "Prova de regressao em Chromium Pyodide Wasm real (test_real_runtime.py) e registro das referencias Todd-Toh-Tutuncu (1998) e benchmarks do Ciclo 6 na ADR-015 e handoffs do Apendice E"
+      ]
     }
   ],
   "audit_history": [

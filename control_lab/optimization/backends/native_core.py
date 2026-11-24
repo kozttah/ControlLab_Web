@@ -221,6 +221,7 @@ class NativeSolverConfig:
 _SQRT2 = math.sqrt(2.0)
 _INV_SQRT2 = 1.0 / _SQRT2
 _F2_CHUNK_SIZE = 32
+_F3_CHUNK_SIZE = 64
 
 
 @dataclass(frozen=True)
@@ -259,9 +260,9 @@ class _InternalConeBlock:
     _f1_Q: np.ndarray | None = field(init=False, repr=False, compare=False)
     _f1_V: np.ndarray | None = field(init=False, repr=False, compare=False)
     _F_flat_csr: scipy.sparse.csr_matrix | None = field(init=False, repr=False, compare=False)
-    _F_vert_chunks: tuple[tuple[int, int, scipy.sparse.csr_matrix], ...] = field(
-        init=False, repr=False, compare=False
-    )
+    _F_vert_chunks: tuple[
+        tuple[int, int, scipy.sparse.csr_matrix, scipy.sparse.csr_matrix], ...
+    ] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         keys = sorted(self.F_terms.keys())
@@ -276,7 +277,9 @@ class _InternalConeBlock:
         f1_Q: np.ndarray | None = None
         f1_V: np.ndarray | None = None
         F_flat_csr: scipy.sparse.csr_matrix | None = None
-        F_vert_chunks: tuple[tuple[int, int, scipy.sparse.csr_matrix], ...] = ()
+        F_vert_chunks: tuple[
+            tuple[int, int, scipy.sparse.csr_matrix, scipy.sparse.csr_matrix], ...
+        ] = ()
         f_cols: np.ndarray | None = None
 
         if dim == 1:
@@ -366,7 +369,10 @@ class _InternalConeBlock:
                             f1_V[idx, :cnt] = v_up * scales
                 else:
                     # schur_mode == "F2": pré-fatiar blocos verticais esparsos (c_len * dim, dim)
-                    chunks: list[tuple[int, int, scipy.sparse.csr_matrix]] = []
+                    # e visões CSR de cauda F_flat[start:] sem duplicar vetores data/indices
+                    chunks: list[
+                        tuple[int, int, scipy.sparse.csr_matrix, scipy.sparse.csr_matrix]
+                    ] = []
                     for start in range(0, n_act, _F2_CHUNK_SIZE):
                         end = min(start + _F2_CHUNK_SIZE, n_act)
                         c_len = end - start
@@ -390,7 +396,20 @@ class _InternalConeBlock:
                             )
                         else:
                             f_vert = scipy.sparse.csr_matrix((c_len * dim, dim), dtype=np.float64)
-                        chunks.append((start, end, f_vert))
+                        if start == 0:
+                            f_tail = F_flat_csr
+                        else:
+                            p0 = int(F_flat_csr.indptr[start])
+                            f_tail = scipy.sparse.csr_matrix(
+                                (
+                                    F_flat_csr.data[p0:],
+                                    F_flat_csr.indices[p0:],
+                                    F_flat_csr.indptr[start:] - p0,
+                                ),
+                                shape=(n_act - start, n2),
+                                copy=False,
+                            )
+                        chunks.append((start, end, f_vert, f_tail))
                     F_vert_chunks = tuple(chunks)
             else:
                 # F3_blas: manter caminho denso vetorizado + congruência esparsa opcional
@@ -445,7 +464,7 @@ class _InternalConeBlock:
                 out[idx] = float(np.sum(self.F_terms[j] * U))
 
     def assemble_schur_block(self, W: np.ndarray, out_gram: np.ndarray) -> np.ndarray:
-        """Monta a contribuição de Schur H_block[i, j] = tr(F_{k_i} W F_{k_j} W) via F1 ou F2.
+        """Monta a contribuição de Schur H_block[i, j] = tr(F_{k_i} W F_{k_j} W) via F1, F2 ou F3_blas.
 
         Requer `W` simétrica positiva definida `(dim, dim)` e `out_gram` de forma `(n_act, n_act)`.
         """
@@ -480,23 +499,29 @@ class _InternalConeBlock:
             assert self._F_flat_csr is not None
             dim = self.dim
             n2 = dim * dim
-            F_flat = self._F_flat_csr
-            for start, end, F_vert_chunk in self._F_vert_chunks:
+            for start, end, F_vert_chunk, F_tail_csr in self._F_vert_chunks:
                 c_len = end - start
                 B_chunk = (F_vert_chunk @ W).reshape((c_len, dim, dim))
                 M_chunk = np.matmul(W, B_chunk).reshape((c_len, n2))
-                out_gram[:, start:end] = F_flat @ M_chunk.T
-            out_gram += out_gram.T
-            out_gram *= 0.5
+                lower_blk = F_tail_csr @ M_chunk.T
+                diag_blk = lower_blk[:c_len, :]
+                out_gram[start:end, start:end] = 0.5 * (diag_blk + diag_blk.T)
+                if end < n_act:
+                    off_blk = lower_blk[c_len:, :]
+                    out_gram[end:, start:end] = off_blk
+                    out_gram[start:end, end:] = off_blk.T
             return out_gram
-        # Fallback direto para F3_blas (usado em validação unitária direta com matriz W)
+        # Caminho F3_blas em lotes 3D limitados por _F3_CHUNK_SIZE (seguro para memória Wasm)
         dim = self.dim
         n2 = dim * dim
         F_dense = self.dense_F_cols()
-        for idx in range(n_act):
-            fj = F_dense[:, idx].reshape((dim, dim))
-            mj = W @ fj @ W
-            out_gram[:, idx] = F_dense.T @ mj.ravel()
+        for start in range(0, n_act, _F3_CHUNK_SIZE):
+            end = min(start + _F3_CHUNK_SIZE, n_act)
+            c_len = end - start
+            F_2d = np.ascontiguousarray(F_dense[:, start:end].T).reshape((c_len * dim, dim))
+            B_chunk = (F_2d @ W).reshape((c_len, dim, dim))
+            M_chunk = np.matmul(W, B_chunk).reshape((c_len, n2))
+            out_gram[:, start:end] = F_dense.T @ M_chunk.T
         out_gram += out_gram.T
         out_gram *= 0.5
         return out_gram
@@ -544,6 +569,26 @@ class _InternalConeBlock:
         self.forward_active(z_act, tmp)
         tmp += self.F0
         return _sym_into(tmp, out)
+
+
+def _fill_f3_scaled_cols(
+    F_cols: np.ndarray,
+    G_invT_b: np.ndarray,
+    dim_b: int,
+    cols_out: np.ndarray,
+) -> None:
+    """Preenche cols_out[:, i] = ravel(sym(G_invT_b.T @ F_i @ G_invT_b)) em lotes BLAS limitados."""
+    n2 = dim_b * dim_b
+    n_act = int(F_cols.shape[1])
+    for start in range(0, n_act, _F3_CHUNK_SIZE):
+        end = min(start + _F3_CHUNK_SIZE, n_act)
+        c_len = end - start
+        F_2d = np.ascontiguousarray(F_cols[:, start:end].T).reshape((c_len * dim_b, dim_b))
+        B_3d = (F_2d @ G_invT_b).reshape((c_len, dim_b, dim_b))
+        C_3d = np.matmul(G_invT_b.T, B_3d)
+        C_3d += C_3d.swapaxes(-1, -2)
+        C_3d *= 0.5
+        cols_out[:, start:end] = C_3d.reshape((c_len, n2)).T
 
 
 # ---------------------------------------------------------------------------
@@ -925,15 +970,18 @@ def _project_dual_onto_subspace(
 ) -> list[np.ndarray] | None:
     """Projeta (Z_b) no subespaço afim sum_b <F_{b,j}, Z_b> = target_c[j] mantendo Z_b >= 0 se possível.
 
-    Usa correção ponderada dZ_b = sum_j y_j (W_b F_{b,j} W_b) resolvida via lstsq/Cholesky.
+    Usa correção ponderada vetorizada dZ_b = W_b (sum_j y_j F_{b,j}) W_b resolvida via Schur/Cholesky.
     """
     if m_vars == 0:
         return [_sym(Z) for Z in Z_list]
 
     adj = np.zeros((m_vars,), dtype=np.float64)
     for blk, Z_b in zip(blocks, Z_list, strict=True):
-        for j, fj in blk.F_terms.items():
-            adj[j] += float(np.sum(fj * Z_b))
+        ak = blk._active_keys
+        if ak.size > 0:
+            act_buf = np.empty((ak.size,), dtype=np.float64)
+            blk.adjoint_active(Z_b, act_buf)
+            adj[ak] += act_buf
     res = target_c - adj
     if float(np.linalg.norm(res)) <= 1e-14 * (1.0 + float(np.linalg.norm(target_c))):
         return [_sym(Z) for Z in Z_list]
@@ -945,31 +993,50 @@ def _project_dual_onto_subspace(
         for Z_b in Z_list:
             W_list.append(_sym(Z_b) + 1e-6 * np.eye(Z_b.shape[0], dtype=np.float64))
 
-    # Construir base ponderada B_{b,j} = W_b F_{b,j} W_b e matriz de Gram G_{i,j} = sum_b <F_{b,i}, B_{b,j}>
+    # Montar matriz de Gram G_{i,j} = sum_b tr(F_{b,i} W_b F_{b,j} W_b) reutilizando assemble_schur_block
     G = np.zeros((m_vars, m_vars), dtype=np.float64)
-    basis_terms: list[dict[int, np.ndarray]] = []
     for blk, W_b in zip(blocks, W_list, strict=True):
-        b_dict: dict[int, np.ndarray] = {}
-        for j, fj in blk.F_terms.items():
-            b_dict[j] = _sym(W_b @ fj @ W_b)
-        basis_terms.append(b_dict)
-        for i, fi in blk.F_terms.items():
-            for j, bj in b_dict.items():
-                if j >= i:
-                    val = float(np.sum(fi * bj))
-                    G[i, j] += val
-                    if i != j:
-                        G[j, i] += val
+        ak = blk._active_keys
+        n_act = int(ak.size)
+        if n_act == 0:
+            continue
+        if blk.dim == 1:
+            w_val = float(W_b[0, 0])
+            f_row = (
+                blk._F_cols[0, :]
+                if blk._F_cols is not None
+                else np.fromiter((float(blk.F_terms[int(j)][0, 0]) for j in ak), dtype=np.float64, count=n_act)
+            )
+            gram = (w_val * w_val) * np.outer(f_row, f_row)
+        else:
+            gram = np.empty((n_act, n_act), dtype=np.float64)
+            blk.assemble_schur_block(W_b, gram)
+        if n_act == m_vars and int(ak[0]) == 0 and int(ak[-1]) == m_vars - 1:
+            G += gram
+        else:
+            G[np.ix_(ak, ak)] += gram
 
     y_corr, _ = _solve_symmetric_system(G, res)
     Z_new: list[np.ndarray] = []
-    for Z_b, b_dict in zip(Z_list, basis_terms, strict=True):
-        dZ = np.zeros_like(Z_b)
-        for j, bj in b_dict.items():
-            yj = float(y_corr[j])
-            if yj != 0.0:
-                dZ = dZ + yj * bj
-        Z_cand = _sym(Z_b + dZ)
+    for blk, Z_b, W_b in zip(blocks, Z_list, W_list, strict=True):
+        ak = blk._active_keys
+        n_act = int(ak.size)
+        if n_act == 0:
+            Z_cand = _sym(Z_b)
+        elif blk.dim == 1:
+            w_val = float(W_b[0, 0])
+            f_row = (
+                blk._F_cols[0, :]
+                if blk._F_cols is not None
+                else np.fromiter((float(blk.F_terms[int(j)][0, 0]) for j in ak), dtype=np.float64, count=n_act)
+            )
+            dz_val = (w_val * w_val) * float(np.dot(f_row, y_corr[ak]))
+            Z_cand = np.array([[float(Z_b[0, 0]) + dz_val]], dtype=np.float64)
+        else:
+            lin_b = np.empty((blk.dim, blk.dim), dtype=np.float64)
+            blk.forward_active(y_corr[ak], lin_b)
+            dZ = _sym(W_b @ lin_b @ W_b)
+            Z_cand = _sym(Z_b + dZ)
         min_e = _min_eig_sym(Z_cand)
         z_norm = 1.0 + float(np.linalg.norm(Z_cand, "fro"))
         if min_e < -1e-9 * z_norm:
@@ -980,10 +1047,12 @@ def _project_dual_onto_subspace(
     adj_new = np.zeros((m_vars,), dtype=np.float64)
     adj_scale = 1.0 + float(np.linalg.norm(target_c))
     for blk, Z_b in zip(blocks, Z_new, strict=True):
-        zb_norm = float(np.linalg.norm(Z_b, "fro"))
-        for j, fj in blk.F_terms.items():
-            adj_new[j] += float(np.sum(fj * Z_b))
-            adj_scale += float(np.linalg.norm(fj, "fro")) * zb_norm
+        ak = blk._active_keys
+        if ak.size > 0:
+            act_buf = np.empty((ak.size,), dtype=np.float64)
+            blk.adjoint_active(Z_b, act_buf)
+            adj_new[ak] += act_buf
+            adj_scale += blk._f_norm_sum * float(np.linalg.norm(Z_b, "fro"))
     if float(np.linalg.norm(target_c - adj_new)) / adj_scale > 1e-8:
         return None
 
@@ -1821,18 +1890,21 @@ def _run_primal_dual_cone_loop(
                     _sym_into(tmp1, W_b)
                     blk.assemble_schur_block(W_b, gram)
                 else:
-                    sparse_terms = blk._sparse_terms
-                    for idx, j_raw in enumerate(active_keys):
-                        j = int(j_raw)
-                        sp = sparse_terms.get(j)
-                        if sp is not None:
-                            r_sp, c_sp, v_sp = sp
-                            np.matmul(G_invT_b[r_sp, :].T, v_sp[:, None] * G_invT_b[c_sp, :], out=tmp1)
-                        else:
-                            np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
-                            np.matmul(tmp2, G_invT_b, out=tmp1)
-                        _sym_into(tmp1, tmp2)
-                        cols[:, idx] = tmp2.ravel()
+                    if blk._F_cols is not None and n_act >= 4:
+                        _fill_f3_scaled_cols(blk._F_cols, G_invT_b, blk.dim, cols)
+                    else:
+                        sparse_terms = blk._sparse_terms
+                        for idx, j_raw in enumerate(active_keys):
+                            j = int(j_raw)
+                            sp = sparse_terms.get(j)
+                            if sp is not None:
+                                r_sp, c_sp, v_sp = sp
+                                np.matmul(G_invT_b[r_sp, :].T, v_sp[:, None] * G_invT_b[c_sp, :], out=tmp1)
+                            else:
+                                np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
+                                np.matmul(tmp2, G_invT_b, out=tmp1)
+                            _sym_into(tmp1, tmp2)
+                            cols[:, idx] = tmp2.ravel()
                     np.matmul(cols.T, cols, out=gram)
                 if is_full_m[pos]:
                     H += gram
@@ -3165,18 +3237,21 @@ def _run_hsde_cone_loop(
                         blk.assemble_schur_block(W_b, gram)
                         _psd_adjoint_hat(pos, F0_hat_bufs[pos], act_buf)
                     else:
-                        sparse_terms = blk._sparse_terms
-                        for idx, j_raw in enumerate(active_keys):
-                            j = int(j_raw)
-                            sp = sparse_terms.get(j)
-                            if sp is not None:
-                                r_sp, c_sp, v_sp = sp
-                                np.matmul(G_invT_b[r_sp, :].T, v_sp[:, None] * G_invT_b[c_sp, :], out=tmp1)
-                            else:
-                                np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
-                                np.matmul(tmp2, G_invT_b, out=tmp1)
-                            _sym_into(tmp1, tmp2)
-                            cols[:, idx] = tmp2.ravel()
+                        if blk._F_cols is not None and n_act >= 4:
+                            _fill_f3_scaled_cols(blk._F_cols, G_invT_b, blk.dim, cols)
+                        else:
+                            sparse_terms = blk._sparse_terms
+                            for idx, j_raw in enumerate(active_keys):
+                                j = int(j_raw)
+                                sp = sparse_terms.get(j)
+                                if sp is not None:
+                                    r_sp, c_sp, v_sp = sp
+                                    np.matmul(G_invT_b[r_sp, :].T, v_sp[:, None] * G_invT_b[c_sp, :], out=tmp1)
+                                else:
+                                    np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
+                                    np.matmul(tmp2, G_invT_b, out=tmp1)
+                                _sym_into(tmp1, tmp2)
+                                cols[:, idx] = tmp2.ravel()
                         np.matmul(cols.T, cols, out=gram)
                         np.matmul(cols.T, F0_hat_bufs[pos].ravel(), out=act_buf)
                     if is_full_m[pos]:
@@ -5388,17 +5463,35 @@ def solve_native_raw(
         c_z = Q_R.T @ c_y_eq
         c_null = Q_N.T @ c_y_eq
 
+        A_cone_csr = A_cone_csc.tocsr()
         z_blocks = []
+        b_ofs = 0
+        _SVD_PROJ_CHUNK = 128
         for b in y_blocks_eq:
+            dim_b = b.dim
+            bsz = dim_b * dim_b
+            A_blk_csr = A_cone_csr[b_ofs : b_ofs + bsz, :]
+            b_ofs += bsz
             F_terms_z: dict[int, np.ndarray] = {}
-            for j in range(m_z):
-                mat_j = b.evaluate_linear(Q_R[:, j])
-                if float(np.linalg.norm(mat_j, "fro")) > 1e-15:
-                    F_terms_z[j] = mat_j
+            if A_blk_csr.nnz > 0 and m_z > 0:
+                for j0 in range(0, m_z, _SVD_PROJ_CHUNK):
+                    j1 = min(j0 + _SVD_PROJ_CHUNK, m_z)
+                    proj_chunk = np.asarray(A_blk_csr @ Q_R[:, j0:j1], dtype=np.float64)
+                    if dim_b == 1:
+                        nz_cols = np.flatnonzero(np.abs(proj_chunk[0, :]) > 1e-15)
+                        for local_j in nz_cols.tolist():
+                            F_terms_z[j0 + local_j] = np.array(
+                                [[float(proj_chunk[0, local_j])]], dtype=np.float64
+                            )
+                    else:
+                        col_nrms = np.linalg.norm(proj_chunk, axis=0)
+                        for local_j in np.flatnonzero(col_nrms > 1e-15).tolist():
+                            mj = proj_chunk[:, local_j].reshape((dim_b, dim_b))
+                            F_terms_z[j0 + local_j] = 0.5 * (mj + mj.T)
             z_blocks.append(
                 _InternalConeBlock(
                     name=b.name,
-                    dim=b.dim,
+                    dim=dim_b,
                     F0=b.F0,
                     F_terms=F_terms_z,
                     is_ineq_slack=b.is_ineq_slack,
@@ -5406,6 +5499,7 @@ def solve_native_raw(
                     force_schur_mode=cfg.schur_mode,
                 )
             )
+        del A_cone_csr
 
         def _map_z_to_y(z_vec: np.ndarray) -> np.ndarray:
             return Q_R @ z_vec

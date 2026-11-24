@@ -530,3 +530,113 @@ def test_phase9_05a_sparse_gram_rank_deficient_svd_fallback_m52() -> None:
     assert float(res_nat.data["objective"]) == pytest.approx(51.0, abs=1e-6)
     assert float(res_nat.data["objective"]) == pytest.approx(float(res_cl.data["objective"]), abs=1e-6)
 
+
+def test_min_eig_sym_rejects_nan_and_inf_above_dim24() -> None:
+    """Guard against check_finite=False partial-eigensolver bugs silently returning +1.0 on NaN matrices."""
+    from control_lab.optimization.backends.native_core import _min_eig_sym
+
+    for bad_val in (np.nan, np.inf, -np.inf):
+        M = np.eye(28, dtype=np.float64)
+        M[3, 3] = bad_val
+        try:
+            val = _min_eig_sym(M)
+        except (np.linalg.LinAlgError, ValueError):
+            continue
+        assert not np.isfinite(val), f"_min_eig_sym returned finite {val} for matrix containing {bad_val}"
+
+
+def test_f2_presliced_tail_and_f3_chunked_congruence_exactness() -> None:
+    """Verify F2 lower-triangle CSR tail assembly and F3_blas chunked congruence match exact trace reference."""
+    from control_lab.optimization.backends.native_core import _InternalConeBlock, _fill_f3_scaled_cols
+
+    rng = np.random.default_rng(2026)
+    dim = 18
+    n_act = 75  # spans > 2 _F2_CHUNK_SIZE (32) chunks and > 1 _F3_CHUNK_SIZE (64) chunk
+    terms: dict[int, np.ndarray] = {}
+    for j in range(n_act):
+        mat = np.zeros((dim, dim), dtype=np.float64)
+        idx = rng.choice(dim, size=5, replace=False)
+        sub = rng.standard_normal((5, 5))
+        mat[np.ix_(idx, idx)] = 0.5 * (sub + sub.T)
+        terms[j] = mat
+
+    blk_f2 = _InternalConeBlock(name="f2_multi", dim=dim, F0=np.eye(dim), F_terms=terms)
+    blk_f3 = _InternalConeBlock(
+        name="f3_multi", dim=dim, F0=np.eye(dim), F_terms=terms, force_schur_mode="F3_blas"
+    )
+    assert blk_f2.schur_mode == "F2"
+    assert blk_f3.schur_mode == "F3_blas"
+
+    G_invT = rng.standard_normal((dim, dim)) * 0.3 + np.eye(dim)
+    W = G_invT @ G_invT.T
+
+    gram_f2 = np.empty((n_act, n_act), dtype=np.float64)
+    gram_f3 = np.empty((n_act, n_act), dtype=np.float64)
+    blk_f2.assemble_schur_block(W, gram_f2)
+    blk_f3.assemble_schur_block(W, gram_f3)
+
+    assert blk_f3._F_cols is not None
+    cols = np.empty((dim * dim, n_act), dtype=np.float64)
+    _fill_f3_scaled_cols(blk_f3._F_cols, G_invT, dim, cols)
+    gram_cols = cols.T @ cols
+
+    np.testing.assert_allclose(gram_f2, gram_f2.T, atol=0.0)
+    np.testing.assert_allclose(gram_f2, gram_cols, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(gram_f3, gram_cols, rtol=1e-12, atol=1e-12)
+
+
+def test_vectorized_dual_subspace_projection_and_psd_svd_projection() -> None:
+    """Verify vectorized _project_dual_onto_subspace (including build_schur_index=False) and PSD SVD fallback."""
+    from control_lab.optimization.backends.native_core import (
+        _InternalConeBlock,
+        _project_dual_onto_subspace,
+    )
+
+    dim = 8
+    f_terms = {j: np.diag([1.0 if i == j else 0.0 for i in range(dim)]) for j in range(dim)}
+    blk_no_idx = _InternalConeBlock(
+        name="no_idx", dim=dim, F0=np.eye(dim), F_terms=f_terms, build_schur_index=False
+    )
+    blk_1d = _InternalConeBlock(
+        name="lp_1d", dim=1, F0=np.array([[1.0]]), F_terms={0: np.array([[0.5]])}
+    )
+    target_c = np.full((dim,), 1.25, dtype=np.float64)
+    Z_pol = _project_dual_onto_subspace(
+        [blk_no_idx, blk_1d], dim, [np.eye(dim), np.array([[0.4]])], target_c
+    )
+    assert Z_pol is not None
+    adj_chk = np.array([np.sum(f_terms[j] * Z_pol[0]) for j in range(dim)])
+    adj_chk[0] += 0.5 * float(Z_pol[1][0, 0])
+    np.testing.assert_allclose(adj_chk, target_c, atol=1e-11)
+
+    # PSD block rank-deficient 3-column dependence -> exercises chunked sparse CSR SVD projection
+    n_indep = 20
+    n_vars = 21
+    c = -np.ones((n_vars,), dtype=np.float64)
+    c[20] = -2.0
+    psd_lb: dict[int, np.ndarray] = {}
+    psd_ub: dict[int, np.ndarray] = {}
+    for k in range(n_indep):
+        mat = np.zeros((10, 10), dtype=np.float64)
+        mat[k % 10, k % 10] = 1.0
+        if k >= 10:
+            mat[k % 10, (k + 1) % 10] = mat[(k + 1) % 10, k % 10] = 0.2
+        psd_lb[k] = mat
+        psd_ub[k] = -mat
+    psd_lb[20] = psd_lb[0] + psd_lb[1]
+    psd_ub[20] = psd_ub[0] + psd_ub[1]
+    prob = CanonicalSDPProblem(
+        name="psd_svd_rank_def",
+        c=c,
+        blocks=(
+            SDPBlock(name="lb", F0=2.0 * np.eye(10), F_k=psd_lb, n_vars=n_vars),
+            SDPBlock(name="ub", F0=4.0 * np.eye(10), F_k=psd_ub, n_vars=n_vars),
+        ),
+    )
+    res_nat = solve(prob, backend="native_primal_dual", options={"use_chordal": False})
+    res_cl = solve(prob, backend="clarabel_direct")
+    assert res_nat.status != "failure", res_nat.error
+    assert res_nat.data is not None and res_cl.data is not None
+    assert res_nat.data["certificate_status"] == "validated_dual"
+    assert float(res_nat.data["objective"]) == pytest.approx(float(res_cl.data["objective"]), abs=1e-6)
+

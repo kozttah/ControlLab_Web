@@ -59,7 +59,7 @@ A arquitetura **Native SDP v2.0** apoia-se em cinco pilares complementares, impl
 
 ---
 
-## 4. Plano de Execução em 5 Ciclos (`Phase9-Native-SDP-Scalability-v2`, **118/118 WPs `ACCEPTED_BY_F9`**)
+## 4. Plano de Execução em 6 Ciclos (`Phase9-Native-SDP-Scalability-v2`, **120/120 WPs `ACCEPTED_BY_F9`**)
 
 | Ciclo | WorkPackages | Frentes | Status | Trilha de Commits & Evidência Medida |
 |---|---|---|---|---|
@@ -68,7 +68,8 @@ A arquitetura **Native SDP v2.0** apoia-se em cinco pilares complementares, impl
 | **Ciclo 2 (HSDE & Gondzio)** | `WP-PHASE9-02` (`F6`), `WP-PHASE9-02B` (`F9`) | `F6`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `f776cfb` — HSDE em fase única com certificados Farkas primal/dual e múltiplos corretores de centralidade de Gondzio ($O(m^2)$ sobre a mesma Cholesky); oráculo F9 contra `clarabel_direct` e `T-SDP-A2`/`T-SDP-A3`. |
 | **Ciclo 3 (Fujisawa F1/F2 & Pré-processamento / Fusão Simétrica)** | `WP-PHASE9-03` (`F6`), `WP-PHASE9-03B` (`F8`), `WP-PHASE9-03C` (`F9`) | `F6`, `F8`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `60c1867` — Fórmulas esparsas F1/F2 de Fujisawa, remoção simbólica de colunas redundantes em `F_k`, fusão simétrica $\Upsilon_{ij} + \Upsilon_{ji} \prec 0$ em `lmi_dsl_compiler.ts` e exibição genérica de `recover` na Aba 6. |
 | **Ciclo 4 (Decomposição Cordal & Schur Esparso `splu`)** | `WP-PHASE9-04` (`F6`), `WP-PHASE9-04B` (`F9`) | `F6`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `1ba1bb5` — Cliques maximais + árvore de cliques + completação PSD exata (sem `linalg.inv`) e `scipy.sparse.linalg.splu` adaptativo (`n=28` em `0.77s` no Chromium Pyodide Wasm). |
-| **Ciclo 5 (Gram Cônico Esparso CSC & Recalibração `1792/3072`)** | `WP-PHASE9-05A` (`F6`), `WP-PHASE9-05B` (`F8`), `WP-PHASE9-05C` (`F9`) | `F6`, `F8`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | Fechamento **118/118 WPs**: `A_cone_csc` + `G_cone_sp` (Gershgorin / `splu` simétrica), recalibração empírica do `BROWSER_ENVELOPE` para `1792 / 3072 / 96 / 131072` e validação real em Chromium Pyodide Wasm (`n=48..80`). |
+| **Ciclo 5 (Gram Cônico Esparso CSC & Recalibração `1792/3072`)** | `WP-PHASE9-05A` (`F6`), `WP-PHASE9-05B` (`F8`), `WP-PHASE9-05C` (`F9`) | `F6`, `F8`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | `d820ffc` — `A_cone_csc` + `G_cone_sp` (Gershgorin / `splu` simétrica), recalibração empírica do `BROWSER_ENVELOPE` para `1792 / 3072 / 96 / 131072` e validação real em Chromium Pyodide Wasm (`n=48..80`). |
+| **Ciclo 6 (Isometria `svec` em `F2`/`F3_blas` & Estagnação `1b'` HSDE)** | `WP-PHASE9-06A` (`F6`), `WP-PHASE9-06B` (`F9`) | `F6`, `F9` | **IMPLEMENTED & ACCEPTED BY F9** | Fechamento **120/120 WPs**: `F_svec_csr` `(n_act, d(d+1)/2)` com isometria exata `<A,B>_F = svec(A)^T svec(B)` e visões *zero-copy* `_F_svec_tail`, simetrização `F3_blas` livre de aliasing *in-place* (zero `+= .swapaxes`), e salvaguarda `1b'` com contador `best_opt_stagnant` (`BlkDiag_24x8` em `16` iterações sem spin de `80`; `denseA n=40, m=860` em `2.65s` vs `2.68s` Clarabel, `|Δobj| = 0.0`). |
 
 ### Evidência Medida de Encerramento (CPython vs. Chromium Pyodide Wasm vs. Clarabel)
 
@@ -88,12 +89,15 @@ Medição independente com a *wheel* final da Fase 9 e **`BROWSER_ENVELOPE` reca
   - `fresh_chain_n72` (`2,772 vars`, `dim=72`, `dense_cholesky`): **`14.85s`** (`1,706 MiB` heap Wasm, `validated_dual`);
   - `fresh_diag_n80` (`3,320 vars`, `dim=80`, `sparse_splu`): **`11.79s`** (`2,424 MiB` heap Wasm, `validated_dual`);
   - Teto OOM `wasm32` observado em torno de `n=96` (`4,656 vars`, `> 3.5 GiB`) → `max_variables = 3072` ($n \le 76$) preserva **`> 1.5 GiB` de margem de segurança** no navegador.
+- **Ciclo 6 — Isometria `svec` (`F2`/`F3_blas`) e Salvaguarda de Estagnação `1b'` (CPython vs. Clarabel):**
+  - `BlkDiag_24x8` rígido (`24` blocos `8×8`, `n_vars=96`, escalonamento multiescala `1..16×`): convergiu em **`16` iterações** (sem spin de `80` iterações), `687.6ms` (`raw 662.6ms`) vs `81.8ms` Clarabel, `|Δobj| = 8.84e-7 < 1e-6`, certificado 5D `validated_dual`;
+  - `denseA` estabilização contínua (`n=40`, `m=860`, ativando `F2` `svec` com `d(d+1)/2 = 820` entradas simétricas por coluna): convergiu em **`6` iterações**, **`2.65s`** (`raw 2.25s`) vs **`2.68s`** Clarabel, `|Δobj| = 0.0`, polos em malha fechada `< -0.20`, certificado 5D `validated_dual`.
 
 ---
 
 ## 5. Invariante Inegociável de Verificação Científica
 
-Em **todos** os 5 ciclos da Fase 9, sem exceção:
+Em **todos** os 6 ciclos da Fase 9, sem exceção:
 
 1. **Auditoria Independente 5D no Problema Original:** toda solução produzida após empacotamento `F_k_packed`, escalonamento de Ruiz, Gram cônico esparso `A_cone_csc`, HSDE, pré-processamento simbólico, fusão simétrica ou decomposição cordal **DEVE** ser desescalonada e reconstruída integralmente no espaço original não escalonado e não decomposto antes de passar pela verificação independente de 5 dimensões em `control_lab/optimization/verification/`.
 2. **Paridade Estrita com o Oráculo Independente:** toda entrega é confrontada pela Frente `F9` contra o oráculo independente `clarabel_direct` (`tests/oracles/`) e contra a escada normativa `T-SDP-A1..D2` (`G-0B`) **sem qualquer relaxamento de tolerâncias** (`1e-8` / critérios da `ADR-010` e `CL-DIR-001`).
@@ -115,3 +119,4 @@ Em **todos** os 5 ciclos da Fase 9, sem exceção:
 10. **Vandenberghe, L., & Andersen, M. S. (2015).** *Chordal Graphs and Semidefinite Optimization.* Foundations and Trends in Optimization, 1(4), 241–433. DOI: `10.1561/2400000006`.
 11. **Garstka, M., Cannon, M., & Goulart, P. (2020).** *A Clique Graph Based Merging Strategy for Decomposable SDPs.* IFAC-PapersOnLine (IFAC World Congress 2020), 53(2), 7355–7361. DOI: `10.1016/j.ifacol.2020.12.1255`.
 12. **Demmel, J. W., Eisenstat, S. C., Gilbert, J. R., Li, X. S., & Liu, J. W. H. (1999).** *A Supernodal Approach to Sparse Partial Pivoting.* SIAM Journal on Matrix Analysis and Applications, 20(3), 720–755. DOI: `10.1137/S0895479895291765`.
+13. **Todd, M. J., Toh, K.-C., & Tütüncü, R. H. (1998).** *On the Nesterov–Todd Direction in Semidefinite Programming.* SIAM Journal on Optimization, 8(3), 769–796. DOI: `10.1137/S105262349630060X`.

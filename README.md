@@ -5,7 +5,7 @@
 [![CI](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kozttah/ControlLab_Web/actions/workflows/ci.yml)
 [![Especificação](https://img.shields.io/badge/Documento_Diretor-CL--DIR--001_v1.0.0-0f172a)](./ControlLab_Web_Documento_Diretor_v1.0.md)
 [![UX & Design](https://img.shields.io/badge/Design_Diretor-CL--UX--DIR--001_+_ADR--014-1d4ed8)](./docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md)
-[![Status](https://img.shields.io/badge/Produto-Beta_(118%2F118_WPs)-d97706)](./PROJECT_STATE.json)
+[![Status](https://img.shields.io/badge/Produto-Beta_(120%2F120_WPs)-d97706)](./PROJECT_STATE.json)
 [![Licença](https://img.shields.io/badge/Licen%C3%A7a-MIT-059669)](./LICENSE)
 
 O ControlLab Web reúne um motor científico em `NumPy`/`SciPy`, modelos canônicos, diagnósticos numéricos, síntese baseada em LMIs/SDP e arquivos portáteis para ensino, pesquisa e engenharia de controle. O cálculo no navegador é executado em um Web Worker Pyodide, sem backend científico remoto obrigatório. O mesmo pacote `control_lab` pode ser utilizado diretamente em CPython local.
@@ -22,7 +22,7 @@ A versão publicada é destinada a uso e validação em estágio beta, preservan
 
 ## Estado atual
 
-**Referência em 24/11/2026:** **118 de 118 WorkPackages aprovados pela auditoria independente F9 (`ACCEPTED_BY_F9`, 0 pendentes)**, cobrindo os quatro gates da Fase 0 e as Fases 1–9 (incluindo os 5 ciclos da arquitetura **Native SDP v2.0 — `ADR-015`** e a recalibração do `BROWSER_ENVELOPE` para `1.792 / 3.072` variáveis). O produto mantém explicitamente o selo **beta**: a aprovação dos WorkPackages valida cada capacidade dentro do domínio auditado, sem declarar certificação integral para casos fora das hipóteses documentadas.
+**Referência em 24/11/2026:** **120 de 120 WorkPackages aprovados pela auditoria independente F9 (`ACCEPTED_BY_F9`, 0 pendentes)**, cobrindo os quatro gates da Fase 0 e as Fases 1–9 (incluindo os 6 ciclos da arquitetura **Native SDP v2.0 — `ADR-015`**, com vetorização simétrica `svec`, salvaguarda de estagnação `1b'` e `BROWSER_ENVELOPE` recalibrado para `1.792 / 3.072` variáveis). O produto mantém explicitamente o selo **beta**: a aprovação dos WorkPackages valida cada capacidade dentro do domínio auditado, sem declarar certificação integral para casos fora das hipóteses documentadas.
 
 | Gate / Marco | Resultado | Capacidade verificada |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ A versão publicada é destinada a uso e validação em estágio beta, preservan
 | **G-0C** | `ACCEPTED_BY_F9` | Arraste DOM real com Fast-Preview/commit (`R-23`), teclado, viewport mobile `390×844`, validação dimensional e gráficos científicos exportáveis (SVG/PNG). |
 | **G-0D** | `ACCEPTED_BY_F9` | Round-trip `.ctrlab`, exportação `.pvm` passiva (estático/dinâmico/saturação) e scripts PathSim `0.31.0`, validados em PathView `0.21.0` / PathSim `0.31.0`. |
 | **Fases 1–8** | `ACCEPTED_BY_F9` | 6 bancadas completas, arquitetura **Workspace-First (`ADR-014`)**, DSL LMI v2.0 direta + observadores TS não medidos, ANFIS, $\mathcal{H}_\infty$ DGKF estável (`ADR-012`) e scripts PathSim (`ADR-013`). |
-| **Fase 9 (`ADR-015`)** | `ACCEPTED_BY_F9` | Solver SDP Nativo v2.0: `F_k_packed` *zero-copy*, cone LP 1D, workspace *in-place*, HSDE + Gondzio, Fujisawa F1/F2, fusão simétrica DSL + `recover` na Aba 6, decomposição cordal, Schur esparso `splu` e Gram cônico esparso `A_cone_csc` — envelope recalibrado **`1.792 / 3.072` variáveis** (`n=28` em `0.77s`, `n=56` denso em `8.20s`, `n=72` esparso em `7.71s` no Chromium Wasm). |
+| **Fase 9 (`ADR-015`)** | `ACCEPTED_BY_F9` | Solver SDP Nativo v2.0 (6 ciclos): `F_k_packed` *zero-copy*, cone LP 1D, workspace *in-place*, HSDE + Gondzio + estagnação `1b'`, Fujisawa F1/F2 + isometria `svec` (`F2`/`F3_blas`), fusão simétrica DSL + `recover` na Aba 6, decomposição cordal, Schur esparso `splu` e Gram cônico esparso `A_cone_csc` — envelope recalibrado **`1.792 / 3.072` variáveis** (`n=28` em `0.77s`, `n=56` denso em `8.20s`, `n=72` esparso em `7.71s` no Chromium Wasm). |
 
 A [execução CI dessa referência (#45083984167)](https://github.com/kozttah/ControlLab_Web/actions/runs/45083984167) concluiu **todos os 9 jobs (A–H)** com sucesso:
 

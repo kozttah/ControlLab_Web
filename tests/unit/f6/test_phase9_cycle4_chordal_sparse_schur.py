@@ -576,7 +576,7 @@ def test_f2_presliced_tail_and_f3_chunked_congruence_exactness() -> None:
     blk_f3.assemble_schur_block(W, gram_f3)
 
     assert blk_f3._F_cols is not None
-    cols = np.empty((dim * dim, n_act), dtype=np.float64)
+    cols = np.empty((dim * (dim + 1) // 2, n_act), dtype=np.float64)
     _fill_f3_scaled_cols(blk_f3._F_cols, G_invT, dim, cols)
     gram_cols = cols.T @ cols
 

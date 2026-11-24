@@ -223,6 +223,36 @@ _INV_SQRT2 = 1.0 / _SQRT2
 _F2_CHUNK_SIZE = 32
 _F3_CHUNK_SIZE = 64
 
+_SVEC_INDEX_CACHE: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
+
+
+def _get_svec_indices(dim: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Retorna (tri_i, tri_j, svec_scale, inv_svec_scale) cacheados para isometria svec (Todd-Toh-Tütüncü 1998)."""
+    cached = _SVEC_INDEX_CACHE.get(dim)
+    if cached is not None:
+        return cached
+    tri_i, tri_j = np.triu_indices(dim)
+    off_mask = tri_i != tri_j
+    svec_scale = np.where(off_mask, _SQRT2, 1.0)
+    inv_svec_scale = np.where(off_mask, _INV_SQRT2, 1.0)
+    res = (tri_i, tri_j, svec_scale, inv_svec_scale)
+    _SVEC_INDEX_CACHE[dim] = res
+    return res
+
+
+def _mat_to_svec(M: np.ndarray) -> np.ndarray:
+    """Converte matriz (dim, dim) para vetor svec simetrizado (dim*(dim+1)//2,) com isometria exata de Frobenius."""
+    tri_i, tri_j, svec_scale, _ = _get_svec_indices(int(M.shape[0]))
+    return (0.5 * (M[tri_i, tri_j] + M[tri_j, tri_i])) * svec_scale
+
+
+def _svec_to_mat_into(v: np.ndarray, out: np.ndarray) -> None:
+    """Reconstrói matriz simétrica (dim, dim) in-place a partir do vetor svec."""
+    tri_i, tri_j, _, inv_svec_scale = _get_svec_indices(int(out.shape[0]))
+    scaled = v * inv_svec_scale
+    out[tri_i, tri_j] = scaled
+    out[tri_j, tri_i] = scaled
+
 
 @dataclass(frozen=True)
 class _InternalConeBlock:
@@ -230,15 +260,16 @@ class _InternalConeBlock:
 
     Implementa seleção automática das fórmulas de montagem de Schur esparsa F1/F2/F3
     (Fujisawa, Kojima & Nakata, Math. Program. 79(1-3):235-253, 1997,
-    doi:10.1007/BF02614319):
+    doi:10.1007/BF02614319) com vetorização simétrica isométrica `svec`
+    (Todd, Toh & Tütüncü 1998; Goulart & Chen, Clarabel 2024, §2.2/§3.1):
     - `LP_1D`: bloco escalar `1x1` agrupado no cone LP 1D unificado.
     - `F1`: bloco PSD ultra-esparso (`nnz_k <= max(4, n_b // 2)` e `nnz_upper_k <= 4`),
       avalia $H_{ij} = \\sum v_1 v_2 W_{qr} W_{sp}$ diretamente dos tripletos triangulares
       superiores sem alocar matrizes `(n_b, n_b)` intermediárias nem `cols` denso.
     - `F2`: bloco PSD moderadamente esparso (`avg_nnz < 0.25 * n_b^2`),
-      avalia $B_j = F_j W$ e $H_{:, j} = \\mathcal{F}_{\\text{sparse}} (W B_j)$ em lotes
-      esparsos C/BLAS sem alocar `cols` denso `(n_b^2, n_act)`.
-    - `F3_blas`: fallback denso vetorizado `cols.T @ cols` (`dsyrk`/`dgemm`).
+      avalia $B_j = F_j W$ e $H_{:, j} = \\mathcal{F}_{\\text{svec}} \\operatorname{svec}(W B_j)$ em lotes
+      esparsos C/BLAS sem alocar `cols` denso.
+    - `F3_blas`: fallback denso vetorizado em `svec` `cols_svec.T @ cols_svec` (`dsyrk`/`dgemm`).
     """
 
     name: str
@@ -260,6 +291,7 @@ class _InternalConeBlock:
     _f1_Q: np.ndarray | None = field(init=False, repr=False, compare=False)
     _f1_V: np.ndarray | None = field(init=False, repr=False, compare=False)
     _F_flat_csr: scipy.sparse.csr_matrix | None = field(init=False, repr=False, compare=False)
+    _F_svec_csr: scipy.sparse.csr_matrix | None = field(init=False, repr=False, compare=False)
     _F_vert_chunks: tuple[
         tuple[int, int, scipy.sparse.csr_matrix, scipy.sparse.csr_matrix], ...
     ] = field(init=False, repr=False, compare=False)
@@ -277,6 +309,7 @@ class _InternalConeBlock:
         f1_Q: np.ndarray | None = None
         f1_V: np.ndarray | None = None
         F_flat_csr: scipy.sparse.csr_matrix | None = None
+        F_svec_csr: scipy.sparse.csr_matrix | None = None
         F_vert_chunks: tuple[
             tuple[int, int, scipy.sparse.csr_matrix, scipy.sparse.csr_matrix], ...
         ] = ()
@@ -368,8 +401,32 @@ class _InternalConeBlock:
                             scales = np.where(r_up == c_up, _INV_SQRT2, _SQRT2)
                             f1_V[idx, :cnt] = v_up * scales
                 else:
-                    # schur_mode == "F2": pré-fatiar blocos verticais esparsos (c_len * dim, dim)
-                    # e visões CSR de cauda F_flat[start:] sem duplicar vetores data/indices
+                    # schur_mode == "F2": construir F_svec_csr (n_act, dim*(dim+1)//2) com isometria
+                    # exata <A, B>_F = svec(A)^T svec(B) e pré-fatiar visões zero-copy F_svec_tail[start:]
+                    n_svec = dim * (dim + 1) // 2
+                    svec_rows_parts: list[np.ndarray] = []
+                    svec_cols_parts: list[np.ndarray] = []
+                    svec_vals_parts: list[np.ndarray] = []
+                    for idx, (r_up, c_up, v_up) in enumerate(triplets_up):
+                        if r_up.size > 0:
+                            svec_rows_parts.append(np.full((r_up.size,), idx, dtype=np.int32))
+                            svec_c = (r_up * dim - (r_up * (r_up - 1)) // 2 + (c_up - r_up)).astype(
+                                np.int32, copy=False
+                            )
+                            svec_cols_parts.append(svec_c)
+                            svec_vals_parts.append(np.where(r_up == c_up, v_up, v_up * _SQRT2))
+                    if svec_rows_parts:
+                        F_svec_csr = scipy.sparse.csr_matrix(
+                            (
+                                np.concatenate(svec_vals_parts),
+                                (np.concatenate(svec_rows_parts), np.concatenate(svec_cols_parts)),
+                            ),
+                            shape=(n_act, n_svec),
+                            dtype=np.float64,
+                        )
+                    else:
+                        F_svec_csr = scipy.sparse.csr_matrix((n_act, n_svec), dtype=np.float64)
+
                     chunks: list[
                         tuple[int, int, scipy.sparse.csr_matrix, scipy.sparse.csr_matrix]
                     ] = []
@@ -397,19 +454,19 @@ class _InternalConeBlock:
                         else:
                             f_vert = scipy.sparse.csr_matrix((c_len * dim, dim), dtype=np.float64)
                         if start == 0:
-                            f_tail = F_flat_csr
+                            f_svec_tail = F_svec_csr
                         else:
-                            p0 = int(F_flat_csr.indptr[start])
-                            f_tail = scipy.sparse.csr_matrix(
+                            p0 = int(F_svec_csr.indptr[start])
+                            f_svec_tail = scipy.sparse.csr_matrix(
                                 (
-                                    F_flat_csr.data[p0:],
-                                    F_flat_csr.indices[p0:],
-                                    F_flat_csr.indptr[start:] - p0,
+                                    F_svec_csr.data[p0:],
+                                    F_svec_csr.indices[p0:],
+                                    F_svec_csr.indptr[start:] - p0,
                                 ),
-                                shape=(n_act - start, n2),
+                                shape=(n_act - start, n_svec),
                                 copy=False,
                             )
-                        chunks.append((start, end, f_vert, f_tail))
+                        chunks.append((start, end, f_vert, f_svec_tail))
                     F_vert_chunks = tuple(chunks)
             else:
                 # F3_blas: manter caminho denso vetorizado + congruência esparsa opcional
@@ -427,6 +484,7 @@ class _InternalConeBlock:
         object.__setattr__(self, "_f1_Q", f1_Q)
         object.__setattr__(self, "_f1_V", f1_V)
         object.__setattr__(self, "_F_flat_csr", F_flat_csr)
+        object.__setattr__(self, "_F_svec_csr", F_svec_csr)
         object.__setattr__(self, "_F_vert_chunks", F_vert_chunks)
 
     def dense_F_cols(self) -> np.ndarray:
@@ -464,7 +522,7 @@ class _InternalConeBlock:
                 out[idx] = float(np.sum(self.F_terms[j] * U))
 
     def assemble_schur_block(self, W: np.ndarray, out_gram: np.ndarray) -> np.ndarray:
-        """Monta a contribuição de Schur H_block[i, j] = tr(F_{k_i} W F_{k_j} W) via F1, F2 ou F3_blas.
+        """Monta a contribuição de Schur H_block[i, j] = tr(F_{k_i} W F_{k_j} W) via F1, F2(svec) ou F3_blas(svec).
 
         Requer `W` simétrica positiva definida `(dim, dim)` e `out_gram` de forma `(n_act, n_act)`.
         """
@@ -496,14 +554,15 @@ class _InternalConeBlock:
                         out_gram += term.T
             return out_gram
         if self.schur_mode == "F2":
-            assert self._F_flat_csr is not None
+            assert self._F_svec_csr is not None
             dim = self.dim
-            n2 = dim * dim
-            for start, end, F_vert_chunk, F_tail_csr in self._F_vert_chunks:
+            tri_i, tri_j, svec_scale, _ = _get_svec_indices(dim)
+            for start, end, F_vert_chunk, F_svec_tail in self._F_vert_chunks:
                 c_len = end - start
                 B_chunk = (F_vert_chunk @ W).reshape((c_len, dim, dim))
-                M_chunk = np.matmul(W, B_chunk).reshape((c_len, n2))
-                lower_blk = F_tail_csr @ M_chunk.T
+                M_chunk = np.matmul(W, B_chunk)
+                M_svec = (0.5 * (M_chunk[:, tri_i, tri_j] + M_chunk[:, tri_j, tri_i])) * svec_scale
+                lower_blk = F_svec_tail @ M_svec.T
                 diag_blk = lower_blk[:c_len, :]
                 out_gram[start:end, start:end] = 0.5 * (diag_blk + diag_blk.T)
                 if end < n_act:
@@ -511,17 +570,20 @@ class _InternalConeBlock:
                     out_gram[end:, start:end] = off_blk
                     out_gram[start:end, end:] = off_blk.T
             return out_gram
-        # Caminho F3_blas em lotes 3D limitados por _F3_CHUNK_SIZE (seguro para memória Wasm)
+        # Caminho F3_blas em lotes 3D limitados por _F3_CHUNK_SIZE em coordenadas svec
         dim = self.dim
-        n2 = dim * dim
+        tri_i, tri_j, svec_scale, _ = _get_svec_indices(dim)
         F_dense = self.dense_F_cols()
+        F_3d_all = F_dense.T.reshape((n_act, dim, dim))
+        F_svec_all = (0.5 * (F_3d_all[:, tri_i, tri_j] + F_3d_all[:, tri_j, tri_i])) * svec_scale
         for start in range(0, n_act, _F3_CHUNK_SIZE):
             end = min(start + _F3_CHUNK_SIZE, n_act)
             c_len = end - start
             F_2d = np.ascontiguousarray(F_dense[:, start:end].T).reshape((c_len * dim, dim))
             B_chunk = (F_2d @ W).reshape((c_len, dim, dim))
-            M_chunk = np.matmul(W, B_chunk).reshape((c_len, n2))
-            out_gram[:, start:end] = F_dense.T @ M_chunk.T
+            M_chunk = np.matmul(W, B_chunk)
+            M_svec = (0.5 * (M_chunk[:, tri_i, tri_j] + M_chunk[:, tri_j, tri_i])) * svec_scale
+            out_gram[:, start:end] = F_svec_all @ M_svec.T
         out_gram += out_gram.T
         out_gram *= 0.5
         return out_gram
@@ -575,10 +637,10 @@ def _fill_f3_scaled_cols(
     F_cols: np.ndarray,
     G_invT_b: np.ndarray,
     dim_b: int,
-    cols_out: np.ndarray,
+    cols_svec_out: np.ndarray,
 ) -> None:
-    """Preenche cols_out[:, i] = ravel(sym(G_invT_b.T @ F_i @ G_invT_b)) em lotes BLAS limitados."""
-    n2 = dim_b * dim_b
+    """Preenche cols_svec_out[:, i] = svec(sym(G_invT_b.T @ F_i @ G_invT_b)) sem aliasing in-place."""
+    tri_i, tri_j, svec_scale, _ = _get_svec_indices(dim_b)
     n_act = int(F_cols.shape[1])
     for start in range(0, n_act, _F3_CHUNK_SIZE):
         end = min(start + _F3_CHUNK_SIZE, n_act)
@@ -586,9 +648,8 @@ def _fill_f3_scaled_cols(
         F_2d = np.ascontiguousarray(F_cols[:, start:end].T).reshape((c_len * dim_b, dim_b))
         B_3d = (F_2d @ G_invT_b).reshape((c_len, dim_b, dim_b))
         C_3d = np.matmul(G_invT_b.T, B_3d)
-        C_3d += C_3d.swapaxes(-1, -2)
-        C_3d *= 0.5
-        cols_out[:, start:end] = C_3d.reshape((c_len, n2)).T
+        C_svec = (0.5 * (C_3d[:, tri_i, tri_j] + C_3d[:, tri_j, tri_i])) * svec_scale
+        cols_svec_out[:, start:end] = C_svec.T
 
 
 # ---------------------------------------------------------------------------
@@ -1474,7 +1535,9 @@ def _run_primal_dual_cone_loop(
         R_p_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
         R_p_hat_bufs.append(np.empty((dim, dim), dtype=np.float64))
         cols_bufs.append(
-            None if blk.schur_mode in ("F1", "F2") else np.empty((dim * dim, n_act), dtype=np.float64)
+            None
+            if blk.schur_mode in ("F1", "F2")
+            else np.empty((dim * (dim + 1) // 2, n_act), dtype=np.float64)
         )
         W_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
         gram_bufs.append(np.empty((n_act, n_act), dtype=np.float64) if n_act > 0 else None)
@@ -1493,7 +1556,7 @@ def _run_primal_dual_cone_loop(
     def _psd_adjoint_hat(pos: int, T_mat: np.ndarray, act_buf: np.ndarray) -> None:
         cols_b = cols_bufs[pos]
         if cols_b is not None:
-            np.matmul(cols_b.T, T_mat.ravel(), out=act_buf)
+            np.matmul(cols_b.T, _mat_to_svec(T_mat), out=act_buf)
         else:
             G_invT_b = G_invT_psd[pos]
             t2 = tmp2_bufs[pos]
@@ -1505,7 +1568,7 @@ def _run_primal_dual_cone_loop(
     def _psd_forward_hat(pos: int, v_act: np.ndarray, out_mat: np.ndarray) -> None:
         cols_b = cols_bufs[pos]
         if cols_b is not None:
-            np.matmul(cols_b, v_act, out=out_mat.ravel())
+            _svec_to_mat_into(cols_b @ v_act, out_mat)
         else:
             G_invT_b = G_invT_psd[pos]
             t2 = tmp2_bufs[pos]
@@ -1547,6 +1610,8 @@ def _run_primal_dual_cone_loop(
     best_opt_score = float("inf")
     best_opt_rp = float("inf")
     best_opt_rd = float("inf")
+    best_opt_stagnant = 0
+    cond_H = 1.0
     best_opt_state: tuple[
         np.ndarray,
         np.ndarray | None,
@@ -1793,60 +1858,70 @@ def _run_primal_dual_cone_loop(
             solver_status = "optimal"
             break
 
-        # Salvaguarda de piso numérico float64 em Fase II (paridade com HSDE 1b'):
-        # se já atingimos <= 1e-9 em primal/dual/gap e os resíduos voltam a crescer >10x
-        # por condicionamento extremo de H perto de mu ~ 1e-14, restaurar melhor iterado.
+        # Salvaguarda de piso numérico float64 e progresso insuficiente em Fase II (paridade com HSDE 1b'):
+        # se já atingimos <= 1e-9 (ou <= 1e-8 com cond_H >= 1e10) em primal/dual/gap e os resíduos
+        # saltam >10x ou estagnam por >= 3 iterações sem melhora >= 10%, restaurar melhor iterado.
         if check_farkas_on_blocks is None and min_eig_p >= -1e-8:
             cur_score_p2 = max(rel_gap, comp_rel, r_d_rel, primal_slack_err)
-            if cur_score_p2 <= 1e-9 and cur_score_p2 < best_opt_score:
-                best_opt_score = cur_score_p2
-                best_opt_rp = primal_slack_err
-                best_opt_rd = r_d_rel
-                best_opt_state = (
-                    z.copy(),
-                    z_lp.copy() if z_lp is not None else None,
-                    s_lp.copy() if s_lp is not None else None,
-                    [Zb.copy() for Zb in Z_psd_list],
-                    [(cho_S_psd[pos][0].copy(), cho_S_psd[pos][1]) for pos in range(n_psd_blocks)],
-                )
-            elif (
-                best_opt_state is not None
-                and best_opt_score <= 1e-9
-                and (
+            in_floor_band_p2 = cur_score_p2 <= 1e-9 or (cur_score_p2 <= 1e-8 and cond_H >= 1e10)
+            if in_floor_band_p2:
+                if best_opt_state is None or cur_score_p2 <= 0.9 * best_opt_score:
+                    best_opt_stagnant = 0
+                else:
+                    best_opt_stagnant += 1
+                if cur_score_p2 < best_opt_score:
+                    best_opt_score = cur_score_p2
+                    best_opt_rp = primal_slack_err
+                    best_opt_rd = r_d_rel
+                    best_opt_state = (
+                        z.copy(),
+                        z_lp.copy() if z_lp is not None else None,
+                        s_lp.copy() if s_lp is not None else None,
+                        [Zb.copy() for Zb in Z_psd_list],
+                        [(cho_S_psd[pos][0].copy(), cho_S_psd[pos][1]) for pos in range(n_psd_blocks)],
+                    )
+            elif best_opt_state is not None:
+                best_opt_stagnant += 1
+
+            if best_opt_state is not None:
+                jumped_10x_p2 = best_opt_score <= 1e-9 and (
                     primal_slack_err > 10.0 * max(best_opt_rp, 1e-12)
                     or r_d_rel > 10.0 * max(best_opt_rd, 1e-12)
                 )
-            ):
-                np.copyto(z, best_opt_state[0])
-                if q_lp > 0 and best_opt_state[1] is not None and best_opt_state[2] is not None:
-                    assert z_lp is not None and s_lp is not None
-                    np.copyto(z_lp, best_opt_state[1])
-                    np.copyto(s_lp, best_opt_state[2])
-                for pos in range(n_psd_blocks):
-                    np.copyto(Z_psd_list[pos], best_opt_state[3][pos])
-                    cho_S_psd[pos] = best_opt_state[4][pos]
-                history.append(
-                    IterationRecord(
-                        iteration=it,
-                        phase=phase_label,
-                        mu=mu,
-                        primal_obj=primal_obj,
-                        dual_obj=dual_obj,
-                        duality_gap=gap,
-                        dual_residual_rel=r_d_rel,
-                        eq_residual_rel=0.0,
-                        min_eig_primal=min_eig_p,
-                        min_eig_dual=min_eig_d,
-                        alpha_primal=0.0,
-                        alpha_dual=0.0,
-                        kkt_condition_number=1.0,
-                        sigma=0.0,
-                        step_norm=0.0,
-                    )
+                stagnated_p2 = best_opt_stagnant >= 3 and (
+                    best_opt_score <= 1e-9 or (best_opt_score <= 1e-8 and cond_H >= 1e10)
                 )
-                _record_iter_log(0.0)
-                solver_status = "optimal"
-                break
+                if jumped_10x_p2 or stagnated_p2:
+                    np.copyto(z, best_opt_state[0])
+                    if q_lp > 0 and best_opt_state[1] is not None and best_opt_state[2] is not None:
+                        assert z_lp is not None and s_lp is not None
+                        np.copyto(z_lp, best_opt_state[1])
+                        np.copyto(s_lp, best_opt_state[2])
+                    for pos in range(n_psd_blocks):
+                        np.copyto(Z_psd_list[pos], best_opt_state[3][pos])
+                        cho_S_psd[pos] = best_opt_state[4][pos]
+                    history.append(
+                        IterationRecord(
+                            iteration=it,
+                            phase=phase_label,
+                            mu=mu,
+                            primal_obj=primal_obj,
+                            dual_obj=dual_obj,
+                            duality_gap=gap,
+                            dual_residual_rel=r_d_rel,
+                            eq_residual_rel=0.0,
+                            min_eig_primal=min_eig_p,
+                            min_eig_dual=min_eig_d,
+                            alpha_primal=0.0,
+                            alpha_dual=0.0,
+                            kkt_condition_number=1.0,
+                            sigma=0.0,
+                            step_norm=0.0,
+                        )
+                    )
+                    _record_iter_log(0.0)
+                    solver_status = "optimal"
+                    break
 
         # 2. Escalonamento de Nesterov-Todd (NT) e montagem in-place da matriz de Schur H
         # 2a. Cone LP 1D unificado (blocos 1x1): w_lp = z_lp / s_lp, H = F_lp.T @ (w_lp[:, None] * F_lp)
@@ -1904,7 +1979,7 @@ def _run_primal_dual_cone_loop(
                                 np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
                                 np.matmul(tmp2, G_invT_b, out=tmp1)
                             _sym_into(tmp1, tmp2)
-                            cols[:, idx] = tmp2.ravel()
+                            cols[:, idx] = _mat_to_svec(tmp2)
                     np.matmul(cols.T, cols, out=gram)
                 if is_full_m[pos]:
                     H += gram
@@ -2885,7 +2960,9 @@ def _run_hsde_cone_loop(
         R_p_hat_bufs.append(np.empty((dim, dim), dtype=np.float64))
         F0_hat_bufs.append(np.empty((dim, dim), dtype=np.float64))
         cols_bufs.append(
-            None if blk.schur_mode in ("F1", "F2") else np.empty((dim * dim, n_act), dtype=np.float64)
+            None
+            if blk.schur_mode in ("F1", "F2")
+            else np.empty((dim * (dim + 1) // 2, n_act), dtype=np.float64)
         )
         W_psd_bufs.append(np.empty((dim, dim), dtype=np.float64))
         gram_bufs.append(np.empty((n_act, n_act), dtype=np.float64) if n_act > 0 else None)
@@ -2908,7 +2985,7 @@ def _run_hsde_cone_loop(
     def _psd_adjoint_hat(pos: int, T_mat: np.ndarray, act_buf: np.ndarray) -> None:
         cols_b = cols_bufs[pos]
         if cols_b is not None:
-            np.matmul(cols_b.T, T_mat.ravel(), out=act_buf)
+            np.matmul(cols_b.T, _mat_to_svec(T_mat), out=act_buf)
         else:
             G_invT_b = G_invT_psd[pos]
             t2 = tmp2_bufs[pos]
@@ -2920,7 +2997,7 @@ def _run_hsde_cone_loop(
     def _psd_forward_hat(pos: int, v_act: np.ndarray, out_mat: np.ndarray) -> None:
         cols_b = cols_bufs[pos]
         if cols_b is not None:
-            np.matmul(cols_b, v_act, out=out_mat.ravel())
+            _svec_to_mat_into(cols_b @ v_act, out_mat)
         else:
             G_invT_b = G_invT_psd[pos]
             t2 = tmp2_bufs[pos]
@@ -2948,6 +3025,8 @@ def _run_hsde_cone_loop(
     best_opt_state: tuple[np.ndarray, float, list[np.ndarray]] | None = None
     best_opt_rp = float("inf")
     best_opt_rd = float("inf")
+    best_opt_stagnant = 0
+    cond_H = 1.0
 
     def _unpack_Z_scaled(scale_factor: float = 1.0) -> list[np.ndarray]:
         out_Z: list[np.ndarray] = [None] * n_blocks  # type: ignore[list-item]
@@ -3112,24 +3191,38 @@ def _run_hsde_cone_loop(
                 hsde_certificate = "optimal"
                 break
 
-            # 1b'. Salvaguarda de piso numérico float64: se já atingimos <= 1e-9 em primal/dual/gap
-            # e os resíduos voltam a crescer >10x por condicionamento extremo de H, restaurar melhor iterado.
+            # 1b'. Salvaguarda de piso numérico float64 e progresso insuficiente (Clarabel §2.6):
+            # se já atingimos <= 1e-9 (ou <= 1e-8 com cond_H >= 1e10) em primal/dual/gap e os
+            # resíduos saltam >10x ou estagnam por >= 3 iterações sem melhora >= 10%, restaurar melhor iterado.
             if tau > 1e-12 and kappa <= 1e-6 * tau and min_eig_p >= -1e-8:
                 cur_score = max(rel_gap, comp_rel, r_d_rel, rp_unhom / f0_scale)
-                if cur_score <= 1e-9 and cur_score < best_opt_score:
-                    best_opt_score = cur_score
-                    best_opt_rp = rp_unhom
-                    best_opt_rd = r_d_rel
-                    best_opt_state = (z * inv_tau, float(tau), _unpack_Z_scaled(inv_tau))
-                elif (
-                    best_opt_state is not None
-                    and best_opt_score <= 1e-9
-                    and (rp_unhom > 10.0 * max(best_opt_rp, 1e-12) or r_d_rel > 10.0 * max(best_opt_rd, 1e-12))
-                ):
-                    _record_hsde_log(0.0)
-                    solver_status = "optimal"
-                    hsde_certificate = "optimal"
-                    break
+                in_floor_band = cur_score <= 1e-9 or (cur_score <= 1e-8 and cond_H >= 1e10)
+                if in_floor_band:
+                    if best_opt_state is None or cur_score <= 0.9 * best_opt_score:
+                        best_opt_stagnant = 0
+                    else:
+                        best_opt_stagnant += 1
+                    if cur_score < best_opt_score:
+                        best_opt_score = cur_score
+                        best_opt_rp = rp_unhom
+                        best_opt_rd = r_d_rel
+                        best_opt_state = (z * inv_tau, float(tau), _unpack_Z_scaled(inv_tau))
+                elif best_opt_state is not None:
+                    best_opt_stagnant += 1
+
+                if best_opt_state is not None:
+                    jumped_10x = best_opt_score <= 1e-9 and (
+                        rp_unhom > 10.0 * max(best_opt_rp, 1e-12)
+                        or r_d_rel > 10.0 * max(best_opt_rd, 1e-12)
+                    )
+                    stagnated_at_floor = best_opt_stagnant >= 3 and (
+                        best_opt_score <= 1e-9 or (best_opt_score <= 1e-8 and cond_H >= 1e10)
+                    )
+                    if jumped_10x or stagnated_at_floor:
+                        _record_hsde_log(0.0)
+                        solver_status = "optimal"
+                        hsde_certificate = "optimal"
+                        break
 
             # 1c. Detecção antecipada de infactibilidade primal (Certificado de Farkas HSDE)
             if it >= 1 and dual_f0_dot < -1e-10 * (1.0 + f0_scale * z_dual_norm):
@@ -3251,9 +3344,9 @@ def _run_hsde_cone_loop(
                                     np.matmul(G_invT_b.T, blk.F_terms[j], out=tmp2)
                                     np.matmul(tmp2, G_invT_b, out=tmp1)
                                 _sym_into(tmp1, tmp2)
-                                cols[:, idx] = tmp2.ravel()
+                                cols[:, idx] = _mat_to_svec(tmp2)
                         np.matmul(cols.T, cols, out=gram)
-                        np.matmul(cols.T, F0_hat_bufs[pos].ravel(), out=act_buf)
+                        np.matmul(cols.T, _mat_to_svec(F0_hat_bufs[pos]), out=act_buf)
                     if is_full_m[pos]:
                         H += gram
                         g0 += act_buf
@@ -3839,9 +3932,9 @@ def _run_hsde_cone_loop(
             S_eval_final = [b.evaluate(z_out) for b in blocks]
         elif (
             best_opt_state is not None
-            and best_opt_score <= 1e-9
+            and best_opt_score <= 1e-8
             and solver_status in ("optimal", "optimal_inaccurate", "max_iterations")
-            and (tau <= 1e-12 or max(rel_gap, comp_rel, r_d_rel, rp_unhom / f0_scale) > best_opt_score)
+            and (tau <= 1e-12 or max(rel_gap, comp_rel, r_d_rel, rp_unhom / f0_scale) >= best_opt_score)
         ):
             z_out = best_opt_state[0].copy()
             Z_list = [Zb.copy() for Zb in best_opt_state[2]]

@@ -27,7 +27,7 @@
       "2026-11-21": 12,
       "2026-11-22": 13,
       "2026-11-23": 1,
-      "2026-11-24": 4
+      "2026-11-24": 6
     }
   },
   "audit_reference": {
@@ -6876,7 +6876,7 @@
         "T-SDP-D2"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
       "references": [
@@ -6888,6 +6888,15 @@
         "T1 (svec F3_blas + zero aliasing): Substituir C_3d += C_3d.swapaxes(-1, -2) por simetrizacao/extracao svec livre de aliasing de memoria e montar cols/gram = cols.T @ cols em dimensao svec dim*(dim+1)//2 nos loops HSDE (_run_hsde_cone_loop) e padrao (_run_primal_dual_cone_loop)",
         "T6 (estagnacao 1b'): Adicionar contador best_opt_stagnant na salvaguarda 1b' do HSDE (Clarabel §2.6) para encerrar restaurando best_opt_state apos >= 3 iteracoes sem melhora >= 10% quando best_opt_score <= 1e-9 (ou <= 1e-8 sob mal-condicionamento cond_H >= 1e10), mantendo tol_gap intacto em problemas bem-condicionados e sem relaxar verify() 5D",
         "Nota de escopo: T3 (projecao esparsa via A_cone_csr[row_ofs:row_ofs+bsz, :] @ Q_R no fallback SVD) ja foi entregue e validada no commit 1cfbaae"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f6_phase9_cycle6_svec_schur_isometry_zero_aliasing_and_hsde_stagnation_1b_prime",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-06A-F6-SVEC-SCHUR-AND-STAGNATION.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-06A-F6-SVEC-SCHUR-AND-STAGNATION.md",
+        "control_lab/optimization/backends/native_core.py",
+        "tests/unit/f6/test_phase9_cycle4_chordal_sparse_schur.py",
+        "tests/unit/f6/test_phase9_cycle6_svec_stagnation.py"
       ]
     },
     {
@@ -6921,12 +6930,22 @@
         "T-WASM-01"
       ],
       "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f6/ tests/oracles/ tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
       "design_ref": "docs/architecture/ADR-010-native-sdp-and-offline-exports.md",
       "acceptance_requirements": [
         "Oraculo independente F9 validando isometria svec, ausencia de aliasing de memoria em F3_blas, parada antecipada sem spin de 80 iteracoes em problema bloco-diagonal rigido (ex. BlkDiag_24x8) e paridade < 1e-6 contra clarabel_direct com verify() 5D intacto",
         "Prova de regressao em Chromium Pyodide Wasm real (test_real_runtime.py) e registro das referencias Todd-Toh-Tutuncu (1998) e benchmarks do Ciclo 6 na ADR-015 e handoffs do Apendice E"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f9_phase9_cycle6_svec_stagnation_oracle_adr015_and_120_of_120_closure",
+      "handoff_ref": "docs/audits/handoffs/WP-PHASE9-06B-F9-SVEC-STAGNATION-AUDIT.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-PHASE9-06B-F9-SVEC-STAGNATION-AUDIT.md",
+        "docs/audits/handoffs/WP-PHASE9-06A-F6-SVEC-SCHUR-AND-STAGNATION.md",
+        "tests/oracles/test_phase9_cycle6_svec_stagnation_oracle.py",
+        "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
+        "README.md"
       ]
     }
   ],

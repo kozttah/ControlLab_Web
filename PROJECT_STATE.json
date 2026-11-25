@@ -28,7 +28,7 @@
       "2026-11-22": 13,
       "2026-11-23": 1,
       "2026-11-24": 6,
-      "2026-11-25": 4
+      "2026-11-25": 5
     }
   },
   "audit_reference": {
@@ -7139,14 +7139,17 @@
         "T-TSMOD-07"
       ],
       "acceptance_cmd": "npm --prefix web run test:unit:f7 && npm --prefix web run build",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
         "Expor métodos tipados analyzeSectorPremises, deriveTsSector, deriveTsTpmt, deriveTsFemt e exportTsDerivationScript na ponte RPC (web/bridge/) com suporte a progresso e cancelamento cooperativo",
         "Garantir liberação determinística de PyProxy e aplicação do envelope de memória Wasm no Worker Pyodide (web/worker/)",
         "Fornecer respostas determinísticas correspondentes (incluindo FEMT) no MockWorkerAdapter para testes unitários rápidos da F8"
-      ]
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-TSMOD-03B-F7-WORKER-BRIDGE.md",
+      "acceptance_scope": "typescript_pyodide_worker_ts_modeling_chromium_firefox"
     },
     {
       "wp_id": "WP-TSMOD-04-F8-TS-MODELING-TAB-UI",

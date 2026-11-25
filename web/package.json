@@ -6,6 +6,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node ../scripts/run_web_tests.mjs",
+    "test:unit:f7": "node ../scripts/run_web_tests.mjs --scope f7",
     "build": "node ../scripts/build_web.mjs"
   },
   "devDependencies": {

@@ -33,6 +33,8 @@ import {
   type RpcResponse,
   type WireBinaryBuffer,
 } from "./protocol.ts";
+import { isTsModelingOperation, TS_MODELING_OPERATIONS } from "./ts_modeling.ts";
+import { makeMockTsModelingResult } from "./mock_ts_modeling.ts";
 import {
   IndexedDBProjectStore,
   type IndexedDBProjectStoreOptions,
@@ -285,6 +287,7 @@ export class MockWorkerAdapter extends BaseEngineClient {
         "optimization.verify",
         "worker.ping",
         "worker.get_stats",
+        ...Object.values(TS_MODELING_OPERATIONS),
       ],
       backends: {
         mock_certified_fixtures: { available: true, maturity: "beta" },
@@ -304,6 +307,7 @@ export class MockWorkerAdapter extends BaseEngineClient {
         "statespace.simulate_lti": "beta",
         "optimization.solve": "beta",
         "optimization.verify": "beta",
+        ...Object.fromEntries(Object.values(TS_MODELING_OPERATIONS).map(operation => [operation, "beta"])),
       },
       lib_versions: { ...this.libVersions },
     };
@@ -523,8 +527,18 @@ export class MockWorkerAdapter extends BaseEngineClient {
       );
     }, hardTimeoutMs);
 
+    const isTsModeling = isTsModelingOperation(request.operation);
     try {
+      if (isTsModeling) {
+        this.emitTsModelingProgress({ request_id: request.request_id, progress: { stage: "validating", elapsed_ms: 0 } });
+      }
       await delayCancellable(configuredLatency, abortController.signal);
+      if (isTsModeling && !abortController.signal.aborted) {
+        this.emitTsModelingProgress({
+          request_id: request.request_id,
+          progress: { stage: "computing", elapsed_ms: configuredLatency },
+        });
+      }
 
       if (abortController.signal.aborted) {
         throw abortController.signal.reason instanceof ControlLabBridgeError
@@ -563,6 +577,13 @@ export class MockWorkerAdapter extends BaseEngineClient {
         responseRevision,
         resolvedPayload,
       );
+      if (isTsModeling && response.status !== "failure") {
+        this.emitTsModelingProgress({
+          request_id: request.request_id,
+          progress: { stage: "completed", elapsed_ms: configuredLatency },
+        });
+        if (abortController.signal.aborted) throw abortController.signal.reason;
+      }
       return { response: validateRpcResponse(response), bridgeTransferMs };
     } catch (err: unknown) {
       const reason = abortController.signal.reason;
@@ -641,6 +662,22 @@ export class MockWorkerAdapter extends BaseEngineClient {
     responseRevision: number,
     payload: Record<string, unknown>,
   ): RpcResponse {
+    if (isTsModelingOperation(request.operation)) {
+      return {
+        api_version: RPC_API_VERSION,
+        request_id: request.request_id,
+        project_id: request.project_id,
+        project_revision: responseRevision,
+        status: "success",
+        result: makeMockTsModelingResult(request.operation, payload),
+        assumptions: { simulated: true },
+        diagnostics: { simulated: true },
+        provenance: { algorithm: request.operation, lib_versions: { ...this.libVersions }, mock: true },
+        warnings: [],
+        error: null,
+      };
+    }
+
     if (request.operation === "worker.ping") {
       return {
         api_version: RPC_API_VERSION,

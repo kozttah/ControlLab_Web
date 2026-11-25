@@ -26,6 +26,8 @@ import {
   type WireBinaryBuffer,
 } from "../bridge/protocol.ts";
 import { materializePayloadReferences } from "./payload_references.ts";
+import { isTsModelingOperation, TS_MODELING_OPERATIONS, type TsModelingProgressEvent } from "../bridge/ts_modeling.ts";
+import { checkNamedResample, checkTsModelingEnvelope, oversizedNamedResamples } from "./ts_modeling_envelope.ts";
 import type { StoredProjectSnapshot } from "../storage/indexeddb_store.ts";
 import {
   WorkerModelStore,
@@ -106,6 +108,7 @@ export type WorkerInboundMessage =
       kind: "rpc_request";
       request: RpcRequest;
       buffers?: Record<string, WireBinaryBuffer>;
+      interrupt_buffer?: SharedArrayBuffer;
     }
   | {
       kind: "cancel";
@@ -191,6 +194,10 @@ export interface WorkerProgressMessage {
   type: "progress";
   request_id: string;
   progress: SolverProgress;
+}
+
+export interface WorkerTsModelingProgressMessage extends TsModelingProgressEvent {
+  type: "ts_modeling_progress";
 }
 
 export interface WorkerRuntimeOptions {
@@ -338,9 +345,12 @@ export class PyodideWorkerRuntime {
       abortController: AbortController;
       projectId: string;
       projectRevision: number;
+      interrupt?: Uint8Array;
     }
   >();
   private interruptBuffer: Uint8Array | null = null;
+  private pythonQueue = Promise.resolve();
+  private activePythonRequest: string | null = null;
 
   constructor(options: WorkerRuntimeOptions) {
     this.workerId = `pw-${generateUuid()}`;
@@ -396,7 +406,7 @@ export class PyodideWorkerRuntime {
     };
   }
 
-  private emit(message: WorkerOutboundMessage | WorkerProgressMessage, transfer?: ArrayBuffer[]): void {
+  private emit(message: WorkerOutboundMessage | WorkerProgressMessage | WorkerTsModelingProgressMessage, transfer?: ArrayBuffer[]): void {
     safeWorkerPostMessage(
       this.postFn,
       message,
@@ -547,14 +557,6 @@ export class PyodideWorkerRuntime {
         initPyodideMs = loaded.initMs ?? Math.max(0.01, t1 - t0);
         importPackagesMs = loaded.importMs ?? 0;
 
-        if (typeof SharedArrayBuffer !== "undefined" && this.pyodide.setInterruptBuffer) {
-          try {
-            this.interruptBuffer = new Uint8Array(new SharedArrayBuffer(4));
-            this.pyodide.setInterruptBuffer(this.interruptBuffer);
-          } catch {
-            this.interruptBuffer = null;
-          }
-        }
       } else {
         // Verifica loader global em navegador se loadPyodide foi pré-carregado
         const globalLoader = (
@@ -602,6 +604,14 @@ export class PyodideWorkerRuntime {
 
       if (this.pyodide === null) {
         throw new ControlLabBridgeError("SOLVER_UNAVAILABLE", "Loader não forneceu runtime Pyodide.");
+      }
+      if (typeof SharedArrayBuffer !== "undefined" && this.pyodide.setInterruptBuffer) {
+        try {
+          this.interruptBuffer = new Uint8Array(new SharedArrayBuffer(1));
+          this.pyodide.setInterruptBuffer(this.interruptBuffer);
+        } catch {
+          this.interruptBuffer = null;
+        }
       }
       if (typeof this.pyodide.version === "string") {
         this.libVersions.pyodide = this.pyodide.version;
@@ -659,7 +669,11 @@ export class PyodideWorkerRuntime {
     if (!active) {
       return;
     }
-    if (this.interruptBuffer) {
+    if (active.interrupt) {
+      // Byte 1 survives Pyodide's consumption of SIGINT from byte 0.
+      Atomics.store(active.interrupt, 1, 1);
+      Atomics.store(active.interrupt, 0, 2);
+    } else if (this.interruptBuffer && this.activePythonRequest === msg.request_id) {
       this.interruptBuffer[0] = 2; // SIGINT cooperativo Pyodide
     }
     active.abortController.abort();
@@ -823,20 +837,37 @@ export class PyodideWorkerRuntime {
       return;
     }
 
+    const tsModeling = isTsModelingOperation(request.operation);
+    const shared = msg.interrupt_buffer;
+    const interrupt = tsModeling && typeof SharedArrayBuffer !== "undefined" &&
+      shared instanceof SharedArrayBuffer && shared.byteLength === 2 ? new Uint8Array(shared) : undefined;
     const abortController = new AbortController();
     this.activeRequests.set(request.request_id, {
       abortController,
       projectId: request.project_id,
       projectRevision: request.project_revision,
+      interrupt,
     });
-    if (this.interruptBuffer) {
-      this.interruptBuffer[0] = 0;
-    }
-
     this.modelStore.pinProject(request.project_id);
 
     const execStart = nowMs();
+    const cancelled = () => abortController.signal.aborted || (interrupt !== undefined && Atomics.load(interrupt, 1) !== 0);
+    const progress = (stage: WorkerTsModelingProgressMessage["progress"]["stage"]) => {
+      this.emit({
+        type: "ts_modeling_progress",
+        request_id: request.request_id,
+        progress: { stage, elapsed_ms: Math.max(0, nowMs() - execStart) },
+      });
+    };
     try {
+      if (tsModeling) {
+        progress("validating");
+        checkTsModelingEnvelope(request.operation, request.payload);
+        // Give the Worker queue a task boundary to process a cancellation
+        // before synchronous NumPy/SciPy dispatch, even without shared memory.
+        await delayWithSignal(1, abortController.signal);
+        if (cancelled()) throw new ControlLabBridgeError("CANCELLED", "Modelagem TS cancelada antes do cálculo.");
+      }
       const simError = request.options.__simulate_error;
       if (typeof simError === "string") {
         throw new ControlLabBridgeError(
@@ -891,13 +922,19 @@ export class PyodideWorkerRuntime {
       }
 
       const canonicalPayload = materializePayloadReferences(dispatchRequest, resolvedPayload, this.modelStore);
+      if (request.operation === TS_MODELING_OPERATIONS.exportTsDerivationScript) {
+        checkTsModelingEnvelope(request.operation, canonicalPayload);
+      }
 
       const rawResult = await this.executeOperation(
         dispatchRequest,
         canonicalPayload,
         abortController.signal,
         packedBuffers,
+        interrupt,
+        tsModeling ? () => progress("computing") : undefined,
       );
+      if (cancelled()) throw new ControlLabBridgeError("CANCELLED", "Modelagem TS cancelada durante o cálculo.");
 
       const tSer0 = nowMs();
       const parsedResponse = validateRpcResponse(rawResult);
@@ -913,13 +950,8 @@ export class PyodideWorkerRuntime {
       const execElapsed = Math.max(0, tSer0 - execStart);
       const serElapsed = Math.max(0, tSer1 - tSer0);
 
-      // Garantia explícita: zero PyProxies vazados após execução normal
-      if (this.pyproxyRegistry.activeProxies !== 0) {
-        this.pyproxyRegistry.destroyAll();
-        throw new ControlLabBridgeError(
-          "INTERNAL_ERROR",
-          "PyProxy ativo residual detectado após término de execução RPC.",
-        );
+      if (tsModeling && (validResponse.status === "success" || validResponse.status === "warning")) {
+        progress("completed");
       }
 
       if (
@@ -958,17 +990,12 @@ export class PyodideWorkerRuntime {
       }
     } catch (err: unknown) {
       const bErr = toBridgeError(err);
-      try {
-        this.pyproxyRegistry.destroyAll();
-      } catch {
-        // Garante limpeza mesmo em falha dupla
-      }
       const failResp = buildFailureRpcResponse({
         request_id: request.request_id,
         project_id: request.project_id,
         project_revision: request.project_revision,
-        code: abortController.signal.aborted ? "CANCELLED" : bErr.code,
-        message: abortController.signal.aborted
+        code: cancelled() ? "CANCELLED" : bErr.code,
+        message: cancelled()
           ? `Requisição '${request.request_id}' cancelada no Worker.`
           : bErr.message,
         parameters: bErr.typedError.parameters,
@@ -987,13 +1014,6 @@ export class PyodideWorkerRuntime {
       });
     } finally {
       this.activeRequests.delete(request.request_id);
-      if (this.pyproxyRegistry.activeProxies > 0) {
-        try {
-          this.pyproxyRegistry.destroyAll();
-        } catch {
-          // ignore
-        }
-      }
     }
   }
 
@@ -1002,8 +1022,44 @@ export class PyodideWorkerRuntime {
     resolvedPayload: Record<string, unknown>,
     signal: AbortSignal,
     packedBuffers?: Record<string, Uint8Array>,
+    interrupt?: Uint8Array,
+    onCompute?: () => void,
   ): Promise<RpcResponse> {
-    if (signal.aborted) {
+    // Dispatch uses one Python interpreter, progress callback, signal buffer
+    // and proxy registry. Own them through the entire invocation and cleanup.
+    const previous = this.pythonQueue;
+    let release = () => {};
+    this.pythonQueue = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    this.activePythonRequest = request.request_id;
+    if (this.interruptBuffer) Atomics.store(this.interruptBuffer, 0, 0);
+    try {
+      if (!signal.aborted && (!interrupt || Atomics.load(interrupt, 1) === 0)) {
+        onCompute?.();
+      }
+      const result = await this.executePython(request, resolvedPayload, signal, packedBuffers, interrupt);
+      if (this.pyproxyRegistry.activeProxies !== 0) {
+        throw new ControlLabBridgeError("INTERNAL_ERROR", "PyProxy ativo residual detectado após término de execução RPC.");
+      }
+      return result;
+    } finally {
+      try {
+        this.pyproxyRegistry.destroyAll();
+      } finally {
+        this.activePythonRequest = null;
+        release();
+      }
+    }
+  }
+
+  private async executePython(
+    request: RpcRequest,
+    resolvedPayload: Record<string, unknown>,
+    signal: AbortSignal,
+    packedBuffers?: Record<string, Uint8Array>,
+    interrupt?: Uint8Array,
+  ): Promise<RpcResponse> {
+    if (signal.aborted || (interrupt && Atomics.load(interrupt, 1) !== 0)) {
       throw new ControlLabBridgeError(
         "CANCELLED",
         "Execução abortada antes de invocar o motor.",
@@ -1013,6 +1069,9 @@ export class PyodideWorkerRuntime {
     // Se há runtime Pyodide configurado, executa sempre sob PyProxyRegistry + withPyProxy
     if (this.pyodide !== null) {
       const py = this.pyodide;
+      if (request.operation === TS_MODELING_OPERATIONS.deriveTsTpmt) {
+        await this.checkNamedTpmtResampling(py, resolvedPayload);
+      }
       return withPyProxy(
         this.pyproxyRegistry,
         async () => {
@@ -1091,7 +1150,25 @@ export class PyodideWorkerRuntime {
                 { parameters: { module: PY_RPC_ENTRYPOINT_MODULE } },
               );
             }
-            outRaw = await mod[PY_RPC_ENTRYPOINT_FUNCTION](proxy);
+            // Pyodide's scientific dispatcher is synchronous. Keep its signal
+            // buffer bound only during that call, never across event-loop turns.
+            // CPython checks SIGINT at Python checkpoints, which can be after a
+            // native NumPy/SciPy kernel completes.
+            const run = mod[PY_RPC_ENTRYPOINT_FUNCTION].bind(mod);
+            if (interrupt && this.interruptBuffer && py.setInterruptBuffer) {
+              if (Atomics.load(interrupt, 1) !== 0) {
+                throw new ControlLabBridgeError("CANCELLED", "Modelagem TS cancelada antes de invocar o motor.");
+              }
+              py.setInterruptBuffer(interrupt);
+              try {
+                outRaw = run(proxy);
+              } finally {
+                py.setInterruptBuffer(this.interruptBuffer);
+              }
+              outRaw = await outRaw;
+            } else {
+              outRaw = await run(proxy);
+            }
           } finally {
             if (installProgressCallback) {
               try {
@@ -1122,11 +1199,18 @@ export class PyodideWorkerRuntime {
             return await withPyProxy(
               this.pyproxyRegistry,
               outRaw as PyProxyLike,
-              (outP) => ensureFiniteJson(
-                outP.toJs?.({ dict_converter: Object.fromEntries, create_pyproxies: false }),
-                "$.pyodide_result", new WeakSet(), true,
-              ) as RpcResponse,
-              { label: "rpc_output_proxy", signal: abortSig },
+              (outP) => {
+                // Acquire the already-created output proxy before checking
+                // cancellation so it is destroyed on every return path.
+                if (abortSig?.aborted || (interrupt && Atomics.load(interrupt, 1) !== 0)) {
+                  throw new ControlLabBridgeError("CANCELLED", "Cancelado antes de converter o resultado PyProxy.");
+                }
+                return ensureFiniteJson(
+                  outP.toJs?.({ dict_converter: Object.fromEntries, create_pyproxies: false }),
+                  "$.pyodide_result", new WeakSet(), true,
+                ) as RpcResponse;
+              },
+              { label: "rpc_output_proxy" },
             );
           } else {
             jsVal = outRaw;
@@ -1145,6 +1229,45 @@ export class PyodideWorkerRuntime {
         next_step: "Inicialize o Pyodide Worker com assets WASM locais.",
       },
     );
+  }
+
+  private async checkNamedTpmtResampling(py: PyodideInterfaceLike, payload: Record<string, unknown>): Promise<void> {
+    const oversized = oversizedNamedResamples(payload);
+    if (oversized.size === 0 || !py.pyimport) return;
+
+    // Python ignores settings for inactive axes. Consult the canonical parser
+    // only when a named resampling request might exceed the preallocation cap.
+    const symbolic = py.pyimport("control_lab.fuzzy.symbolic_qlpv");
+    const active = new Set<string>();
+    try {
+      const extract = symbolic.extract_active_variables;
+      if (typeof extract !== "function") return;
+      const channels = isPlainObject(payload.generalized_channels) ? Object.values(payload.generalized_channels) : [];
+      for (const matrix of [payload.A_expr, payload.B_expr, payload.C_expr, payload.D_expr, ...channels]) {
+        if (!Array.isArray(matrix)) continue;
+        for (const row of matrix) {
+          if (!Array.isArray(row)) continue;
+          for (const expr of row) {
+            if (typeof expr !== "string") continue;
+            const variables = await withPyProxy(
+              this.pyproxyRegistry,
+              extract(expr) as PyProxyLike,
+              (tuple) => tuple.toJs?.({ create_pyproxies: false }) as string[],
+              { label: "tpmt_active_variables" },
+            );
+            for (const variable of variables) active.add(variable);
+          }
+        }
+      }
+    } catch {
+      // Return the canonical dispatcher validation diagnostics for invalid ASTs.
+      return;
+    } finally {
+      symbolic.destroy?.();
+    }
+    for (const [axis, count] of oversized) {
+      if (active.has(axis)) checkNamedResample(axis, count);
+    }
   }
 
 }

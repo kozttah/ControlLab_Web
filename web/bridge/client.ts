@@ -19,6 +19,23 @@ import {
   type SolverProgress,
   type SolverProgressEvent,
 } from "./protocol.ts";
+import {
+  TS_MODELING_OPERATIONS,
+  type AnalyzeSectorPremisesPayload,
+  type DeriveTsFemtPayload,
+  type DeriveTsSectorPayload,
+  type DeriveTsTpmtPayload,
+  type DerivedTsFemtResult,
+  type DerivedTsSectorResult,
+  type DerivedTsTpmtResult,
+  type ExportTsDerivationScriptPayload,
+  type SectorAnalysisResult,
+  type TsDerivationScriptResult,
+  type TsModelingContext,
+  type TsModelingOperation,
+  type TsModelingProgressEvent,
+  type TsRpcResponse,
+} from "./ts_modeling.ts";
 import type {
   CommitProjectRevisionOutput,
   IndexedDBProjectStore,
@@ -159,6 +176,27 @@ export interface ControlLabEngineClient {
   subscribe(listener: EngineEventListener): () => void;
   subscribeProgress?(listener: SolverProgressListener): () => void;
   dispose(): void;
+}
+
+export type TsModelingProgressListener = (event: TsModelingProgressEvent) => void;
+
+/** Optional engine surface for consumers of the TS modeling feature. */
+export interface TsModelingEngineClient extends ControlLabEngineClient {
+  analyzeSectorPremises(context: TsModelingContext, payload: AnalyzeSectorPremisesPayload, options?: ExecuteOptions): Promise<TsRpcResponse<SectorAnalysisResult>>;
+  deriveTsSector(context: TsModelingContext, payload: DeriveTsSectorPayload, options?: ExecuteOptions): Promise<TsRpcResponse<DerivedTsSectorResult>>;
+  deriveTsTpmt(context: TsModelingContext, payload: DeriveTsTpmtPayload, options?: ExecuteOptions): Promise<TsRpcResponse<DerivedTsTpmtResult>>;
+  deriveTsFemt(context: TsModelingContext, payload: DeriveTsFemtPayload, options?: ExecuteOptions): Promise<TsRpcResponse<DerivedTsFemtResult>>;
+  exportTsDerivationScript(context: TsModelingContext, payload: ExportTsDerivationScriptPayload, options?: ExecuteOptions): Promise<TsRpcResponse<TsDerivationScriptResult>>;
+  subscribeTsModelingProgress(listener: TsModelingProgressListener): () => void;
+}
+
+export function supportsTsModeling(client: ControlLabEngineClient): client is TsModelingEngineClient {
+  const methods: readonly (keyof TsModelingEngineClient)[] = [
+    "analyzeSectorPremises", "deriveTsSector", "deriveTsTpmt", "deriveTsFemt",
+    "exportTsDerivationScript", "subscribeTsModelingProgress",
+  ];
+  const candidate: Partial<TsModelingEngineClient> = client;
+  return methods.every(method => typeof candidate[method] === "function");
 }
 
 export interface InFlightEntry {
@@ -408,12 +446,13 @@ export function createInitialExecutionMetrics(): ExecutionMetrics {
  * implementa ciclo de vida, assinaturas, métricas, validação de contrato,
  * descarte de respostas obsoletas e persistência transacional no IndexedDBProjectStore.
  */
-export abstract class BaseEngineClient implements ControlLabEngineClient {
+export abstract class BaseEngineClient implements TsModelingEngineClient {
   protected readonly store: IndexedDBProjectStore;
   protected readonly coordinator: RevisionCoordinator;
   protected readonly coalescer: DebouncedRequestCoalescer;
   private readonly listeners = new Set<EngineEventListener>();
   private readonly progressListeners = new Set<SolverProgressListener>();
+  private readonly tsModelingProgressListeners = new Set<TsModelingProgressListener>();
   private lifecycleState: EngineLifecycleState = "uninitialized";
   protected metrics: ExecutionMetrics = createInitialExecutionMetrics();
   private warmTotalMs = 0;
@@ -485,6 +524,23 @@ export abstract class BaseEngineClient implements ControlLabEngineClient {
     return () => {
       this.progressListeners.delete(listener);
     };
+  }
+
+  public subscribeTsModelingProgress(listener: TsModelingProgressListener): () => void {
+    this.tsModelingProgressListeners.add(listener);
+    return () => {
+      this.tsModelingProgressListeners.delete(listener);
+    };
+  }
+
+  protected emitTsModelingProgress(event: TsModelingProgressEvent): void {
+    for (const listener of this.tsModelingProgressListeners) {
+      try {
+        listener(event);
+      } catch {
+        // O progresso não deve interromper o despacho se um observador falhar.
+      }
+    }
   }
 
   protected emitEvent(event: EngineClientEvent): void {
@@ -564,6 +620,63 @@ export abstract class BaseEngineClient implements ControlLabEngineClient {
       );
     }
     return this.executeImmediate(rawRequest, options);
+  }
+
+  public analyzeSectorPremises(
+    context: TsModelingContext,
+    payload: AnalyzeSectorPremisesPayload,
+    options?: ExecuteOptions,
+  ): Promise<TsRpcResponse<SectorAnalysisResult>> {
+    return this.executeTsModeling(TS_MODELING_OPERATIONS.analyzeSectorPremises, context, payload, options);
+  }
+
+  public deriveTsSector(
+    context: TsModelingContext,
+    payload: DeriveTsSectorPayload,
+    options?: ExecuteOptions,
+  ): Promise<TsRpcResponse<DerivedTsSectorResult>> {
+    return this.executeTsModeling(TS_MODELING_OPERATIONS.deriveTsSector, context, payload, options);
+  }
+
+  public deriveTsTpmt(
+    context: TsModelingContext,
+    payload: DeriveTsTpmtPayload,
+    options?: ExecuteOptions,
+  ): Promise<TsRpcResponse<DerivedTsTpmtResult>> {
+    return this.executeTsModeling(TS_MODELING_OPERATIONS.deriveTsTpmt, context, payload, options);
+  }
+
+  public deriveTsFemt(
+    context: TsModelingContext,
+    payload: DeriveTsFemtPayload,
+    options?: ExecuteOptions,
+  ): Promise<TsRpcResponse<DerivedTsFemtResult>> {
+    return this.executeTsModeling(TS_MODELING_OPERATIONS.deriveTsFemt, context, payload, options);
+  }
+
+  public exportTsDerivationScript(
+    context: TsModelingContext,
+    payload: ExportTsDerivationScriptPayload,
+    options?: ExecuteOptions,
+  ): Promise<TsRpcResponse<TsDerivationScriptResult>> {
+    return this.executeTsModeling(TS_MODELING_OPERATIONS.exportTsDerivationScript, context, payload, options);
+  }
+
+  private async executeTsModeling<T extends Record<string, unknown>>(
+    operation: TsModelingOperation,
+    context: TsModelingContext,
+    payload: object,
+    options?: ExecuteOptions,
+  ): Promise<TsRpcResponse<T>> {
+    const response = await this.execute({
+      ...context,
+      api_version: RPC_API_VERSION,
+      operation,
+      payload: { ...payload },
+      options: context.options ?? {},
+      timeout_policy: context.timeout_policy ?? { hard_timeout_ms: 60_000, cancel_on_supersede: true },
+    }, { commitOnSuccess: false, ...options });
+    return response as TsRpcResponse<T>;
   }
 
   protected async executeImmediate(
@@ -842,6 +955,7 @@ export abstract class BaseEngineClient implements ControlLabEngineClient {
   public dispose(): void {
     this.coalescer.cancelAll();
     this.progressListeners.clear();
+    this.tsModelingProgressListeners.clear();
     this.store.close();
   }
 }

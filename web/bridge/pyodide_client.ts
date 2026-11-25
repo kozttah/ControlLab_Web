@@ -29,6 +29,7 @@ import {
   type RpcResponse,
   type WireBinaryBuffer,
 } from "./protocol.ts";
+import { isTsModelingOperation, TS_MODELING_PROGRESS_STAGES } from "./ts_modeling.ts";
 import {
   IndexedDBProjectStore,
   type IndexedDBProjectStoreOptions,
@@ -66,6 +67,8 @@ interface PendingRpcEntry {
   cancelTimer?: ReturnType<typeof setTimeout>;
   bridgeTransferMs: number;
   timedOut: boolean;
+  tsCancelled?: boolean;
+  interrupt?: Uint8Array;
 }
 
 interface PendingControlEntry {
@@ -509,6 +512,16 @@ export class PyodideEngineClient extends BaseEngineClient {
       return true;
     }
 
+    if (isTsModelingOperation(pending.request.operation)) {
+      pending.tsCancelled = true;
+      if (pending.interrupt) {
+        // Pyodide consumes byte 0. Byte 1 remains set for the Worker to
+        // discard a result when a native call could not be interrupted.
+        Atomics.store(pending.interrupt, 1, 1);
+        Atomics.store(pending.interrupt, 0, 2);
+      }
+    }
+
     try {
       this.worker?.postMessage({
         kind: "cancel",
@@ -653,9 +666,15 @@ export class PyodideEngineClient extends BaseEngineClient {
         ? performance.now()
         : Date.now();
 
+    const interruptBuffer = isTsModelingOperation(request.operation) &&
+      globalThis.crossOriginIsolated === true && typeof SharedArrayBuffer !== "undefined"
+      ? new SharedArrayBuffer(2)
+      : undefined;
+    const interrupt = interruptBuffer === undefined ? undefined : new Uint8Array(interruptBuffer);
     let message: WorkerInboundMessage = {
       kind: "rpc_request",
       request,
+      ...(interruptBuffer === undefined ? {} : { interrupt_buffer: interruptBuffer }),
     };
     let transferList: ArrayBuffer[] = [];
 
@@ -745,6 +764,7 @@ export class PyodideEngineClient extends BaseEngineClient {
             kind: "rpc_request",
             request: wireRequest,
             buffers: combinedBuffers,
+            ...(interruptBuffer === undefined ? {} : { interrupt_buffer: interruptBuffer }),
           };
           transferList = Array.from(transferSet);
 
@@ -756,6 +776,7 @@ export class PyodideEngineClient extends BaseEngineClient {
             timeoutTimer,
             bridgeTransferMs: 0,
             timedOut: false,
+            interrupt,
           });
 
           try {
@@ -815,6 +836,7 @@ export class PyodideEngineClient extends BaseEngineClient {
           timeoutTimer,
           bridgeTransferMs: 0,
           timedOut: false,
+          interrupt,
         });
         try {
           w.postMessage(message);
@@ -914,6 +936,21 @@ export class PyodideEngineClient extends BaseEngineClient {
 
   private handleWorkerMessage(rawData: unknown): void {
     if (!isPlainObject(rawData)) {
+      return;
+    }
+    if (rawData.type === "ts_modeling_progress") {
+      const requestId = rawData.request_id;
+      const pending = typeof requestId === "string" ? this.pendingRpc.get(requestId) : undefined;
+      if (typeof requestId === "string" && pending && !pending.tsCancelled && !pending.timedOut &&
+        isTsModelingOperation(pending.request.operation) &&
+        !this.coordinator.isStaleRevision(pending.request.project_id, pending.request.project_revision) &&
+        isPlainObject(rawData.progress)) {
+        const { stage, elapsed_ms } = rawData.progress;
+        const acceptedStage = TS_MODELING_PROGRESS_STAGES.find(value => value === stage);
+        if (acceptedStage && typeof elapsed_ms === "number" && Number.isFinite(elapsed_ms) && elapsed_ms >= 0) {
+          this.emitTsModelingProgress({ request_id: requestId, progress: { stage: acceptedStage, elapsed_ms } });
+        }
+      }
       return;
     }
     if (rawData.type === "progress") {
@@ -1034,7 +1071,7 @@ export class PyodideEngineClient extends BaseEngineClient {
 
       try {
         const valid = validateRpcResponse(rawResp);
-        if (pending.timedOut && valid.error?.code === "CANCELLED") {
+        if (pending.timedOut && (valid.error?.code === "CANCELLED" || pending.tsCancelled)) {
           pending.resolve({
             response: buildFailureRpcResponse({
               request_id: pending.request.request_id,
@@ -1050,6 +1087,21 @@ export class PyodideEngineClient extends BaseEngineClient {
             }),
             bridgeTransferMs:
               pending.bridgeTransferMs + (msg.timings?.bridge_serialize_ms ?? 0),
+          });
+          return;
+        }
+        if (pending.tsCancelled && valid.error?.code !== "CANCELLED") {
+          pending.resolve({
+            response: buildFailureRpcResponse({
+              request_id: pending.request.request_id,
+              project_id: pending.request.project_id,
+              project_revision: pending.request.project_revision,
+              code: "CANCELLED",
+              message: "A solicitação de modelagem TS foi cancelada.",
+              algorithm: pending.request.operation,
+              lib_versions: this.getCapabilities().lib_versions,
+            }),
+            bridgeTransferMs: pending.bridgeTransferMs,
           });
           return;
         }

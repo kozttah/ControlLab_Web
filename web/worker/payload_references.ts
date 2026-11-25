@@ -36,6 +36,9 @@ function sources(operation: string, payload: Record<string, unknown>): readonly 
   if (operation === "core.reuse_model") {
     return [{ target: "model", inline: ["model"], refs: ["model_ref"], kinds: REUSABLE }];
   }
+  if (operation === "fuzzy.export_ts_derivation_script") {
+    return [{ target: "model", inline: ["model"], refs: ["model_ref"], kinds: TS_MODELS }];
+  }
   if (["core.interconnect", "core.validate_interconnection"].includes(operation)) {
     return [{ target: "plant", inline: ["plant"], refs: ["plant_ref"], kinds: ["StateSpace", "TransferFunction", ...TS_MODELS] }];
   }

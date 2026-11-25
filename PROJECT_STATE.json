@@ -7038,17 +7038,50 @@
       ]
     },
     {
+      "wp_id": "WP-TSMOD-02B-F5-FEMT-ENGINE",
+      "front": "f5-fuzzy-ts",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F5: Motor de Transformação por Elementos Finitos (FEMT) via SVD matricial ótima (Eckart-Young), fechos convexos globais e interpolação simplicial P1 baricêntrica (Delaunay / Kuhn-Delaunay)",
+      "allowed_paths": [
+        "control_lab/fuzzy/",
+        "tests/unit/f5/"
+      ],
+      "dependencies": [
+        "WP-TSMOD-02-F5-TPMT-ENGINE"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-05",
+        "R-21",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-TSMOD-05",
+        "T-TSMOD-08"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/test_femt_engine.py tests/unit/f5/ -v",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
+      "acceptance_requirements": [
+        "Implementar control_lab/fuzzy/femt.py empilhando vec(S(p^(q))) em X in R^(M x N_g) e aplicando SVD econômica (full_matrices=False) com otimalidade global exata de Eckart-Young-Mirsky (zero álgebra tensorial e zero linalg.inv)",
+        "Reutilizar e estender sn_nn_matrix, rno_ino_matrix, cno_matrix (com salvaguarda escalável sem explosão de ConvexHull quando posto global >= 7) e mgk_matrix sobre U_R in R^(N_g x R) para obter o mínimo algébrico de regras N_r in {R, R+1}",
+        "Implementar reconstrução contínua por Elementos Finitos Lineares P1 baricêntricos suportando tanto mesh_kind='delaunay' explícita (scipy.spatial.Delaunay para D in {2,3} e intervalos 1D) quanto mesh_kind='kuhn_delaunay' conformante O(D log D) sobre grades retilíneas (1 <= D <= 5)",
+        "Implementar derive_ts_femt gerando TSStateSpace 100% conforme ts_state_space.schema.json (representation_kind='femt_simplicial', ModelFidelityCertificate nodal e fora dos nós) e estender evaluate_ts_premise_weights em ts_bridge.py"
+      ]
+    },
+    {
       "wp_id": "WP-TSMOD-03A-F1-RPC-PATHSIM-SCRIPTS",
       "front": "f1-core-io",
       "phase": "Phase10-TS-qLPV-Modeling",
-      "title": "F1: Catálogo RPC (fuzzy.analyze_sector_premises, derive_ts_sector, derive_ts_tpmt, export_ts_derivation_script), PathSim com h_fn(x) real e round-trip .ctrlab",
+      "title": "F1: Catálogo RPC (analyze_sector_premises, derive_ts_sector, derive_ts_tpmt, derive_ts_femt, export_ts_derivation_script), PathSim com h_fn(x) real nas 3 vias e round-trip .ctrlab",
       "allowed_paths": [
         "control_lab/core/",
         "control_lab/io/",
         "tests/unit/f1/"
       ],
       "dependencies": [
-        "WP-TSMOD-02-F5-TPMT-ENGINE"
+        "WP-TSMOD-02B-F5-FEMT-ENGINE"
       ],
       "requirement_ids": [
         "R-04",
@@ -7057,23 +7090,24 @@
         "R-27"
       ],
       "normative_tests": [
-        "T-TSMOD-07"
+        "T-TSMOD-07",
+        "T-TSMOD-08"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f1/ -v",
       "status": "PENDING",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
       "acceptance_requirements": [
-        "Registrar e rotear no despachante RPC canônico as operações fuzzy.analyze_sector_premises, fuzzy.derive_ts_sector, fuzzy.derive_ts_tpmt e fuzzy.export_ts_derivation_script (Python/MATLAB offline)",
-        "Atualizar _emit_ts_pdc_pathsim_script em control_lab/io/pvm.py para emitir função h_fn(x) analítica (sector_nonlinearity) ou np.interp (tpmt_interpolated) em vez do stub uniforme 1/N_VERTICES",
-        "Garantir serialização e restauração round-trip .ctrlab de provenance.ts_derivation e dos novos formatos de membership_spec sem violar ts_state_space.schema.json"
+        "Registrar e rotear no despachante RPC canônico as operações fuzzy.analyze_sector_premises, fuzzy.derive_ts_sector, fuzzy.derive_ts_tpmt, fuzzy.derive_ts_femt e fuzzy.export_ts_derivation_script (Python/MATLAB offline para Setor, TPMT e FEMT)",
+        "Atualizar _emit_ts_pdc_pathsim_script em control_lab/io/pvm.py para emitir função h_fn(x) real analítica (sector_nonlinearity), np.interp (tpmt_interpolated) ou baricêntrica P1 simplicial (femt_simplicial) em vez do stub uniforme 1/N_VERTICES",
+        "Garantir serialização e restauração round-trip .ctrlab de provenance.ts_derivation e dos 3 formatos de membership_spec sem violar ts_state_space.schema.json"
       ]
     },
     {
       "wp_id": "WP-TSMOD-03B-F7-WORKER-BRIDGE",
       "front": "f7-worker-bridge",
       "phase": "Phase10-TS-qLPV-Modeling",
-      "title": "F7: Integração dos endpoints RPC de modelagem TS/qLPV no Worker Pyodide, ponte TypeScript, guarda de memória/cancelamento e MockWorkerAdapter",
+      "title": "F7: Integração dos endpoints RPC das 3 vias de modelagem TS/qLPV (Setor, TPMT e FEMT) no Worker Pyodide, ponte TypeScript, guarda de memória/cancelamento e MockWorkerAdapter",
       "allowed_paths": [
         "web/bridge/",
         "web/worker/",
@@ -7095,16 +7129,16 @@
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
       "acceptance_requirements": [
-        "Expor métodos tipados analyzeSectorPremises, deriveTsSector, deriveTsTpmt e exportTsDerivationScript na ponte RPC (web/bridge/) com suporte a progresso e cancelamento cooperativo",
+        "Expor métodos tipados analyzeSectorPremises, deriveTsSector, deriveTsTpmt, deriveTsFemt e exportTsDerivationScript na ponte RPC (web/bridge/) com suporte a progresso e cancelamento cooperativo",
         "Garantir liberação determinística de PyProxy e aplicação do envelope de memória Wasm no Worker Pyodide (web/worker/)",
-        "Fornecer respostas determinísticas correspondentes no MockWorkerAdapter para testes unitários rápidos da F8"
+        "Fornecer respostas determinísticas correspondentes (incluindo FEMT) no MockWorkerAdapter para testes unitários rápidos da F8"
       ]
     },
     {
       "wp_id": "WP-TSMOD-04-F8-TS-MODELING-TAB-UI",
       "front": "f8-ui-charts",
       "phase": "Phase10-TS-qLPV-Modeling",
-      "title": "F8: Nova Aba 6 (ts_modeling — Obtenção de Modelos TS: Setor & TPMT), gráficos de bases/pertinências/valores singulares/erro e promoção 1-clique ao Workspace Dock e Aba 7 (LMIs)",
+      "title": "F8: Nova Aba 6 (ts_modeling — Obtenção de Modelos TS: Setor, TPMT & FEMT), gráficos 1D/Delaunay 2D/valores singulares/erro e promoção 1-clique ao Workspace Dock e Aba 7 (LMIs)",
       "allowed_paths": [
         "web/features/",
         "web/charts/",
@@ -7120,15 +7154,16 @@
         "R-27"
       ],
       "normative_tests": [
-        "T-TSMOD-07"
+        "T-TSMOD-07",
+        "T-TSMOD-08"
       ],
       "acceptance_cmd": "npm --prefix web run test:unit:f8 && npm --prefix web run build",
       "status": "PENDING",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
       "acceptance_requirements": [
-        "Expandir PROJECT_TAB_IDS e PROJECT_TAB_METADATA para 7 abas, inserindo '6. Obtenção de Modelos TS (Setor & TPMT)' (ts_modeling) após fuzzy_ts (5) e deslocando optimization_lmi para 7",
-        "Implementar fluxo guiado para Via 1 (Setor) e Via 2 (TPMT) com presets didáticos (incluindo pêndulo invertido de 4 premissas / 16 regras), visualização de h_r(·), bases U^(d) vs W^(d), scree plot de valores singulares e mapa de calor de erro fora da grade",
+        "Expandir PROJECT_TAB_IDS e PROJECT_TAB_METADATA para 7 abas, inserindo '6. Obtenção de Modelos TS (Setor, TPMT & FEMT)' (ts_modeling) após fuzzy_ts (5) e deslocando optimization_lmi para 7",
+        "Implementar fluxo guiado para Via 1 (Setor), Via 2 (TPMT) e Via 3 (FEMT) com presets didáticos (pêndulo invertido 16 regras + benchmark não-separável demonstrando redução de regras FEMT vs TPMT), visualização 1D de h_r(·), malha/superfície simplicial Delaunay 2D (FEMT), bases U vs W, scree plot de valores singulares e mapa de calor de erro fora da grade",
         "Integrar promoção em 1 clique ao Workspace Dock (ADR-014) com atalho 'Registrar e Abrir em LMIs', recarga de receita via provenance.ts_derivation e exportação de scripts Python/MATLAB"
       ]
     },
@@ -7136,7 +7171,7 @@
       "wp_id": "WP-TSMOD-05-F9-TS-MODELING-AUDIT-ORACLES",
       "front": "f9-integration-qa",
       "phase": "Phase10-TS-qLPV-Modeling",
-      "title": "F9: Auditoria independente da Fase 10 — oráculos analíticos (pêndulo 16 regras) e tensoriais (referências MATLAB TPMT), validação Pyodide Wasm real e E2E Playwright Aba 6 -> Workspace -> Aba 7 LMIs",
+      "title": "F9: Auditoria independente da Fase 10 — oráculos analíticos (Setor 16 regras), tensoriais (TPMT) e elementos finitos simpliciais (FEMT), validação Pyodide Wasm real e E2E Playwright",
       "allowed_paths": [
         "tests/oracles/",
         "tests/metamorphic/",
@@ -7164,15 +7199,16 @@
         "T-TSMOD-04",
         "T-TSMOD-05",
         "T-TSMOD-06",
-        "T-TSMOD-07"
+        "T-TSMOD-07",
+        "T-TSMOD-08"
       ],
       "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/ tests/unit/f1/ tests/oracles/test_ts_modeling_oracles.py tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
       "status": "PENDING",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
       "acceptance_requirements": [
-        "Oráculos independentes F9 validando T-TSMOD-01..07 sem circularidade (pêndulo invertido de 4 premissas / 16 regras, funções multimodais, invariantes HOSVD/HOOI/SN-NN/RNO-INO/CNO e zero linalg.inv/eval)",
-        "Prova de execução em Pyodide Wasm real no navegador (test_real_runtime.py) e fluxo E2E Aba 6 -> Workspace -> Aba 7 (LMIs PDC relaxadas) -> PathSim/.ctrlab",
+        "Oráculos independentes F9 validando T-TSMOD-01..08 sem circularidade (Setor 16 regras, HOSVD/HOOI/SN-NN/RNO-INO/CNO, e FEMT: otimalidade Eckart-Young, redução estrita N_r^FEMT < N_r^TPMT sob acoplamento e interpolação P1 Delaunay/Kuhn-Delaunay, zero linalg.inv/eval)",
+        "Prova de execução das 3 vias em Pyodide Wasm real no navegador (test_real_runtime.py) e fluxo E2E Aba 6 -> Workspace -> Aba 7 (LMIs PDC relaxadas) -> PathSim/.ctrlab",
         "Emissão dos handoffs normativos do Apêndice E e fechamento governado da Fase 10"
       ]
     }

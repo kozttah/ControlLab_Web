@@ -6947,6 +6947,212 @@
         "docs/architecture/ADR-015-native-sdp-v2-memory-hsde-sparsity-roadmap.md",
         "README.md"
       ]
+    },
+    {
+      "wp_id": "WP-TSMOD-01-F5-SECTOR-NONLINEARITY",
+      "front": "f5-fuzzy-ts",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F5: Motor simbólico qLPV seguro (AST sem eval, sinc_rad), buscador híbrido de extremos em 3 estágios e obtenção exata de modelos TS via Não-Linearidade de Setor (2^nn vértices)",
+      "allowed_paths": [
+        "control_lab/fuzzy/",
+        "tests/unit/f5/"
+      ],
+      "dependencies": [
+        "WP-PHASE9-06B-F9-SVEC-STAGNATION-AUDIT"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-05",
+        "R-21",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-TSMOD-01",
+        "T-TSMOD-02",
+        "T-TSMOD-03"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/test_sector_nonlinearity.py tests/unit/f5/ -v",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
+      "acceptance_requirements": [
+        "Implementar control_lab/fuzzy/symbolic_qlpv.py com parser AST determinístico (zero eval/exec), detecção de variáveis ativas por expressão, primitiva C-infinito sinc_rad(u) e verificador de multilinearidade/afinidade em z",
+        "Implementar pipeline híbrido de 3 estágios para extremos globais [z_min, z_max]: Aritmética Intervalar exata para Single-Use Expressions + varredura vetorizada densa no subespaço ativo (ou vértices + Sobol para d >= 4) + polimento multi-start Brent/L-BFGS-B",
+        "Implementar control_lab/fuzzy/sector_nonlinearity.py gerando TSStateSpace canônico (2^nn vértices, membership_spec.representation_kind='sector_nonlinearity', premise_availability e ModelFidelityCertificate fora da grade)",
+        "Atualizar evaluate_ts_premise_weights em control_lab/fuzzy/ts_bridge.py para suportar representation_kind='sector_nonlinearity' com precisão <= 1e-13"
+      ]
+    },
+    {
+      "wp_id": "WP-TSMOD-02-F5-TPMT-ENGINE",
+      "front": "f5-fuzzy-ts",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F5: Motor de Transformação do Produto Tensorial (TPMT) em NumPy/SciPy puro (HOSVD, HOOI, SN-NN, RNO-INO, CNO via ConvexHull+SLSQP, MGK, zero linalg.inv) e interpolador contínuo",
+      "allowed_paths": [
+        "control_lab/fuzzy/",
+        "tests/unit/f5/"
+      ],
+      "dependencies": [
+        "WP-TSMOD-01-F5-SECTOR-NONLINEARITY"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-05",
+        "R-21",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-TSMOD-04",
+        "T-TSMOD-05",
+        "T-TSMOD-06"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/test_tpmt_engine.py tests/unit/f5/ -v",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "design_ref": "docs/references/tpmt_matlab/",
+      "acceptance_requirements": [
+        "Implementar control_lab/fuzzy/tpmt.py com unfold_mode/fold_mode/mode_product vetorizados, hosvd_sampled_func e hooi_sampled_func (sem Kronecker explícito) deixando os 2 modos matriciais finais intactos",
+        "Implementar transformações de fecho convexo sn_nn_matrix (lstsq + fatia nula quando 1 fora do span), rno_ino_matrix (recursivo + bisseção determinística), cno_matrix (scipy.spatial.ConvexHull + SLSQP -log|det T| sem YALMIP) e mgk_matrix com zero chamadas a linalg.inv",
+        "Suportar reamostragem 1D opcional pós-SVD, interpolação contínua linear por partes preservando SN e NN fora da grade, guarda de envelope Wasm e atualização de evaluate_ts_premise_weights para representation_kind='tpmt_interpolated'"
+      ]
+    },
+    {
+      "wp_id": "WP-TSMOD-03A-F1-RPC-PATHSIM-SCRIPTS",
+      "front": "f1-core-io",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F1: Catálogo RPC (fuzzy.analyze_sector_premises, derive_ts_sector, derive_ts_tpmt, export_ts_derivation_script), PathSim com h_fn(x) real e round-trip .ctrlab",
+      "allowed_paths": [
+        "control_lab/core/",
+        "control_lab/io/",
+        "tests/unit/f1/"
+      ],
+      "dependencies": [
+        "WP-TSMOD-02-F5-TPMT-ENGINE"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-18",
+        "R-21",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-TSMOD-07"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f1/ -v",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
+      "acceptance_requirements": [
+        "Registrar e rotear no despachante RPC canônico as operações fuzzy.analyze_sector_premises, fuzzy.derive_ts_sector, fuzzy.derive_ts_tpmt e fuzzy.export_ts_derivation_script (Python/MATLAB offline)",
+        "Atualizar _emit_ts_pdc_pathsim_script em control_lab/io/pvm.py para emitir função h_fn(x) analítica (sector_nonlinearity) ou np.interp (tpmt_interpolated) em vez do stub uniforme 1/N_VERTICES",
+        "Garantir serialização e restauração round-trip .ctrlab de provenance.ts_derivation e dos novos formatos de membership_spec sem violar ts_state_space.schema.json"
+      ]
+    },
+    {
+      "wp_id": "WP-TSMOD-03B-F7-WORKER-BRIDGE",
+      "front": "f7-worker-bridge",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F7: Integração dos endpoints RPC de modelagem TS/qLPV no Worker Pyodide, ponte TypeScript, guarda de memória/cancelamento e MockWorkerAdapter",
+      "allowed_paths": [
+        "web/bridge/",
+        "web/worker/",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-TSMOD-03A-F1-RPC-PATHSIM-SCRIPTS"
+      ],
+      "requirement_ids": [
+        "R-18",
+        "R-20",
+        "R-21"
+      ],
+      "normative_tests": [
+        "T-TSMOD-07"
+      ],
+      "acceptance_cmd": "npm --prefix web run test:unit:f7 && npm --prefix web run build",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Expor métodos tipados analyzeSectorPremises, deriveTsSector, deriveTsTpmt e exportTsDerivationScript na ponte RPC (web/bridge/) com suporte a progresso e cancelamento cooperativo",
+        "Garantir liberação determinística de PyProxy e aplicação do envelope de memória Wasm no Worker Pyodide (web/worker/)",
+        "Fornecer respostas determinísticas correspondentes no MockWorkerAdapter para testes unitários rápidos da F8"
+      ]
+    },
+    {
+      "wp_id": "WP-TSMOD-04-F8-TS-MODELING-TAB-UI",
+      "front": "f8-ui-charts",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F8: Nova Aba 6 (ts_modeling — Obtenção de Modelos TS: Setor & TPMT), gráficos de bases/pertinências/valores singulares/erro e promoção 1-clique ao Workspace Dock e Aba 7 (LMIs)",
+      "allowed_paths": [
+        "web/features/",
+        "web/charts/",
+        "web/app/",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-TSMOD-03B-F7-WORKER-BRIDGE"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-18",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-TSMOD-07"
+      ],
+      "acceptance_cmd": "npm --prefix web run test:unit:f8 && npm --prefix web run build",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
+      "acceptance_requirements": [
+        "Expandir PROJECT_TAB_IDS e PROJECT_TAB_METADATA para 7 abas, inserindo '6. Obtenção de Modelos TS (Setor & TPMT)' (ts_modeling) após fuzzy_ts (5) e deslocando optimization_lmi para 7",
+        "Implementar fluxo guiado para Via 1 (Setor) e Via 2 (TPMT) com presets didáticos (incluindo pêndulo invertido de 4 premissas / 16 regras), visualização de h_r(·), bases U^(d) vs W^(d), scree plot de valores singulares e mapa de calor de erro fora da grade",
+        "Integrar promoção em 1 clique ao Workspace Dock (ADR-014) com atalho 'Registrar e Abrir em LMIs', recarga de receita via provenance.ts_derivation e exportação de scripts Python/MATLAB"
+      ]
+    },
+    {
+      "wp_id": "WP-TSMOD-05-F9-TS-MODELING-AUDIT-ORACLES",
+      "front": "f9-integration-qa",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F9: Auditoria independente da Fase 10 — oráculos analíticos (pêndulo 16 regras) e tensoriais (referências MATLAB TPMT), validação Pyodide Wasm real e E2E Playwright Aba 6 -> Workspace -> Aba 7 LMIs",
+      "allowed_paths": [
+        "tests/oracles/",
+        "tests/metamorphic/",
+        "tests/wasm/",
+        "tests/e2e/",
+        "docs/architecture/",
+        "docs/audits/",
+        "PROJECT_STATE.json",
+        "README.md"
+      ],
+      "dependencies": [
+        "WP-TSMOD-04-F8-TS-MODELING-TAB-UI"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-05",
+        "R-18",
+        "R-21",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-TSMOD-01",
+        "T-TSMOD-02",
+        "T-TSMOD-03",
+        "T-TSMOD-04",
+        "T-TSMOD-05",
+        "T-TSMOD-06",
+        "T-TSMOD-07"
+      ],
+      "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/ tests/unit/f1/ tests/oracles/test_ts_modeling_oracles.py tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
+      "acceptance_requirements": [
+        "Oráculos independentes F9 validando T-TSMOD-01..07 sem circularidade (pêndulo invertido de 4 premissas / 16 regras, funções multimodais, invariantes HOSVD/HOOI/SN-NN/RNO-INO/CNO e zero linalg.inv/eval)",
+        "Prova de execução em Pyodide Wasm real no navegador (test_real_runtime.py) e fluxo E2E Aba 6 -> Workspace -> Aba 7 (LMIs PDC relaxadas) -> PathSim/.ctrlab",
+        "Emissão dos handoffs normativos do Apêndice E e fechamento governado da Fase 10"
+      ]
     }
   ],
   "audit_history": [

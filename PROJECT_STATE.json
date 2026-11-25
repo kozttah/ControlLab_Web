@@ -28,7 +28,7 @@
       "2026-11-22": 13,
       "2026-11-23": 1,
       "2026-11-24": 6,
-      "2026-11-25": 2
+      "2026-11-25": 3
     }
   },
   "audit_reference": {
@@ -7060,7 +7060,7 @@
         "T-TSMOD-08"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/test_femt_engine.py tests/unit/f5/ -v",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
       "acceptance_requirements": [
@@ -7068,6 +7068,17 @@
         "Reutilizar e estender sn_nn_matrix, rno_ino_matrix, cno_matrix (com salvaguarda escalável sem explosão de ConvexHull quando posto global >= 7) e mgk_matrix sobre U_R in R^(N_g x R) para obter o mínimo algébrico de regras N_r in {R, R+1}",
         "Implementar reconstrução contínua por Elementos Finitos Lineares P1 baricêntricos suportando tanto mesh_kind='delaunay' explícita (scipy.spatial.Delaunay para D in {2,3} e intervalos 1D) quanto mesh_kind='kuhn_delaunay' conformante O(D log D) sobre grades retilíneas (1 <= D <= 5)",
         "Implementar derive_ts_femt gerando TSStateSpace 100% conforme ts_state_space.schema.json (representation_kind='femt_simplicial', ModelFidelityCertificate nodal e fora dos nós) e estender evaluate_ts_premise_weights em ts_bridge.py"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f5_phase10_wp2b_femt_eckart_young_svd_scalable_cno_and_p1_simplicial_interp",
+      "handoff_ref": "docs/audits/handoffs/WP-TSMOD-02B-F5-FEMT-ENGINE.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-TSMOD-02B-F5-FEMT-ENGINE.md",
+        "control_lab/fuzzy/femt.py",
+        "control_lab/fuzzy/tpmt.py",
+        "control_lab/fuzzy/ts_bridge.py",
+        "control_lab/fuzzy/__init__.py",
+        "tests/unit/f5/test_femt_engine.py"
       ]
     },
     {

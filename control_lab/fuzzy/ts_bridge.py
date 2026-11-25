@@ -25,6 +25,7 @@ from control_lab.diagnostics import (
     build_provenance,
 )
 
+from .femt import evaluate_femt_delaunay, evaluate_femt_kuhn_delaunay
 from .inference import _coerce_fuzzy_system, _compute_rule_activations, _evaluate_input_memberships
 from .membership import evaluate_mf
 from .symbolic_qlpv import evaluate_scalar
@@ -235,6 +236,82 @@ def evaluate_ts_premise_weights(
                         prod_val *= float(axis_weights[d_idx][j_int])
                     w_list.append(float(prod_val))
                 w_arr = np.asarray(w_list, dtype=np.float64)
+                model_rev = ts_obj.revision
+            elif ms.get("representation_kind") == "femt_simplicial":
+                femt_mesh = ms.get("femt_mesh")
+                if not isinstance(femt_mesh, Mapping):
+                    raise ValidationError("membership_spec.femt_mesh deve ser um mapeamento válido.")
+                mesh_kind = str(femt_mesh.get("mesh_kind", "kuhn_delaunay")).strip().lower()
+                mesh_vars = [str(v) for v in femt_mesh.get("variables", p_vars)]
+                if len(mesh_vars) != len(p_vars) or len(mesh_vars) < 1:
+                    raise ValidationError(
+                        "membership_spec.femt_mesh.variables deve corresponder a premise_variables."
+                    )
+                nodal_weights = ensure_finite_float64(
+                    femt_mesh.get("nodal_weights"),
+                    ndim=2,
+                    name="femt_mesh.nodal_weights",
+                )
+                if nodal_weights.shape[1] != ts_obj.n_vertices:
+                    raise DimensionMismatchError(
+                        f"femt_mesh.nodal_weights possui {nodal_weights.shape[1]} colunas, "
+                        f"mas o modelo possui {ts_obj.n_vertices} vértices."
+                    )
+
+                if isinstance(premise_values, Mapping):
+                    raw_env = {str(k): float(v) for k, v in premise_values.items()}
+                    eval_in = {}
+                    for var_name in mesh_vars:
+                        if var_name not in raw_env:
+                            raise ValidationError(
+                                f"Variável de premissa FEMT {var_name!r} ausente em premise_values."
+                            )
+                        eval_in[var_name] = raw_env[var_name]
+                else:
+                    z_arr = ensure_finite_float64(premise_values, ndim=1, name="premise_values")
+                    if z_arr.size == len(mesh_vars):
+                        eval_in = {mesh_vars[i]: float(z_arr[i]) for i in range(len(mesh_vars))}
+                    elif z_arr.size == ts_obj.n_states:
+                        raw_env = {ts_obj.state_names[i]: float(z_arr[i]) for i in range(ts_obj.n_states)}
+                        eval_in = {}
+                        for var_name in mesh_vars:
+                            if var_name not in raw_env:
+                                raise ValidationError(
+                                    f"Variável de premissa FEMT {var_name!r} não encontrada em state_names."
+                                )
+                            eval_in[var_name] = raw_env[var_name]
+                    else:
+                        raise DimensionMismatchError(
+                            f"Esperado {len(mesh_vars)} premissas ou {ts_obj.n_states} estados, recebido {z_arr.size}."
+                        )
+
+                pt_vec = np.array([eval_in[nm] for nm in mesh_vars], dtype=np.float64)
+                if mesh_kind == "kuhn_delaunay":
+                    raw_grids = femt_mesh.get("axes_grids")
+                    if not isinstance(raw_grids, Sequence) or len(raw_grids) != len(mesh_vars):
+                        raise ValidationError(
+                            f"femt_mesh.axes_grids deve conter {len(mesh_vars)} grades 1D."
+                        )
+                    axes_grids = [
+                        ensure_finite_float64(g, ndim=1, name=f"femt_mesh.axes_grids[{i}]")
+                        for i, g in enumerate(raw_grids)
+                    ]
+                    w_arr = evaluate_femt_kuhn_delaunay(pt_vec, axes_grids, nodal_weights)
+                elif mesh_kind == "delaunay":
+                    nodes = ensure_finite_float64(femt_mesh.get("nodes"), ndim=2, name="femt_mesh.nodes")
+                    simplices = femt_mesh.get("simplices")
+                    bounds = femt_mesh.get("bounds")
+                    w_arr = evaluate_femt_delaunay(
+                        pt_vec,
+                        nodes,
+                        simplices,
+                        nodal_weights,
+                        bounds=bounds,
+                    )
+                else:
+                    raise ValidationError(
+                        f"femt_mesh.mesh_kind inválido: {mesh_kind!r}. Use 'kuhn_delaunay' ou 'delaunay'."
+                    )
                 model_rev = ts_obj.revision
             else:
                 if isinstance(premise_values, Mapping):

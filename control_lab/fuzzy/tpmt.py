@@ -696,12 +696,69 @@ def rno_ino_matrix(
     return W, T_total, info
 
 
+def _extract_directional_extremes(U_sn_nn: np.ndarray) -> np.ndarray:
+    """Pré-filtragem determinística de pontos extremos direcionais + coordenados para posto r >= 7."""
+    g_len, r = U_sn_nn.shape
+    dim = r - 1
+    U_proj = U_sn_nn[:, :-1]
+
+    selected: list[int] = []
+    # 1. Extremos coordenados em todas as r colunas (inclui a coluna complementar)
+    for j in range(r):
+        selected.append(int(np.argmin(U_sn_nn[:, j])))
+        selected.append(int(np.argmax(U_sn_nn[:, j])))
+
+    # 2. Direções diagonais pareadas e_i +/- e_j em R^{r-1}
+    dirs_list: list[np.ndarray] = []
+    inv_sqrt2 = 1.0 / math.sqrt(2.0)
+    for i in range(dim):
+        for j in range(i + 1, dim):
+            d_plus = np.zeros(dim, dtype=np.float64)
+            d_plus[i] = inv_sqrt2
+            d_plus[j] = inv_sqrt2
+            dirs_list.append(d_plus)
+
+            d_minus = np.zeros(dim, dtype=np.float64)
+            d_minus[i] = inv_sqrt2
+            d_minus[j] = -inv_sqrt2
+            dirs_list.append(d_minus)
+
+    # 3. Direções unitárias determinísticas sobre a esfera em R^{r-1}
+    n_rand = min(96, max(32, 8 * dim))
+    rng = np.random.default_rng(20261125 + r)
+    raw_dirs = rng.standard_normal((n_rand, dim))
+    norms = np.linalg.norm(raw_dirs, axis=1, keepdims=True)
+    norms = np.where(norms > 1e-12, norms, 1.0)
+    unit_dirs = raw_dirs / norms
+
+    all_dirs = np.vstack([np.asarray(dirs_list, dtype=np.float64), unit_dirs]) if dirs_list else unit_dirs
+    projs = U_proj @ all_dirs.T  # (g_len, n_dirs)
+    min_idx = np.argmin(projs, axis=0)
+    max_idx = np.argmax(projs, axis=0)
+    selected.extend(int(v) for v in min_idx.tolist())
+    selected.extend(int(v) for v in max_idx.tolist())
+
+    uniq_idx = np.unique(np.asarray(selected, dtype=np.int64))
+    if uniq_idx.size >= r:
+        return U_sn_nn[uniq_idx, :]
+    # Fallback se o conjunto extremo for menor que r
+    step = max(1, g_len // max(r + 2, 16))
+    return U_sn_nn[::step, :]
+
+
 def _extract_hull_rows(U_sn_nn: np.ndarray) -> tuple[np.ndarray, bool]:
-    """Reduz as linhas de `U_sn_nn` aos vértices do fecho convexo em R^{r-1}."""
+    """Reduz as linhas de `U_sn_nn` aos vértices do fecho convexo em R^{r-1}.
+
+    Para `r <= 6`, usa `scipy.spatial.ConvexHull` exato.
+    Para `r >= 7`, evita explosão combinatória do Qhull aplicando pré-filtragem
+    determinística de extremos coordenados + direcionais sobre a esfera unitária.
+    """
     r = U_sn_nn.shape[1]
     if r <= 2 or U_sn_nn.shape[0] <= r + 1:
         uniq = np.unique(np.round(U_sn_nn, decimals=12), axis=0)
         return (uniq if uniq.shape[0] >= r else U_sn_nn), False
+    if r >= 7:
+        return _extract_directional_extremes(U_sn_nn), False
     try:
         hull = ConvexHull(U_sn_nn[:, :-1])
         idx = np.unique(hull.vertices)
@@ -725,20 +782,14 @@ def _solve_cno_slsqp(U_hull: np.ndarray, T_init: np.ndarray) -> tuple[np.ndarray
     n_vars = r * (r - 1)
     I_r = np.eye(r, dtype=np.float64)
 
-    # Pré-calcula o Jacobiano constante das restrições lineares U_hull @ T >= 0
+    # Pré-calcula o Jacobiano constante das restrições lineares U_hull @ T >= 0 (vetorizado)
     # Restrição (h, j) para j < r - 1: sum_i U_hull[h, i] * T[i, j]
     # Restrição (h, r - 1): 1 - sum_i sum_{k=0}^{r-2} U_hull[h, i] * T[i, k]
-    jac_ineq = np.zeros((h_count * r, n_vars), dtype=np.float64)
-    for h_idx in range(h_count):
-        u_row = U_hull[h_idx]
-        for j in range(r - 1):
-            row_id = h_idx * r + j
-            for i in range(r):
-                jac_ineq[row_id, i * (r - 1) + j] = u_row[i]
-        row_last = h_idx * r + (r - 1)
-        for i in range(r):
-            for k in range(r - 1):
-                jac_ineq[row_last, i * (r - 1) + k] = -u_row[i]
+    jac_4d = np.zeros((h_count, r, r, r - 1), dtype=np.float64)
+    for j in range(r - 1):
+        jac_4d[:, j, :, j] = U_hull
+    jac_4d[:, r - 1, :, :] = -U_hull[:, :, None]
+    jac_ineq = jac_4d.reshape(h_count * r, n_vars)
 
     def objective(x: np.ndarray) -> float:
         T = _unpack_cno_T(x, r)
@@ -766,13 +817,14 @@ def _solve_cno_slsqp(U_hull: np.ndarray, T_init: np.ndarray) -> tuple[np.ndarray
         return jac_ineq
 
     x0 = T_init[:, :-1].ravel().copy()
+    maxiter = 120 if r >= 7 else 250
     res = minimize(
         objective,
         x0,
         method="SLSQP",
         jac=grad_objective,
         constraints=[{"type": "ineq", "fun": ineq_fun, "jac": ineq_jac}],
-        options={"maxiter": 250, "ftol": 1e-11, "disp": False},
+        options={"maxiter": maxiter, "ftol": 1e-11, "disp": False},
     )
     T_opt = _unpack_cno_T(res.x, r)
     sign, logabsdet = np.linalg.slogdet(T_opt)
@@ -798,6 +850,7 @@ def cno_matrix(
     g_len, r = U_arr.shape
     fallback_used = False
     used_convex_hull = False
+    used_directional_prefilter = bool(r >= 7)
     n_hull_vertices = g_len
 
     if r == 1:
@@ -864,6 +917,7 @@ def cno_matrix(
         "rank_before": r,
         "rank_after": r,
         "used_convex_hull": used_convex_hull,
+        "used_directional_prefilter": used_directional_prefilter,
         "n_hull_vertices": n_hull_vertices,
         "min_weight": float(np.min(W)),
         "max_sum_deviation": float(np.max(np.abs(np.sum(W, axis=1) - 1.0))),

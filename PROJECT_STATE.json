@@ -28,7 +28,7 @@
       "2026-11-22": 13,
       "2026-11-23": 1,
       "2026-11-24": 6,
-      "2026-11-25": 1
+      "2026-11-25": 2
     }
   },
   "audit_reference": {
@@ -7018,13 +7018,23 @@
         "T-TSMOD-06"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/test_tpmt_engine.py tests/unit/f5/ -v",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/references/tpmt_matlab/",
       "acceptance_requirements": [
         "Implementar control_lab/fuzzy/tpmt.py com unfold_mode/fold_mode/mode_product vetorizados, hosvd_sampled_func e hooi_sampled_func (sem Kronecker explícito) deixando os 2 modos matriciais finais intactos",
         "Implementar transformações de fecho convexo sn_nn_matrix (lstsq + fatia nula quando 1 fora do span), rno_ino_matrix (recursivo + bisseção determinística), cno_matrix (scipy.spatial.ConvexHull + SLSQP -log|det T| sem YALMIP) e mgk_matrix com zero chamadas a linalg.inv",
         "Suportar reamostragem 1D opcional pós-SVD, interpolação contínua linear por partes preservando SN e NN fora da grade, guarda de envelope Wasm e atualização de evaluate_ts_premise_weights para representation_kind='tpmt_interpolated'"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f5_phase10_wp2_tpmt_hosvd_hooi_convex_hulls_zero_inv_and_continuous_interp",
+      "handoff_ref": "docs/audits/handoffs/WP-TSMOD-02-F5-TPMT-ENGINE.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-TSMOD-02-F5-TPMT-ENGINE.md",
+        "control_lab/fuzzy/tpmt.py",
+        "control_lab/fuzzy/ts_bridge.py",
+        "control_lab/fuzzy/__init__.py",
+        "tests/unit/f5/test_tpmt_engine.py"
       ]
     },
     {

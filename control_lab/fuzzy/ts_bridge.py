@@ -167,6 +167,75 @@ def evaluate_ts_premise_weights(
                     w_list.append(float(prod_val))
                 w_arr = np.asarray(w_list, dtype=np.float64)
                 model_rev = ts_obj.revision
+            elif ms.get("representation_kind") == "tpmt_interpolated":
+                tpmt_axes = ms.get("tpmt_axes", [])
+                if not isinstance(tpmt_axes, Sequence) or len(tpmt_axes) != len(p_vars):
+                    raise ValidationError(
+                        "membership_spec.tpmt_axes deve conter exatamente uma entrada por premise_variable."
+                    )
+
+                if isinstance(premise_values, Mapping):
+                    raw_env = {str(k): float(v) for k, v in premise_values.items()}
+                    eval_in = {}
+                    for ax in tpmt_axes:
+                        var_name = str(ax["variable"])
+                        if var_name in raw_env:
+                            eval_in[var_name] = raw_env[var_name]
+                        else:
+                            expr = str(ax.get("expression", var_name))
+                            eval_in[var_name] = float(evaluate_scalar(expr, raw_env))
+                else:
+                    z_arr = ensure_finite_float64(premise_values, ndim=1, name="premise_values")
+                    if z_arr.size == len(p_vars):
+                        eval_in = {str(tpmt_axes[i]["variable"]): float(z_arr[i]) for i in range(len(p_vars))}
+                    elif z_arr.size == ts_obj.n_states:
+                        raw_env = {ts_obj.state_names[i]: float(z_arr[i]) for i in range(ts_obj.n_states)}
+                        eval_in = {}
+                        for ax in tpmt_axes:
+                            var_name = str(ax["variable"])
+                            if var_name in raw_env:
+                                eval_in[var_name] = raw_env[var_name]
+                            else:
+                                eval_in[var_name] = float(evaluate_scalar(str(ax.get("expression", var_name)), raw_env))
+                    else:
+                        raise DimensionMismatchError(
+                            f"Esperado {len(p_vars)} premissas ou {ts_obj.n_states} estados, recebido {z_arr.size}."
+                        )
+
+                axis_weights: list[np.ndarray] = []
+                for ax in tpmt_axes:
+                    var_name = str(ax["variable"])
+                    grid_d = ensure_finite_float64(ax["grid"], ndim=1, name=f"tpmt_axes[{var_name}].grid")
+                    w_table = ensure_finite_float64(ax["weights_table"], ndim=2, name=f"tpmt_axes[{var_name}].weights_table")
+                    if grid_d.size < 2 or w_table.shape[0] != grid_d.size:
+                        raise ValidationError(
+                            f"Eixo TPMT {var_name!r} com grid ({grid_d.size}) incompatível com weights_table {w_table.shape}."
+                        )
+                    p_val = float(np.clip(eval_in[var_name], grid_d[0], grid_d[-1]))
+                    w_d = np.array(
+                        [float(np.interp(p_val, grid_d, w_table[:, j])) for j in range(w_table.shape[1])],
+                        dtype=np.float64,
+                    )
+                    axis_weights.append(w_d)
+
+                w_list = []
+                for f_spec in funcs:
+                    basis_idx = f_spec.get("axis_basis_indices")
+                    if not isinstance(basis_idx, Sequence) or len(basis_idx) != len(tpmt_axes):
+                        raise ValidationError(
+                            f"Função TPMT {f_spec!r} requer 'axis_basis_indices' de comprimento {len(tpmt_axes)}."
+                        )
+                    prod_val = 1.0
+                    for d_idx, j_idx in enumerate(basis_idx):
+                        j_int = int(j_idx)
+                        if j_int < 0 or j_int >= axis_weights[d_idx].size:
+                            raise ValidationError(
+                                f"Índice de base {j_int} fora do intervalo [0, {axis_weights[d_idx].size - 1}] no eixo {d_idx}."
+                            )
+                        prod_val *= float(axis_weights[d_idx][j_int])
+                    w_list.append(float(prod_val))
+                w_arr = np.asarray(w_list, dtype=np.float64)
+                model_rev = ts_obj.revision
             else:
                 if isinstance(premise_values, Mapping):
                     eval_in = {nm: float(premise_values[nm]) for nm in p_vars}

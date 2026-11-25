@@ -27,7 +27,8 @@
       "2026-11-21": 12,
       "2026-11-22": 13,
       "2026-11-23": 1,
-      "2026-11-24": 6
+      "2026-11-24": 6,
+      "2026-11-25": 1
     }
   },
   "audit_reference": {
@@ -6972,7 +6973,7 @@
         "T-TSMOD-03"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/test_sector_nonlinearity.py tests/unit/f5/ -v",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
       "acceptance_requirements": [
@@ -6980,6 +6981,17 @@
         "Implementar pipeline híbrido de 3 estágios para extremos globais [z_min, z_max]: Aritmética Intervalar exata para Single-Use Expressions + varredura vetorizada densa no subespaço ativo (ou vértices + Sobol para d >= 4) + polimento multi-start Brent/L-BFGS-B",
         "Implementar control_lab/fuzzy/sector_nonlinearity.py gerando TSStateSpace canônico (2^nn vértices, membership_spec.representation_kind='sector_nonlinearity', premise_availability e ModelFidelityCertificate fora da grade)",
         "Atualizar evaluate_ts_premise_weights em control_lab/fuzzy/ts_bridge.py para suportar representation_kind='sector_nonlinearity' com precisão <= 1e-13"
+      ],
+      "f9_review": "accepted",
+      "acceptance_scope": "f5_phase10_wp1_symbolic_qlpv_hybrid_extrema_and_exact_sector_nonlinearity",
+      "handoff_ref": "docs/audits/handoffs/WP-TSMOD-01-F5-SECTOR-NONLINEARITY.md",
+      "acceptance_evidence": [
+        "docs/audits/handoffs/WP-TSMOD-01-F5-SECTOR-NONLINEARITY.md",
+        "control_lab/fuzzy/symbolic_qlpv.py",
+        "control_lab/fuzzy/sector_nonlinearity.py",
+        "control_lab/fuzzy/ts_bridge.py",
+        "control_lab/fuzzy/__init__.py",
+        "tests/unit/f5/test_sector_nonlinearity.py"
       ]
     },
     {

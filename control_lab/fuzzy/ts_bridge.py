@@ -27,6 +27,7 @@ from control_lab.diagnostics import (
 
 from .inference import _coerce_fuzzy_system, _compute_rule_activations, _evaluate_input_memberships
 from .membership import evaluate_mf
+from .symbolic_qlpv import evaluate_scalar
 
 _EPS = 1e-12
 
@@ -100,36 +101,98 @@ def evaluate_ts_premise_weights(
                 )
             ms = ts_obj.membership_spec
             p_vars = list(ms["premise_variables"])
-            if isinstance(premise_values, Mapping):
-                eval_in = {nm: float(premise_values[nm]) for nm in p_vars}
-            else:
-                z_arr = ensure_finite_float64(premise_values, ndim=1, name="premise_values")
-                if z_arr.size != len(p_vars):
-                    raise DimensionMismatchError(f"Esperado {len(p_vars)} premissas, recebido {z_arr.size}.")
-                eval_in = {p_vars[i]: float(z_arr[i]) for i in range(len(p_vars))}
-
             funcs = ms.get("functions", [])
             if len(funcs) != ts_obj.n_vertices:
                 raise HypothesisViolatedError(
                     f"membership_spec.functions ({len(funcs)}) deve ter uma entrada por vértice ({ts_obj.n_vertices}) para avaliação direta."
                 )
-            w_list: list[float] = []
-            for f_spec in funcs:
-                if "clauses" in f_spec:
-                    deg = 1.0
-                    for cl in f_spec["clauses"]:
-                        v_val = eval_in[cl["variable"]]
-                        deg *= float(evaluate_mf(cl["mf"], cl["params"], v_val, complement=bool(cl.get("complement", False))))
-                    w_list.append(deg)
-                elif "mf" in f_spec and "variable" in f_spec:
-                    v_val = eval_in[f_spec["variable"]]
-                    w_list.append(float(evaluate_mf(f_spec["mf"], f_spec["params"], v_val)))
-                elif "weight" in f_spec:
-                    w_list.append(float(f_spec["weight"]))
+
+            if ms.get("representation_kind") == "sector_nonlinearity":
+                sector_premises = ms.get("sector_premises", [])
+                if not isinstance(sector_premises, Sequence) or len(sector_premises) != len(p_vars):
+                    raise ValidationError(
+                        "membership_spec.sector_premises deve conter exatamente uma entrada por premise_variable."
+                    )
+
+                if isinstance(premise_values, Mapping):
+                    if all(nm in premise_values for nm in p_vars):
+                        eval_in = {nm: float(premise_values[nm]) for nm in p_vars}
+                    else:
+                        raw_env = {str(k): float(v) for k, v in premise_values.items()}
+                        eval_in = {}
+                        for sp in sector_premises:
+                            sp_name = str(sp["name"])
+                            if sp_name in raw_env:
+                                eval_in[sp_name] = raw_env[sp_name]
+                            else:
+                                eval_in[sp_name] = float(evaluate_scalar(str(sp["expression"]), raw_env))
                 else:
-                    raise ValidationError(f"Formato de função de premissa não reconhecido: {f_spec!r}")
-            w_arr = np.asarray(w_list, dtype=np.float64)
-            model_rev = ts_obj.revision
+                    z_arr = ensure_finite_float64(premise_values, ndim=1, name="premise_values")
+                    if z_arr.size == len(p_vars):
+                        eval_in = {p_vars[i]: float(z_arr[i]) for i in range(len(p_vars))}
+                    elif z_arr.size == ts_obj.n_states:
+                        raw_env = {ts_obj.state_names[i]: float(z_arr[i]) for i in range(ts_obj.n_states)}
+                        eval_in = {
+                            str(sp["name"]): float(evaluate_scalar(str(sp["expression"]), raw_env))
+                            for sp in sector_premises
+                        }
+                    else:
+                        raise DimensionMismatchError(
+                            f"Esperado {len(p_vars)} premissas ou {ts_obj.n_states} estados, recebido {z_arr.size}."
+                        )
+
+                w0_vec: list[float] = []
+                w1_vec: list[float] = []
+                for sp in sector_premises:
+                    sp_name = str(sp["name"])
+                    z_min = float(sp["min"])
+                    z_max = float(sp["max"])
+                    span = z_max - z_min
+                    if span <= _EPS:
+                        raise ValidationError(f"Premissa setorial {sp_name!r} possui intervalo degenerado [{z_min}, {z_max}].")
+                    zk = eval_in[sp_name]
+                    w0_vec.append((zk - z_min) / span)
+                    w1_vec.append((z_max - zk) / span)
+
+                w_list: list[float] = []
+                for f_spec in funcs:
+                    bits = f_spec.get("bits")
+                    if not isinstance(bits, Sequence) or len(bits) != len(sector_premises):
+                        raise ValidationError(
+                            f"Função setorial {f_spec!r} requer 'bits' de comprimento {len(sector_premises)}."
+                        )
+                    prod_val = 1.0
+                    for k, b in enumerate(bits):
+                        prod_val *= w0_vec[k] if int(b) == 0 else w1_vec[k]
+                    w_list.append(float(prod_val))
+                w_arr = np.asarray(w_list, dtype=np.float64)
+                model_rev = ts_obj.revision
+            else:
+                if isinstance(premise_values, Mapping):
+                    eval_in = {nm: float(premise_values[nm]) for nm in p_vars}
+                else:
+                    z_arr = ensure_finite_float64(premise_values, ndim=1, name="premise_values")
+                    if z_arr.size != len(p_vars):
+                        raise DimensionMismatchError(f"Esperado {len(p_vars)} premissas, recebido {z_arr.size}.")
+                    eval_in = {p_vars[i]: float(z_arr[i]) for i in range(len(p_vars))}
+
+                w_list = []
+                for f_spec in funcs:
+                    if "clauses" in f_spec:
+                        deg = 1.0
+                        for cl in f_spec["clauses"]:
+                            v_val = eval_in[cl["variable"]]
+                            deg *= float(evaluate_mf(cl["mf"], cl["params"], v_val, complement=bool(cl.get("complement", False))))
+                        w_list.append(deg)
+                    elif "mf" in f_spec and "variable" in f_spec:
+                        v_val = eval_in[f_spec["variable"]]
+                        w_list.append(float(evaluate_mf(f_spec["mf"], f_spec["params"], v_val)))
+                    elif "weight" in f_spec:
+                        w_list.append(float(f_spec["weight"]))
+                    else:
+                        raise ValidationError(f"Formato de função de premissa não reconhecido: {f_spec!r}")
+                w_arr = np.asarray(w_list, dtype=np.float64)
+                model_rev = ts_obj.revision
 
         sum_w = float(np.sum(w_arr))
         if sum_w <= _EPS:

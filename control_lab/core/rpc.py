@@ -9,6 +9,7 @@ despacha exclusivamente às implementações científicas reais (`control_lab.st
 
 from __future__ import annotations
 
+import inspect
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -115,6 +116,11 @@ SUPPORTED_OPERATIONS: frozenset[str] = frozenset(
         "fuzzy.fit_anfis",
         "fuzzy.import_fml",
         "fuzzy.export_fml",
+        "fuzzy.analyze_sector_premises",
+        "fuzzy.derive_ts_sector",
+        "fuzzy.derive_ts_tpmt",
+        "fuzzy.derive_ts_femt",
+        "fuzzy.export_ts_derivation_script",
         "optimization.export_cvxpy",
         "optimization.export_yalmip",
         "optimization.solve",
@@ -2020,6 +2026,80 @@ def _handle_fuzzy(req: dict[str, Any], store: Any) -> dict[str, Any]:
     )
 
 
+def _handle_ts_derivation(req: dict[str, Any], store: Any) -> dict[str, Any]:
+    from control_lab.fuzzy.femt import derive_ts_femt
+    from control_lab.fuzzy.sector_nonlinearity import analyze_sector_premises, derive_ts_sector
+    from control_lab.fuzzy.tpmt import derive_ts_tpmt
+
+    del store
+    operation = req["operation"]
+    engines = {
+        "fuzzy.analyze_sector_premises": analyze_sector_premises,
+        "fuzzy.derive_ts_sector": derive_ts_sector,
+        "fuzzy.derive_ts_tpmt": derive_ts_tpmt,
+        "fuzzy.derive_ts_femt": derive_ts_femt,
+    }
+    engine = engines[operation]
+    try:
+        arguments = inspect.signature(engine).bind(**req["payload"])
+    except TypeError as exc:
+        raise ValidationError(f"Payload inválido para {operation}: {exc}.") from exc
+
+    return _result_to_rpc_response(
+        engine(*arguments.args, **arguments.kwargs),
+        request_id=req["request_id"],
+        project_id=req["project_id"],
+        project_revision=req["project_revision"],
+        fallback_algorithm=operation,
+    )
+
+
+def _handle_export_ts_derivation_script(req: dict[str, Any], store: Any) -> dict[str, Any]:
+    operation = req["operation"]
+    payload = req["payload"]
+    extra = set(payload) - {"model", "model_ref", "language"}
+    if extra:
+        raise ValidationError(f"Campos extras não suportados em {operation}: {sorted(extra)}.")
+    if (payload.get("model") is None) == (payload.get("model_ref") is None):
+        raise ValidationError(f"{operation} exige exatamente um entre 'model' e 'model_ref'.")
+
+    language = payload.get("language")
+    if language not in ("python", "matlab"):
+        raise ValidationError("payload.language deve ser 'python' ou 'matlab'.")
+    model = _resolve_from_store_or_inline(
+        payload,
+        inline_keys=("model",),
+        ref_keys=("model_ref",),
+        store=store,
+        project_id=req["project_id"],
+    )
+    if not isinstance(model, TSStateSpace):
+        raise ValidationError(f"{operation} exige um modelo TSStateSpace.")
+
+    from control_lab.io.ts_derivation import export_ts_derivation_script
+
+    extension, media_type = ("py", "text/x-python") if language == "python" else ("m", "text/x-matlab")
+    result = Result(
+        status="success",
+        data={
+            "script": export_ts_derivation_script(model, language),
+            "filename": f"controllab_ts_derivation.{extension}",
+            "media_type": media_type,
+            "language": language,
+            "code_executed": False,
+            "requires_explicit_user_execution": True,
+        },
+        provenance=build_provenance(operation, model_revision=model.revision),
+    )
+    return _result_to_rpc_response(
+        result,
+        request_id=req["request_id"],
+        project_id=req["project_id"],
+        project_revision=req["project_revision"],
+        fallback_algorithm=operation,
+    )
+
+
 def _resolve_sdp_problem_from_payload(
     payload: Mapping[str, Any],
     *,
@@ -2359,6 +2439,11 @@ _DISPATCH_TABLE = {
     "fuzzy.fit_anfis": _handle_fuzzy,
     "fuzzy.import_fml": _handle_fuzzy,
     "fuzzy.export_fml": _handle_fuzzy,
+    "fuzzy.analyze_sector_premises": _handle_ts_derivation,
+    "fuzzy.derive_ts_sector": _handle_ts_derivation,
+    "fuzzy.derive_ts_tpmt": _handle_ts_derivation,
+    "fuzzy.derive_ts_femt": _handle_ts_derivation,
+    "fuzzy.export_ts_derivation_script": _handle_export_ts_derivation_script,
     "optimization.export_cvxpy": _handle_optimization,
     "optimization.export_yalmip": _handle_optimization,
     "optimization.solve": _handle_optimization,

@@ -60,6 +60,7 @@ from control_lab.diagnostics import (
     strict_json_dumps,
     strict_json_loads,
 )
+from control_lab.io.ts_derivation import DERIVED_REPRESENTATIONS, emit_python_membership
 from control_lab.statespace.simulation import simulate_lti
 from control_lab.io.pvm_official import (
     OFFICIAL_PARAMS, PATHVIEW_COMMIT, lower_to_official, restore_numeric_projection,
@@ -2594,13 +2595,21 @@ def _emit_ts_pdc_pathsim_script(
         )
 
     rhs_name = "ts_pdc_rhs" if has_pdc else "ts_open_loop_rhs"
+    has_derived_membership = plant.membership_spec.get("representation_kind") in DERIVED_REPRESENTATIONS
+    if has_derived_membership:
+        lines.extend(emit_python_membership(plant))
+    else:
+        lines.extend(
+            [
+                "",
+                "def default_h_fn(x: np.ndarray, t: float = 0.0) -> np.ndarray:",
+                "    del x, t",
+                "    return np.full(N_VERTICES, 1.0 / N_VERTICES, dtype=np.float64)",
+                "",
+            ]
+        )
     lines.extend(
         [
-            "",
-            "def default_h_fn(x: np.ndarray, t: float = 0.0) -> np.ndarray:",
-            "    del x, t",
-            "    return np.full(N_VERTICES, 1.0 / N_VERTICES, dtype=np.float64)",
-            "",
             "def _eval_h(h_fn, x_vec: np.ndarray, t_val: float) -> np.ndarray:",
             "    try:",
             "        raw = h_fn(x_vec, t_val)",
@@ -2624,14 +2633,19 @@ def _emit_ts_pdc_pathsim_script(
             "    h_fn=None,",
             "    u_ff_fn=None,",
             "    adaptive: bool = False,",
+            *(["    *, external_premises=None,"] if has_derived_membership else []),
             ") -> tuple[np.ndarray, np.ndarray]:",
-            '    """Run closed-loop TS-PDC (or open-loop TS) simulation with PathSim 0.31.0."""',
+            '    """Run TS simulation with PathSim 0.31.0. External premises may be constants or time callables."""',
             "    from pathsim import Simulation, Connection",
             "    from pathsim.blocks import ODE, Scope",
             "    from pathsim.solvers import RKCK54",
             "",
             "    x0_arr = DEFAULT_X0.copy() if x0 is None else np.atleast_1d(np.asarray(x0, dtype=np.float64)).reshape(N_STATES)",
-            "    active_h_fn = default_h_fn if h_fn is None else h_fn",
+            (
+                "    active_h_fn = (lambda x, t: default_h_fn(x, t, external_premises)) if h_fn is None else h_fn"
+                if has_derived_membership
+                else "    active_h_fn = default_h_fn if h_fn is None else h_fn"
+            ),
             "    dt_step = float(dt)",
             "    dur = float(duration)",
             "",

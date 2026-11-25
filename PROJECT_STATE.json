@@ -28,7 +28,7 @@
       "2026-11-22": 13,
       "2026-11-23": 1,
       "2026-11-24": 6,
-      "2026-11-25": 3
+      "2026-11-25": 4
     }
   },
   "audit_reference": {
@@ -7105,14 +7105,17 @@
         "T-TSMOD-08"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f1/ -v",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
       "acceptance_requirements": [
         "Registrar e rotear no despachante RPC canônico as operações fuzzy.analyze_sector_premises, fuzzy.derive_ts_sector, fuzzy.derive_ts_tpmt, fuzzy.derive_ts_femt e fuzzy.export_ts_derivation_script (Python/MATLAB offline para Setor, TPMT e FEMT)",
         "Atualizar _emit_ts_pdc_pathsim_script em control_lab/io/pvm.py para emitir função h_fn(x) real analítica (sector_nonlinearity), np.interp (tpmt_interpolated) ou baricêntrica P1 simplicial (femt_simplicial) em vez do stub uniforme 1/N_VERTICES",
         "Garantir serialização e restauração round-trip .ctrlab de provenance.ts_derivation e dos 3 formatos de membership_spec sem violar ts_state_space.schema.json"
-      ]
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-TSMOD-03A-F1-RPC-PATHSIM-SCRIPTS.md",
+      "acceptance_scope": "cpython_pyodide_rpc_ctrlab_pathsim_and_offline_ts_derivation"
     },
     {
       "wp_id": "WP-TSMOD-03B-F7-WORKER-BRIDGE",

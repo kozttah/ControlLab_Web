@@ -832,6 +832,23 @@ def _solve_cno_slsqp(U_hull: np.ndarray, T_init: np.ndarray) -> tuple[np.ndarray
     return T_opt, ok, float(-logabsdet if ok else 1e6)
 
 
+def _cno_candidate_weights(U: np.ndarray, T: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Avalia as pertinências com folga para o arredondamento da transformação."""
+    W = U @ T
+    r = T.shape[0]
+    # A escala dos produtos absolutos captura o cancelamento em U @ T.
+    # A folga cobre também o arredondamento da correção afim de T.
+    roundoff = 4.0 * r * np.finfo(np.float64).eps * np.max(np.abs(U) @ np.abs(T), axis=0)
+    shift = np.maximum(0.0, roundoff - np.min(W, axis=0))
+    if not np.any(shift):
+        return W, T
+
+    # Aplica a mesma transformação afim aos pesos e ao núcleo. Como
+    # U @ 1 = 1, o deslocamento de cada coluna preserva a soma unitária.
+    T_corrected = (T + np.sum(T, axis=1, keepdims=True) * shift) / (1.0 + float(np.sum(shift)))
+    return U @ T_corrected, T_corrected
+
+
 def cno_matrix(
     U_sn_nn: np.ndarray,
     *,
@@ -863,7 +880,12 @@ def cno_matrix(
         n_hull_vertices = int(U_hull.shape[0])
 
         # Baseline RNO-INO (garante que CNO nunca piore sobre RNO-INO nem sobre SN-NN)
-        W_rno, T_rno, info_rno = rno_ino_matrix(U_arr)
+        W_rno, T_rno, _ = rno_ino_matrix(U_arr)
+        if float(np.min(W_rno)) < -1e-12:
+            W_rno, T_rno = _cno_candidate_weights(U_arr, T_rno)
+        sum_dev_rno = float(np.max(np.abs(np.sum(W_rno, axis=1) - 1.0)))
+        if float(np.min(W_rno)) < -1e-12 or sum_dev_rno > 1e-11:
+            W_rno, T_rno = U_arr, np.eye(r, dtype=np.float64)
         _, logdet_rno = np.linalg.slogdet(T_rno)
         best_T = T_rno
         best_W = W_rno
@@ -879,10 +901,7 @@ def cno_matrix(
             T_cand, ok, _ = _solve_cno_slsqp(U_hull, T_start)
             if not ok:
                 continue
-            W_cand = U_arr @ T_cand
-            if float(np.min(W_cand)) < -1e-12:
-                W_cand, T_cand = _tighten_nn_convex(W_cand, T_cand)
-                W_cand = U_arr @ T_cand
+            W_cand, T_cand = _cno_candidate_weights(U_arr, T_cand)
 
             cond_cand = float(np.linalg.cond(T_cand))
             min_w = float(np.min(W_cand))
@@ -894,8 +913,8 @@ def cno_matrix(
                 and math.isfinite(logdet_c)
                 and math.isfinite(cond_cand)
                 and cond_cand <= 1e10
-                and min_w >= -1e-10
-                and sum_dev <= 1e-10
+                and min_w >= -1e-12
+                and sum_dev <= 1e-11
             ):
                 obj_c = float(-logdet_c)
                 if obj_c < best_obj - 1e-12:
@@ -908,7 +927,6 @@ def cno_matrix(
             fallback_used = True
         T_final = best_T
         W = best_W
-        _ = info_rno
 
     core_out = None if core is None else mode_inverse_product(core, T_final, mode)  # type: ignore[arg-type]
     _, logabsdet = np.linalg.slogdet(T_final)

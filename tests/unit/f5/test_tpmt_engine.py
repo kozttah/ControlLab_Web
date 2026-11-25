@@ -279,6 +279,34 @@ def test_t_tsmod_06_unicycle_cno_and_rno_ino_tighter_than_sn_nn() -> None:
     assert float(np.linalg.norm(Bd - mode_product(info_cno["core"], W_cno, 0))) <= 1e-10
 
 
+def test_cno_rechecks_weights_after_roundoff_correction(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A compressed simplex forces cancellation when evaluating the CNO transform.
+    nominal = np.vstack((np.eye(3), np.full((1, 3), 1.0 / 3.0)))
+    scale = 2.0**-14
+    U = scale * nominal + (1.0 - scale) / 3.0
+    candidate = (np.eye(3) - (1.0 - scale) / 3.0) / scale
+    candidate[:, 0] -= 2e-11
+    candidate[:, -1] = 1.0 - np.sum(candidate[:, :-1], axis=1)
+    assert np.min(U @ candidate) < 0
+
+    def solve(_hull: np.ndarray, _initial: np.ndarray) -> tuple[np.ndarray, bool, float]:
+        return candidate, True, 0.0
+
+    def baseline(weights: np.ndarray) -> tuple[np.ndarray, np.ndarray, dict]:
+        return weights, np.eye(3), {}
+
+    monkeypatch.setattr("control_lab.fuzzy.tpmt.rno_ino_matrix", baseline)
+    monkeypatch.setattr("control_lab.fuzzy.tpmt._solve_cno_slsqp", solve)
+    W, T, info = cno_matrix(U, core=np.eye(3), mode=0)
+
+    assert not info["fallback_used"]
+    # A folga deve superar o resíduo de arredondamento ao recompor W.
+    assert np.min(W) > 1e-12
+    np.testing.assert_allclose(W.sum(axis=1), 1.0, atol=1e-11, rtol=0)
+    np.testing.assert_array_equal(W, U @ T)
+    np.testing.assert_allclose(W @ info["core"], U, atol=1e-11, rtol=0)
+
+
 def test_t_tsmod_06_resample_basis_1d_linear_and_pchip() -> None:
     g = np.linspace(-math.pi, math.pi, 21)
     U = np.column_stack([np.cos(g), np.sin(g), np.ones_like(g)])

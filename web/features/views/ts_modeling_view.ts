@@ -63,10 +63,13 @@ import {
   buildMesh2DModel,
   buildOffGridErrorHeatmap,
   buildScreeChartModel,
+  GENERALIZED_CHANNEL_NAMES,
   renderTsHeatmapSvg,
   renderTsLineChartSvg,
   renderTsLineChartTableHtml,
   renderTsMeshSvg,
+  type GeneralizedChannelName,
+  type OffGridErrorHeatmapOptions,
   type TsDerivationResult,
 } from "../../charts/ts_modeling_charts.ts";
 import {
@@ -677,6 +680,97 @@ export const DEFAULT_TS_FORM_PARAMS: TsFormParams = {
   valPoints: 128,
 };
 
+/**
+ * Serializa de forma determinística todos os parâmetros do rascunho e a via ativa
+ * que definem a derivação TS atual, para detectar edições pós-derivação (estado obsoleto).
+ */
+export function serializeDraftDerivationSignature(
+  draft: TsQlpvDraft,
+  activeMethod: TsVia,
+): string {
+  const sortedAxisKeys = Object.keys(draft.axisSettings).sort();
+  const axisSettings: Record<string, TsAxisDraftConfig> = {};
+  for (const key of sortedAxisKeys) {
+    const cfg = draft.axisSettings[key];
+    if (!cfg) continue;
+    axisSettings[key] = {
+      gridPoints: cfg.gridPoints,
+      rank: cfg.rank.trim(),
+      hull: cfg.hull,
+      resamplePoints: cfg.resamplePoints.trim(),
+    };
+  }
+
+  const pickMatrices = (m: TsSymbolicSystemMatrices): Record<string, string[][]> => ({
+    A: m.A,
+    B: m.B,
+    C: m.C,
+    D: m.D,
+    ...(draft.enableGeneralized
+      ? {
+          Bw: m.Bw,
+          Dyw: m.Dyw,
+          Cz: m.Cz,
+          Dzu: m.Dzu,
+          Dzw: m.Dzw,
+        }
+      : {}),
+  });
+
+  return JSON.stringify({
+    activeMethod,
+    presetId: draft.presetSource,
+    name: draft.modelId.trim(),
+    timeDomain: draft.timeDomain,
+    sampleTime: draft.timeDomain === "discrete" ? draft.dt : null,
+    nStates: draft.n,
+    nInputs: draft.m,
+    nOutputs: draft.p,
+    enableGeneralized: draft.enableGeneralized,
+    nw: draft.enableGeneralized ? draft.nw : 0,
+    nz: draft.enableGeneralized ? draft.nz : 0,
+    stateBounds: draft.states.map((s) => ({
+      name: s.name.trim(),
+      min: s.min,
+      max: s.max,
+      unit: s.unit.trim(),
+      measured: s.measured,
+    })),
+    externalBounds: draft.externals.map((e) => ({
+      name: e.name.trim(),
+      min: e.min,
+      max: e.max,
+      measured: e.measured,
+    })),
+    premises: draft.premises.map((p) => ({
+      name: p.name.trim(),
+      expression: p.expression,
+      measured: p.measured,
+      userMin: p.userMin.trim(),
+      userMax: p.userMax.trim(),
+    })),
+    sectorMatrices: pickMatrices(draft.sectorMatrices),
+    directMatrices: pickMatrices(draft.directMatrices),
+    axisSettings,
+    tpmtParams: {
+      decomposition: draft.tpmtDecomposition,
+      svdTol: draft.svdTol,
+      snTol: draft.snTol,
+      resampleMethod: draft.resampleMethod,
+      hooiMaxIter: draft.hooiMaxIter,
+      hooiConvTol: draft.hooiConvTol,
+    },
+    femtParams: {
+      globalRank: draft.femtGlobalRank.trim(),
+      hull: draft.femtHull,
+      meshKind: draft.femtMeshKind,
+      svdTol: draft.svdTol,
+      snTol: draft.snTol,
+    },
+    valPoints: draft.valPoints,
+  });
+}
+
 /** Constrói payload RPC canônico a partir de um rascunho completo `TsQlpvDraft`. */
 export function buildTsPayloadFromDraft(
   draft: TsQlpvDraft,
@@ -1280,6 +1374,7 @@ export function renderTsModelingViewHtml(): string {
     `<button type="button" id="btn-ts-export-python" class="touch-control btn-secondary" data-action="ts-export-python" disabled aria-disabled="true">Exportar Script Python</button>`,
     `<button type="button" id="btn-ts-export-matlab" class="touch-control btn-secondary" data-action="ts-export-matlab" disabled aria-disabled="true">Exportar Script MATLAB</button>`,
     `</div>`,
+    `<div id="ts-stale-banner" class="ts-diagnostic-banner is-warn" role="alert" aria-live="assertive" hidden></div>`,
 
     `<div class="panel-actions ts-recipe-bar">`,
     `<label for="ts-recipe-select">Recarregar receita de modelo TS do Workspace:</label>`,
@@ -1512,6 +1607,8 @@ export class TsModelingView {
   private resultVia: TsVia | null = null;
   private resultWarnings: Array<{ code: string; message: string }> = [];
   private lastSubmittedPayload: Record<string, unknown> | null = null;
+  private lastDerivedSignature: string | null = null;
+  private lastDerivedDraftSnapshot: TsQlpvDraft | null = null;
   private registeredKey: string | null = null;
 
   private busy = false;
@@ -1538,16 +1635,30 @@ export class TsModelingView {
     }
   }
 
+  public isLastDerivationStale(): boolean {
+    if (
+      !this.result ||
+      !this.resultVia ||
+      !this.lastDerivedSignature ||
+      !this.lastDerivedDraftSnapshot
+    ) {
+      return true;
+    }
+    return this.lastDerivedSignature !== serializeDraftDerivationSignature(this.draft, this.via);
+  }
+
   public getState(): {
     presetSource: TsPresetId | "custom";
     via: TsVia;
     hasResult: boolean;
+    isStale: boolean;
     registeredKey: string | null;
   } {
     return {
       presetSource: this.draft.presetSource,
       via: this.via,
       hasResult: this.result !== null,
+      isStale: this.isLastDerivationStale(),
       registeredKey: this.registeredKey,
     };
   }
@@ -1578,14 +1689,17 @@ export class TsModelingView {
       } else if (v === "custom") {
         this.draft.presetSource = "custom";
         this.syncHeaderControls();
+        this.syncStaleState();
       }
     });
 
     on("#ts-model-id-input", "change", () => {
       this.draft.modelId = this.q<HTMLInputElement>("#ts-model-id-input")?.value.trim() || "ts-model";
+      this.syncStaleState();
     });
     on("#ts-model-id-input", "input", () => {
       this.draft.modelId = this.q<HTMLInputElement>("#ts-model-id-input")?.value.trim() || "ts-model";
+      this.syncStaleState();
     });
 
     on('[data-action="ts-new-custom"]', "click", () => this.resetToBlankCustom());
@@ -1601,10 +1715,12 @@ export class TsModelingView {
       const mode = this.q<HTMLSelectElement>("#ts-time-domain-select")?.value;
       this.draft.timeDomain = mode === "discrete" ? "discrete" : "continuous";
       setElHidden(this.q("#ts-dt-field-wrap"), this.draft.timeDomain !== "discrete");
+      this.syncStaleState();
     });
     on("#ts-dt-input", "change", () => {
       const val = Number(this.q<HTMLInputElement>("#ts-dt-input")?.value ?? "0.01");
       if (Number.isFinite(val) && val > 0) this.draft.dt = val;
+      this.syncStaleState();
     });
 
     on("#ts-dim-n", "change", () => this.handleDimensionChange());
@@ -1688,39 +1804,48 @@ export class TsModelingView {
     on("#ts-decomp-select", "change", () => {
       const v = this.q<HTMLSelectElement>("#ts-decomp-select")?.value;
       this.draft.tpmtDecomposition = v === "hooi" ? "hooi" : "hosvd";
+      this.syncStaleState();
     });
     on("#ts-mesh-select", "change", () => {
       const v = this.q<HTMLSelectElement>("#ts-mesh-select")?.value;
       this.draft.femtMeshKind = v === "delaunay" ? "delaunay" : "kuhn_delaunay";
+      this.syncStaleState();
     });
     on("#ts-hull-select", "change", () => {
       const v = this.q<HTMLSelectElement>("#ts-hull-select")?.value ?? "CNO";
       if ((TS_HULLS as readonly string[]).includes(v)) {
         this.draft.femtHull = v as TsHull;
       }
+      this.syncStaleState();
     });
     on("#ts-rank", "change", () => {
       this.draft.femtGlobalRank = this.q<HTMLInputElement>("#ts-rank")?.value.trim() ?? "";
+      this.syncStaleState();
     });
     on("#ts-svd-tol-input", "change", () => {
       const v = Number(this.q<HTMLInputElement>("#ts-svd-tol-input")?.value ?? "1e-6");
       if (Number.isFinite(v) && v > 0) this.draft.svdTol = v;
+      this.syncStaleState();
     });
     on("#ts-sn-tol-input", "change", () => {
       const v = Number(this.q<HTMLInputElement>("#ts-sn-tol-input")?.value ?? "1e-6");
       if (Number.isFinite(v) && v > 0) this.draft.snTol = v;
+      this.syncStaleState();
     });
     on("#ts-resample-method", "change", () => {
       const v = this.q<HTMLSelectElement>("#ts-resample-method")?.value;
       this.draft.resampleMethod = v === "pchip" ? "pchip" : "linear";
+      this.syncStaleState();
     });
     on("#ts-hooi-max-iter", "change", () => {
       const v = Number(this.q<HTMLInputElement>("#ts-hooi-max-iter")?.value ?? "50");
       if (Number.isInteger(v) && v >= 1) this.draft.hooiMaxIter = v;
+      this.syncStaleState();
     });
     on("#ts-val-points", "change", () => {
       const v = Number(this.q<HTMLInputElement>("#ts-val-points")?.value ?? "128");
       if (Number.isInteger(v) && v >= 1 && v <= 2048) this.draft.valPoints = v;
+      this.syncStaleState();
     });
 
     on('[data-action="ts-apply-uniform-grid"]', "click", () => {
@@ -1803,13 +1928,47 @@ export class TsModelingView {
     }
   }
 
+  private clearDerivedResult(): void {
+    this.result = null;
+    this.resultVia = null;
+    this.resultWarnings = [];
+    this.lastSubmittedPayload = null;
+    this.lastDerivedSignature = null;
+    this.lastDerivedDraftSnapshot = null;
+    this.registeredKey = null;
+    this.compareHtml = "";
+    this.selectedVertexIdx = 0;
+    this.selectedChartAxisIdx = 0;
+    this.selectedChartRuleIdx = 0;
+    this.chartsCacheKey = "";
+
+    const summary = this.q<HTMLElement>("#ts-summary");
+    if (summary) {
+      summary.innerHTML = [
+        `<h4>Zona 4A — Certificado de Fidelidade &amp; Inspeção</h4>`,
+        `<p>Configure ou escolha um sistema qLPV acima e clique em <strong>Validar &amp; Gerar Modelo TS</strong>.</p>`,
+      ].join("");
+    }
+    const compareSlot = this.q<HTMLElement>("#ts-compare-slot");
+    if (compareSlot) {
+      compareSlot.innerHTML = "";
+      setElHidden(compareSlot, true);
+    }
+    setElHidden(this.q<HTMLElement>("#ts-vertex-inspector-card"), true);
+    const vertexSlot = this.q<HTMLElement>("#ts-vertex-detail-slot");
+    if (vertexSlot) vertexSlot.innerHTML = "";
+
+    this.renderCharts(this.shell.getThemeMode());
+    this.syncStaleState();
+  }
+
   public selectPreset(id: TsPresetId): void {
     const spec = TS_PRESETS[id];
     this.draft = spec.buildDraft();
     this.via = spec.defaultVia;
     this.lastActiveAxisKey = "";
-    this.chartsCacheKey = "";
     this.domInitialized = true;
+    this.clearDerivedResult();
     this.rebuildEditableSections();
     this.onRequestRender?.();
     this.render();
@@ -1817,13 +1976,9 @@ export class TsModelingView {
 
   public resetToBlankCustom(): void {
     this.draft = makeBlankCustomDraft();
-    this.result = null;
-    this.resultVia = null;
-    this.registeredKey = null;
-    this.compareHtml = "";
     this.lastActiveAxisKey = "";
-    this.chartsCacheKey = "";
     this.domInitialized = true;
+    this.clearDerivedResult();
     this.rebuildEditableSections();
     this.setStatus("Novo sistema qLPV em branco inicializado. Edite estados, limites e matrizes.");
     this.onRequestRender?.();
@@ -2667,6 +2822,7 @@ export class TsModelingView {
         }
       }
     }
+    this.syncStaleState();
   }
 
   public setStatus(text: string): void {
@@ -2826,10 +2982,12 @@ export class TsModelingView {
   public async derive(): Promise<void> {
     await this.withBusy(async () => {
       const client = this.requireClient();
-      const payload = buildTsPayloadFromDraft(this.draft, this.via);
-      const { data, warnings } = await this.runVia(client, this.via, payload);
+      const activeVia = this.via;
+      const snapshotDraft = structuredClone(this.draft);
+      const payload = buildTsPayloadFromDraft(snapshotDraft, activeVia);
+      const { data, warnings } = await this.runVia(client, activeVia, payload);
       this.result = data;
-      this.resultVia = this.via;
+      this.resultVia = activeVia;
       this.resultWarnings = warnings;
       this.lastSubmittedPayload = payload;
       this.registeredKey = null;
@@ -2838,7 +2996,7 @@ export class TsModelingView {
       this.selectedChartRuleIdx = 0;
       this.chartsCacheKey = "";
 
-      if (this.via === "sector" && "premises" in data && Array.isArray(data.premises)) {
+      if (activeVia === "sector" && "premises" in data && Array.isArray(data.premises)) {
         data.premises.forEach((ap, idx) => {
           const target =
             this.draft.premises.find((p) => p.name.trim() === ap.name) ?? this.draft.premises[idx];
@@ -2846,21 +3004,35 @@ export class TsModelingView {
             target.computedMin = ap.min;
             target.computedMax = ap.max;
           }
+          const snapTarget =
+            snapshotDraft.premises.find((p) => p.name.trim() === ap.name) ??
+            snapshotDraft.premises[idx];
+          if (snapTarget) {
+            snapTarget.computedMin = ap.min;
+            snapTarget.computedMax = ap.max;
+          }
         });
         this.renderPremisesTable();
       }
 
+      this.lastDerivedDraftSnapshot = structuredClone(snapshotDraft);
+      this.lastDerivedSignature = serializeDraftDerivationSignature(
+        this.lastDerivedDraftSnapshot,
+        activeVia,
+      );
+
+      this.syncStaleState();
       this.syncChartSelectors();
       this.renderSummary();
       this.renderVertexInspector();
       this.renderCharts(this.shell.getThemeMode());
       this.setStatus(
-        `Modelo TS '${data.model_id}' gerado pela via ${this.via.toUpperCase()} com ${data.num_rules} regras.`,
+        `Modelo TS '${data.model_id}' gerado pela via ${activeVia.toUpperCase()} com ${data.num_rules} regras.`,
       );
       this.shell
         .getAnnouncer()
         .announce(
-          `Modelo TS obtido com ${data.num_rules} regras pela via ${this.via}.`,
+          `Modelo TS obtido com ${data.num_rules} regras pela via ${activeVia}.`,
           "polite",
           "status",
         );
@@ -2973,15 +3145,23 @@ export class TsModelingView {
 
   public async register(openLmi: boolean): Promise<void> {
     await this.withBusy(async () => {
-      if (!this.result || !this.resultVia) {
+      if (!this.result || !this.resultVia || !this.lastDerivedDraftSnapshot) {
         throw new ControlLabBridgeError(
           "VALIDATION_ERROR",
           "Valide e gere um modelo TS antes de registrá-lo no Workspace.",
         );
       }
+      if (this.isLastDerivationStale()) {
+        this.syncStaleState();
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Especificação alterada desde a última derivação — clique em Derivar novamente antes de registrar no Workspace.",
+        );
+      }
+      const frozenDraft = structuredClone(this.lastDerivedDraftSnapshot);
       const typed = this.shell.getTypedWorkspace();
       const dto = structuredClone(this.result.ts_state_space) as Record<string, unknown>;
-      const customId = this.draft.modelId.trim();
+      const customId = frozenDraft.modelId.trim();
       if (customId) dto.id = customId;
 
       const existing = typed
@@ -2995,8 +3175,8 @@ export class TsModelingView {
       const derivation = isPlainObject(prov.ts_derivation) ? { ...prov.ts_derivation } : {};
       derivation.recipe = {
         via: this.resultVia,
-        preset: this.draft.presetSource === "custom" ? null : this.draft.presetSource,
-        draft: structuredClone(this.draft),
+        preset: frozenDraft.presetSource === "custom" ? null : frozenDraft.presetSource,
+        draft: frozenDraft,
         payload: structuredClone(this.lastSubmittedPayload ?? {}),
       };
       prov.ts_derivation = derivation;
@@ -3059,10 +3239,8 @@ export class TsModelingView {
       } else if (recipe.preset && isTsPresetId(recipe.preset)) {
         this.draft = TS_PRESETS[recipe.preset].buildDraft();
       }
-      this.result = null;
-      this.resultVia = null;
       this.lastActiveAxisKey = "";
-      this.chartsCacheKey = "";
+      this.clearDerivedResult();
       this.rebuildEditableSections();
       this.setStatus(
         `Receita de '${obj.id}#r${obj.revision}' recarregada integralmente na bancada (${recipe.via}).`,
@@ -3083,6 +3261,13 @@ export class TsModelingView {
         throw new ControlLabBridgeError(
           "VALIDATION_ERROR",
           "Gere um modelo TS antes de exportar scripts Python ou MATLAB.",
+        );
+      }
+      if (this.isLastDerivationStale()) {
+        this.syncStaleState();
+        throw new ControlLabBridgeError(
+          "VALIDATION_ERROR",
+          "Especificação alterada desde a última derivação — clique em Derivar novamente antes de exportar o script.",
         );
       }
       const client = this.requireClient();
@@ -3327,7 +3512,36 @@ export class TsModelingView {
         : "Gere um modelo via TPMT ou FEMT para inspecionar a queda dos valores singulares.",
     );
 
-    const e = r ? buildOffGridErrorHeatmap(r) : null;
+    const heatmapOptions: OffGridErrorHeatmapOptions = {};
+    if (r) {
+      const prov = isPlainObject(r.ts_state_space.provenance)
+        ? r.ts_state_space.provenance
+        : null;
+      const provGen =
+        prov && isPlainObject(prov.generalized_channels) ? prov.generalized_channels : null;
+      if (provGen && Array.isArray(provGen.vertices)) {
+        heatmapOptions.generalizedVertices = provGen.vertices as ReadonlyArray<
+          Partial<Record<GeneralizedChannelName, number[][]>>
+        >;
+      }
+      if (this.lastDerivedDraftSnapshot?.enableGeneralized) {
+        const snapMats =
+          this.resultVia === "sector"
+            ? this.lastDerivedDraftSnapshot.sectorMatrices
+            : this.lastDerivedDraftSnapshot.directMatrices;
+        const genExprs: Partial<Record<GeneralizedChannelName, string[][]>> = {};
+        for (const ch of GENERALIZED_CHANNEL_NAMES) {
+          genExprs[ch] = snapMats[ch];
+        }
+        heatmapOptions.generalizedExpressions = genExprs;
+      } else if (provGen && isPlainObject(provGen.expressions)) {
+        heatmapOptions.generalizedExpressions = provGen.expressions as Partial<
+          Record<GeneralizedChannelName, string[][]>
+        >;
+      }
+    }
+
+    const e = r ? buildOffGridErrorHeatmap(r, heatmapOptions) : null;
     setSlot(
       "ts-error-heatmap-slot",
       "ts-error-table-slot",
@@ -3349,12 +3563,26 @@ export class TsModelingView {
     else el.removeAttribute("aria-disabled");
   }
 
+  private syncStaleState(): void {
+    this.syncActionButtons();
+    const banner = this.q<HTMLElement>("#ts-stale-banner");
+    if (!banner) return;
+    if (this.result !== null && this.isLastDerivationStale()) {
+      banner.innerHTML =
+        "<strong>Especificação alterada desde a última derivação</strong> — clique em <strong>Validar &amp; Gerar Modelo TS</strong> novamente antes de registrar no Workspace.";
+      setElHidden(banner, false);
+    } else {
+      banner.textContent = "";
+      setElHidden(banner, true);
+    }
+  }
+
   private syncActionButtons(): void {
-    const hasResult = this.result !== null;
-    this.setDisabled("#btn-ts-register", !hasResult || this.busy);
-    this.setDisabled("#btn-ts-register-open-lmi", !hasResult || this.busy);
-    this.setDisabled("#btn-ts-export-python", !hasResult || this.busy);
-    this.setDisabled("#btn-ts-export-matlab", !hasResult || this.busy);
+    const canUseResult = this.result !== null && !this.isLastDerivationStale();
+    this.setDisabled("#btn-ts-register", !canUseResult || this.busy);
+    this.setDisabled("#btn-ts-register-open-lmi", !canUseResult || this.busy);
+    this.setDisabled("#btn-ts-export-python", !canUseResult || this.busy);
+    this.setDisabled("#btn-ts-export-matlab", !canUseResult || this.busy);
     this.setDisabled("#btn-ts-derive", this.busy);
     this.setDisabled("#btn-ts-compare", this.busy);
     this.setDisabled("#btn-ts-analyze", this.busy);
@@ -3379,7 +3607,7 @@ export class TsModelingView {
       setElHidden(el, !allowed.includes(this.via));
     }
 
-    this.syncActionButtons();
+    this.syncStaleState();
 
     const recipes = this.recipeOptions();
     const recipeSel = this.q<HTMLSelectElement>("#ts-recipe-select");

@@ -174,41 +174,272 @@ export function evaluateKuhnDelaunayWeights(
   return out;
 }
 
-/** Avaliação baricêntrica P1 explícita sobre triângulos 2D (Delaunay). */
-function evaluateDelaunay2DWeights(
-  p1: number,
-  p2: number,
+/**
+ * Resolve o sistema linear quadrado `A * x = b` via eliminação gaussiana com pivoteamento parcial
+ * (zero inversão matricial explícita, zero avaliação dinâmica).
+ */
+function solveLinearSystem(A: ReadonlyArray<readonly number[]>, b: readonly number[]): number[] | null {
+  const n = b.length;
+  if (n === 0 || A.length !== n) return null;
+  const M: number[][] = Array.from({ length: n }, (_, i) => {
+    const row = A[i];
+    return [...row, b[i]];
+  });
+
+  for (let col = 0; col < n; col += 1) {
+    let pivotRow = col;
+    let pivotAbs = Math.abs(M[col][col]);
+    for (let r = col + 1; r < n; r += 1) {
+      const v = Math.abs(M[r][col]);
+      if (v > pivotAbs) {
+        pivotAbs = v;
+        pivotRow = r;
+      }
+    }
+    if (!Number.isFinite(pivotAbs) || pivotAbs < 1e-14) {
+      return null;
+    }
+    if (pivotRow !== col) {
+      const tmp = M[col];
+      M[col] = M[pivotRow];
+      M[pivotRow] = tmp;
+    }
+    const pivot = M[col][col];
+    for (let r = col + 1; r < n; r += 1) {
+      const factor = M[r][col] / pivot;
+      if (factor === 0) continue;
+      M[r][col] = 0;
+      for (let c = col + 1; c <= n; c += 1) {
+        M[r][c] -= factor * M[col][c];
+      }
+    }
+  }
+
+  const x = new Array<number>(n).fill(0);
+  for (let i = n - 1; i >= 0; i -= 1) {
+    let acc = M[i][n];
+    for (let j = i + 1; j < n; j += 1) {
+      acc -= M[i][j] * x[j];
+    }
+    const val = acc / M[i][i];
+    if (!Number.isFinite(val)) return null;
+    x[i] = val;
+  }
+  return x;
+}
+
+function solveBarycentricForSimplex(
+  simplex: readonly number[],
+  nodes: ReadonlyArray<readonly number[]>,
+  pt: readonly number[],
+): number[] | null {
+  const d = pt.length;
+  if (simplex.length !== d + 1) return null;
+  const v0 = nodes[simplex[0]];
+  if (!v0 || v0.length < d) return null;
+
+  // Sistema M_delta * lam_{1..d} = pt - v0, onde coluna j-1 é (v_j - v0)
+  const mat: number[][] = Array.from({ length: d }, () => new Array<number>(d).fill(0));
+  const rhs = new Array<number>(d).fill(0);
+  for (let row = 0; row < d; row += 1) {
+    rhs[row] = pt[row] - v0[row];
+  }
+  for (let col = 0; col < d; col += 1) {
+    const vj = nodes[simplex[col + 1]];
+    if (!vj || vj.length < d) return null;
+    for (let row = 0; row < d; row += 1) {
+      mat[row][col] = vj[row] - v0[row];
+    }
+  }
+
+  const lamRest = solveLinearSystem(mat, rhs);
+  if (!lamRest) return null;
+  let sumRest = 0;
+  for (let i = 0; i < d; i += 1) sumRest += lamRest[i];
+  return [1.0 - sumRest, ...lamRest];
+}
+
+function interpolateClippedBarycentric(
+  simplex: readonly number[],
+  lam: readonly number[],
+  nodalWeights: ReadonlyArray<readonly number[]>,
+  nRules: number,
+): number[] {
+  const k = simplex.length;
+  const clipped = new Array<number>(k);
+  let sum = 0;
+  for (let m = 0; m < k; m += 1) {
+    const c = Math.min(1, Math.max(0, lam[m] ?? 0));
+    clipped[m] = c;
+    sum += c;
+  }
+  const invSum = sum > 0 ? 1.0 / sum : 1.0 / k;
+  const out = new Array<number>(nRules).fill(0);
+  for (let m = 0; m < k; m += 1) {
+    const coeff = sum > 0 ? clipped[m] * invSum : invSum;
+    const wm = nodalWeights[simplex[m]];
+    if (!wm) continue;
+    for (let r = 0; r < nRules; r += 1) {
+      out[r] += coeff * (wm[r] ?? 0);
+    }
+  }
+  return out;
+}
+
+/**
+ * Avaliação baricêntrica P1 explícita sobre malha de Delaunay para qualquer dimensão `D >= 1`
+ * (incluindo segmentos 1D, triângulos 2D e tetraedros 3D), alinhada a `evaluate_femt_delaunay`.
+ */
+export function evaluateDelaunayWeights(
+  point: readonly number[],
   nodes: ReadonlyArray<readonly number[]>,
   simplices: ReadonlyArray<readonly number[]>,
   nodalWeights: ReadonlyArray<readonly number[]>,
+  bounds?: ReadonlyArray<readonly number[]>,
 ): number[] | null {
+  const d = point.length;
+  const nNodes = nodes.length;
   const nRules = nodalWeights[0]?.length ?? 0;
-  for (const tri of simplices) {
-    if (tri.length !== 3) continue;
-    const n0 = nodes[tri[0]];
-    const n1 = nodes[tri[1]];
-    const n2 = nodes[tri[2]];
-    if (!n0 || !n1 || !n2) continue;
-    const det = (n1[0] - n0[0]) * (n2[1] - n0[1]) - (n2[0] - n0[0]) * (n1[1] - n0[1]);
-    if (Math.abs(det) < 1e-14) continue;
-    const l1 = ((p1 - n0[0]) * (n2[1] - n0[1]) - (n2[0] - n0[0]) * (p2 - n0[1])) / det;
-    const l2 = ((n1[0] - n0[0]) * (p2 - n0[1]) - (p1 - n0[0]) * (n1[1] - n0[1])) / det;
-    const l0 = 1.0 - l1 - l2;
-    if (l0 >= -1e-9 && l1 >= -1e-9 && l2 >= -1e-9) {
-      const c0 = Math.max(0, l0);
-      const c1 = Math.max(0, l1);
-      const c2 = Math.max(0, l2);
-      const s = c0 + c1 + c2 || 1;
-      const w0 = nodalWeights[tri[0]] ?? [];
-      const w1 = nodalWeights[tri[1]] ?? [];
-      const w2 = nodalWeights[tri[2]] ?? [];
-      return Array.from(
-        { length: nRules },
-        (_, r) => (c0 * (w0[r] ?? 0) + c1 * (w1[r] ?? 0) + c2 * (w2[r] ?? 0)) / s,
-      );
+  if (d < 1 || nNodes < 2 || nRules === 0) return null;
+
+  // Clampa o ponto aos limites do domínio (ou caixa envolvente dos nós), igual ao Python
+  const pt = new Array<number>(d);
+  for (let axis = 0; axis < d; axis += 1) {
+    let lo: number;
+    let hi: number;
+    if (bounds && bounds[axis] && bounds[axis].length === 2) {
+      lo = bounds[axis][0];
+      hi = bounds[axis][1];
+    } else {
+      lo = Number.POSITIVE_INFINITY;
+      hi = Number.NEGATIVE_INFINITY;
+      for (let q = 0; q < nNodes; q += 1) {
+        const v = nodes[q]?.[axis] ?? 0;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    }
+    const raw = point[axis] ?? 0.5 * (lo + hi);
+    pt[axis] = Math.min(Math.max(raw, lo), hi);
+  }
+
+  // Caso D = 1: interpolação linear exata nos nós ordenados
+  if (d === 1) {
+    const order = Array.from({ length: nNodes }, (_, i) => i).sort(
+      (a, b) => (nodes[a]?.[0] ?? 0) - (nodes[b]?.[0] ?? 0),
+    );
+    const xFirst = nodes[order[0]]?.[0] ?? 0;
+    const xLast = nodes[order[nNodes - 1]]?.[0] ?? 0;
+    const xVal = Math.min(Math.max(pt[0], xFirst), xLast);
+    let idx = 0;
+    for (let k = 0; k < nNodes - 1; k += 1) {
+      if ((nodes[order[k]]?.[0] ?? 0) <= xVal) idx = k;
+      else break;
+    }
+    idx = Math.min(idx, nNodes - 2);
+    const x0 = nodes[order[idx]]?.[0] ?? 0;
+    const x1 = nodes[order[idx + 1]]?.[0] ?? x0;
+    const dx = x1 - x0;
+    const lam1 = dx > 0 ? Math.min(1, Math.max(0, (xVal - x0) / dx)) : 0;
+    const lam0 = 1.0 - lam1;
+    const w0 = nodalWeights[order[idx]] ?? [];
+    const w1 = nodalWeights[order[idx + 1]] ?? [];
+    return Array.from({ length: nRules }, (_, r) => lam0 * (w0[r] ?? 0) + lam1 * (w1[r] ?? 0));
+  }
+
+  // Caso D >= 2 (triângulos 2D, tetraedros 3D, etc.)
+  if (!Array.isArray(simplices) || simplices.length === 0) return null;
+
+  const bbTol = 1e-9;
+  let bestSimplex: readonly number[] | null = null;
+  let bestLam: number[] | null = null;
+  let bestMinLam = Number.NEGATIVE_INFINITY;
+
+  for (let s = 0; s < simplices.length; s += 1) {
+    const simp = simplices[s];
+    if (!simp || simp.length !== d + 1) continue;
+
+    // Filtro rápido por caixa envolvente (AABB) do simplex
+    let inBox = true;
+    for (let axis = 0; axis < d; axis += 1) {
+      let sMin = Number.POSITIVE_INFINITY;
+      let sMax = Number.NEGATIVE_INFINITY;
+      for (let m = 0; m <= d; m += 1) {
+        const coord = nodes[simp[m]]?.[axis];
+        if (coord === undefined) {
+          inBox = false;
+          break;
+        }
+        if (coord < sMin) sMin = coord;
+        if (coord > sMax) sMax = coord;
+      }
+      if (!inBox || pt[axis] < sMin - bbTol || pt[axis] > sMax + bbTol) {
+        inBox = false;
+        break;
+      }
+    }
+    if (!inBox) continue;
+
+    const lam = solveBarycentricForSimplex(simp, nodes, pt);
+    if (!lam) continue;
+
+    let minLam = lam[0];
+    for (let m = 1; m < lam.length; m += 1) {
+      if (lam[m] < minLam) minLam = lam[m];
+    }
+
+    if (minLam > bestMinLam) {
+      bestMinLam = minLam;
+      bestSimplex = simp;
+      bestLam = lam;
+      if (minLam >= -1e-12) {
+        return interpolateClippedBarycentric(simp, lam, nodalWeights, nRules);
+      }
     }
   }
-  return null;
+
+  if (bestSimplex && bestLam && bestMinLam >= -1e-9) {
+    return interpolateClippedBarycentric(bestSimplex, bestLam, nodalWeights, nRules);
+  }
+
+  // Fallback seguro na fronteira numérica: avalia simplices incidentes ao nó mais próximo
+  let qNear = 0;
+  let bestDistSq = Number.POSITIVE_INFINITY;
+  for (let q = 0; q < nNodes; q += 1) {
+    const nq = nodes[q];
+    if (!nq) continue;
+    let distSq = 0;
+    for (let axis = 0; axis < d; axis += 1) {
+      const diff = (nq[axis] ?? 0) - pt[axis];
+      distSq += diff * diff;
+    }
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      qNear = q;
+    }
+  }
+
+  for (let s = 0; s < simplices.length; s += 1) {
+    const simp = simplices[s];
+    if (!simp || simp.length !== d + 1 || !simp.includes(qNear)) continue;
+    const lam = solveBarycentricForSimplex(simp, nodes, pt);
+    if (!lam) continue;
+    let minLam = lam[0];
+    for (let m = 1; m < lam.length; m += 1) {
+      if (lam[m] < minLam) minLam = lam[m];
+    }
+    if (minLam > bestMinLam) {
+      bestMinLam = minLam;
+      bestSimplex = simp;
+      bestLam = lam;
+    }
+  }
+
+  if (bestSimplex && bestLam) {
+    return interpolateClippedBarycentric(bestSimplex, bestLam, nodalWeights, nRules);
+  }
+  const wNear = nodalWeights[qNear];
+  return wNear ? Array.from({ length: nRules }, (_, r) => wNear[r] ?? 0) : null;
 }
 
 /** Avalia o vetor de pertinências `h(x, w_ext)` para qualquer uma das 3 vias. */
@@ -263,25 +494,29 @@ export function evaluateDerivedMembershipWeights(
   }
 
   if (spec.representation_kind === "femt_simplicial") {
+    const femt = result as DerivedTsFemtResult;
     const mesh = spec.femt_mesh;
     const pt = mesh.variables.map((v, i) => {
       const b = mesh.bounds[i] ?? [-1, 1];
       return env[v] ?? 0.5 * (b[0] + b[1]);
     });
+    const nodes = femt.nodes ?? mesh.nodes;
+    const simplices = femt.simplices ?? mesh.simplices;
     if (
       mesh.mesh_kind === "delaunay" &&
-      pt.length === 2 &&
-      Array.isArray(mesh.nodes) &&
-      Array.isArray(mesh.simplices)
+      pt.length >= 1 &&
+      Array.isArray(nodes) &&
+      nodes.length >= 2 &&
+      (pt.length === 1 || (Array.isArray(simplices) && simplices.length > 0))
     ) {
-      const triW = evaluateDelaunay2DWeights(
-        pt[0],
-        pt[1],
-        mesh.nodes,
-        mesh.simplices,
+      const delW = evaluateDelaunayWeights(
+        pt,
+        nodes,
+        simplices ?? [],
         mesh.nodal_weights,
+        mesh.bounds,
       );
-      if (triW) return triW;
+      if (delW) return delW;
     }
     if (Array.isArray(mesh.axes_grids) && mesh.axes_grids.length === pt.length) {
       return evaluateKuhnDelaunayWeights(pt, mesh.axes_grids, mesh.nodal_weights);
@@ -699,10 +934,51 @@ function evalAstMatrix(mat: QlpvAstNode[][], env: Readonly<Record<string, number
   return mat.map((row) => row.map((node) => evalQlpvAst(node, env)));
 }
 
+export type GeneralizedChannelName = "Bw" | "Dyw" | "Cz" | "Dzu" | "Dzw";
+
+export const GENERALIZED_CHANNEL_NAMES: readonly GeneralizedChannelName[] = [
+  "Bw",
+  "Dyw",
+  "Cz",
+  "Dzu",
+  "Dzw",
+];
+
+export interface OffGridErrorHeatmapOptions {
+  /** Expressões simbólicas opcionais dos canais generalizados ativos (`Bw, Dyw, Cz, Dzu, Dzw`). */
+  generalizedExpressions?: Partial<Record<GeneralizedChannelName, string[][]>>;
+  /** Matrizes numéricas por vértice dos canais generalizados ativos. */
+  generalizedVertices?: ReadonlyArray<Partial<Record<GeneralizedChannelName, number[][]>>>;
+}
+
+function frobeniusDiffSq(
+  truth: ReadonlyArray<readonly number[]>,
+  vertexMats: ReadonlyArray<ReadonlyArray<readonly number[]>>,
+  h: readonly number[],
+): number {
+  let sqSum = 0;
+  for (let r = 0; r < truth.length; r += 1) {
+    const rowLen = truth[r]?.length ?? 0;
+    for (let c = 0; c < rowLen; c += 1) {
+      let hatRC = 0;
+      for (let rule = 0; rule < h.length; rule += 1) {
+        hatRC += (h[rule] ?? 0) * (vertexMats[rule]?.[r]?.[c] ?? 0);
+      }
+      const dRC = (truth[r]?.[c] ?? 0) - hatRC;
+      sqSum += dRC * dRC;
+    }
+  }
+  return sqSum;
+}
+
 /**
- * 5. Mapa de calor 2D do erro de aproximação fora da grade `||S(p) - S_TS(p)||_F` em Ω.
+ * 5. Mapa de calor 2D do erro de aproximação fora da grade `||S(p) - S_TS(p)||_F` em Ω,
+ * contemplando `(A, B, C, D)` e todos os canais generalizados ativos `(Bw, Dyw, Cz, Dzu, Dzw)`.
  */
-export function buildOffGridErrorHeatmap(result: TsDerivationResult): TsHeatmapModel | null {
+export function buildOffGridErrorHeatmap(
+  result: TsDerivationResult,
+  options: OffGridErrorHeatmapOptions = {},
+): TsHeatmapModel | null {
   const model = result.ts_state_space;
   const spec = model.membership_spec;
   const prov = isPlainObject(model.provenance) ? model.provenance : {};
@@ -792,6 +1068,48 @@ export function buildOffGridErrorHeatmap(result: TsDerivationResult): TsHeatmapM
       )
     : [];
 
+  // Canais generalizados ativos (`Bw, Dyw, Cz, Dzu, Dzw`) via provenance ou options
+  const provGen = isPlainObject(prov.generalized_channels) ? prov.generalized_channels : null;
+  const provGenExprs =
+    provGen && isPlainObject(provGen.expressions)
+      ? (provGen.expressions as Record<string, unknown>)
+      : null;
+  const provGenVerts =
+    provGen && Array.isArray(provGen.vertices)
+      ? (provGen.vertices as Array<Record<string, unknown>>)
+      : null;
+
+  const activeGenChannels: Array<{
+    name: GeneralizedChannelName;
+    ast: QlpvAstNode[][];
+    vertexMats: number[][][];
+  }> = [];
+
+  if (hasSymbolicTruth) {
+    const genVertsSource = options.generalizedVertices ?? provGenVerts;
+    if (Array.isArray(genVertsSource) && genVertsSource.length === model.vertices.length) {
+      for (const ch of GENERALIZED_CHANNEL_NAMES) {
+        const rawExpr = options.generalizedExpressions?.[ch] ?? provGenExprs?.[ch];
+        const chAst = parseSymbolicMatrixAst(rawExpr);
+        if (!chAst) continue;
+        const chMats: number[][][] = [];
+        let allValid = true;
+        for (let rule = 0; rule < genVertsSource.length; rule += 1) {
+          const entry = genVertsSource[rule];
+          const mat = isPlainObject(entry) ? entry[ch] : null;
+          if (!isNumMatrix(mat)) {
+            allValid = false;
+            break;
+          }
+          chMats.push(mat);
+        }
+        if (allValid && chMats.length === model.vertices.length) {
+          activeGenChannels.push({ name: ch, ast: chAst, vertexMats: chMats });
+        }
+      }
+    }
+  }
+
   const sectorPremiseAsts =
     spec.representation_kind === "sector_nonlinearity"
       ? spec.sector_premises.map((p) => ({ name: p.name, parsed: parseQlpvExpr(p.expression) }))
@@ -817,16 +1135,10 @@ export function buildOffGridErrorHeatmap(result: TsDerivationResult): TsHeatmapM
           evalAstMatrix(astC!, env),
           evalAstMatrix(astD!, env),
         );
-        let sqSum = 0;
-        for (let r = 0; r < sTrue.length; r += 1) {
-          for (let c = 0; c < (sTrue[r]?.length ?? 0); c += 1) {
-            let sHatRC = 0;
-            for (let rule = 0; rule < h.length; rule += 1) {
-              sHatRC += (h[rule] ?? 0) * (vertexPacked[rule]?.[r]?.[c] ?? 0);
-            }
-            const dRC = (sTrue[r]?.[c] ?? 0) - sHatRC;
-            sqSum += dRC * dRC;
-          }
+        let sqSum = frobeniusDiffSq(sTrue, vertexPacked, h);
+        for (const ch of activeGenChannels) {
+          const chTrue = evalAstMatrix(ch.ast, env);
+          sqSum += frobeniusDiffSq(chTrue, ch.vertexMats, h);
         }
         errVal = Math.sqrt(sqSum);
       } else if (h && h.length > 0) {

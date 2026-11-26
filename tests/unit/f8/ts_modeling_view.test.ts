@@ -47,10 +47,17 @@ import {
   DEFAULT_TS_FORM_PARAMS,
   extractRecipeFromProvenance,
   renderTsModelingViewHtml,
+  serializeDraftDerivationSignature,
   substitutePremises,
   TS_PRESETS,
   TsModelingView,
 } from "../../../web/features/views/ts_modeling_view.ts";
+import {
+  buildOffGridErrorHeatmap,
+  evaluateDelaunayWeights,
+  evaluateDerivedMembershipWeights,
+} from "../../../web/charts/ts_modeling_charts.ts";
+import type { DerivedTsFemtResult } from "../../../web/bridge/ts_modeling.ts";
 import { cpythonLoader } from "../f7/cpython_runtime.mjs";
 
 class RealPythonTsAdapter extends MockWorkerAdapter {
@@ -530,6 +537,283 @@ test("Entrada customizada qLPV completa + Motor Python Real: Via 1 (Setor), Via 
   assert.ok(renderTsModelingViewHtml().includes("ts-zone-1-toolbar"));
   assert.equal(typeof TsModelingView, "function");
   app.destroy();
+});
+
+test("Regressão Achado 1: edição pós-derivação e troca de preset bloqueiam registro obsoleto e preservam integridade de matrizes/receita", async () => {
+  const doc = new FakeDocument();
+  const root = new FakeElement("div", doc);
+  doc.body.appendChild(root);
+
+  const client = new RealPythonTsAdapter();
+  await client.init();
+
+  const app = mountControlLabApp(root as unknown as HTMLElement, { client });
+  app.shell.switchTab("ts_modeling");
+
+  // 1. Derivar pendulum_16 (4 estados, 16 regras)
+  assert.equal(root.querySelector<FakeElement>("#ts-preset-select")!.value, "pendulum_16");
+  root.querySelector<FakeElement>("#btn-ts-derive")!.click();
+  await flushAsync(80);
+
+  const regBtn = root.querySelector<FakeElement>("#btn-ts-register")!;
+  const staleBanner = root.querySelector<FakeElement>("#ts-stale-banner")!;
+  assert.equal(regBtn.disabled, false, "Registrar deve estar habilitado logo após derivar");
+  assert.equal(staleBanner.hasAttribute("hidden"), true, "Banner obsoleto deve estar oculto logo após derivar");
+
+  // 2. Editar uma célula matricial após derivar -> deve marcar como obsoleto e bloquear registro
+  const cellA12 = root.querySelector<FakeElement>('input[data-mat-key="A"][data-row="1"][data-col="2"]')!;
+  cellA12.value = "-2.0 * z1 * z2 * z3";
+  cellA12.dispatchEvent("input");
+
+  assert.equal(regBtn.disabled, true, "Registrar deve ficar desabilitado após editar célula");
+  assert.equal(staleBanner.hasAttribute("hidden"), false, "Banner de especificação alterada deve aparecer");
+  assert.ok(staleBanner.textContent.includes("Especificação alterada desde a última derivação"));
+
+  // Mesmo disparando clique diretamente, guarda defensiva impede gravação
+  regBtn.click();
+  await flushAsync();
+  assert.equal(
+    app.shell.getTypedWorkspace().listRegisteredObjects(["ts_measured", "ts_partially_observed"]).length,
+    0,
+    "Nenhum objeto obsoleto pode ser gravado após edição",
+  );
+
+  // 3. Re-selecionar pendulum_16, derivar novamente e trocar para nonseparable_benchmark (coupled_2d) sem re-derivar
+  const presetSel = root.querySelector<FakeElement>("#ts-preset-select")!;
+  presetSel.value = "pendulum_16";
+  presetSel.dispatchEvent("change");
+  root.querySelector<FakeElement>("#btn-ts-derive")!.click();
+  await flushAsync(80);
+  assert.equal(regBtn.disabled, false);
+
+  presetSel.value = "nonseparable_benchmark";
+  presetSel.dispatchEvent("change");
+
+  assert.equal(regBtn.disabled, true, "Troca de preset deve desabilitar Registrar imediatamente");
+  assert.equal(
+    root.querySelector<FakeElement>("#ts-vertex-inspector-card")!.hasAttribute("hidden"),
+    true,
+    "Inspetor de vértices do pêndulo deve ser limpo ao trocar de preset",
+  );
+  assert.equal(
+    root.querySelector<FakeElement>("#ts-hr-chart-slot")!.innerHTML.includes("<svg"),
+    false,
+    "Gráficos do pêndulo não devem permanecer visíveis após trocar para coupled_2d",
+  );
+
+  // Tentativa de registrar antes de derivar coupled_2d não deve gravar nada
+  regBtn.click();
+  await flushAsync();
+  assert.equal(
+    app.shell.getTypedWorkspace().listRegisteredObjects(["ts_measured", "ts_partially_observed"]).length,
+    0,
+    "Não deve gravar ts-coupled-2d com matrizes do pêndulo 4x4",
+  );
+
+  // 4. Derivar coupled_2d e registrar -> deve gravar matrizes 2x2 e receita de nonseparable_benchmark
+  root.querySelector<FakeElement>("#btn-ts-derive")!.click();
+  await flushAsync(100);
+  assert.equal(regBtn.disabled, false);
+
+  regBtn.click();
+  await flushAsync();
+  const objs = app.shell.getTypedWorkspace().listRegisteredObjects(["ts_measured", "ts_partially_observed"]);
+  assert.equal(objs.length, 1);
+  assert.equal(objs[0].id, "ts-coupled-2d");
+  const verts = objs[0].value.vertices as Array<{ A: { shape: number[] } }>;
+  assert.deepEqual(verts[0].A.shape, [2, 2], "Objeto ts-coupled-2d deve ter matrizes A 2x2");
+  const recipe = extractRecipeFromProvenance(objs[0].value);
+  assert.equal(recipe?.via, "femt");
+  assert.equal(recipe?.preset, "nonseparable_benchmark");
+
+  // Determinismo da assinatura
+  const d1 = TS_PRESETS.pendulum_16.buildDraft();
+  const d2 = TS_PRESETS.pendulum_16.buildDraft();
+  assert.equal(
+    serializeDraftDerivationSignature(d1, "sector"),
+    serializeDraftDerivationSignature(d2, "sector"),
+  );
+  d2.sectorMatrices.A[0][0] = "0.1";
+  assert.notEqual(
+    serializeDraftDerivationSignature(d1, "sector"),
+    serializeDraftDerivationSignature(d2, "sector"),
+  );
+
+  app.destroy();
+});
+
+test("Regressão Achado 2: mapa de erro off-grid inclui canais generalizados (Bw, Cz) na norma de Frobenius", async () => {
+  const client = new RealPythonTsAdapter();
+  await client.init();
+
+  // Planta com A, B, C, D 100% constantes e não-linearidade EXCLUSIVA em Bw(x1, x2)
+  const resp = await client.deriveTsFemt(
+    { request_id: "test-gen-err-1", project_id: "proj-gen", project_revision: 1 },
+    {
+      state_bounds: { x1: [-1.2, 1.2], x2: [-1.2, 1.2] },
+      A_expr: [
+        ["-1.0", "0.5"],
+        ["0.0", "-2.0"],
+      ],
+      B_expr: [["0.0"], ["1.0"]],
+      C_expr: [["1.0", "0.0"]],
+      D_expr: [["0.0"]],
+      generalized_channels: {
+        Bw: [["sin(x1 * x2)"], ["cos(x1 + x2)"]],
+        Cz: [["1.0", "0.0"]],
+      },
+      grid_points: { x1: 5, x2: 5 },
+      hull_type: "CNO",
+      mesh_kind: "delaunay",
+      model_id: "ts-gen-bw-only",
+      n_val_points: 64,
+    },
+  );
+  assert.equal(resp.status === "success" || resp.status === "warning", true);
+  const result = resp.result!;
+
+  const hm = buildOffGridErrorHeatmap(result);
+  assert.ok(hm !== null, "Heatmap deve ser gerado");
+  assert.ok(
+    hm!.maxError > 1e-3,
+    `Erro off-grid com não-linearidade exclusiva em Bw não pode ser ~0, obtido ${hm!.maxError}`,
+  );
+
+  // Validação exata ponto a ponto da norma de Frobenius de Bw em todos os pontos do heatmap
+  const prov = result.ts_state_space.provenance as Record<string, unknown>;
+  const genProv = prov.generalized_channels as {
+    vertices: Array<{ Bw: number[][] }>;
+  };
+  let maxDiff = 0;
+  for (let j = 0; j < hm!.ys.length; j += 1) {
+    for (let i = 0; i < hm!.xs.length; i += 1) {
+      const x1 = hm!.xs[i];
+      const x2 = hm!.ys[j];
+      const h = evaluateDerivedMembershipWeights(result, { x1, x2 })!;
+      let bw0Hat = 0;
+      let bw1Hat = 0;
+      for (let r = 0; r < h.length; r += 1) {
+        bw0Hat += h[r] * genProv.vertices[r].Bw[0][0];
+        bw1Hat += h[r] * genProv.vertices[r].Bw[1][0];
+      }
+      const d0 = Math.sin(x1 * x2) - bw0Hat;
+      const d1 = Math.cos(x1 + x2) - bw1Hat;
+      const expectedFrob = Math.sqrt(d0 * d0 + d1 * d1);
+      const diff = Math.abs(hm!.values[j][i] - expectedFrob);
+      if (diff > maxDiff) maxDiff = diff;
+    }
+  }
+  assert.ok(
+    maxDiff < 1e-12,
+    `Norma de Frobenius do heatmap deve coincidir com o erro exato em Bw (maxDiff=${maxDiff})`,
+  );
+});
+
+test("Regressão Achado 3: avaliador FEMT Delaunay 3D em JS bate com evaluate_femt_delaunay do Python (< 1e-12)", async () => {
+  const client = new RealPythonTsAdapter();
+  await client.init();
+
+  // Gera modelo FEMT 3D real com mesh_kind="delaunay"
+  const resp = await client.deriveTsFemt(
+    { request_id: "test-femt-3d-del", project_id: "proj-3d", project_revision: 1 },
+    {
+      state_bounds: { x1: [-1.0, 1.0], x2: [-1.0, 1.0], x3: [-1.0, 1.0] },
+      A_expr: [
+        ["-1.0 + 0.4 * sin(x1 + x2)", "0.3 * cos(x2 - x3)", "0.1"],
+        ["0.2 * x1 * x3", "-2.0 + 0.25 * sin(x1 * x3)", "0.0"],
+        ["0.0", "0.5", "-1.5 + 0.3 * cos(x1 + x2 + x3)"],
+      ],
+      B_expr: [["0.0"], ["0.0"], ["1.0"]],
+      C_expr: [["1.0", "0.0", "0.0"]],
+      D_expr: [["0.0"]],
+      grid_points: { x1: 4, x2: 4, x3: 4 },
+      hull_type: "CNO",
+      mesh_kind: "delaunay",
+      model_id: "ts-femt-3d-delaunay",
+      n_val_points: 64,
+    },
+  );
+  assert.equal(resp.status === "success" || resp.status === "warning", true);
+  const femtResult = resp.result as DerivedTsFemtResult;
+  const mesh = femtResult.ts_state_space.membership_spec.femt_mesh;
+  assert.equal(mesh.mesh_kind, "delaunay");
+  assert.equal(mesh.variables.length, 3);
+  assert.ok(Array.isArray(femtResult.nodes) && femtResult.nodes.length === 64);
+  assert.ok(Array.isArray(femtResult.simplices) && femtResult.simplices.length > 0);
+  assert.equal(femtResult.simplices[0].length, 4, "Simplices 3D devem ser tetraedros com 4 vértices");
+
+  const testPoints: Array<[number, number, number]> = [
+    [0.13, -0.47, 0.62],
+    [-0.71, 0.29, -0.18],
+    [0.85, 0.77, -0.91],
+    [0.0, 0.0, 0.0],
+    [-1.0, 1.0, -1.0],
+    [1.0, -0.3333333333333333, 0.5],
+    [-0.25, -0.82, 0.99],
+  ];
+
+  // Compara diretamente com `control_lab.fuzzy.femt.evaluate_femt_delaunay` no Python real
+  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+  const cpModId = "node:child_process";
+  const { spawnSync } = (await import(cpModId)) as {
+    spawnSync: (
+      cmd: string,
+      args: string[],
+      opts: Record<string, unknown>,
+    ) => { status: number | null; stdout: string; stderr: string };
+  };
+  const pyProc = spawnSync(
+    "python3",
+    [
+      "-c",
+      "import sys, json; from control_lab.fuzzy.femt import evaluate_femt_delaunay; d = json.load(sys.stdin); out = evaluate_femt_delaunay(d['pts'], d['nodes'], d['simplices'], d['weights'], d['bounds']); print(json.dumps(out.tolist(), allow_nan=False))",
+    ],
+    {
+      cwd: repoRoot,
+      input: JSON.stringify({
+        pts: testPoints,
+        nodes: femtResult.nodes,
+        simplices: femtResult.simplices,
+        weights: mesh.nodal_weights,
+        bounds: mesh.bounds,
+      }),
+      encoding: "utf8",
+      timeout: 30000,
+    },
+  );
+  assert.equal(pyProc.status, 0, `Python evaluate_femt_delaunay falhou: ${pyProc.stderr}`);
+  const pyWeightsBatch = JSON.parse(pyProc.stdout) as number[][];
+
+  let maxErr = 0;
+  for (let k = 0; k < testPoints.length; k += 1) {
+    const [p0, p1, p2] = testPoints[k];
+    const env = {
+      [mesh.variables[0]]: p0,
+      [mesh.variables[1]]: p1,
+      [mesh.variables[2]]: p2,
+    };
+    const hJs = evaluateDerivedMembershipWeights(femtResult, env);
+    const hDirect = evaluateDelaunayWeights(
+      [p0, p1, p2],
+      femtResult.nodes!,
+      femtResult.simplices!,
+      mesh.nodal_weights,
+      mesh.bounds,
+    );
+    assert.ok(hJs !== null && hDirect !== null);
+    const hPy = Array.from(pyWeightsBatch[k]);
+    assert.equal(hJs!.length, hPy.length);
+    for (let r = 0; r < hPy.length; r += 1) {
+      const err1 = Math.abs(hJs![r] - hPy[r]);
+      const err2 = Math.abs(hDirect![r] - hPy[r]);
+      if (err1 > maxErr) maxErr = err1;
+      if (err2 > maxErr) maxErr = err2;
+    }
+  }
+  assert.ok(
+    maxErr < 1e-12,
+    `Avaliador FEMT Delaunay 3D JS deve coincidir com Python (< 1e-12), obtido maxErr=${maxErr}`,
+  );
 });
 
 test("Segurança R-21: módulos da Aba 6 não contêm eval ou construtor dinâmico Function", () => {

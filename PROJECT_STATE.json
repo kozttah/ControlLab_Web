@@ -29,7 +29,7 @@
       "2026-11-23": 1,
       "2026-11-24": 6,
       "2026-11-25": 5,
-      "2026-11-26": 4
+      "2026-11-26": 5
     }
   },
   "audit_reference": {
@@ -7256,6 +7256,41 @@
       ]
     },
     {
+      "wp_id": "WP-TSMOD-04B-F8-TS-MODELING-HARDENING",
+      "front": "f8-ui-charts",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F8: Endurecimento da Aba 6 (ts_modeling) — invalidação de derivação obsoleta no registro, canais generalizados no mapa de erro e avaliador Delaunay explícito 3D",
+      "allowed_paths": [
+        "web/features/views/ts_modeling_view.ts",
+        "web/charts/ts_modeling_charts.ts",
+        "tests/unit/f8/ts_modeling_view.test.ts"
+      ],
+      "dependencies": [
+        "WP-TSMOD-04-F8-TS-MODELING-TAB-UI"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-05",
+        "R-18",
+        "R-21"
+      ],
+      "normative_tests": [
+        "T-TSMOD-07",
+        "T-TSMOD-08"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-TSMOD-04B-F8-TS-MODELING-HARDENING.md",
+      "acceptance_scope": "f8_ts_modeling_stale_registration_guard_generalized_error_map_and_3d_explicit_delaunay",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Invalidar/bloquear o registro no Workspace sempre que o usuário trocar preset ou editar qualquer campo do rascunho após a última derivação, e usar o snapshot congelado da derivação no registro para impedir mistura de matrizes de uma planta com nome/receita de outra",
+        "Incluir todos os canais generalizados ativos (Bw, Dyw, Cz, Dzu, Dzw) no cálculo da norma de Frobenius do mapa de erro em web/charts/ts_modeling_charts.ts, mantendo coerência com o certificado de fidelidade do motor Python",
+        "Implementar avaliação baricêntrica explícita sobre simplices Delaunay em 3D (tetraedros, resolução 3x3 com pivoteamento parcial) em web/charts/ts_modeling_charts.ts para eliminar a divergência contra o motor Python em modelos FEMT 3D com mesh_kind='delaunay'"
+      ]
+    },
+    {
       "wp_id": "WP-TSMOD-05-F9-TS-MODELING-AUDIT-ORACLES",
       "front": "f9-integration-qa",
       "phase": "Phase10-TS-qLPV-Modeling",
@@ -7273,7 +7308,8 @@
       "dependencies": [
         "WP-TSMOD-02C-F5-FEMT-CENTERED-SUBSPACE",
         "WP-TSMOD-02D-F5-TPMT-CENTERED-SUBSPACE",
-        "WP-TSMOD-04-F8-TS-MODELING-TAB-UI"
+        "WP-TSMOD-04-F8-TS-MODELING-TAB-UI",
+        "WP-TSMOD-04B-F8-TS-MODELING-HARDENING"
       ],
       "requirement_ids": [
         "R-04",

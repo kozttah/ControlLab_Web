@@ -1,11 +1,14 @@
-r"""Motor de Transformação por Elementos Finitos (FEMT) — Frente F5 (CL-TS-MOD-DIR-001 Seções 5 e 6).
+r"""Motor de Transformação por Elementos Finitos (FEMT v1.2.0) — Frente F5 (CL-TS-MOD-DIR-001 Seções 5 e 6).
 
 Implementa em NumPy/SciPy puro (100% compatível com Pyodide `wasm32`, ZERO `linalg.inv`, ZERO `eval`/`exec`):
-- Vetorização matricial 2D determinística (`vec(S(p^(q)))`) e SVD econômica globalmente ótima
-  (`np.linalg.svd(X.T, full_matrices=False)`) com erro exato de Eckart–Young–Mirsky;
-- Manipulação do fecho convexo global sobre `U_R` reutilizando `sn_nn_matrix`, `rno_ino_matrix`,
+- Partição estrutural $\mathcal{I}_{\text{const}} \sqcup \mathcal{I}_{\text{var}}$ preservando bit-a-bit todas as
+  entradas constantes da planta qLPV nos vértices;
+- Extração da média amostral $\bar{x}_{\text{var}}$, SVD econômica centrada sobre as flutuações $\Delta X_{\text{var}}$
+  com erro exato de Eckart–Young–Mirsky e aumento ortonormal pelo vetor de pesos uniformes $\frac{1}{N_g}\mathbf{1}_{N_g}$
+  garantindo `rank_augmented == False` em `SN-NN`;
+- Manipulação do fecho convexo global sobre o subespaço variante reutilizando `sn_nn_matrix`, `rno_ino_matrix`,
   `cno_matrix` (com salvaguarda direcional escalável para `N_r >= 7`) e `mgk_matrix`, atualizando
-  vértices via `scipy.linalg.solve` (zero `linalg.inv`);
+  vértices via `scipy.linalg.solve` (zero `linalg.inv`) e remontando entradas constantes exatamente;
 - Interpolação linear de elementos finitos simpliciais ($P_1$ baricêntrica):
   - `evaluate_femt_kuhn_delaunay`: triangulação conformante de Kuhn–Freudenthal em $O(D \log D)$ e memória $O(1)$;
   - `evaluate_femt_delaunay`: triangulação de Delaunay explícita (`scipy.spatial.Delaunay` + `scipy.linalg.solve`);
@@ -98,9 +101,14 @@ def femt_svd_decompose(
     tol: float = 1e-6,
     rank: int | None = None,
 ) -> FEMTSVDResult:
-    """Empilha `vec(S(p^(q)))` em ordem C determinística e executa SVD econômica globalmente ótima.
+    """Particiona entradas constantes/variantes, extrai a média e executa SVD econômica centrada sobre o delta.
 
-    Calcula `np.linalg.svd(X.T, full_matrices=False)` onde `X.T` tem shape `(N_g, M)` e `X` tem shape `(M, N_g)`.
+    - Calcula a média amostral `mean_full` e a flutuação centrada `delta_full = X_T - mean_full`.
+    - Identifica o subespaço variante `varying_mask`: `max_q |delta_full[q, j]| > 1e-14 * (1 + |mean_full[j]|)`.
+    - Se `M_var == 0` (sistema LTI constante): retorna `rank=0`, `U_raw = 1/sqrt(N_g)`, `C_raw = sqrt(N_g) * mean_full`.
+    - Se `M_var > 0`: aplica SVD econômica somente sobre `Delta_var_T`, seleciona posto de flutuação `R_delta`
+      e aumenta `U_raw = [u0, U_delta]` (ortonormal de shape `(N_g, R_delta + 1)`), garantindo erro exato
+      de Eckart–Young–Mirsky centrado e preservação exata das entradas constantes em `U_raw @ C_raw`.
     """
     arr = np.asarray(S_nodes, dtype=np.float64)
     if arr.ndim not in (2, 3):
@@ -114,12 +122,41 @@ def femt_svd_decompose(
     if tol < 0.0 or not math.isfinite(tol):
         raise ValidationError(f"tol deve ser finito e não negativo, recebido {tol!r}.")
 
-    n_nodes = arr.shape[0]
+    n_nodes = int(arr.shape[0])
     X_T = arr.reshape(n_nodes, -1)  # (N_g, M), ordem C determinística
-    r_max = min(X_T.shape[0], X_T.shape[1])
+    mean_full = np.mean(X_T, axis=0)
+    delta_full = X_T - mean_full[None, :]
+    varying_mask = np.max(np.abs(delta_full), axis=0) > 1e-14 * (1.0 + np.abs(mean_full))
+    m_var = int(np.sum(varying_mask))
 
-    U_full, s, Vt_full = np.linalg.svd(X_T, full_matrices=False)
-    s_arr = np.asarray(s, dtype=np.float64)
+    u0 = np.full((n_nodes, 1), 1.0 / math.sqrt(float(n_nodes)), dtype=np.float64)
+
+    if m_var == 0:
+        if rank is not None:
+            if not isinstance(rank, (int, np.integer)) or isinstance(rank, bool):
+                raise ValidationError(f"rank deve ser inteiro, recebido {type(rank).__name__}.")
+            r_req = int(rank)
+            if r_req not in (0, 1):
+                raise ValidationError(
+                    f"Posto de flutuação solicitado rank={r_req} fora do intervalo válido [0, 1] para sistema constante."
+                )
+        C_raw = (math.sqrt(float(n_nodes)) * mean_full)[None, :]
+        return FEMTSVDResult(
+            U_raw=u0,
+            C_raw=np.asarray(C_raw, dtype=np.float64),
+            singular_values=np.zeros(0, dtype=np.float64),
+            rank=0,
+            eckart_young_frobenius_error=0.0,
+            eckart_young_spectral_error=0.0,
+        )
+
+    X_var_T = X_T[:, varying_mask]
+    mean_var = mean_full[varying_mask]
+    Delta_var_T = X_var_T - mean_var[None, :]
+
+    U_d, s_d, _ = np.linalg.svd(Delta_var_T, full_matrices=False)
+    s_arr = np.asarray(s_d, dtype=np.float64)
+    r_max = min(max(1, n_nodes - 1), m_var, int(s_arr.size))
 
     if rank is not None:
         if not isinstance(rank, (int, np.integer)) or isinstance(rank, bool):
@@ -127,7 +164,7 @@ def femt_svd_decompose(
         r_sel = int(rank)
         if r_sel < 1 or r_sel > r_max:
             raise ValidationError(
-                f"Posto global solicitado rank={r_sel} fora do intervalo válido [1, {r_max}]."
+                f"Posto de flutuação solicitado rank={r_sel} fora do intervalo válido [1, {r_max}]."
             )
     else:
         if s_arr.size == 0 or s_arr[0] <= 0.0:
@@ -136,8 +173,19 @@ def femt_svd_decompose(
             r_sel = int(np.sum(s_arr > tol * s_arr[0]))
             r_sel = max(1, min(r_sel, r_max))
 
-    U_raw = np.asarray(U_full[:, :r_sel], dtype=np.float64)
-    C_raw = np.asarray(s_arr[:r_sel, None] * Vt_full[:r_sel, :], dtype=np.float64)
+    # Reortogonalização explícita de U_delta contra 1_{N_g} e re-ortonormalização se houver drift
+    U_delta = np.asarray(U_d[:, :r_sel], dtype=np.float64)
+    U_delta = U_delta - np.mean(U_delta, axis=0, keepdims=True)
+    gram_err = float(np.linalg.norm(U_delta.T @ U_delta - np.eye(r_sel, dtype=np.float64), ord="fro"))
+    if gram_err > 1e-13:
+        Q_aug, R_aug = np.linalg.qr(np.hstack([u0, U_delta]), mode="reduced")
+        signs = np.where(np.diag(R_aug) < 0.0, -1.0, 1.0)
+        Q_aug = Q_aug * signs[None, :]
+        U_delta = Q_aug[:, 1:]
+        U_delta = U_delta - np.mean(U_delta, axis=0, keepdims=True)
+
+    U_raw = np.hstack([u0, U_delta])
+    C_raw = np.asarray(U_raw.T @ X_T, dtype=np.float64)
 
     if r_sel < s_arr.size:
         ey_frob = math.sqrt(max(0.0, float(np.sum(s_arr[r_sel:] ** 2))))
@@ -499,6 +547,49 @@ def evaluate_femt_delaunay(
 # ---------------------------------------------------------------------------
 
 
+def _build_ast_varying_mask(
+    parsed_A: list[list[ParsedExpression]],
+    parsed_B: list[list[ParsedExpression]],
+    parsed_C: list[list[ParsedExpression]],
+    parsed_D: list[list[ParsedExpression]],
+    parsed_gen: Mapping[str, list[list[ParsedExpression]]],
+    *,
+    n: int,
+    m: int,
+    p_out: int,
+    nw: int,
+    nz: int,
+) -> np.ndarray:
+    """Constrói máscara booleana `(M1, M2)` indicando entradas com variáveis ativas na AST."""
+    m1 = n + p_out + nz
+    m2 = n + m + nw
+    mask = np.zeros((m1, m2), dtype=bool)
+
+    def _fill(block: list[list[ParsedExpression]], r0: int, c0: int) -> None:
+        for i, row in enumerate(block):
+            for j, pe in enumerate(row):
+                if len(pe.active_variables) > 0:
+                    mask[r0 + i, c0 + j] = True
+
+    _fill(parsed_A, 0, 0)
+    _fill(parsed_B, 0, n)
+    _fill(parsed_C, n, 0)
+    _fill(parsed_D, n, n)
+    if nw > 0:
+        if "Bw" in parsed_gen:
+            _fill(parsed_gen["Bw"], 0, n + m)
+        if "Dyw" in parsed_gen:
+            _fill(parsed_gen["Dyw"], n, n + m)
+    if nz > 0:
+        if "Cz" in parsed_gen:
+            _fill(parsed_gen["Cz"], n + p_out, 0)
+        if "Dzu" in parsed_gen:
+            _fill(parsed_gen["Dzu"], n + p_out, n)
+        if nw > 0 and "Dzw" in parsed_gen:
+            _fill(parsed_gen["Dzw"], n + p_out, n + m)
+    return mask
+
+
 def derive_ts_femt(
     state_bounds: Mapping[str, Sequence[float]],
     A_expr: Sequence[Sequence[str | float | int]],
@@ -803,95 +894,164 @@ def derive_ts_femt(
             nz=nz,
         )  # (N_g, M1, M2)
 
-        # 2. SVD Matricial Econômica Globalmente Ótima (Eckart–Young–Mirsky)
+        # 2. Partição estrutural I_const U I_var + SVD econômica centrada sobre o delta
+        X_T = S_batch_grid.reshape(total_nodes, m_vec)
+        mean_full = np.mean(X_T, axis=0)
+        delta_full = X_T - mean_full[None, :]
+        ast_varying_mask = _build_ast_varying_mask(
+            parsed_A,
+            parsed_B,
+            parsed_C,
+            parsed_D,
+            parsed_gen,
+            n=n,
+            m=m,
+            p_out=p_out,
+            nw=nw,
+            nz=nz,
+        ).reshape(-1)
+        num_varying_mask = np.max(np.abs(delta_full), axis=0) > 1e-14 * (1.0 + np.abs(mean_full))
+        varying_mask = ast_varying_mask & num_varying_mask
+        n_varying_entries = int(np.sum(varying_mask))
+        n_constant_entries = int(m_vec - n_varying_entries)
+
+        # Preserva bit-a-bit todas as entradas estruturalmente constantes na AST
+        S_const_flat = mean_full.copy()
+        S_const_flat[~ast_varying_mask] = X_T[0, ~ast_varying_mask]
+
         svd_res = femt_svd_decompose(S_batch_grid, tol=svd_tol, rank=rank)
         U_raw = svd_res.U_raw
         C_raw = svd_res.C_raw
 
-        # 3. Manipulação do Fecho Convexo Global sobre U_raw (N_g x R) e C_raw (R x M)
-        W_sn, _, info_sn = sn_nn_matrix(U_raw, core=C_raw, mode=0, sn_tol=sn_tol)
-        C_sn = info_sn["core"]
-        rank_before = int(info_sn["rank_before"])
-        rank_augmented = bool(info_sn["rank_augmented"])
-
-        if norm_hull == "SN-NN":
-            W_nodal = W_sn
-            C_final = C_sn
+        # 3. Construção do Fecho Convexo Sem Coluna Extra no Subespaço Variante (ZERO linalg.inv)
+        if n_varying_entries == 0:
+            W_nodal = np.ones((total_nodes, 1), dtype=np.float64)
+            C_final = S_const_flat[None, :].copy()
             hull_diag: dict[str, Any] = {
-                "hull_type": "SN-NN",
-                "rank_before": rank_before,
-                "rank_after": int(W_nodal.shape[1]),
-                "rank_augmented": rank_augmented,
-                "min_weight": float(info_sn["min_weight"]),
-                "max_sum_deviation": float(info_sn["max_sum_deviation"]),
-                "cond_T": float(info_sn["cond_T"]),
+                "hull_type": norm_hull,
+                "rank_before": 1,
+                "rank_after": 1,
+                "rank_augmented": False,
+                "min_weight": 1.0,
+                "max_sum_deviation": 0.0,
+                "cond_T": 1.0,
+                "cond_W": 1.0,
                 "log_abs_det_T": 0.0,
                 "fallback_used": False,
                 "used_directional_prefilter": False,
                 "nn_violated": False,
             }
-        elif norm_hull == "RNO-INO":
-            W_nodal, _, info_h = rno_ino_matrix(W_sn, core=C_sn, mode=0)
-            C_final = info_h["core"]
-            hull_diag = {
-                "hull_type": "RNO-INO",
-                "rank_before": rank_before,
-                "rank_after": int(W_nodal.shape[1]),
-                "rank_augmented": rank_augmented,
-                "min_weight": float(info_h["min_weight"]),
-                "max_sum_deviation": float(info_h["max_sum_deviation"]),
-                "cond_T": float(info_h["cond_T"]),
-                "log_abs_det_T": float(info_h["log_abs_det_T"]),
-                "fallback_used": bool(info_h["fallback_used"]),
-                "used_directional_prefilter": False,
-                "nn_violated": False,
-            }
-        elif norm_hull == "CNO":
-            W_nodal, _, info_h = cno_matrix(W_sn, core=C_sn, mode=0)
-            C_final = info_h["core"]
-            hull_diag = {
-                "hull_type": "CNO",
-                "rank_before": rank_before,
-                "rank_after": int(W_nodal.shape[1]),
-                "rank_augmented": rank_augmented,
-                "used_convex_hull": bool(info_h["used_convex_hull"]),
-                "used_directional_prefilter": bool(info_h.get("used_directional_prefilter", False)),
-                "n_hull_vertices": int(info_h["n_hull_vertices"]),
-                "min_weight": float(info_h["min_weight"]),
-                "max_sum_deviation": float(info_h["max_sum_deviation"]),
-                "cond_T": float(info_h["cond_T"]),
-                "log_abs_det_T": float(info_h["log_abs_det_T"]),
-                "fallback_used": bool(info_h["fallback_used"]),
-                "nn_violated": False,
-            }
-        else:  # MGK
-            W_nodal, _, info_h = mgk_matrix(W_sn, core=C_sn, mode=0)
-            C_final = info_h["core"]
-            nn_viol = bool(info_h["nn_violated"])
-            if nn_viol:
-                warnings_list.append(
-                    WarningItem(
-                        code="NN_VIOLATED",
-                        message=(
-                            f"Transformação MGK global violou não-negatividade "
-                            f"(min(W)={info_h['min_weight']:.3e} < -1e-9). Recomenda-se RNO-INO ou CNO."
-                        ),
-                        details={"min_weight": float(info_h["min_weight"])},
+            if norm_hull == "CNO":
+                hull_diag["used_convex_hull"] = False
+                hull_diag["n_hull_vertices"] = 1
+        else:
+            mean_var = mean_full[varying_mask]
+            U_delta = U_raw[:, 1:]
+            C_delta_var = C_raw[1:, varying_mask]
+
+            # Pré-condicionamento RMS invariante a N_g
+            scale = math.sqrt(float(total_nodes))
+            U_delta_scaled = scale * U_delta
+            C_delta_scaled = C_delta_var / scale
+
+            # Base inicial de soma unitária analítica (sem lstsq, sem coluna extra)
+            U_sn = np.column_stack(
+                [np.ones(total_nodes, dtype=np.float64) - np.sum(U_delta_scaled, axis=1), U_delta_scaled]
+            )
+            C_sn_var = np.vstack([mean_var[None, :], mean_var[None, :] + C_delta_scaled])
+
+            W_sn, T_sn_nn, info_sn = sn_nn_matrix(U_sn, sn_tol=sn_tol)
+            C_sn_nn_var = np.asarray(scipy_linalg.solve(T_sn_nn, C_sn_var), dtype=np.float64)
+            rank_before = int(info_sn["rank_before"])
+            rank_augmented = bool(info_sn["rank_augmented"])
+
+            if norm_hull == "SN-NN":
+                W_nodal = W_sn
+                C_final_var = C_sn_nn_var
+                hull_diag = {
+                    "hull_type": "SN-NN",
+                    "rank_before": rank_before,
+                    "rank_after": int(W_nodal.shape[1]),
+                    "rank_augmented": rank_augmented,
+                    "min_weight": float(info_sn["min_weight"]),
+                    "max_sum_deviation": float(info_sn["max_sum_deviation"]),
+                    "cond_T": float(info_sn["cond_T"]),
+                    "cond_W": float(np.linalg.cond(W_nodal)),
+                    "log_abs_det_T": 0.0,
+                    "fallback_used": False,
+                    "used_directional_prefilter": False,
+                    "nn_violated": False,
+                }
+            elif norm_hull == "RNO-INO":
+                W_nodal, T_hull, info_h = rno_ino_matrix(W_sn)
+                C_final_var = np.asarray(scipy_linalg.solve(T_hull, C_sn_nn_var), dtype=np.float64)
+                hull_diag = {
+                    "hull_type": "RNO-INO",
+                    "rank_before": rank_before,
+                    "rank_after": int(W_nodal.shape[1]),
+                    "rank_augmented": rank_augmented,
+                    "min_weight": float(info_h["min_weight"]),
+                    "max_sum_deviation": float(info_h["max_sum_deviation"]),
+                    "cond_T": float(info_h["cond_T"]),
+                    "cond_W": float(np.linalg.cond(W_nodal)),
+                    "log_abs_det_T": float(info_h["log_abs_det_T"]),
+                    "fallback_used": bool(info_h["fallback_used"]),
+                    "used_directional_prefilter": False,
+                    "nn_violated": False,
+                }
+            elif norm_hull == "CNO":
+                W_nodal, T_hull, info_h = cno_matrix(W_sn)
+                C_final_var = np.asarray(scipy_linalg.solve(T_hull, C_sn_nn_var), dtype=np.float64)
+                hull_diag = {
+                    "hull_type": "CNO",
+                    "rank_before": rank_before,
+                    "rank_after": int(W_nodal.shape[1]),
+                    "rank_augmented": rank_augmented,
+                    "used_convex_hull": bool(info_h["used_convex_hull"]),
+                    "used_directional_prefilter": bool(info_h.get("used_directional_prefilter", False)),
+                    "n_hull_vertices": int(info_h["n_hull_vertices"]),
+                    "min_weight": float(info_h["min_weight"]),
+                    "max_sum_deviation": float(info_h["max_sum_deviation"]),
+                    "cond_T": float(info_h["cond_T"]),
+                    "cond_W": float(np.linalg.cond(W_nodal)),
+                    "log_abs_det_T": float(info_h["log_abs_det_T"]),
+                    "fallback_used": bool(info_h["fallback_used"]),
+                    "nn_violated": False,
+                }
+            else:  # MGK
+                W_nodal, T_hull, info_h = mgk_matrix(W_sn)
+                C_final_var = np.asarray(scipy_linalg.solve(T_hull, C_sn_nn_var), dtype=np.float64)
+                nn_viol = bool(info_h["nn_violated"])
+                if nn_viol:
+                    warnings_list.append(
+                        WarningItem(
+                            code="NN_VIOLATED",
+                            message=(
+                                f"Transformação MGK global violou não-negatividade "
+                                f"(min(W)={info_h['min_weight']:.3e} < -1e-9). Recomenda-se RNO-INO ou CNO."
+                            ),
+                            details={"min_weight": float(info_h["min_weight"])},
+                        )
                     )
-                )
-            hull_diag = {
-                "hull_type": "MGK",
-                "rank_before": rank_before,
-                "rank_after": int(W_nodal.shape[1]),
-                "rank_augmented": rank_augmented,
-                "min_weight": float(info_h["min_weight"]),
-                "max_sum_deviation": float(info_h["max_sum_deviation"]),
-                "cond_T": float(info_h["cond_T"]),
-                "log_abs_det_T": float(info_h["log_abs_det_T"]),
-                "fallback_used": False,
-                "used_directional_prefilter": False,
-                "nn_violated": nn_viol,
-            }
+                hull_diag = {
+                    "hull_type": "MGK",
+                    "rank_before": rank_before,
+                    "rank_after": int(W_nodal.shape[1]),
+                    "rank_augmented": rank_augmented,
+                    "min_weight": float(info_h["min_weight"]),
+                    "max_sum_deviation": float(info_h["max_sum_deviation"]),
+                    "cond_T": float(info_h["cond_T"]),
+                    "cond_W": float(np.linalg.cond(W_nodal)),
+                    "log_abs_det_T": float(info_h["log_abs_det_T"]),
+                    "fallback_used": False,
+                    "used_directional_prefilter": False,
+                    "nn_violated": nn_viol,
+                }
+
+            # Remontagem estrutural exata: entradas constantes bit-a-bit idênticas em todas as regras
+            n_rules_tmp = int(W_nodal.shape[1])
+            C_final = np.broadcast_to(S_const_flat[None, :], (n_rules_tmp, m_vec)).copy()
+            C_final[:, varying_mask] = C_final_var
 
         # 4. Validação do número final de regras N_r
         n_rules = int(W_nodal.shape[1])
@@ -1163,6 +1323,9 @@ def derive_ts_femt(
                 "active_variables": list(p_names),
                 "grid_points": list(g_sizes),
                 "num_rules": n_rules,
+                "n_varying_entries": n_varying_entries,
+                "n_constant_entries": n_constant_entries,
+                "centered_mean_augmented": True,
                 "state_bounds": clean_state_bounds,
                 "external_bounds": clean_ext_bounds,
                 "A_expr": [[pe.source for pe in row] for row in parsed_A],
@@ -1212,6 +1375,8 @@ def derive_ts_femt(
                 "active_variables": list(p_names),
                 "mesh_kind": m_kind,
                 "svd_rank": int(svd_res.rank),
+                "n_varying_entries": n_varying_entries,
+                "n_constant_entries": n_constant_entries,
                 "singular_values": singular_values_list,
                 "eckart_young_frobenius_error": float(svd_res.eckart_young_frobenius_error),
                 "eckart_young_spectral_error": float(svd_res.eckart_young_spectral_error),
@@ -1226,6 +1391,7 @@ def derive_ts_femt(
             assumptions={
                 "method": "femt",
                 "mesh_kind": m_kind,
+                "centered_mean_augmented": True,
                 "convex_sum_interpolated_everywhere": True,
                 "zero_linalg_inv": True,
             },
@@ -1235,6 +1401,8 @@ def derive_ts_femt(
                 "total_nodes": total_nodes,
                 "svd_rank": int(svd_res.rank),
                 "num_rules": n_rules,
+                "n_varying_entries": n_varying_entries,
+                "n_constant_entries": n_constant_entries,
                 "grid_max_abs_error": grid_max_abs_error,
                 "grid_frobenius_error": grid_frobenius_error,
                 "grid_rel_l2_error": grid_rel_l2_error,

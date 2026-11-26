@@ -523,3 +523,266 @@ def test_t_tsmod_08_wasm_envelope_guards() -> None:
     )
     assert res_elems.status == "failure"
     assert res_elems.error is not None and res_elems.error.code == "RESOURCE_LIMIT"
+
+
+# ---------------------------------------------------------------------------
+# T-TSMOD-08 (v1.2.0): FEMT Centrada no Subespaço Variante & Remontagem Exata
+# ---------------------------------------------------------------------------
+
+
+def _pendulum_16_spec() -> dict[str, object]:
+    """Especificação canônica do pêndulo invertido de 4 estados (`pendulum_16`, M=30, M_var=6, M_const=24)."""
+    z1 = "(1 / (1.0 + 0.2 * sin(x3)^2))"
+    z2 = "cos(x3)"
+    z3 = "sinc_rad(x3)"
+    z4 = "(x4 * sin(x3))"
+    return {
+        "state_bounds": {
+            "x1": [-2.0, 2.0],
+            "x2": [-3.0, 3.0],
+            "x3": [-0.6, 0.6],
+            "x4": [-2.0, 2.0],
+        },
+        "A_expr": [
+            ["0", "1", "0", "0"],
+            ["0", "0", f"-1.962 * {z1} * {z2} * {z3}", f"0.1 * {z1} * {z4}"],
+            ["0", "0", "0", "1"],
+            ["0", "0", f"23.544 * {z1} * {z3}", f"-0.2 * {z1} * {z2} * {z4}"],
+        ],
+        "B_expr": [["0"], [z1], ["0"], [f"-2.0 * {z1} * {z2}"]],
+        "C_expr": [["1", "0", "0", "0"], ["0", "0", "1", "0"]],
+        "D_expr": [["0"], ["0"]],
+    }
+
+
+@pytest.mark.parametrize("hull_type", ["SN-NN", "RNO-INO", "CNO", "MGK"])
+def test_t_tsmod_08_v12_pendulum_16_bitwise_constant_preservation_all_hulls(hull_type: str) -> None:
+    """Preservação bit-a-bit exata de todas as 24 entradas constantes no pêndulo invertido de 4 estados."""
+    spec = _pendulum_16_spec()
+    res = derive_ts_femt(
+        state_bounds=spec["state_bounds"],  # type: ignore[arg-type]
+        A_expr=spec["A_expr"],  # type: ignore[arg-type]
+        B_expr=spec["B_expr"],  # type: ignore[arg-type]
+        C_expr=spec["C_expr"],  # type: ignore[arg-type]
+        D_expr=spec["D_expr"],  # type: ignore[arg-type]
+        grid_points=[15, 15],
+        svd_tol=1e-6,
+        hull_type=hull_type,
+        mesh_kind="kuhn_delaunay",
+        n_val_points=256,
+    )
+    assert res.status in ("success", "warning"), f"Falha em {hull_type}: {res.error}"
+    assert res.data is not None
+
+    # Redução de dimensão na SVD: apenas 6 de 30 entradas variam
+    assert res.data["n_varying_entries"] == 6
+    assert res.data["n_constant_entries"] == 24
+    assert len(res.data["singular_values"]) == 6
+    assert res.data["hull_diagnostics"]["rank_augmented"] is False
+
+    prov = res.data["ts_state_space"]["provenance"]["ts_derivation"]
+    assert prov["n_varying_entries"] == 6
+    assert prov["n_constant_entries"] == 24
+    assert prov["centered_mean_augmented"] is True
+
+    ts_obj = TSStateSpace.from_dict(res.data["ts_state_space"])
+    expected_C = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], dtype=np.float64)
+    expected_D = np.zeros((2, 1), dtype=np.float64)
+    const_A_zeros = [
+        (0, 0), (0, 2), (0, 3),
+        (1, 0), (1, 1),
+        (2, 0), (2, 1), (2, 2),
+        (3, 0), (3, 1),
+    ]
+
+    for r_idx, v in enumerate(ts_obj.vertices):
+        A_r = np.asarray(v["A"], dtype=np.float64)
+        B_r = np.asarray(v["B"], dtype=np.float64)
+        C_r = np.asarray(v["C"], dtype=np.float64)
+        D_r = np.asarray(v["D"], dtype=np.float64)
+
+        # Integradores e zeros estruturais bit-a-bit idênticos
+        assert A_r[0, 1] == 1.0, f"Regra {r_idx}: A[0,1]={A_r[0, 1]} != 1.0 em {hull_type}"
+        assert A_r[2, 3] == 1.0, f"Regra {r_idx}: A[2,3]={A_r[2, 3]} != 1.0 em {hull_type}"
+        for i, j in const_A_zeros:
+            assert A_r[i, j] == 0.0, f"Regra {r_idx}: A[{i},{j}]={A_r[i, j]} != 0.0 em {hull_type}"
+        assert B_r[0, 0] == 0.0
+        assert B_r[2, 0] == 0.0
+        assert np.array_equal(C_r, expected_C)
+        assert np.array_equal(D_r, expected_D)
+
+
+def test_t_tsmod_08_v12_pendulum_16_cno_well_conditioned_physical_vertices() -> None:
+    """Pêndulo invertido 15x15 sob CNO: sem coluna extra, sem fallback, cond(W) < 10 e vértices físicos."""
+    spec = _pendulum_16_spec()
+    res = derive_ts_femt(
+        state_bounds=spec["state_bounds"],  # type: ignore[arg-type]
+        A_expr=spec["A_expr"],  # type: ignore[arg-type]
+        B_expr=spec["B_expr"],  # type: ignore[arg-type]
+        C_expr=spec["C_expr"],  # type: ignore[arg-type]
+        D_expr=spec["D_expr"],  # type: ignore[arg-type]
+        grid_points=[15, 15],
+        svd_tol=1e-6,
+        hull_type="CNO",
+        mesh_kind="kuhn_delaunay",
+        n_val_points=512,
+    )
+    assert res.status == "success", f"Falha: {res.error}"
+    assert res.data is not None
+
+    hd = res.data["hull_diagnostics"]
+    assert hd["rank_augmented"] is False
+    assert hd["fallback_used"] is False
+    W_cno = np.asarray(res.data["W_nodal"], dtype=np.float64)
+    cond_W = float(np.linalg.cond(W_cno))
+    assert cond_W < 10.0, f"cond(W_cno)={cond_W:.3f} >= 10"
+    assert abs(hd["cond_W"] - cond_W) <= 1e-12
+
+    ts_obj = TSStateSpace.from_dict(res.data["ts_state_space"])
+    for r_idx, v in enumerate(ts_obj.vertices):
+        A_r = np.asarray(v["A"], dtype=np.float64)
+        assert 18.0 <= A_r[3, 2] <= 26.0, f"Regra {r_idx}: A[3,2]={A_r[3, 2]} fora de [18, 26]"
+        assert -3.0 <= A_r[1, 2] <= -0.5, f"Regra {r_idx}: A[1,2]={A_r[1, 2]} fora de [-3, -0.5]"
+
+
+@pytest.mark.parametrize("trunc_rank", [1, 2, 3])
+def test_t_tsmod_08_v12_rank_augmented_false_under_aggressive_truncation(trunc_rank: int) -> None:
+    """Garantia estrutural de rank_augmented == False mesmo sob truncamento agressivo."""
+    spec = _pendulum_16_spec()
+    res = derive_ts_femt(
+        state_bounds=spec["state_bounds"],  # type: ignore[arg-type]
+        A_expr=spec["A_expr"],  # type: ignore[arg-type]
+        B_expr=spec["B_expr"],  # type: ignore[arg-type]
+        C_expr=spec["C_expr"],  # type: ignore[arg-type]
+        D_expr=spec["D_expr"],  # type: ignore[arg-type]
+        grid_points=[11, 11],
+        rank=trunc_rank,
+        hull_type="CNO",
+        mesh_kind="kuhn_delaunay",
+        n_val_points=128,
+    )
+    assert res.status == "success", f"Falha em rank={trunc_rank}: {res.error}"
+    assert res.data is not None
+    assert res.data["svd_rank"] == trunc_rank
+    assert res.data["num_rules"] == trunc_rank + 1
+    assert res.data["hull_diagnostics"]["rank_augmented"] is False
+    assert res.data["hull_diagnostics"]["rank_before"] == trunc_rank + 1
+    assert res.data["hull_diagnostics"]["rank_after"] == trunc_rank + 1
+
+
+def test_t_tsmod_08_v12_degenerate_lti_m_var_zero() -> None:
+    """Caso degenerado puramente LTI (M_var == 0) gera exatamente 1 regra exata sem erro."""
+    # 1. Teste direto em femt_svd_decompose
+    S_const = np.broadcast_to(np.array([[-1.0, 2.0], [0.0, -3.0]], dtype=np.float64), (25, 2, 2)).copy()
+    svd_lti = femt_svd_decompose(S_const)
+    assert svd_lti.rank == 0
+    assert svd_lti.U_raw.shape == (25, 1)
+    assert svd_lti.C_raw.shape == (1, 4)
+    assert svd_lti.singular_values.size == 0
+    assert svd_lti.eckart_young_frobenius_error == 0.0
+    assert svd_lti.eckart_young_spectral_error == 0.0
+    assert np.allclose(svd_lti.U_raw.T @ svd_lti.U_raw, np.eye(1), atol=1e-14)
+    assert np.allclose((svd_lti.U_raw @ svd_lti.C_raw).reshape(25, 2, 2), S_const, atol=1e-14)
+
+    # Aceita rank=0 e rank=1; rejeita rank=2
+    assert femt_svd_decompose(S_const, rank=0).rank == 0
+    assert femt_svd_decompose(S_const, rank=1).rank == 0
+    with pytest.raises(Exception):
+        femt_svd_decompose(S_const, rank=2)
+
+    # 2. Pipeline completo derive_ts_femt quando expressão é numericamente constante no grid
+    res = derive_ts_femt(
+        state_bounds={"x1": [-1.0, 1.0], "x2": [-1.0, 1.0]},
+        A_expr=[["-1.0 + 0.0 * x1", "sin(x1)^2 + cos(x1)^2"], [0.0, -2.5]],
+        B_expr=[[0.0], [1.0]],
+        grid_points=9,
+        hull_type="CNO",
+        mesh_kind="kuhn_delaunay",
+        n_val_points=64,
+    )
+    assert res.status == "success", f"Falha em M_var == 0: {res.error}"
+    assert res.data is not None
+    assert res.data["num_rules"] == 1
+    assert res.data["svd_rank"] == 0
+    assert res.data["n_varying_entries"] == 0
+    hd = res.data["hull_diagnostics"]
+    assert hd["rank_augmented"] is False
+    assert hd["rank_before"] == 1
+    assert hd["rank_after"] == 1
+    assert hd["cond_T"] == 1.0
+    assert hd["cond_W"] == 1.0
+    assert hd["fallback_used"] is False
+    assert np.allclose(np.asarray(res.data["W_nodal"]), np.ones((9, 1)), atol=1e-15)
+    assert res.data["fidelity_certificate"]["grid_rel_l2_error"] <= 1e-14
+    assert res.data["fidelity_certificate"]["val_rel_l2_error"] <= 1e-14
+
+
+def test_t_tsmod_08_v12_centered_eckart_young_and_orthonormality_with_large_constants() -> None:
+    """Erro centrado de Eckart–Young–Mirsky e ortonormalidade de U_raw mesmo com entradas constantes enormes."""
+    rng = np.random.default_rng(20261126)
+    n_nodes = 60
+    # 10 colunas constantes grandes (~1e4) + 5 colunas variantes pequenas (~1e-1)
+    X_const = np.broadcast_to(rng.uniform(-1e4, 1e4, size=(1, 10)), (n_nodes, 10)).copy()
+    X_var = 0.1 * rng.standard_normal((n_nodes, 5))
+    X_full = np.hstack([X_const, X_var])
+
+    svd_res = femt_svd_decompose(X_full, rank=2)
+    assert svd_res.rank == 2
+    assert svd_res.singular_values.size == 5  # SVD somente no subespaço variante (M_var = 5 < M = 15)
+    assert svd_res.U_raw.shape == (n_nodes, 3)
+    assert svd_res.C_raw.shape == (3, 15)
+
+    # Ortonormalidade de U_raw e ortogonalidade de U_delta à média
+    assert np.allclose(svd_res.U_raw.T @ svd_res.U_raw, np.eye(3), atol=1e-13)
+    assert np.max(np.abs(np.mean(svd_res.U_raw[:, 1:], axis=0))) <= 1e-14
+
+    # Erro exato de Eckart–Young–Mirsky centrado
+    rec = svd_res.U_raw @ svd_res.C_raw
+    expected_frob = math.sqrt(float(np.sum(svd_res.singular_values[2:] ** 2)))
+    expected_spec = float(svd_res.singular_values[2])
+    assert abs(svd_res.eckart_young_frobenius_error - expected_frob) <= 1e-14
+    assert abs(svd_res.eckart_young_spectral_error - expected_spec) <= 1e-14
+    assert abs(float(np.linalg.norm(X_full - rec, ord="fro")) - expected_frob) <= 1e-11
+    assert abs(float(np.linalg.norm(X_full - rec, ord=2)) - expected_spec) <= 1e-11
+
+
+def test_t_tsmod_08_v12_export_ts_derivation_script_python_and_matlab_pendulum_16(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Compatibilidade integral da FEMT v1.2.0 com export_ts_derivation_script (Python executável e MATLAB)."""
+    import subprocess
+    import sys
+
+    from control_lab.io.ts_derivation import export_ts_derivation_script
+
+    spec = _pendulum_16_spec()
+    res = derive_ts_femt(
+        state_bounds=spec["state_bounds"],  # type: ignore[arg-type]
+        A_expr=spec["A_expr"],  # type: ignore[arg-type]
+        B_expr=spec["B_expr"],  # type: ignore[arg-type]
+        C_expr=spec["C_expr"],  # type: ignore[arg-type]
+        D_expr=spec["D_expr"],  # type: ignore[arg-type]
+        grid_points=[9, 9],
+        svd_tol=1e-6,
+        hull_type="CNO",
+        mesh_kind="kuhn_delaunay",
+        n_val_points=128,
+    )
+    assert res.status == "success", f"Falha: {res.error}"
+    ts_obj = TSStateSpace.from_dict(res.data["ts_state_space"])
+
+    # Exportação Python standalone e execução verificando reprodução exata dos vértices
+    py_script = export_ts_derivation_script(ts_obj, "python")
+    assert "from control_lab" not in py_script
+    py_path = tmp_path / "derive_pendulum_femt.py"
+    py_path.write_text(py_script, encoding="utf-8")
+    subprocess.run([sys.executable, "-I", str(py_path)], cwd=tmp_path, check=True)
+    with np.load(tmp_path / "ts_vertices.npz", allow_pickle=False) as out:
+        for key in ("A", "B", "C", "D"):
+            np.testing.assert_allclose(out[key], [v[key] for v in ts_obj.vertices], atol=2e-9, rtol=0.0)
+
+    # Exportação MATLAB
+    m_script = export_ts_derivation_script(ts_obj, "matlab")
+    assert "ts_vertices.mat" in m_script
+    assert "function " in m_script
+

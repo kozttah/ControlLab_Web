@@ -100,3 +100,29 @@ def test_derived_external_premise_reuses_generated_weights(tmp_path):
     assert expected.data is not None, expected.error
     np.testing.assert_allclose(weights([0.0], 0.2, {"v": lambda _: value}), expected.data["weights"])
     np.testing.assert_allclose(weights([0.0], 0.2, {"v": value}), expected.data["weights"])
+
+
+def test_tpmt_recipe_preserves_and_reapplies_exact_projection_operators(tmp_path):
+    result = derive_ts_tpmt(
+        state_bounds={"x1": [-1.0, 1.0], "x2": [-0.8, 0.8]},
+        A_expr=[["-2 + 0.4 * sin(x1 + x2)", "1"], ["0.5 * cos(x1 - x2)", "-3"]],
+        B_expr=[["0"], ["1"]],
+        grid_points=[9, 9],
+        resample_points=[3, 3],
+        hull_type="CNO",
+    )
+    assert result.data is not None, result.error
+    model = TSStateSpace.from_dict(result.data["ts_state_space"])
+    recipe = model.provenance["ts_derivation"]
+    assert "projection_operators" in recipe
+    assert len(recipe["projection_operators"]) == 2
+
+    script = export_ts_derivation_script(model, "python")
+    assert "from control_lab" not in script
+    path = tmp_path / "derive_tpmt_exact_op.py"
+    path.write_text(script, encoding="utf-8")
+    subprocess.run([sys.executable, "-I", str(path)], cwd=tmp_path, check=True)
+    with np.load(tmp_path / "ts_vertices.npz", allow_pickle=False) as output:
+        for key in ("A", "B", "C", "D"):
+            np.testing.assert_allclose(output[key], [v[key] for v in model.vertices], atol=1e-12, rtol=0)
+

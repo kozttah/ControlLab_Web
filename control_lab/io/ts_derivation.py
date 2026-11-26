@@ -318,6 +318,11 @@ def _projection_operators(
                 bases = hosvd_sampled_func(tensor, ranks=ranks).U_list
         final_bases = [np.asarray(axis["weights_table"]) for axis in spec["tpmt_axes"]]
 
+    if topology == "tpmt_interpolated" and recipe.get("projection_operators") is not None:
+        return [grid.tolist() for grid in grids], [
+            np.asarray(op, dtype=float).tolist() for op in recipe["projection_operators"]
+        ]
+
     operators = []
     for axis, (basis, final, diag) in enumerate(zip(bases, final_bases, diagnostics)):
         mode = basis

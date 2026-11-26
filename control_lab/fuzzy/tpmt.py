@@ -1663,6 +1663,7 @@ def derive_ts_tpmt(
             singular_values = [np.zeros(0, dtype=np.float64) for _ in range(d_len)]
             truncation_bound = 0.0
             core_var = np.zeros((*([1] * d_len), 0), dtype=np.float64)
+            projection_operators: list[list[list[float]]] = []
             for d in range(d_len):
                 g_d = orig_grids[d]
                 if resolved_resample is not None:
@@ -1670,6 +1671,7 @@ def derive_ts_tpmt(
                 axis_grids.append(g_d)
                 W_final = np.ones((g_d.size, 1), dtype=np.float64)
                 W_list.append(W_final)
+                projection_operators.append([[1.0 / float(g_sizes[d])] * g_sizes[d]])
                 hull_diagnostics.append(
                     {
                         "axis": p_names[d],
@@ -1726,9 +1728,11 @@ def derive_ts_tpmt(
                 }
 
             # 3. Reamostragem 1D opcional pós-SVD + Pré-condicionamento RMS + Fecho Convexo (ZERO inv)
+            projection_operators: list[list[list[float]]] = []
             for d in range(d_len):
                 g_d = orig_grids[d]
                 U_work = U_list_pre[d]
+                op_d = np.asarray(U_list_pre[d].T, dtype=np.float64)
                 if resolved_resample is not None:
                     g_d, U_work = resample_basis_1d(g_d, U_work, resolved_resample[d], method=resample_method)
                 axis_grids.append(g_d)
@@ -1750,13 +1754,17 @@ def derive_ts_tpmt(
 
                     U_sn_work = U_work @ M_sn
                     core_var = mode_inverse_product(core_var, M_sn, d)
+                    op_d = scipy_linalg.solve(M_sn, op_d)
                 else:
                     U_sn_work = U_work
 
-                W_sn, _, info_sn = sn_nn_matrix(U_sn_work, core=core_var, mode=d, sn_tol=sn_tol)
+                W_sn, T_sn_nn, info_sn = sn_nn_matrix(U_sn_work, core=core_var, mode=d, sn_tol=sn_tol)
                 core_var = info_sn["core"]
                 rank_before = int(info_sn["rank_before"])
                 rank_augmented = bool(info_sn["rank_augmented"])
+                if rank_augmented:
+                    op_d = np.vstack([op_d, np.zeros((1, op_d.shape[1]), dtype=np.float64)])
+                op_d = scipy_linalg.solve(T_sn_nn, op_d)
                 target_hull = hull_types[d]
 
                 if target_hull == "SN-NN":
@@ -1775,8 +1783,9 @@ def derive_ts_tpmt(
                         "nn_violated": False,
                     }
                 elif target_hull == "RNO-INO":
-                    W_final, _, info_h = rno_ino_matrix(W_sn, core=core_var, mode=d)
+                    W_final, T_hull, info_h = rno_ino_matrix(W_sn, core=core_var, mode=d)
                     core_var = info_h["core"]
+                    op_d = scipy_linalg.solve(T_hull, op_d)
                     diag_d = {
                         "axis": p_names[d],
                         "hull_type": "RNO-INO",
@@ -1791,8 +1800,9 @@ def derive_ts_tpmt(
                         "nn_violated": False,
                     }
                 elif target_hull == "CNO":
-                    W_final, _, info_h = cno_matrix(W_sn, core=core_var, mode=d)
+                    W_final, T_hull, info_h = cno_matrix(W_sn, core=core_var, mode=d)
                     core_var = info_h["core"]
+                    op_d = scipy_linalg.solve(T_hull, op_d)
                     diag_d = {
                         "axis": p_names[d],
                         "hull_type": "CNO",
@@ -1807,8 +1817,9 @@ def derive_ts_tpmt(
                         "nn_violated": False,
                     }
                 else:  # MGK
-                    W_final, _, info_h = mgk_matrix(W_sn, core=core_var, mode=d)
+                    W_final, T_hull, info_h = mgk_matrix(W_sn, core=core_var, mode=d)
                     core_var = info_h["core"]
+                    op_d = scipy_linalg.solve(T_hull, op_d)
                     nn_viol = bool(info_h["nn_violated"])
                     if nn_viol:
                         warnings_list.append(
@@ -1837,6 +1848,7 @@ def derive_ts_tpmt(
 
                 W_list.append(W_final)
                 hull_diagnostics.append(diag_d)
+                projection_operators.append([[float(v) for v in row] for row in op_d.tolist()])
 
         # 4. Validação do número final de regras N_r = prod(R'_d)
         axis_ranks = [int(W.shape[1]) for W in W_list]
@@ -2095,6 +2107,7 @@ def derive_ts_tpmt(
                 "n_constant_entries": n_constant_entries,
                 "centered_mean_augmented": True,
                 "bases_pre_transform": bases_pre_transform_serial,
+                "projection_operators": projection_operators,
                 "resample_points": list(resolved_resample) if resolved_resample is not None else None,
                 "resample_method": resample_method if resolved_resample is not None else None,
                 "state_bounds": clean_state_bounds,

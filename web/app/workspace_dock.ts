@@ -56,6 +56,7 @@ export interface WorkspaceDockOptions {
   onInspectObject?: (target: DockInspectTarget) => void;
   onSystemRegistered?: (refKey: string, kind: string) => void;
   onRouteToLmi?: (refKey: string) => void;
+  onRouteToTsModeling?: (refKey: string) => void;
   initialCollapsed?: boolean;
 }
 
@@ -727,6 +728,7 @@ export class WorkspaceDockController {
   private readonly onInspectObject?: (target: DockInspectTarget) => void;
   private readonly onSystemRegistered?: (refKey: string, kind: string) => void;
   private readonly onRouteToLmi?: (refKey: string) => void;
+  private readonly onRouteToTsModeling?: (refKey: string) => void;
   private collapsed: boolean;
   private modalMode: NewObjectModalMode = "tf";
   private editingTarget: EditingTargetState | null = null;
@@ -807,6 +809,7 @@ export class WorkspaceDockController {
     this.onInspectObject = options.onInspectObject;
     this.onSystemRegistered = options.onSystemRegistered;
     this.onRouteToLmi = options.onRouteToLmi;
+    this.onRouteToTsModeling = options.onRouteToTsModeling;
     this.collapsed = options.initialCollapsed ?? false;
 
     this.workbenchShellEl = this.container.querySelector<HTMLElement>(".app-workbench-shell");
@@ -2168,6 +2171,13 @@ export class WorkspaceDockController {
         return;
       }
 
+      if (action === "dock-route-ts-modeling" && isTsModelKind(obj.kind)) {
+        typed.selectRef("tsModel", ref, { allowHistoricalDowngrade: true });
+        this.shell.switchTab("ts_modeling");
+        this.onRouteToTsModeling?.(obj.key);
+        return;
+      }
+
       if (action === "route-identification" && obj.kind === "Dataset") {
         typed.selectRef("dataset", ref, { allowHistoricalDowngrade: true });
         this.shell.switchTab("identification");
@@ -2347,6 +2357,16 @@ export class WorkspaceDockController {
               if (m.kind === "StateSpace" || isTsKind) {
                 actionBtns.push(
                   `<button type="button" class="touch-control btn-secondary btn-small" data-action="dock-route-lmi" data-dock-action="dock-route-lmi" data-object-key="${escapeHtml(m.key)}">→ LMIs</button>`,
+                );
+              }
+              if (
+                isTsKind &&
+                isPlainObject(m.value) &&
+                isPlainObject(m.value.provenance) &&
+                isPlainObject(m.value.provenance.ts_derivation)
+              ) {
+                actionBtns.push(
+                  `<button type="button" class="touch-control btn-secondary btn-small" data-action="dock-route-ts-modeling" data-dock-action="dock-route-ts-modeling" data-object-key="${escapeHtml(m.key)}">→ Receita TS</button>`,
                 );
               }
               if (

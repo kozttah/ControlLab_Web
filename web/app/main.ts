@@ -483,6 +483,7 @@ export function mountControlLabApp(
 
   let handleWorkspaceSystemRegistered: (refKey: string, kind: string) => void = () => {};
   let handleRouteSystemToLmi: (refKey: string) => void = () => {};
+  let handleRouteSystemToTsModeling: (refKey: string) => void = () => {};
 
   const workspaceDock = new WorkspaceDockController({
     shell,
@@ -496,6 +497,9 @@ export function mountControlLabApp(
     },
     onRouteToLmi: (refKey) => {
       handleRouteSystemToLmi(refKey);
+    },
+    onRouteToTsModeling: (refKey) => {
+      handleRouteSystemToTsModeling(refKey);
     },
   });
 
@@ -544,6 +548,9 @@ export function mountControlLabApp(
   };
   handleRouteSystemToLmi = (refKey) => {
     lmiView.selectSystemByRefKey(refKey);
+  };
+  handleRouteSystemToTsModeling = (refKey) => {
+    tsModelingView.reloadRecipe(refKey);
   };
 
   const render = (): void => {

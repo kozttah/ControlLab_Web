@@ -29,7 +29,7 @@
       "2026-11-23": 1,
       "2026-11-24": 6,
       "2026-11-25": 5,
-      "2026-11-26": 1
+      "2026-11-26": 2
     }
   },
   "audit_reference": {
@@ -7186,7 +7186,7 @@
       ],
       "f9_review": "accepted",
       "handoff_ref": "docs/audits/handoffs/WP-TSMOD-04-F8-TS-MODELING-TAB-UI.md",
-      "acceptance_scope": "typescript_ui_ts_modeling_7_tabs_wcag_aa"
+      "acceptance_scope": "typescript_ui_ts_modeling_4_zones_custom_qlpv_wcag_aa"
     },
     {
       "wp_id": "WP-TSMOD-05-F9-TS-MODELING-AUDIT-ORACLES",

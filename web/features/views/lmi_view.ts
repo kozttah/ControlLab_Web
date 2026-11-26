@@ -51,6 +51,7 @@ import {
 } from "../../charts/scientific_chart.ts";
 import {
   encodeObjectRefKey,
+  isTypedObjectKind,
   type RegisteredTypedObject,
 } from "../typed_workspace.ts";
 import {
@@ -169,6 +170,19 @@ type LastSolveProblemSource =
   | { kind: "override"; problem: Record<string, unknown> }
   | { kind: "compiled"; parsed: LmiDslParseResult; compileCtx: LmiCompileContext };
 
+interface LastSolveContext {
+  systemRefKey: string;
+  dsl: string;
+}
+
+export interface SynthesizedControllerExtraction {
+  controller: Record<string, unknown>;
+  plant: Record<string, unknown>;
+  systemKind: WorkspaceSystemDescriptor["kind"];
+  feedbackSign: "negative" | "positive";
+  canExportPathSim: boolean;
+}
+
 export const BROWSER_ENVELOPE = {
   fast_max_variables: 1792,
   max_variables: 3072,
@@ -180,6 +194,18 @@ function setElHidden(el: Element | null | undefined, hidden: boolean): void {
   if (!el) return;
   if (hidden) el.setAttribute("hidden", "true");
   else el.removeAttribute("hidden");
+}
+
+function setButtonDisabled(btn: HTMLButtonElement | null | undefined, disabled: boolean): void {
+  if (!btn) return;
+  btn.disabled = disabled;
+  if (disabled) {
+    btn.setAttribute("disabled", "true");
+    btn.setAttribute("aria-disabled", "true");
+  } else {
+    btn.removeAttribute("disabled");
+    btn.removeAttribute("aria-disabled");
+  }
 }
 
 function toggleCssClass(
@@ -405,6 +431,8 @@ export function renderLmiViewHtml(): string {
     `<button type="button" id="btn-lmi-verify" class="touch-control btn-secondary" data-action="lmi-verify">Auditar Certificado</button>`,
     `<button type="button" id="btn-lmi-export-cvxpy" class="touch-control btn-secondary" data-action="lmi-export-cvxpy">Exportar CVXPY (.py)</button>`,
     `<button type="button" id="btn-lmi-export-yalmip" class="touch-control btn-secondary" data-action="lmi-export-yalmip">Exportar YALMIP (.m)</button>`,
+    `<button type="button" id="btn-lmi-register-controller" class="touch-control btn-secondary" data-action="lmi-register-controller" disabled aria-disabled="true">Registrar Controlador no Workspace</button>`,
+    `<button type="button" id="btn-lmi-export-pathsim" class="touch-control btn-secondary" data-action="lmi-export-pathsim" disabled aria-disabled="true">Exportar Simulação PathSim (.py)</button>`,
     `</div>`,
     `</div>`,
 
@@ -527,6 +555,8 @@ export class LmiView {
   private readonly progressStatusEl: HTMLElement | null;
   private readonly progressTbodyEl: HTMLElement | null;
   private readonly cancelSolveBtnEl: HTMLButtonElement | null;
+  private readonly registerControllerBtnEl: HTMLButtonElement | null;
+  private readonly exportPathSimBtnEl: HTMLButtonElement | null;
   private readonly spectrumChartSlotEl: HTMLElement | null;
   private readonly spectrumTableSlotEl: HTMLElement | null;
 
@@ -556,6 +586,9 @@ export class LmiView {
   private savedPresets: SavedLmiPreset[] = [];
   private lastSolve: LmiSolveSnapshot | null = null;
   private lastSolveProblemSource: LastSolveProblemSource | null = null;
+  private lastSolveContext: LastSolveContext | null = null;
+  private lastRegisteredController: Record<string, unknown> | null = null;
+  private lastRegisteredControllerContext: LastSolveContext | null = null;
   private lastFusionStats: LmiFusionStats | null = null;
   private liveIterations: SolverProgress[] = [];
   private activeSolveRequestId: string | null = null;
@@ -581,6 +614,9 @@ export class LmiView {
     this.syntaxBadgeEl = this.container.querySelector<HTMLElement>("#lmi-syntax-badge");
     this.lineGutterEl = this.container.querySelector<HTMLElement>("#lmi-line-gutter");
     this.codeEditorEl = this.container.querySelector<HTMLTextAreaElement>("#lmi-code-editor");
+    if (this.codeEditorEl && !this.codeEditorEl.value) {
+      this.codeEditorEl.value = this.currentDsl;
+    }
     this.parsedVarsEl = this.container.querySelector<HTMLElement>("#lmi-parsed-vars");
     this.parsedMathEl = this.container.querySelector<HTMLElement>("#lmi-parsed-math");
     this.parsedAlertEl = this.container.querySelector<HTMLElement>("#lmi-parsed-alert");
@@ -590,6 +626,8 @@ export class LmiView {
     this.progressStatusEl = this.container.querySelector<HTMLElement>("#lmi-solver-progress-status");
     this.progressTbodyEl = this.container.querySelector<HTMLElement>("#lmi-solver-progress-tbody");
     this.cancelSolveBtnEl = this.container.querySelector<HTMLButtonElement>("#btn-lmi-cancel-solve");
+    this.registerControllerBtnEl = this.container.querySelector<HTMLButtonElement>("#btn-lmi-register-controller");
+    this.exportPathSimBtnEl = this.container.querySelector<HTMLButtonElement>("#btn-lmi-export-pathsim");
     this.spectrumChartSlotEl = this.container.querySelector<HTMLElement>("#lmi-spectrum-chart-slot");
     this.spectrumTableSlotEl = this.container.querySelector<HTMLElement>("#lmi-spectrum-table-slot");
 
@@ -617,6 +655,7 @@ export class LmiView {
     this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
     this.renderCharacterizationCard();
     this.renderEditorAndMath();
+    this.updateControllerActionButtons();
   }
 
   public handleWorkspaceSystemRegistered(refKey: string, kind: string): void {
@@ -926,6 +965,7 @@ export class LmiView {
     this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
     this.renderCharacterizationCard();
     this.renderEditorAndMath();
+    this.updateControllerActionButtons();
     this.onRequestRender?.();
   }
 
@@ -993,6 +1033,7 @@ export class LmiView {
     this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
     this.renderCharacterizationCard();
     this.renderEditorAndMath();
+    this.updateControllerActionButtons();
   }
 
   private bindEvents(): void {
@@ -1003,6 +1044,7 @@ export class LmiView {
       this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
       this.renderCharacterizationCard();
       this.renderEditorAndMath();
+      this.updateControllerActionButtons();
     };
     this.codeEditorEl?.addEventListener("input", syncFromEditor);
     this.codeEditorEl?.addEventListener("change", syncFromEditor);
@@ -1032,6 +1074,7 @@ export class LmiView {
         this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
         this.renderCharacterizationCard();
         this.renderEditorAndMath();
+        this.updateControllerActionButtons();
       }
     });
 
@@ -1066,6 +1109,7 @@ export class LmiView {
       this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
       this.renderCharacterizationCard();
       this.renderEditorAndMath();
+      this.updateControllerActionButtons();
     };
     this.primaryIndexNameEl?.addEventListener("input", onIndexChange);
     this.primaryIndexNameEl?.addEventListener("change", onIndexChange);
@@ -1082,6 +1126,7 @@ export class LmiView {
       this.parsed = parseLmiDsl(this.currentDsl, this.buildParseOptions());
       this.renderCharacterizationCard();
       this.renderEditorAndMath();
+      this.updateControllerActionButtons();
     };
     this.tsObsMethodEl?.addEventListener("change", onTsObsChange);
     this.tsObsDaEl?.addEventListener("input", onTsObsChange);
@@ -1176,6 +1221,14 @@ export class LmiView {
       ?.addEventListener("click", (ev) => {
         void this.exportScript("yalmip", ev.currentTarget as HTMLElement | null);
       });
+
+    this.registerControllerBtnEl?.addEventListener("click", () => {
+      void this.registerSynthesizedController();
+    });
+
+    this.exportPathSimBtnEl?.addEventListener("click", (ev) => {
+      void this.exportPathSimSimulation(ev.currentTarget as HTMLElement | null);
+    });
   }
 
   public loadDsl(dsl: string): void {
@@ -1187,6 +1240,7 @@ export class LmiView {
     this.parsed = parseLmiDsl(dsl, this.buildParseOptions());
     this.renderCharacterizationCard();
     this.renderEditorAndMath();
+    this.updateControllerActionButtons();
   }
 
   public saveCurrentPreset(customName?: string): SavedLmiPreset {
@@ -1579,6 +1633,14 @@ export class LmiView {
       : [...this.liveIterations];
 
     this.lastSolveProblemSource = problemSource;
+    if (operation === "optimization.solve") {
+      this.lastSolveContext = {
+        systemRefKey: this.getSelectedSystemDescriptor().refKey,
+        dsl: this.currentDsl,
+      };
+      this.lastRegisteredController = null;
+      this.lastRegisteredControllerContext = null;
+    }
     this.lastSolve = {
       operation,
       responseStatus: resp.status,
@@ -1778,6 +1840,438 @@ export class LmiView {
         .announce(`Script ${format.toUpperCase()} exportado com sucesso.`, "polite", "status");
     } catch (err: unknown) {
       this.shell.presentError(err);
+    }
+  }
+
+  public extractSynthesizedControllerGains(): SynthesizedControllerExtraction | null {
+    const s = this.lastSolve;
+    const ctx = this.lastSolveContext;
+    if (!s || !ctx) return null;
+
+    const activeDsl = this.codeEditorEl ? this.codeEditorEl.value : this.currentDsl;
+    if (activeDsl !== ctx.dsl) return null;
+
+    const selectedObj = this.resolveSelectedWorkspaceObject();
+    const desc = this.getSelectedSystemDescriptor();
+    if (desc.refKey !== ctx.systemRefKey) return null;
+
+    if (!this.parsed.valid || this.parsed.bilinearWarnings.length > 0) return null;
+
+    const responseOk = s.responseStatus === "success" || s.responseStatus === "warning";
+    const solverFeasible =
+      s.solverStatus === "optimal" || s.solverStatus === "optimal_inaccurate";
+    const auditFeasible =
+      s.auditFeasibility === "strictly_feasible" ||
+      s.auditFeasibility === "approximately_feasible";
+    if (!responseOk || !solverFeasible || !auditFeasible || s.controllerValidity === "violated") {
+      return null;
+    }
+
+    const isValidGainMatrix = (mat: DenseMatrixValue | null | undefined): mat is DenseMatrixValue =>
+      Boolean(
+        mat &&
+          mat.rows === desc.m &&
+          mat.cols === desc.n &&
+          mat.data.length === desc.m * desc.n &&
+          mat.data.every((v) => Number.isFinite(v)),
+      );
+
+    // Reject if any K recovery directive failed evaluation
+    for (const entry of s.recoveredEntries) {
+      if (/^K(?:\b|\[|_)/.test(entry.label) && !entry.ok) {
+        return null;
+      }
+    }
+
+    const expandedConstraintsText = this.parsed.constraints.map((c) => c.lhsRaw).join("\n");
+    const constraintHasNegBY =
+      this.parsed.inferredFeedbackSign === "negative" ||
+      /-\s*(?:B|B2|B_i|B\[[^\]]+\])\s*[*@]\s*Y/.test(expandedConstraintsText);
+
+    const resolveSign = (recoveryFormula: string | null): "negative" | "positive" => {
+      const recoveryNegated = recoveryFormula ? /^-\s*/.test(recoveryFormula.trim()) : false;
+      return constraintHasNegBY !== recoveryNegated ? "negative" : "positive";
+    };
+
+    if (desc.kind === "ts_measured" || desc.kind === "ts_partially_observed") {
+      const nRules = desc.vertices.length;
+      if (nRules < 1) return null;
+
+      let kMatrices: DenseMatrixValue[] | null = null;
+      let recoveryFormula: string | null = null;
+
+      const indexedFromEntries = new Map<number, EvaluatedRecoveryEntry>();
+      for (const entry of s.recoveredEntries) {
+        if (!entry.ok || !entry.value) continue;
+        const m = /^K(?:\[\s*(\d+)\s*\]|_(\d+))$/.exec(entry.label.trim());
+        if (!m) continue;
+        const idx = Number(m[1] ?? m[2]);
+        if (Number.isInteger(idx) && idx >= 1 && !indexedFromEntries.has(idx)) {
+          indexedFromEntries.set(idx, entry);
+        }
+      }
+
+      if (indexedFromEntries.size > 0) {
+        const ordered: DenseMatrixValue[] = [];
+        for (let i = 1; i <= nRules; i += 1) {
+          const item = indexedFromEntries.get(i);
+          if (!item || !isValidGainMatrix(item.value)) {
+            ordered.length = 0;
+            break;
+          }
+          if (recoveryFormula === null) recoveryFormula = item.formula;
+          ordered.push(item.value);
+        }
+        if (ordered.length === nRules && indexedFromEntries.size === nRules) {
+          kMatrices = ordered;
+        }
+      }
+
+      if (!kMatrices && s.recoveredIndexedK && s.recoveredIndexedK.length === nRules) {
+        const indexedFallback = new Map<number, DenseMatrixValue>();
+        for (const item of s.recoveredIndexedK) {
+          const m = /^K\[\s*(\d+)\s*\]$/.exec(item.label.trim());
+          if (!m) continue;
+          const idx = Number(m[1]);
+          if (Number.isInteger(idx) && idx >= 1) {
+            indexedFallback.set(idx, item.mat);
+          }
+        }
+        const ordered: DenseMatrixValue[] = [];
+        for (let i = 1; i <= nRules; i += 1) {
+          const mat = indexedFallback.get(i);
+          if (!isValidGainMatrix(mat)) {
+            ordered.length = 0;
+            break;
+          }
+          ordered.push(mat);
+        }
+        if (ordered.length === nRules) {
+          kMatrices = ordered;
+        }
+      }
+
+      if (!kMatrices) return null;
+
+      const tsVal = selectedObj.value;
+      const ms = isPlainObject(tsVal.membership_spec) ? tsVal.membership_spec : {};
+      const rawPremVars = Array.isArray(ms.premise_variables)
+        ? (ms.premise_variables as unknown[]).map((x) => String(x)).filter((v) => v.length > 0)
+        : [];
+      const fallbackPremVars = Array.from(
+        new Set([...desc.measuredPremises, ...desc.unmeasuredPremises]),
+      ).filter((v) => v.length > 0);
+      const premiseVars =
+        rawPremVars.length > 0 ? Array.from(new Set(rawPremVars)) : fallbackPremVars;
+
+      const feedbackSign = resolveSign(recoveryFormula);
+      const ctrlDto: Record<string, unknown> = {
+        schema_version: "1.0.0",
+        id: `pdc-${desc.id}`,
+        revision: 1,
+        kind: "PDCController",
+        feedback_sign: feedbackSign,
+        K_i: kMatrices.map((mat) => ({
+          shape: [mat.rows, mat.cols],
+          dtype: "float64",
+          order: "C",
+          data: [...mat.data],
+        })),
+        membership_ref: {
+          model_id: desc.id,
+          model_revision: desc.revision,
+          membership_version: String(ms.version ?? "1.0.0"),
+        },
+        measurement_requirements: {
+          required_premise_variables: premiseVars,
+          requires_full_state: true,
+          allowed_ts_kinds:
+            desc.kind === "ts_partially_observed"
+              ? ["ts_measured", "ts_partially_observed"]
+              : ["ts_measured"],
+        },
+        dt: desc.dt ?? null,
+        provenance: {
+          source: "web.lmi_view.pdc_synthesis",
+          template: this.currentTemplate,
+        },
+      };
+
+      return {
+        controller: ctrlDto,
+        plant: structuredClone(tsVal),
+        systemKind: desc.kind,
+        feedbackSign,
+        canExportPathSim: desc.kind === "ts_measured",
+      };
+    }
+
+    if (desc.kind === "StateSpace") {
+      let kMat: DenseMatrixValue | null = null;
+      let recoveryFormula: string | null = null;
+
+      const exactK = s.recoveredEntries.find(
+        (entry) => entry.ok && entry.label.trim() === "K" && isValidGainMatrix(entry.value),
+      );
+      const prefixK =
+        exactK ??
+        s.recoveredEntries.find(
+          (entry) =>
+            entry.ok &&
+            /^K[A-Za-z0-9_]*$/.test(entry.label.trim()) &&
+            isValidGainMatrix(entry.value),
+        );
+
+      if (prefixK && prefixK.value) {
+        kMat = prefixK.value;
+        recoveryFormula = prefixK.formula;
+      } else if (isValidGainMatrix(s.recoveredK)) {
+        kMat = s.recoveredK;
+      }
+
+      if (!kMat) return null;
+
+      const ssVal = selectedObj.value;
+      const stateCoords =
+        Array.isArray(ssVal.state_names) &&
+        ssVal.state_names.length === desc.n &&
+        ssVal.state_names.every((nm) => typeof nm === "string" && nm.trim().length > 0)
+          ? (ssVal.state_names as string[])
+          : Array.from({ length: desc.n }, (_, idx) => `x${idx + 1}`);
+      const inputNames =
+        Array.isArray(ssVal.input_names) &&
+        ssVal.input_names.length === desc.m &&
+        ssVal.input_names.every((nm) => typeof nm === "string")
+          ? (ssVal.input_names as string[])
+          : null;
+
+      const feedbackSign = resolveSign(recoveryFormula);
+      const ctrlDto: Record<string, unknown> = {
+        schema_version: "1.0.0",
+        id: `sf-${desc.id}`,
+        revision: 1,
+        kind: "StateFeedbackController",
+        feedback_sign: feedbackSign,
+        K: {
+          shape: [kMat.rows, kMat.cols],
+          dtype: "float64",
+          order: "C",
+          data: [...kMat.data],
+        },
+        state_coordinates: [...stateCoords],
+        reference_map: null,
+        dt: desc.dt ?? null,
+        ...(inputNames ? { input_names: [...inputNames] } : {}),
+        provenance: {
+          source: "web.lmi_view.state_feedback_synthesis",
+          template: this.currentTemplate,
+        },
+      };
+
+      return {
+        controller: ctrlDto,
+        plant: structuredClone(ssVal),
+        systemKind: "StateSpace",
+        feedbackSign,
+        canExportPathSim: true,
+      };
+    }
+
+    return null;
+  }
+
+  public getLastRegisteredController(): Record<string, unknown> | null {
+    if (
+      !this.lastRegisteredController ||
+      !this.lastRegisteredControllerContext ||
+      !this.lastSolveContext ||
+      this.lastRegisteredControllerContext.systemRefKey !== this.lastSolveContext.systemRefKey ||
+      this.lastRegisteredControllerContext.dsl !== this.lastSolveContext.dsl
+    ) {
+      return null;
+    }
+    const activeDsl = this.codeEditorEl ? this.codeEditorEl.value : this.currentDsl;
+    const desc = this.getSelectedSystemDescriptor();
+    if (
+      activeDsl !== this.lastRegisteredControllerContext.dsl ||
+      desc.refKey !== this.lastRegisteredControllerContext.systemRefKey
+    ) {
+      return null;
+    }
+    return structuredClone(this.lastRegisteredController);
+  }
+
+  private updateControllerActionButtons(): void {
+    const extracted = this.extractSynthesizedControllerGains();
+    setButtonDisabled(this.registerControllerBtnEl, extracted === null);
+    setButtonDisabled(
+      this.exportPathSimBtnEl,
+      extracted === null || !extracted.canExportPathSim,
+    );
+  }
+
+  public async registerSynthesizedController(): Promise<Record<string, unknown> | null> {
+    try {
+      const extracted = this.extractSynthesizedControllerGains();
+      if (!extracted) {
+        return null;
+      }
+      const typed = this.shell.getTypedWorkspace();
+      const lqr = this.shell.getLqrWorkspace();
+      const projectId = lqr.getProjectId();
+      const ctrlId = String(extracted.controller.id);
+
+      let maxRev = 0;
+      for (const item of typed.listRegisteredObjects()) {
+        if (item.id === ctrlId) {
+          maxRev = Math.max(maxRev, item.revision);
+        }
+      }
+      if (typeof this.client.exportProject === "function") {
+        try {
+          const snap = await this.client.exportProject(projectId);
+          if (snap && Array.isArray(snap.objects)) {
+            for (const rec of snap.objects) {
+              if (rec && rec.object_id === ctrlId && typeof rec.revision === "number") {
+                maxRev = Math.max(maxRev, rec.revision);
+              }
+            }
+          }
+        } catch {
+          // Ignore snapshot lookup failure and fall back to revision 1
+        }
+      }
+
+      const nextRev = Math.max(1, maxRev + 1);
+      const ctrlDto: Record<string, unknown> = {
+        ...structuredClone(extracted.controller),
+        revision: nextRev,
+      };
+
+      const desc = this.getSelectedSystemDescriptor();
+      const valPayload: Record<string, unknown> = {
+        plant: extracted.plant,
+        controller: ctrlDto,
+        ...(extracted.systemKind === "ts_partially_observed"
+          ? {
+              premise_estimator: {
+                kind: "observer_reconstructed",
+                unmeasured_premises: [...desc.unmeasuredPremises],
+              },
+            }
+          : {}),
+      };
+
+      const valResp = await this.executeRpc("core.validate_interconnection", valPayload);
+      if (valResp.status === "failure") {
+        const isMockUnsupported =
+          this.client.getCapabilities().engine_kind === "mock" &&
+          valResp.error?.code === "UNSUPPORTED_MODEL" &&
+          (valResp.error?.message ?? "").includes("MockWorkerAdapter");
+        if (!isMockUnsupported) {
+          throw new ControlLabBridgeError(
+            valResp.error?.code ?? "VALIDATION_ERROR",
+            valResp.error?.message ??
+              "Falha ao validar compatibilidade física do controlador sintetizado.",
+          );
+        }
+      }
+
+      const ctrlKind = String(ctrlDto.kind);
+      if (isTypedObjectKind(ctrlKind)) {
+        await typed.registerTypedObject(ctrlDto, { source: "manual" });
+      }
+      await this.client.registerObject(projectId, ctrlId, nextRev, ctrlDto, {
+        kind: ctrlKind,
+        pinProject: true,
+        persistToIndexedDB: true,
+      });
+
+      if (extracted.systemKind === "StateSpace") {
+        const plantRef = { id: desc.id, revision: desc.revision };
+        if (typed.getSelectableObject(plantRef)) {
+          typed.selectRef("statespacePlant", plantRef, { allowHistoricalDowngrade: true });
+        }
+      }
+
+      this.lastRegisteredController = structuredClone(ctrlDto);
+      this.lastRegisteredControllerContext = this.lastSolveContext
+        ? { ...this.lastSolveContext }
+        : null;
+
+      this.shell
+        .getAnnouncer()
+        .announce(
+          `Controlador ${ctrlKind} '${ctrlId}#r${nextRev}' registrado no Workspace.`,
+          "polite",
+          "status",
+        );
+      this.renderCertificateAndSpectrum();
+      this.onRequestRender?.();
+      return structuredClone(ctrlDto);
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+      return null;
+    }
+  }
+
+  public async exportPathSimSimulation(
+    trigger: HTMLElement | null = null,
+  ): Promise<string | null> {
+    try {
+      const extracted = this.extractSynthesizedControllerGains();
+      if (!extracted || !extracted.canExportPathSim) {
+        return null;
+      }
+      const desc = this.getSelectedSystemDescriptor();
+      const safeId = desc.id.replace(/[^A-Za-z0-9_-]+/g, "_") || "plant";
+      const suffix = extracted.systemKind === "ts_measured" ? "pdc" : "sf";
+      const defaultFilename = `controllab_${safeId}_${suffix}_pathsim.py`;
+
+      const activeCtrl = this.getLastRegisteredController() ?? extracted.controller;
+      const resp = await this.executeRpc("io.export_pathsim_script", {
+        plant: extracted.plant,
+        controller: activeCtrl,
+        filename: defaultFilename,
+      });
+      if (resp.status === "failure" || !resp.result) {
+        throw new ControlLabBridgeError(
+          resp.error?.code ?? "INTERNAL_ERROR",
+          resp.error?.message ?? "Falha ao exportar script PathSim (.py).",
+        );
+      }
+      const res = resp.result as Record<string, unknown>;
+      if (res.code_executed !== false || typeof res.script !== "string") {
+        throw new ControlLabBridgeError(
+          "INTERNAL_ERROR",
+          "Resposta inválida de io.export_pathsim_script: esperado script Python passivo com code_executed=false.",
+        );
+      }
+      const filename =
+        typeof res.filename === "string" && res.filename.trim().length > 0
+          ? res.filename.trim()
+          : defaultFilename;
+      this.onOpenExportModal?.(
+        {
+          title: "Script PathSim Offline (Execução Manual Explícita — ADR-013)",
+          filename,
+          mimeType: "text/x-python;charset=utf-8",
+          content: res.script,
+          offlineDesign: true,
+        },
+        trigger,
+      );
+      this.shell
+        .getAnnouncer()
+        .announce(
+          `Script PathSim (.py) '${filename}' exportado em modo passivo (execução manual explícita, ADR-013).`,
+          "polite",
+          "status",
+        );
+      return res.script;
+    } catch (err: unknown) {
+      this.shell.presentError(err);
+      return null;
     }
   }
 
@@ -2114,6 +2608,7 @@ export class LmiView {
   }
 
   private renderCertificateAndSpectrum(): void {
+    this.updateControllerActionButtons();
     const decimals = this.shell.getDisplayDecimals();
     if (!this.lastSolve) {
       if (this.certDimsEl) {
@@ -2314,6 +2809,12 @@ export class LmiView {
             ? ` | <strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code>`
             : "";
         this.recoveredGainEl.innerHTML = `<p><strong>Ganho K:</strong> N/D para esta formulação${objInline}</p>`;
+      }
+
+      const regCtrl = this.getLastRegisteredController();
+      if (regCtrl) {
+        const regBadge = `<div class="lmi-registered-controller-status"><span class="badge badge-stable">Controlador Registrado no Workspace</span> <code>${escapeHtml(String(regCtrl.id))}#r${Number(regCtrl.revision)}</code> (${escapeHtml(String(regCtrl.kind))}, <code>feedback_sign=${escapeHtml(String(regCtrl.feedback_sign))}</code>)</div>`;
+        this.recoveredGainEl.innerHTML += regBadge;
       }
     }
 

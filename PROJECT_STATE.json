@@ -29,7 +29,7 @@
       "2026-11-23": 1,
       "2026-11-24": 6,
       "2026-11-25": 5,
-      "2026-11-26": 6
+      "2026-11-26": 7
     }
   },
   "audit_reference": {
@@ -7339,6 +7339,38 @@
         "Oráculos independentes F9 validando T-TSMOD-01..08 sem circularidade (Setor 16 regras, HOSVD/HOOI/SN-NN/RNO-INO/CNO, e FEMT v1.2.0: preservação exata de entradas constantes, SVD centrada sobre o delta, rank_augmented == False em SN-NN, otimalidade Eckart-Young, redução estrita N_r^FEMT < N_r^TPMT sob acoplamento e interpolação P1 Delaunay/Kuhn-Delaunay, zero linalg.inv/eval)",
         "Prova de execução das 3 vias em Pyodide Wasm real no navegador (test_real_runtime.py) e fluxo E2E Aba 6 -> Workspace -> Aba 7 (LMIs PDC relaxadas) -> PathSim/.ctrlab",
         "Emissão dos handoffs normativos do Apêndice E e fechamento governado da Fase 10"
+      ]
+    },
+    {
+      "wp_id": "WP-TSMOD-06-F8-LMI-PDC-SIM-EXPORT",
+      "front": "f8-ui-charts",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F8: Registro em 1 clique de PDCController/StateFeedbackController no Workspace e exportação de script PathSim 0.31.0 na Aba 7 (LMIs)",
+      "allowed_paths": [
+        "web/features/views/lmi_view.ts",
+        "tests/unit/f8/ts_modeling_view.test.ts"
+      ],
+      "dependencies": [
+        "WP-TSMOD-05-F9-TS-MODELING-AUDIT-ORACLES"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-05",
+        "R-18",
+        "R-21"
+      ],
+      "normative_tests": [
+        "T-TSMOD-07"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-TSMOD-06-F8-LMI-PDC-SIM-EXPORT.md",
+      "acceptance_scope": "f8_tab7_lmi_one_click_pdc_state_feedback_registration_and_pathsim_script_export",
+      "origin_ref": "docs/architecture/ADR-013-pvm-nonlinear-boundary-and-pathsim-export.md",
+      "acceptance_requirements": [
+        "Expor na Aba 7 (lmi_view.ts) botões em 1 clique para registrar o controlador sintetizado no Workspace (PDCController para TSStateSpace ts_measured/ts_partially_observed ou StateFeedbackController para StateSpace LTI) e exportar o script de simulação PathSim 0.31.0 (io.export_pathsim_script, ADR-013) com code_executed=false",
+        "Validar por teste unitário F8 o fluxo completo Aba 6 (derivação TS) -> Aba 7 (síntese PDC LMI) -> registro do PDCController no Workspace e exportação do script PathSim (.py)"
       ]
     }
   ],

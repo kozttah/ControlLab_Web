@@ -28,7 +28,11 @@ import { fileURLToPath } from "node:url";
 
 import { MockWorkerAdapter } from "../../../web/bridge/mock_adapter.ts";
 import { isTsModelingOperation } from "../../../web/bridge/ts_modeling.ts";
-import type { RpcRequest, RpcResponse } from "../../../web/bridge/protocol.ts";
+import {
+  extractTensorsToBinaryBuffers,
+  type RpcRequest,
+  type RpcResponse,
+} from "../../../web/bridge/protocol.ts";
 import { mountControlLabApp } from "../../../web/app/main.ts";
 import {
   PROJECT_TAB_IDS,
@@ -52,6 +56,7 @@ import {
   TS_PRESETS,
   TsModelingView,
 } from "../../../web/features/views/ts_modeling_view.ts";
+import { LmiView, renderLmiViewHtml } from "../../../web/features/views/lmi_view.ts";
 import {
   buildOffGridErrorHeatmap,
   evaluateDelaunayWeights,
@@ -59,12 +64,32 @@ import {
 } from "../../../web/charts/ts_modeling_charts.ts";
 import type { DerivedTsFemtResult } from "../../../web/bridge/ts_modeling.ts";
 import { cpythonLoader } from "../f7/cpython_runtime.mjs";
+import { dispatchPythonWithBinaryBuffers } from "./cpython_binary_helper.mjs";
+
+const REAL_PYTHON_EXTRA_OPS = new Set([
+  "optimization.solve",
+  "optimization.verify",
+  "core.validate_interconnection",
+  "core.interconnect",
+  "io.export_pathsim_script",
+]);
 
 class RealPythonTsAdapter extends MockWorkerAdapter {
   protected override async dispatchRpc(
     request: RpcRequest,
     options?: Parameters<MockWorkerAdapter["execute"]>[1],
   ): Promise<{ response: RpcResponse; bridgeTransferMs?: number }> {
+    if (REAL_PYTHON_EXTRA_OPS.has(request.operation)) {
+      const extracted = extractTensorsToBinaryBuffers(request.payload);
+      const response = dispatchPythonWithBinaryBuffers(
+        {
+          ...request,
+          payload: extracted.replaced,
+        },
+        extracted.buffers,
+      ) as RpcResponse;
+      return { response };
+    }
     if (isTsModelingOperation(request.operation)) {
       const loaded = await cpythonLoader({ indexURL: "", packages: [] });
       const pyodide = loaded.pyodide;
@@ -816,10 +841,299 @@ test("Regressão Achado 3: avaliador FEMT Delaunay 3D em JS bate com evaluate_fe
   );
 });
 
-test("Segurança R-21: módulos da Aba 6 não contêm eval ou construtor dinâmico Function", () => {
+test("WP-TSMOD-06: Fluxo E2E Aba 6 (Modelo TS FEMT) -> Aba 7 (LMI PDC / LTI) -> Registro de Controlador no Workspace & Exportação PathSim 0.31.0 estável", async () => {
+  const doc = new FakeDocument();
+  const root = new FakeElement("div", doc);
+  doc.body.appendChild(root);
+
+  const client = new RealPythonTsAdapter();
+  await client.init();
+
+  const app = mountControlLabApp(root as unknown as HTMLElement, { client });
+  const projectId = app.shell.getLqrWorkspace().getProjectId();
+
+  // Botões da Aba 7 começam desabilitados antes de qualquer resolução LMI
+  const regCtrlBtn = root.querySelector<FakeElement>("#btn-lmi-register-controller")!;
+  const exportPathSimBtn = root.querySelector<FakeElement>("#btn-lmi-export-pathsim")!;
+  assert.ok(regCtrlBtn && exportPathSimBtn, "Botões de controlador e PathSim devem existir na Aba 7");
+  assert.equal(regCtrlBtn.disabled, true);
+  assert.equal(exportPathSimBtn.disabled, true);
+
+  // 1. Aba 6: selecionar nonseparable_benchmark (FEMT) e tornar A(1,1) instável em malha aberta
+  //    para provar que o sinal de realimentação PDC realmente estabiliza um sistema instável!
+  app.shell.switchTab("ts_modeling");
+  const presetSel = root.querySelector<FakeElement>("#ts-preset-select")!;
+  presetSel.value = "nonseparable_benchmark";
+  presetSel.dispatchEvent("change");
+  assert.equal(root.querySelector<FakeElement>("#ts-via-select")!.value, "femt");
+
+  const cellA00 = root.querySelector<FakeElement>('input[data-mat-key="A"][data-row="0"][data-col="0"]')!;
+  cellA00.value = "0.85 + 0.5 * sin(x1 + x2)";
+  cellA00.dispatchEvent("change");
+
+  root.querySelector<FakeElement>("#btn-ts-derive")!.click();
+  await flushAsync(120);
+
+  // Registrar e abrir diretamente na Aba 7 (LMIs)
+  root.querySelector<FakeElement>("#btn-ts-register-open-lmi")!.click();
+  await flushAsync(60);
+  assert.equal(app.shell.getActiveTab(), "optimization_lmi");
+
+  const registeredTs = app.shell.getTypedWorkspace().listRegisteredObjects(["ts_measured"]);
+  assert.equal(registeredTs.length, 1);
+  assert.equal(registeredTs[0].id, "ts-coupled-2d");
+  const nVerts = (registeredTs[0].value.vertices as unknown[]).length;
+  assert.equal(nVerts, 3, "FEMT acoplado 2D deve produzir 3 vértices");
+
+  // 2. Aba 7: carregar template PDC relaxado (ts_pdc_relaxed) e resolver LMI
+  const tplSelect = root.querySelector<FakeElement>("#lmi-template-select")!;
+  tplSelect.value = "ts_pdc_relaxed";
+  tplSelect.dispatchEvent("change");
+  assert.ok(
+    root.querySelector<FakeElement>("#lmi-code-editor")!.value.includes("rules=3"),
+    "Template ts_pdc_relaxed deve sincronizar rules=3 com o modelo TS selecionado",
+  );
+
+  root.querySelector<FakeElement>("#btn-lmi-solve")!.click();
+  await flushAsync(150);
+
+  const certText = root.querySelector<FakeElement>("#lmi-certificate-dims")!.textContent;
+  assert.ok(certText.includes("validated_dual"), `Certificado esperado validated_dual, obtido: ${certText}`);
+  assert.equal(regCtrlBtn.disabled, false, "#btn-lmi-register-controller deve habilitar após solveLmi factível");
+  assert.equal(exportPathSimBtn.disabled, false, "#btn-lmi-export-pathsim deve habilitar para ts_measured");
+
+  // 3. Registrar PDCController no Workspace (validando contra motor Python via core.validate_interconnection)
+  regCtrlBtn.click();
+  await flushAsync(80);
+
+  const storedPdc = await app.client.getObject(projectId, "pdc-ts-coupled-2d", 1);
+  assert.ok(storedPdc !== null, "PDCController deve ser persistido no Workspace");
+  assert.equal(storedPdc!.kind, "PDCController");
+  assert.equal(storedPdc!.schema_version, "1.0.0");
+  assert.equal(storedPdc!.feedback_sign, "positive");
+  assert.equal((storedPdc!.K_i as unknown[]).length, 3);
+  assert.ok(
+    root.querySelector<FakeElement>("#lmi-recovered-gain")!.textContent.includes("pdc-ts-coupled-2d#r1"),
+    "Painel de ganhos recuperados deve confirmar registro no Workspace",
+  );
+
+  // 4. Exportar Simulação PathSim (.py) pelo botão da Aba 7
+  exportPathSimBtn.click();
+  await flushAsync(80);
+
+  const exportTitle = root.querySelector<FakeElement>("#export-modal-title")!.textContent;
+  const scriptContent = root.querySelector<FakeElement>("#export-modal-content")!.textContent;
+  assert.ok(exportTitle.includes("PathSim"), `Título inesperado no modal: ${exportTitle}`);
+  assert.ok(scriptContent.includes("def ts_pdc_rhs("), "Script PathSim deve definir ts_pdc_rhs");
+  assert.ok(scriptContent.includes("def default_h_fn("), "Script PathSim deve definir default_h_fn");
+  assert.ok(scriptContent.includes("K_vertices = ["), "Script PathSim deve exportar K_vertices");
+  assert.equal(
+    scriptContent.includes("1.0 / N_VERTICES"),
+    false,
+    "default_h_fn não pode usar stub uniforme 1/N para modelo FEMT derivado",
+  );
+
+  // Validar também chamada programática direta a LmiView.exportPathSimSimulation()
+  const standaloneHost = new FakeElement("div", doc);
+  standaloneHost.innerHTML = renderLmiViewHtml();
+  let capturedModalCode = "";
+  const standaloneLmi = new LmiView({
+    shell: app.shell,
+    client: app.client,
+    container: standaloneHost as unknown as HTMLElement,
+    onOpenExportModal: (payload) => {
+      capturedModalCode = payload.content;
+    },
+  });
+  standaloneLmi.selectSystemByRefKey(registeredTs[0].key);
+  standaloneHost.querySelector<FakeElement>("#lmi-template-select")!.value = "ts_pdc_relaxed";
+  standaloneHost.querySelector<FakeElement>("#lmi-template-select")!.dispatchEvent("change");
+  await standaloneLmi.solveLmi();
+  const extractedGains = standaloneLmi.extractSynthesizedControllerGains();
+  assert.ok(extractedGains !== null);
+  assert.equal(extractedGains!.controller.kind, "PDCController");
+  const directScript = await standaloneLmi.exportPathSimSimulation();
+  assert.ok(directScript !== null && directScript.includes("def ts_pdc_rhs("));
+  assert.equal(capturedModalCode, directScript);
+
+  // 5. Validação científica independente em Python:
+  //    - Conformidade estrita do PDCController contra contracts/schemas/controller.schema.json;
+  //    - Malha aberta instável (max Re λ(A_i) > 0) vs malha fechada A_i + sign*B_i*K_i e pares Tuan/Tanaka Hurwitz estáveis;
+  //    - Execução numérica da EDO exportada (ts_pdc_rhs + default_h_fn) convergindo exponencialmente a zero.
+  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+  const cpModId = "node:child_process";
+  const { spawnSync } = (await import(cpModId)) as {
+    spawnSync: (
+      cmd: string,
+      args: string[],
+      opts: Record<string, unknown>,
+    ) => { status: number | null; stdout: string; stderr: string };
+  };
+  const pyCheck = spawnSync(
+    "python3",
+    [
+      "-c",
+      [
+        "import sys, json, pathlib, numpy as np, scipy.integrate",
+        "from jsonschema import Draft202012Validator",
+        "from referencing import Registry, Resource",
+        "from control_lab.core.controllers import PDCController",
+        "payload = json.load(sys.stdin)",
+        "schemas_dir = pathlib.Path('contracts/schemas')",
+        "reg = Registry()",
+        "for sp in schemas_dir.glob('*.schema.json'):",
+        "    raw_s = json.loads(sp.read_text(encoding='utf-8'))",
+        "    res = Resource.from_contents(raw_s)",
+        "    reg = reg.with_resource(raw_s['$id'], res).with_resource(sp.name, res)",
+        "ctrl_schema = json.loads((schemas_dir / 'controller.schema.json').read_text(encoding='utf-8'))",
+        "Draft202012Validator(ctrl_schema, registry=reg).validate(payload['controller'])",
+        "pdc = PDCController.from_dict(payload['controller'])",
+        "ns = {}",
+        "exec(compile(payload['script'], '<exported_ts_pdc_pathsim>', 'exec'), ns)",
+        "A_list = ns['A_vertices']",
+        "B_list = ns['B_vertices']",
+        "K_list = ns['K_vertices']",
+        "s = float(ns['sign_factor'])",
+        "open_max_real = max(float(np.max(np.linalg.eigvals(Ai).real)) for Ai in A_list)",
+        "cl_diag_max_real = max(float(np.max(np.linalg.eigvals(Ai + s * (Bi @ Ki)).real)) for Ai, Bi, Ki in zip(A_list, B_list, K_list))",
+        "cl_pair_max_real = -1e9",
+        "for i in range(len(A_list)):",
+        "    for j in range(i + 1, len(A_list)):",
+        "        Mij = 0.5 * ((A_list[i] + s * (B_list[i] @ K_list[j])) + (A_list[j] + s * (B_list[j] @ K_list[i])))",
+        "        cl_pair_max_real = max(cl_pair_max_real, float(np.max(np.linalg.eigvals(Mij).real)))",
+        "sol = scipy.integrate.solve_ivp(lambda t, x: ns['ts_pdc_rhs'](x, ns['default_h_fn'](x, t), np.zeros(1)), (0.0, 6.0), np.array([0.6, -0.5]))",
+        "final_norm = float(np.linalg.norm(sol.y[:, -1]))",
+        "print(json.dumps({'open_max_real': open_max_real, 'cl_diag_max_real': cl_diag_max_real, 'cl_pair_max_real': cl_pair_max_real, 'final_norm': final_norm, 'n_rules': pdc.n_rules}))",
+      ].join("\n"),
+    ],
+    {
+      cwd: repoRoot,
+      input: JSON.stringify({ controller: storedPdc, script: scriptContent }),
+      encoding: "utf8",
+      timeout: 30000,
+    },
+  );
+  assert.equal(pyCheck.status, 0, `Validação Python do PDC/PathSim falhou: ${pyCheck.stderr}`);
+  const metrics = JSON.parse(pyCheck.stdout) as {
+    open_max_real: number;
+    cl_diag_max_real: number;
+    cl_pair_max_real: number;
+    final_norm: number;
+    n_rules: number;
+  };
+  assert.equal(metrics.n_rules, 3);
+  assert.ok(
+    metrics.open_max_real > 0.1,
+    `Planta em malha aberta deveria ser instável (> 0.1), obtido ${metrics.open_max_real}`,
+  );
+  assert.ok(
+    metrics.cl_diag_max_real < -1e-3,
+    `Malha fechada nos vértices A_i + s B_i K_i deve ser Hurwitz estável (< 0), obtido ${metrics.cl_diag_max_real}`,
+  );
+  assert.ok(
+    metrics.cl_pair_max_real < -1e-3,
+    `Pares relaxados Tuan/Tanaka devem ser Hurwitz estáveis (< 0), obtido ${metrics.cl_pair_max_real}`,
+  );
+  assert.ok(
+    metrics.final_norm < 1e-2,
+    `Trajetória fechada de ts_pdc_rhs deve convergir para a origem, obtido ||x(6)||=${metrics.final_norm}`,
+  );
+
+  // 6. Guarda de obsolescência: editar a DSL após solveLmi deve desabilitar imediatamente registro e exportação!
+  const editorEl = root.querySelector<FakeElement>("#lmi-code-editor")!;
+  editorEl.value = `${editorEl.value}\n# edicao posterior`;
+  editorEl.dispatchEvent("input");
+  assert.equal(regCtrlBtn.disabled, true, "Editar DSL deve invalidar registro do controlador anterior");
+  assert.equal(exportPathSimBtn.disabled, true, "Editar DSL deve invalidar exportação PathSim anterior");
+
+  // 7. Sistema LTI StateSpace com template lqr_lmi (-B*Y -> feedback_sign='negative'):
+  //    extrai StateFeedbackController, registra no Workspace e exporta PathSim LTI estável.
+  const lqrPlant = app.shell.getLqrWorkspace().getPlant();
+  const ssSel = root.querySelector<FakeElement>("#lmi-workspace-system-select")!;
+  const ssKey = `${encodeURIComponent(lqrPlant.id)}#${lqrPlant.revision}`;
+  ssSel.value = ssKey;
+  ssSel.dispatchEvent("change");
+
+  tplSelect.value = "lqr_lmi";
+  tplSelect.dispatchEvent("change");
+  root.querySelector<FakeElement>("#btn-lmi-solve")!.click();
+  await flushAsync(150);
+
+  assert.equal(regCtrlBtn.disabled, false);
+  assert.equal(exportPathSimBtn.disabled, false);
+  regCtrlBtn.click();
+  await flushAsync(80);
+
+  const storedSf = await app.client.getObject(projectId, `sf-${lqrPlant.id}`, 1);
+  assert.ok(storedSf !== null, "StateFeedbackController deve ser registrado no Workspace");
+  assert.equal(storedSf!.kind, "StateFeedbackController");
+  assert.equal(storedSf!.feedback_sign, "negative", "Template lqr_lmi (-B*Y) deve produzir feedback_sign='negative'");
+
+  exportPathSimBtn.click();
+  await flushAsync(80);
+  const ltiScript = root.querySelector<FakeElement>("#export-modal-content")!.textContent;
+  assert.ok(ltiScript.includes("duration ="), "Script PathSim LTI deve ser gerado sem erros");
+
+  // 8. Bloqueio ADR-006 / ADR-013 para polytopic_uncertain: PathSim e PDC bloqueados!
+  const polyReg = await app.shell.getTypedWorkspace().registerTypedObject({
+    schema_version: "1.0.0",
+    id: "poly-uncertain-2v",
+    revision: 1,
+    kind: "polytopic_uncertain",
+    dt: null,
+    state_names: ["x1", "x2"],
+    input_names: ["u1"],
+    output_names: ["y1"],
+    units: { time: "s", states: ["", ""], inputs: [""], outputs: [""] },
+    domain: { bounds: {} },
+    premise_availability: {
+      mode: "polytopic_unknown",
+      measured_premises: [],
+      unmeasured_premises: [],
+    },
+    membership_spec: {
+      version: "1.0.0",
+      premise_variables: [],
+      functions: [],
+    },
+    vertices: [
+      {
+        vertex_id: "v1",
+        A: { shape: [2, 2], dtype: "float64", order: "C", data: [0, 1, -1, -0.5] },
+        B: { shape: [2, 1], dtype: "float64", order: "C", data: [0, 1] },
+        C: { shape: [1, 2], dtype: "float64", order: "C", data: [1, 0] },
+        D: { shape: [1, 1], dtype: "float64", order: "C", data: [0] },
+      },
+      {
+        vertex_id: "v2",
+        A: { shape: [2, 2], dtype: "float64", order: "C", data: [0, 1, -2, -0.8] },
+        B: { shape: [2, 1], dtype: "float64", order: "C", data: [0, 1] },
+        C: { shape: [1, 2], dtype: "float64", order: "C", data: [1, 0] },
+        D: { shape: [1, 1], dtype: "float64", order: "C", data: [0] },
+      },
+    ],
+    provenance: { source: "test" },
+  });
+  ssSel.value = polyReg.key;
+  ssSel.dispatchEvent("change");
+  tplSelect.value = "polytopic_robust";
+  tplSelect.dispatchEvent("change");
+  root.querySelector<FakeElement>("#btn-lmi-solve")!.click();
+  await flushAsync(120);
+  assert.equal(
+    exportPathSimBtn.disabled,
+    true,
+    "#btn-lmi-export-pathsim deve permanecer desabilitado para polytopic_uncertain (ADR-006/ADR-013)",
+  );
+
+  app.destroy();
+});
+
+test("Segurança R-21: módulos das Abas 6 e 7 não contêm eval ou construtor dinâmico Function", () => {
   const files = [
     fileURLToPath(new URL("../../../web/features/ts_modeling/symbolic_qlpv_ast.ts", import.meta.url)),
     fileURLToPath(new URL("../../../web/features/views/ts_modeling_view.ts", import.meta.url)),
+    fileURLToPath(new URL("../../../web/features/views/lmi_view.ts", import.meta.url)),
     fileURLToPath(new URL("../../../web/charts/ts_modeling_charts.ts", import.meta.url)),
   ];
   for (const p of files) {

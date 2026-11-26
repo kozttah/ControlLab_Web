@@ -2,6 +2,8 @@
 
 Bem-vindo ao **ControlLab Web**, uma bancada científica integrada de modelagem, identificação, análise clássica/multivariável, controle nebuloso Takagi–Sugeno e síntese convexa via Desigualdades Matriciais Lineares (**LMIs / SDPs**) que executa **100% localmente no navegador** sobre **WebAssembly (`Pyodide`)**, sem necessidade de instalar Python ou servidores externos na máquina do usuário.
 
+> **Versão para impressão e compartilhamento:** baixe também a edição editorial em **[PDF Diagramado A4 (`Manual_de_Uso_ControlLab_Web.pdf`)](./Manual_de_Uso_ControlLab_Web.pdf)**.
+
 ---
 
 ## Sumário Rápido da Jornada de Engenharia

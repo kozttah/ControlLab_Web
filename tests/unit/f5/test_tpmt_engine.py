@@ -492,3 +492,274 @@ def test_derive_ts_tpmt_wasm_envelope_guards() -> None:
     assert res_rules.status == "failure"
     assert res_rules.error is not None
     assert res_rules.error.code == "RESOURCE_LIMIT"
+
+
+# ---------------------------------------------------------------------------
+# T-TSMOD-04 (v1.3.0): TPMT Centrada no Subespaço Variante & Remontagem Exata
+# ---------------------------------------------------------------------------
+
+
+def _pendulum_16_spec() -> dict[str, object]:
+    """Especificação canônica do pêndulo invertido de 4 estados (`pendulum_16`, M=30, M_var=6, M_const=24)."""
+    z1 = "(1 / (1.0 + 0.2 * sin(x3)^2))"
+    z2 = "cos(x3)"
+    z3 = "sinc_rad(x3)"
+    z4 = "(x4 * sin(x3))"
+    return {
+        "state_bounds": {
+            "x1": [-2.0, 2.0],
+            "x2": [-3.0, 3.0],
+            "x3": [-0.6, 0.6],
+            "x4": [-2.0, 2.0],
+        },
+        "A_expr": [
+            ["0", "1", "0", "0"],
+            ["0", "0", f"-1.962 * {z1} * {z2} * {z3}", f"0.1 * {z1} * {z4}"],
+            ["0", "0", "0", "1"],
+            ["0", "0", f"23.544 * {z1} * {z3}", f"-0.2 * {z1} * {z2} * {z4}"],
+        ],
+        "B_expr": [["0"], [z1], ["0"], [f"-2.0 * {z1} * {z2}"]],
+        "C_expr": [["1", "0", "0", "0"], ["0", "0", "1", "0"]],
+        "D_expr": [["0"], ["0"]],
+    }
+
+
+def _assert_pendulum_constants_bitwise(ts_obj: TSStateSpace, *, context: str = "") -> None:
+    expected_C = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], dtype=np.float64)
+    expected_D = np.zeros((2, 1), dtype=np.float64)
+    const_A_zeros = [
+        (0, 0), (0, 2), (0, 3),
+        (1, 0), (1, 1),
+        (2, 0), (2, 1), (2, 2),
+        (3, 0), (3, 1),
+    ]
+    for r_idx, v in enumerate(ts_obj.vertices):
+        A_r = np.asarray(v["A"], dtype=np.float64)
+        B_r = np.asarray(v["B"], dtype=np.float64)
+        C_r = np.asarray(v["C"], dtype=np.float64)
+        D_r = np.asarray(v["D"], dtype=np.float64)
+        assert A_r[0, 1] == 1.0, f"Regra {r_idx}: A[0,1]={A_r[0, 1]} != 1.0 ({context})"
+        assert A_r[2, 3] == 1.0, f"Regra {r_idx}: A[2,3]={A_r[2, 3]} != 1.0 ({context})"
+        for i, j in const_A_zeros:
+            assert A_r[i, j] == 0.0, f"Regra {r_idx}: A[{i},{j}]={A_r[i, j]} != 0.0 ({context})"
+        assert B_r[0, 0] == 0.0, f"Regra {r_idx}: B[0,0]={B_r[0, 0]} != 0.0 ({context})"
+        assert B_r[2, 0] == 0.0, f"Regra {r_idx}: B[2,0]={B_r[2, 0]} != 0.0 ({context})"
+        assert np.array_equal(C_r, expected_C), f"Regra {r_idx}: C alterado ({context})"
+        assert np.array_equal(D_r, expected_D), f"Regra {r_idx}: D alterado ({context})"
+
+
+@pytest.mark.parametrize("hull_type", ["SN-NN", "RNO-INO", "CNO", "MGK"])
+def test_t_tsmod_04_v13_pendulum_16_bitwise_constant_preservation_all_hulls(hull_type: str) -> None:
+    """Preservação bit-a-bit exata de todas as 24 entradas constantes no pêndulo em todos os hull_types."""
+    spec = _pendulum_16_spec()
+    res = derive_ts_tpmt(
+        state_bounds=spec["state_bounds"],  # type: ignore[arg-type]
+        A_expr=spec["A_expr"],  # type: ignore[arg-type]
+        B_expr=spec["B_expr"],  # type: ignore[arg-type]
+        C_expr=spec["C_expr"],  # type: ignore[arg-type]
+        D_expr=spec["D_expr"],  # type: ignore[arg-type]
+        grid_points=[15, 15],
+        svd_tol=1e-6,
+        hull_type=hull_type,
+        n_val_points=256,
+    )
+    assert res.status in ("success", "warning"), f"Falha em {hull_type}: {res.error}"
+    assert res.data is not None
+
+    assert res.data["n_varying_entries"] == 6
+    assert res.data["n_constant_entries"] == 24
+    assert res.data["centered_mean_augmented"] is True
+    assert [hd["rank_augmented"] for hd in res.data["hull_diagnostics"]] == [False, False]
+
+    prov = res.data["ts_state_space"]["provenance"]["ts_derivation"]
+    assert prov["n_varying_entries"] == 6
+    assert prov["n_constant_entries"] == 24
+    assert prov["centered_mean_augmented"] is True
+
+    ts_obj = TSStateSpace.from_dict(res.data["ts_state_space"])
+    _assert_pendulum_constants_bitwise(ts_obj, context=hull_type)
+
+
+def test_t_tsmod_04_v13_pendulum_16_cno_tight_physical_vertices() -> None:
+    """Pêndulo invertido 15x15 sob CNO: sem coluna extra, vértices físicos apertados e metadados v1.3.0."""
+    spec = _pendulum_16_spec()
+    res = derive_ts_tpmt(
+        state_bounds=spec["state_bounds"],  # type: ignore[arg-type]
+        A_expr=spec["A_expr"],  # type: ignore[arg-type]
+        B_expr=spec["B_expr"],  # type: ignore[arg-type]
+        C_expr=spec["C_expr"],  # type: ignore[arg-type]
+        D_expr=spec["D_expr"],  # type: ignore[arg-type]
+        grid_points=[15, 15],
+        svd_tol=1e-6,
+        hull_type="CNO",
+        n_val_points=512,
+    )
+    assert res.status == "success", f"Falha: {res.error}"
+    assert res.data is not None
+
+    assert res.data["n_varying_entries"] == 6
+    assert res.data["n_constant_entries"] == 24
+    assert res.data["centered_mean_augmented"] is True
+    assert [hd["rank_augmented"] for hd in res.data["hull_diagnostics"]] == [False, False]
+
+    ts_obj = TSStateSpace.from_dict(res.data["ts_state_space"])
+    _assert_pendulum_constants_bitwise(ts_obj, context="pendulum_15x15_CNO")
+
+    a32_vals = [float(np.asarray(v["A"])[3, 2]) for v in ts_obj.vertices]
+    a12_vals = [float(np.asarray(v["A"])[1, 2]) for v in ts_obj.vertices]
+    assert min(a32_vals) >= 19.0 and max(a32_vals) <= 25.0, f"A[3,2] fora de [19, 25]: {a32_vals}"
+    assert min(a12_vals) >= -2.3 and max(a12_vals) <= -1.1, f"A[1,2] fora de [-2.3, -1.1]: {a12_vals}"
+
+
+def test_t_tsmod_04_v13_pendulum_aggressive_truncation_ranks_2_2_exact_4_rules() -> None:
+    """Truncamento manual ranks=[2, 2] produz exatamente 4 regras sem aumento de posto e constantes exatas."""
+    spec = _pendulum_16_spec()
+    res = derive_ts_tpmt(
+        state_bounds=spec["state_bounds"],  # type: ignore[arg-type]
+        A_expr=spec["A_expr"],  # type: ignore[arg-type]
+        B_expr=spec["B_expr"],  # type: ignore[arg-type]
+        C_expr=spec["C_expr"],  # type: ignore[arg-type]
+        D_expr=spec["D_expr"],  # type: ignore[arg-type]
+        grid_points=[15, 15],
+        ranks=[2, 2],
+        hull_type="CNO",
+        n_val_points=256,
+    )
+    assert res.status == "success", f"Falha: {res.error}"
+    assert res.data is not None
+
+    assert res.data["num_rules"] == 4
+    assert res.diagnostics["axis_ranks"] == [2, 2]
+    assert [hd["rank_augmented"] for hd in res.data["hull_diagnostics"]] == [False, False]
+    assert [hd["rank_before"] for hd in res.data["hull_diagnostics"]] == [2, 2]
+    assert [hd["rank_after"] for hd in res.data["hull_diagnostics"]] == [2, 2]
+
+    ts_obj = TSStateSpace.from_dict(res.data["ts_state_space"])
+    assert ts_obj.n_vertices == 4
+    _assert_pendulum_constants_bitwise(ts_obj, context="pendulum_ranks_2_2")
+
+
+def test_t_tsmod_04_v13_centered_hooi_monotonic_convergence_and_ones_in_colspace() -> None:
+    """HOOI centrada (center_modes=True): convergência monotônica e 1_{G_d} in col(U^(d))."""
+    g1 = np.linspace(-1.0, 1.0, 12)
+    g2 = np.linspace(-1.0, 1.0, 12)
+    g3 = np.linspace(-1.0, 1.0, 10)
+    X1, X2, X3 = np.meshgrid(g1, g2, g3, indexing="ij")
+    T = np.zeros((12, 12, 10, 4), dtype=np.float64)
+    T[..., 0] = 2.0 + np.sin(X1 * X2 + 0.5 * X3) + 0.3 * np.exp(-X1**2 - X2**2)
+    T[..., 1] = -1.5 + np.cos(X2 * X3 - X1)
+    T[..., 2] = 0.7 + np.tanh(X1 + X2 * X3)
+    T[..., 3] = 1.0 / (1.5 + np.sin(X1 + X3) * np.cos(X2))
+
+    ranks = [3, 3, 3]
+    hosvd_c = hosvd_sampled_func(T, ranks=ranks, ord_func=1, center_modes=True)
+    hosvd_err = float(np.linalg.norm(T - reconstruct_tensor(hosvd_c.core, hosvd_c.U_list)))
+    assert hosvd_err <= hosvd_c.truncation_bound + 1e-12
+
+    hooi_c = hooi_sampled_func(
+        T, ranks=ranks, ord_func=1, max_iter=40, conv_tol=1e-10, center_modes=True
+    )
+    hist = hooi_c.error_history
+    assert len(hist) >= 2
+    assert abs(hist[0] - hosvd_err) <= 1e-12
+    for k in range(1, len(hist)):
+        assert hist[k] <= hist[k - 1] + 1e-11
+    assert hist[-1] <= hosvd_err + 1e-12
+    assert hist[-1] < hosvd_err  # ganho estrito sobre HOSVD centrada
+
+    for d, U_d in enumerate(hooi_c.U_list):
+        g_d, r_d = U_d.shape
+        assert r_d == ranks[d]
+        assert float(np.linalg.norm(U_d.T @ U_d - np.eye(r_d), ord="fro")) <= 1e-13
+        # Verifica 1_{G_d} in col(U_d) exato via coluna 0 = 1/sqrt(G_d)
+        u0_expected = np.full(g_d, 1.0 / math.sqrt(float(g_d)), dtype=np.float64)
+        assert np.allclose(U_d[:, 0], u0_expected, atol=1e-14)
+        assert float(np.max(np.abs(np.mean(U_d[:, 1:], axis=0)))) <= 1e-13
+
+
+@pytest.mark.parametrize("resample_method", ["linear", "pchip"])
+def test_t_tsmod_04_v13_resample_1d_keeps_rank_augmented_false_and_exact_constants(
+    resample_method: str,
+) -> None:
+    """Reamostragem 1D (linear/pchip) sob TPMT v1.3.0 mantém rank_augmented == False e constantes exatas."""
+    spec = _pendulum_16_spec()
+    res = derive_ts_tpmt(
+        state_bounds=spec["state_bounds"],  # type: ignore[arg-type]
+        A_expr=spec["A_expr"],  # type: ignore[arg-type]
+        B_expr=spec["B_expr"],  # type: ignore[arg-type]
+        C_expr=spec["C_expr"],  # type: ignore[arg-type]
+        D_expr=spec["D_expr"],  # type: ignore[arg-type]
+        grid_points=[11, 11],
+        svd_tol=1e-6,
+        hull_type="CNO",
+        resample_points=[31, 31],
+        resample_method=resample_method,
+        n_val_points=256,
+    )
+    assert res.status == "success", f"Falha em {resample_method}: {res.error}"
+    assert res.data is not None
+    assert [hd["rank_augmented"] for hd in res.data["hull_diagnostics"]] == [False, False]
+    assert [len(g) for g in res.data["axis_grids"]] == [31, 31]
+
+    ts_obj = TSStateSpace.from_dict(res.data["ts_state_space"])
+    _assert_pendulum_constants_bitwise(ts_obj, context=f"resample_{resample_method}")
+
+
+def test_t_tsmod_04_v13_degenerate_lti_m_var_zero() -> None:
+    """Caso degenerado M_var == 0 (expressão constante no grid) gera 1 regra exata sem erro."""
+    res = derive_ts_tpmt(
+        state_bounds={"x1": [-1.0, 1.0], "x2": [-1.0, 1.0]},
+        A_expr=[["-1.0 + 0.0 * x1", "sin(x1)^2 + cos(x1)^2"], [0.0, -2.5]],
+        B_expr=[[0.0], [1.0]],
+        grid_points=9,
+        hull_type="CNO",
+        n_val_points=64,
+    )
+    assert res.status == "success", f"Falha em M_var == 0: {res.error}"
+    assert res.data is not None
+    assert res.data["num_rules"] == 1
+    assert res.data["n_varying_entries"] == 0
+    assert [hd["rank_augmented"] for hd in res.data["hull_diagnostics"]] == [False]
+    assert res.data["fidelity_certificate"]["grid_rel_l2_error"] <= 1e-14
+    assert res.data["fidelity_certificate"]["val_rel_l2_error"] <= 1e-14
+
+
+def test_t_tsmod_04_v13_export_ts_derivation_script_python_and_matlab_pendulum_16(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Exportação standalone Python e MATLAB via export_ts_derivation_script reproduz vértices (< 1e-12)."""
+    import subprocess
+    import sys
+
+    from control_lab.io.ts_derivation import export_ts_derivation_script
+
+    spec = _pendulum_16_spec()
+    res = derive_ts_tpmt(
+        state_bounds=spec["state_bounds"],  # type: ignore[arg-type]
+        A_expr=spec["A_expr"],  # type: ignore[arg-type]
+        B_expr=spec["B_expr"],  # type: ignore[arg-type]
+        C_expr=spec["C_expr"],  # type: ignore[arg-type]
+        D_expr=spec["D_expr"],  # type: ignore[arg-type]
+        grid_points=[11, 11],
+        svd_tol=1e-6,
+        hull_type="CNO",
+        n_val_points=128,
+    )
+    assert res.status == "success", f"Falha: {res.error}"
+    ts_obj = TSStateSpace.from_dict(res.data["ts_state_space"])
+
+    # Exportação Python standalone e execução verificando reprodução exata (< 1e-12)
+    py_script = export_ts_derivation_script(ts_obj, "python")
+    assert "from control_lab" not in py_script
+    py_path = tmp_path / "derive_pendulum_tpmt.py"
+    py_path.write_text(py_script, encoding="utf-8")
+    subprocess.run([sys.executable, "-I", str(py_path)], cwd=tmp_path, check=True)
+    with np.load(tmp_path / "ts_vertices.npz", allow_pickle=False) as out:
+        for key in ("A", "B", "C", "D"):
+            np.testing.assert_allclose(out[key], [v[key] for v in ts_obj.vertices], atol=1e-12, rtol=0.0)
+
+    # Exportação MATLAB
+    m_script = export_ts_derivation_script(ts_obj, "matlab")
+    assert "ts_vertices.mat" in m_script
+    assert "function " in m_script
+

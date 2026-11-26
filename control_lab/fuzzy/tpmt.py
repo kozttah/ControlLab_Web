@@ -223,11 +223,59 @@ def reconstruct_tensor(core: np.ndarray, factor_matrices: Sequence[np.ndarray]) 
 # ---------------------------------------------------------------------------
 
 
+def _centered_mode_basis(
+    unfolded: np.ndarray,
+    *,
+    tol: float,
+    rank: int | None,
+    mode: int,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Calcula base ortonormal modal centrada `U_aug = [u0, U_perp]` com `u0 = 1/sqrt(G_d)`."""
+    g_d = int(unfolded.shape[0])
+    u0 = np.full((g_d, 1), 1.0 / math.sqrt(float(g_d)), dtype=np.float64)
+    centered = unfolded - np.mean(unfolded, axis=0, keepdims=True)
+    Ua, s, _ = scipy_linalg.svd(centered, full_matrices=False)
+    s_arr = np.asarray(s, dtype=np.float64)
+    r_delta_max = min(max(0, g_d - 1), int(s_arr.size))
+
+    if rank is not None:
+        r_total = int(rank)
+        max_total = r_delta_max + 1
+        if r_total < 1 or r_total > max_total:
+            raise ValidationError(
+                f"Posto solicitado ranks[{mode}]={r_total} fora do intervalo válido [1, {max_total}]."
+            )
+        r_delta = r_total - 1
+    else:
+        if s_arr.size == 0 or s_arr[0] <= 1e-14:
+            r_delta = 0
+        else:
+            r_delta = int(np.sum(s_arr > tol * s_arr[0]))
+            r_delta = min(r_delta, r_delta_max)
+
+    if r_delta == 0:
+        return u0, s_arr, 0
+
+    U_perp = np.asarray(Ua[:, :r_delta], dtype=np.float64)
+    U_perp = U_perp - np.mean(U_perp, axis=0, keepdims=True)
+    gram_err = float(np.linalg.norm(U_perp.T @ U_perp - np.eye(r_delta, dtype=np.float64), ord="fro"))
+    if gram_err > 1e-13:
+        Q_aug, R_aug = np.linalg.qr(np.hstack([u0, U_perp]), mode="reduced")
+        signs = np.where(np.diag(R_aug) < 0.0, -1.0, 1.0)
+        Q_aug = Q_aug * signs[None, :]
+        U_perp = Q_aug[:, 1:]
+        U_perp = U_perp - np.mean(U_perp, axis=0, keepdims=True)
+
+    U_aug = np.hstack([u0, U_perp])
+    return U_aug, s_arr, r_delta
+
+
 def hosvd_sampled_func(
     tensor: np.ndarray,
     tol: float = 1e-6,
     ranks: Sequence[int] | None = None,
     ord_func: int = 2,
+    center_modes: bool = False,
 ) -> HOSVDResult:
     """HOSVD compacta/truncada preservando os `ord_func` modos finais da imagem matricial."""
     arr = _ensure_finite_tensor(tensor, name="tensor")
@@ -252,27 +300,39 @@ def hosvd_sampled_func(
 
     for d in range(n_param_modes):
         unfolded = unfold_mode(arr, d)
-        Ua, s, _ = scipy_linalg.svd(unfolded, full_matrices=False)
-        singular_values.append(np.asarray(s, dtype=np.float64))
-
-        if ranks is not None:
-            r_d = int(ranks[d])
-            if r_d < 1 or r_d > Ua.shape[1]:
-                raise ValidationError(
-                    f"Posto solicitado ranks[{d}]={r_d} fora do intervalo válido [1, {Ua.shape[1]}]."
-                )
+        if center_modes:
+            rank_req = None if ranks is None else int(ranks[d])
+            U_d, s_arr, r_delta = _centered_mode_basis(
+                unfolded, tol=tol, rank=rank_req, mode=d
+            )
+            singular_values.append(s_arr)
+            U_list.append(U_d)
+            core = mode_product(core, U_d.T, d)
+            if r_delta < s_arr.size:
+                tail_sq_sum += float(np.sum(s_arr[r_delta:] ** 2))
         else:
-            if s.size == 0 or s[0] <= 0.0:
-                r_d = 1
-            else:
-                r_d = int(np.sum(s > tol * s[0]))
-                r_d = max(1, min(r_d, Ua.shape[1]))
+            Ua, s, _ = scipy_linalg.svd(unfolded, full_matrices=False)
+            s_arr = np.asarray(s, dtype=np.float64)
+            singular_values.append(s_arr)
 
-        U_d = np.asarray(Ua[:, :r_d], dtype=np.float64)
-        U_list.append(U_d)
-        core = mode_product(core, U_d.T, d)
-        if r_d < s.size:
-            tail_sq_sum += float(np.sum(s[r_d:] ** 2))
+            if ranks is not None:
+                r_d = int(ranks[d])
+                if r_d < 1 or r_d > Ua.shape[1]:
+                    raise ValidationError(
+                        f"Posto solicitado ranks[{d}]={r_d} fora do intervalo válido [1, {Ua.shape[1]}]."
+                    )
+            else:
+                if s_arr.size == 0 or s_arr[0] <= 0.0:
+                    r_d = 1
+                else:
+                    r_d = int(np.sum(s_arr > tol * s_arr[0]))
+                    r_d = max(1, min(r_d, Ua.shape[1]))
+
+            U_d = np.asarray(Ua[:, :r_d], dtype=np.float64)
+            U_list.append(U_d)
+            core = mode_product(core, U_d.T, d)
+            if r_d < s_arr.size:
+                tail_sq_sum += float(np.sum(s_arr[r_d:] ** 2))
 
     truncation_bound = math.sqrt(max(0.0, tail_sq_sum))
     return HOSVDResult(
@@ -290,6 +350,7 @@ def hooi_sampled_func(
     ord_func: int = 2,
     max_iter: int = 50,
     conv_tol: float = 1e-9,
+    center_modes: bool = False,
 ) -> HOOIResult:
     """HOOI inicializada por HOSVD usando contrações sequenciais em modo-l (ZERO Kronecker)."""
     if max_iter < 1:
@@ -298,7 +359,9 @@ def hooi_sampled_func(
         raise ValidationError(f"conv_tol deve ser finito e positivo, recebido {conv_tol!r}.")
 
     arr = _ensure_finite_tensor(tensor, name="tensor")
-    hosvd_res = hosvd_sampled_func(arr, tol=tol, ranks=ranks, ord_func=ord_func)
+    hosvd_res = hosvd_sampled_func(
+        arr, tol=tol, ranks=ranks, ord_func=ord_func, center_modes=center_modes
+    )
     core = hosvd_res.core
     U_list = [u.copy() for u in hosvd_res.U_list]
     singular_values = hosvd_res.singular_values
@@ -330,8 +393,13 @@ def hooi_sampled_func(
                 if l != d:
                     Y = mode_product(Y, U_list[l].T, l)
             Y_d = unfold_mode(Y, d)
-            Ua, _, _ = scipy_linalg.svd(Y_d, full_matrices=False)
-            U_new = np.asarray(Ua[:, : eff_ranks[d]], dtype=np.float64)
+            if center_modes:
+                U_new, _, _ = _centered_mode_basis(
+                    Y_d, tol=0.0, rank=eff_ranks[d], mode=d
+                )
+            else:
+                Ua, _, _ = scipy_linalg.svd(Y_d, full_matrices=False)
+                U_new = np.asarray(Ua[:, : eff_ranks[d]], dtype=np.float64)
 
             # Métrica de projeção invariante a sinal/rotação ortogonal
             proj_old = U_list[d] @ U_list[d].T
@@ -1206,6 +1274,49 @@ def _assemble_block_batch(
     return np.concatenate(row_blocks, axis=1)
 
 
+def _build_ast_varying_mask(
+    parsed_A: list[list[ParsedExpression]],
+    parsed_B: list[list[ParsedExpression]],
+    parsed_C: list[list[ParsedExpression]],
+    parsed_D: list[list[ParsedExpression]],
+    parsed_gen: Mapping[str, list[list[ParsedExpression]]],
+    *,
+    n: int,
+    m: int,
+    p_out: int,
+    nw: int,
+    nz: int,
+) -> np.ndarray:
+    """Constrói máscara booleana `(M1, M2)` indicando entradas com variáveis ativas na AST."""
+    m1 = n + p_out + nz
+    m2 = n + m + nw
+    mask = np.zeros((m1, m2), dtype=bool)
+
+    def _fill(block: list[list[ParsedExpression]], r0: int, c0: int) -> None:
+        for i, row in enumerate(block):
+            for j, pe in enumerate(row):
+                if len(pe.active_variables) > 0:
+                    mask[r0 + i, c0 + j] = True
+
+    _fill(parsed_A, 0, 0)
+    _fill(parsed_B, 0, n)
+    _fill(parsed_C, n, 0)
+    _fill(parsed_D, n, n)
+    if nw > 0:
+        if "Bw" in parsed_gen:
+            _fill(parsed_gen["Bw"], 0, n + m)
+        if "Dyw" in parsed_gen:
+            _fill(parsed_gen["Dyw"], n, n + m)
+    if nz > 0:
+        if "Cz" in parsed_gen:
+            _fill(parsed_gen["Cz"], n + p_out, 0)
+        if "Dzu" in parsed_gen:
+            _fill(parsed_gen["Dzu"], n + p_out, n)
+        if nw > 0 and "Dzw" in parsed_gen:
+            _fill(parsed_gen["Dzw"], n + p_out, n + m)
+    return mask
+
+
 # ---------------------------------------------------------------------------
 # 6. Pipeline Completo `derive_ts_tpmt`
 # ---------------------------------------------------------------------------
@@ -1499,135 +1610,233 @@ def derive_ts_tpmt(
         )
         S_tensor = S_batch_grid.reshape(*g_sizes, m1, m2)
 
-        # 2. Decomposição HOSVD ou HOOI (ord_func = 2)
-        hooi_meta: dict[str, Any] | None = None
-        if decomp == "hosvd":
-            hosvd_res = hosvd_sampled_func(S_tensor, tol=svd_tol, ranks=resolved_ranks, ord_func=2)
-            core = hosvd_res.core
-            U_list_pre = [u.copy() for u in hosvd_res.U_list]
-            singular_values = hosvd_res.singular_values
-            truncation_bound = hosvd_res.truncation_bound
-        else:
-            hooi_res = hooi_sampled_func(
-                S_tensor,
-                ranks=resolved_ranks,
-                tol=svd_tol,
-                ord_func=2,
-                max_iter=hooi_max_iter,
-                conv_tol=hooi_conv_tol,
-            )
-            core = hooi_res.core
-            U_list_pre = [u.copy() for u in hooi_res.U_list]
-            singular_values = hooi_res.singular_values
-            # Cota teórica de referência da HOSVD inicial para comparação
-            tail_sq = 0.0
-            for d, sv in enumerate(singular_values):
-                r_d = U_list_pre[d].shape[1]
-                if r_d < sv.size:
-                    tail_sq += float(np.sum(sv[r_d:] ** 2))
-            truncation_bound = math.sqrt(max(0.0, tail_sq))
-            hooi_meta = {
-                "n_iter": hooi_res.n_iter,
-                "converged": hooi_res.converged,
-                "error_history": hooi_res.error_history,
-            }
+        # 2. Partição estrutural I_const U I_var + Decomposição HOSVD/HOOI centrada em I_var (v1.3.0)
+        m_vec = m1 * m2
+        X_T = S_batch_grid.reshape(total_nodes, m_vec)
+        mean_full = np.mean(X_T, axis=0)
+        delta_full = X_T - mean_full[None, :]
+        ast_varying_mask = _build_ast_varying_mask(
+            parsed_A,
+            parsed_B,
+            parsed_C,
+            parsed_D,
+            parsed_gen,
+            n=n,
+            m=m,
+            p_out=p_out,
+            nw=nw,
+            nz=nz,
+        ).reshape(-1)
+        num_varying_mask = np.max(np.abs(delta_full), axis=0) > 1e-14 * (1.0 + np.abs(mean_full))
+        varying_mask = ast_varying_mask & num_varying_mask
+        n_varying_entries = int(np.sum(varying_mask))
+        n_constant_entries = int(m_vec - n_varying_entries)
 
-        # 3. Reamostragem 1D opcional pós-SVD + Transformações de Fecho Convexo por eixo
+        # Preserva bit-a-bit todas as entradas estruturalmente constantes na AST
+        S_const_flat = mean_full.copy()
+        S_const_flat[~ast_varying_mask] = X_T[0, ~ast_varying_mask]
+
+        if resolved_ranks is not None and int(math.prod(resolved_ranks)) > MAX_TPMT_RULES_HARD:
+            n_req_rules = int(math.prod(resolved_ranks))
+            raise ResourceLimitError(
+                message=(
+                    f"Número solicitado de regras N_r={n_req_rules} excede o teto Wasm ({MAX_TPMT_RULES_HARD})."
+                ),
+                parameters={
+                    "n_rules": n_req_rules,
+                    "max_rules": MAX_TPMT_RULES_HARD,
+                    "axis_ranks": list(resolved_ranks),
+                },
+                next_step="Reduza os postos por eixo (ranks) ou aumente svd_tol.",
+            )
+
+        hooi_meta: dict[str, Any] | None = None
         axis_grids: list[np.ndarray] = []
         W_list: list[np.ndarray] = []
         hull_diagnostics: list[dict[str, Any]] = []
 
-        for d in range(d_len):
-            g_d = orig_grids[d]
-            U_d = U_list_pre[d]
-            if resolved_resample is not None:
-                g_d, U_d = resample_basis_1d(g_d, U_d, resolved_resample[d], method=resample_method)
-            axis_grids.append(g_d)
+        if n_varying_entries == 0:
+            U_list_pre = [
+                np.full((g_sizes[d], 1), 1.0 / math.sqrt(float(g_sizes[d])), dtype=np.float64)
+                for d in range(d_len)
+            ]
+            singular_values = [np.zeros(0, dtype=np.float64) for _ in range(d_len)]
+            truncation_bound = 0.0
+            core_var = np.zeros((*([1] * d_len), 0), dtype=np.float64)
+            for d in range(d_len):
+                g_d = orig_grids[d]
+                if resolved_resample is not None:
+                    g_d, _ = resample_basis_1d(g_d, U_list_pre[d], resolved_resample[d], method=resample_method)
+                axis_grids.append(g_d)
+                W_final = np.ones((g_d.size, 1), dtype=np.float64)
+                W_list.append(W_final)
+                hull_diagnostics.append(
+                    {
+                        "axis": p_names[d],
+                        "hull_type": hull_types[d],
+                        "rank_before": 1,
+                        "rank_after": 1,
+                        "rank_augmented": False,
+                        "min_weight": 1.0,
+                        "max_sum_deviation": 0.0,
+                        "cond_T": 1.0,
+                        "log_abs_det_T": 0.0,
+                        "fallback_used": False,
+                        "nn_violated": False,
+                    }
+                )
+        else:
+            S_var_tensor = X_T[:, varying_mask].reshape(*g_sizes, n_varying_entries)
+            if decomp == "hosvd":
+                hosvd_res = hosvd_sampled_func(
+                    S_var_tensor,
+                    tol=svd_tol,
+                    ranks=resolved_ranks,
+                    ord_func=1,
+                    center_modes=True,
+                )
+                core_var = hosvd_res.core
+                U_list_pre = [u.copy() for u in hosvd_res.U_list]
+                singular_values = hosvd_res.singular_values
+                truncation_bound = hosvd_res.truncation_bound
+            else:
+                hooi_res = hooi_sampled_func(
+                    S_var_tensor,
+                    ranks=resolved_ranks,
+                    tol=svd_tol,
+                    ord_func=1,
+                    max_iter=hooi_max_iter,
+                    conv_tol=hooi_conv_tol,
+                    center_modes=True,
+                )
+                core_var = hooi_res.core
+                U_list_pre = [u.copy() for u in hooi_res.U_list]
+                singular_values = hooi_res.singular_values
+                # Cota teórica de referência da HOSVD inicial centrada (modos de flutuação descartados)
+                tail_sq = 0.0
+                for d, sv in enumerate(singular_values):
+                    r_delta_d = max(0, U_list_pre[d].shape[1] - 1)
+                    if r_delta_d < sv.size:
+                        tail_sq += float(np.sum(sv[r_delta_d:] ** 2))
+                truncation_bound = math.sqrt(max(0.0, tail_sq))
+                hooi_meta = {
+                    "n_iter": hooi_res.n_iter,
+                    "converged": hooi_res.converged,
+                    "error_history": hooi_res.error_history,
+                }
 
-            W_sn, _, info_sn = sn_nn_matrix(U_d, core=core, mode=d, sn_tol=sn_tol)
-            core = info_sn["core"]
-            rank_before = int(info_sn["rank_before"])
-            rank_augmented = bool(info_sn["rank_augmented"])
-            target_hull = hull_types[d]
+            # 3. Reamostragem 1D opcional pós-SVD + Pré-condicionamento RMS + Fecho Convexo (ZERO inv)
+            for d in range(d_len):
+                g_d = orig_grids[d]
+                U_work = U_list_pre[d]
+                if resolved_resample is not None:
+                    g_d, U_work = resample_basis_1d(g_d, U_work, resolved_resample[d], method=resample_method)
+                axis_grids.append(g_d)
 
-            if target_hull == "SN-NN":
-                W_final = W_sn
-                diag_d = {
-                    "axis": p_names[d],
-                    "hull_type": "SN-NN",
-                    "rank_before": rank_before,
-                    "rank_after": int(W_final.shape[1]),
-                    "rank_augmented": rank_augmented,
-                    "min_weight": float(info_sn["min_weight"]),
-                    "max_sum_deviation": float(info_sn["max_sum_deviation"]),
-                    "cond_T": float(info_sn["cond_T"]),
-                    "log_abs_det_T": 0.0,
-                    "fallback_used": False,
-                    "nn_violated": False,
-                }
-            elif target_hull == "RNO-INO":
-                W_final, _, info_h = rno_ino_matrix(W_sn, core=core, mode=d)
-                core = info_h["core"]
-                diag_d = {
-                    "axis": p_names[d],
-                    "hull_type": "RNO-INO",
-                    "rank_before": rank_before,
-                    "rank_after": int(W_final.shape[1]),
-                    "rank_augmented": rank_augmented,
-                    "min_weight": float(info_h["min_weight"]),
-                    "max_sum_deviation": float(info_h["max_sum_deviation"]),
-                    "cond_T": float(info_h["cond_T"]),
-                    "log_abs_det_T": float(info_h["log_abs_det_T"]),
-                    "fallback_used": bool(info_h["fallback_used"]),
-                    "nn_violated": False,
-                }
-            elif target_hull == "CNO":
-                W_final, _, info_h = cno_matrix(W_sn, core=core, mode=d)
-                core = info_h["core"]
-                diag_d = {
-                    "axis": p_names[d],
-                    "hull_type": "CNO",
-                    "rank_before": rank_before,
-                    "rank_after": int(W_final.shape[1]),
-                    "rank_augmented": rank_augmented,
-                    "min_weight": float(info_h["min_weight"]),
-                    "max_sum_deviation": float(info_h["max_sum_deviation"]),
-                    "cond_T": float(info_h["cond_T"]),
-                    "log_abs_det_T": float(info_h["log_abs_det_T"]),
-                    "fallback_used": bool(info_h["fallback_used"]),
-                    "nn_violated": False,
-                }
-            else:  # MGK
-                W_final, _, info_h = mgk_matrix(W_sn, core=core, mode=d)
-                core = info_h["core"]
-                nn_viol = bool(info_h["nn_violated"])
-                if nn_viol:
-                    warnings_list.append(
-                        WarningItem(
-                            code="NN_VIOLATED",
-                            message=(
-                                f"Transformação MGK no eixo {p_names[d]!r} violou não-negatividade "
-                                f"(min(W)={info_h['min_weight']:.3e} < -1e-9). Recomenda-se RNO-INO ou CNO."
-                            ),
-                            details={"axis": p_names[d], "min_weight": float(info_h["min_weight"])},
+                # Pré-condicionamento RMS invariante a G_d (u0 = 1/sqrt(G_d) preservado sob reamostragem).
+                # Se a reamostragem reduziu o número de pontos abaixo do posto da base (posto deficiente),
+                # preserva a base direta para manter o replay exato em ts_derivation.py (ainda com rank_augmented=False).
+                r_d = int(U_work.shape[1])
+                if U_work.shape[0] >= r_d and int(np.linalg.matrix_rank(U_work)) == r_d:
+                    scale = math.sqrt(float(g_sizes[d]))
+                    if r_d == 1:
+                        M_sn = np.array([[scale]], dtype=np.float64)
+                    else:
+                        M_sn = np.zeros((r_d, r_d), dtype=np.float64)
+                        M_sn[0, 0] = scale
+                        M_sn[1:, 0] = -scale
+                        for k in range(1, r_d):
+                            M_sn[k, k] = scale
+
+                    U_sn_work = U_work @ M_sn
+                    core_var = mode_inverse_product(core_var, M_sn, d)
+                else:
+                    U_sn_work = U_work
+
+                W_sn, _, info_sn = sn_nn_matrix(U_sn_work, core=core_var, mode=d, sn_tol=sn_tol)
+                core_var = info_sn["core"]
+                rank_before = int(info_sn["rank_before"])
+                rank_augmented = bool(info_sn["rank_augmented"])
+                target_hull = hull_types[d]
+
+                if target_hull == "SN-NN":
+                    W_final = W_sn
+                    diag_d = {
+                        "axis": p_names[d],
+                        "hull_type": "SN-NN",
+                        "rank_before": rank_before,
+                        "rank_after": int(W_final.shape[1]),
+                        "rank_augmented": rank_augmented,
+                        "min_weight": float(info_sn["min_weight"]),
+                        "max_sum_deviation": float(info_sn["max_sum_deviation"]),
+                        "cond_T": float(info_sn["cond_T"]),
+                        "log_abs_det_T": 0.0,
+                        "fallback_used": False,
+                        "nn_violated": False,
+                    }
+                elif target_hull == "RNO-INO":
+                    W_final, _, info_h = rno_ino_matrix(W_sn, core=core_var, mode=d)
+                    core_var = info_h["core"]
+                    diag_d = {
+                        "axis": p_names[d],
+                        "hull_type": "RNO-INO",
+                        "rank_before": rank_before,
+                        "rank_after": int(W_final.shape[1]),
+                        "rank_augmented": rank_augmented,
+                        "min_weight": float(info_h["min_weight"]),
+                        "max_sum_deviation": float(info_h["max_sum_deviation"]),
+                        "cond_T": float(info_h["cond_T"]),
+                        "log_abs_det_T": float(info_h["log_abs_det_T"]),
+                        "fallback_used": bool(info_h["fallback_used"]),
+                        "nn_violated": False,
+                    }
+                elif target_hull == "CNO":
+                    W_final, _, info_h = cno_matrix(W_sn, core=core_var, mode=d)
+                    core_var = info_h["core"]
+                    diag_d = {
+                        "axis": p_names[d],
+                        "hull_type": "CNO",
+                        "rank_before": rank_before,
+                        "rank_after": int(W_final.shape[1]),
+                        "rank_augmented": rank_augmented,
+                        "min_weight": float(info_h["min_weight"]),
+                        "max_sum_deviation": float(info_h["max_sum_deviation"]),
+                        "cond_T": float(info_h["cond_T"]),
+                        "log_abs_det_T": float(info_h["log_abs_det_T"]),
+                        "fallback_used": bool(info_h["fallback_used"]),
+                        "nn_violated": False,
+                    }
+                else:  # MGK
+                    W_final, _, info_h = mgk_matrix(W_sn, core=core_var, mode=d)
+                    core_var = info_h["core"]
+                    nn_viol = bool(info_h["nn_violated"])
+                    if nn_viol:
+                        warnings_list.append(
+                            WarningItem(
+                                code="NN_VIOLATED",
+                                message=(
+                                    f"Transformação MGK no eixo {p_names[d]!r} violou não-negatividade "
+                                    f"(min(W)={info_h['min_weight']:.3e} < -1e-9). Recomenda-se RNO-INO ou CNO."
+                                ),
+                                details={"axis": p_names[d], "min_weight": float(info_h["min_weight"])},
+                            )
                         )
-                    )
-                diag_d = {
-                    "axis": p_names[d],
-                    "hull_type": "MGK",
-                    "rank_before": rank_before,
-                    "rank_after": int(W_final.shape[1]),
-                    "rank_augmented": rank_augmented,
-                    "min_weight": float(info_h["min_weight"]),
-                    "max_sum_deviation": float(info_h["max_sum_deviation"]),
-                    "cond_T": float(info_h["cond_T"]),
-                    "log_abs_det_T": float(info_h["log_abs_det_T"]),
-                    "fallback_used": False,
-                    "nn_violated": nn_viol,
-                }
+                    diag_d = {
+                        "axis": p_names[d],
+                        "hull_type": "MGK",
+                        "rank_before": rank_before,
+                        "rank_after": int(W_final.shape[1]),
+                        "rank_augmented": rank_augmented,
+                        "min_weight": float(info_h["min_weight"]),
+                        "max_sum_deviation": float(info_h["max_sum_deviation"]),
+                        "cond_T": float(info_h["cond_T"]),
+                        "log_abs_det_T": float(info_h["log_abs_det_T"]),
+                        "fallback_used": False,
+                        "nn_violated": nn_viol,
+                    }
 
-            W_list.append(W_final)
-            hull_diagnostics.append(diag_d)
+                W_list.append(W_final)
+                hull_diagnostics.append(diag_d)
 
         # 4. Validação do número final de regras N_r = prod(R'_d)
         axis_ranks = [int(W.shape[1]) for W in W_list]
@@ -1652,16 +1861,20 @@ def derive_ts_tpmt(
                 )
             )
 
-        # 5. Extração dos N_r vértices em ordem lexicográfica
+        # 5. Remontagem estrutural bit-a-bit das entradas constantes e extração dos N_r vértices
         multi_indices = list(itertools.product(*[range(r_d) for r_d in axis_ranks]))
+        vertices_full_flat = np.broadcast_to(S_const_flat[None, :], (n_rules, m_vec)).copy()
+        if n_varying_entries > 0:
+            vertices_full_flat[:, varying_mask] = core_var.reshape(n_rules, n_varying_entries)
+        vertices_S = vertices_full_flat.reshape(n_rules, m1, m2)
+        core_full = vertices_S.reshape(*axis_ranks, m1, m2)
+
         vertices_list: list[dict[str, Any]] = []
         functions_spec: list[dict[str, Any]] = []
-        vertices_S = np.empty((n_rules, m1, m2), dtype=np.float64)
         gen_vertices: list[dict[str, Any]] = []
 
         for r_idx, midx in enumerate(multi_indices):
-            S_r = np.asarray(core[midx], dtype=np.float64)
-            vertices_S[r_idx] = S_r
+            S_r = vertices_S[r_idx]
             A_r = S_r[:n, :n]
             B_r = S_r[:n, n : n + m]
             C_r = S_r[n : n + p_out, :n]
@@ -1715,7 +1928,7 @@ def derive_ts_tpmt(
                     W_interp[:, j] = np.interp(orig_grids[d], axis_grids[d], W_list[d][:, j])
                 W_on_orig_grid.append(W_interp)
 
-        S_grid_hat = reconstruct_tensor(core, W_on_orig_grid)
+        S_grid_hat = reconstruct_tensor(core_full, W_on_orig_grid)
         grid_diff = (S_tensor - S_grid_hat).reshape(total_nodes, -1)
         grid_err_frob = np.linalg.norm(grid_diff, axis=1)
         grid_true_frob = np.linalg.norm(S_tensor.reshape(total_nodes, -1), axis=1)
@@ -1863,6 +2076,10 @@ def derive_ts_tpmt(
             else (list(clean_state_bounds.keys()) if len(clean_state_bounds) == n else None)
         )
 
+        bases_pre_transform_serial = [
+            [[float(v) for v in row] for row in U.tolist()] for U in U_list_pre
+        ]
+
         provenance_payload: dict[str, Any] = {
             "source": "control_lab.fuzzy.derive_ts_tpmt",
             "ts_derivation": {
@@ -1874,6 +2091,10 @@ def derive_ts_tpmt(
                 "grid_points": list(g_sizes),
                 "axis_ranks": list(axis_ranks),
                 "num_rules": n_rules,
+                "n_varying_entries": n_varying_entries,
+                "n_constant_entries": n_constant_entries,
+                "centered_mean_augmented": True,
+                "bases_pre_transform": bases_pre_transform_serial,
                 "resample_points": list(resolved_resample) if resolved_resample is not None else None,
                 "resample_method": resample_method if resolved_resample is not None else None,
                 "state_bounds": clean_state_bounds,
@@ -1924,11 +2145,12 @@ def derive_ts_tpmt(
                 "kind": ts_ss.kind,
                 "num_rules": n_rules,
                 "active_variables": list(p_names),
+                "n_varying_entries": n_varying_entries,
+                "n_constant_entries": n_constant_entries,
+                "centered_mean_augmented": True,
                 "singular_values": [[float(v) for v in sv.tolist()] for sv in singular_values],
                 "truncation_bound": float(truncation_bound),
-                "bases_pre_transform": [
-                    [[float(v) for v in row] for row in U.tolist()] for U in U_list_pre
-                ],
+                "bases_pre_transform": bases_pre_transform_serial,
                 "bases_post_transform": [
                     [[float(v) for v in row] for row in W.tolist()] for W in W_list
                 ],
@@ -1940,6 +2162,7 @@ def derive_ts_tpmt(
             assumptions={
                 "method": "tpmt",
                 "decomposition": decomp,
+                "centered_mean_augmented": True,
                 "convex_sum_interpolated_everywhere": True,
                 "zero_linalg_inv": True,
             },
@@ -1948,6 +2171,8 @@ def derive_ts_tpmt(
                 "grid_sizes": g_sizes,
                 "axis_ranks": axis_ranks,
                 "num_rules": n_rules,
+                "n_varying_entries": n_varying_entries,
+                "n_constant_entries": n_constant_entries,
                 "grid_max_abs_error": grid_max_abs_error,
                 "grid_rel_l2_error": grid_rel_l2_error,
                 "val_max_abs_error": val_max_abs_error,

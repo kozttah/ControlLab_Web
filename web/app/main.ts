@@ -65,6 +65,7 @@ import {
 } from "../features/views/statespace_view.ts";
 import { MimoView, renderMimoViewHtml } from "../features/views/mimo_view.ts";
 import { FuzzyView, renderFuzzyViewHtml } from "../features/views/fuzzy_view.ts";
+import { TsModelingView, renderTsModelingViewHtml } from "../features/views/ts_modeling_view.ts";
 import { LmiView, renderLmiViewHtml } from "../features/views/lmi_view.ts";
 
 export interface MountControlLabOptions {
@@ -316,6 +317,7 @@ export function mountControlLabApp(
     renderStatespaceViewHtml(initialDims),
     renderMimoViewHtml(),
     renderFuzzyViewHtml(),
+    renderTsModelingViewHtml(),
     renderLmiViewHtml(),
     `<div id="legacy-rpc-inspector-details" class="advanced-rpc-drawer advanced-rpc-header" aria-label="Ferramentas RPC Declarativas e Insumos Canônicos (Modo Avançado)">`,
     `<span class="advanced-rpc-summary">Ferramentas RPC Declarativas &amp; Insumos Canônicos (Modo Avançado)</span>`,
@@ -520,6 +522,14 @@ export function mountControlLabApp(
     onRequestRender: () => requestAppRender(),
     onOpenExportModal: openExportModal,
   });
+  const tsModelingView = new TsModelingView({
+    shell,
+    client,
+    container,
+    onRequestRender: () => requestAppRender(),
+    onOpenExportModal: openExportModal,
+    onRouteToLmi: (refKey) => handleRouteSystemToLmi(refKey),
+  });
   const lmiView = new LmiView({
     shell,
     client,
@@ -631,6 +641,7 @@ export function mountControlLabApp(
     statespaceView.render();
     mimoView.render();
     fuzzyView.render();
+    tsModelingView.render();
     lmiView.render();
 
     if (isStatespace) {

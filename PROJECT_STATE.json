@@ -28,7 +28,8 @@
       "2026-11-22": 13,
       "2026-11-23": 1,
       "2026-11-24": 6,
-      "2026-11-25": 5
+      "2026-11-25": 5,
+      "2026-11-26": 1
     }
   },
   "audit_reference": {
@@ -7175,14 +7176,17 @@
         "T-TSMOD-08"
       ],
       "acceptance_cmd": "npm --prefix web run test:unit:f8 && npm --prefix web run build",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
       "acceptance_requirements": [
         "Expandir PROJECT_TAB_IDS e PROJECT_TAB_METADATA para 7 abas, inserindo '6. Obtenção de Modelos TS (Setor, TPMT & FEMT)' (ts_modeling) após fuzzy_ts (5) e deslocando optimization_lmi para 7",
         "Implementar fluxo guiado para Via 1 (Setor), Via 2 (TPMT) e Via 3 (FEMT) com presets didáticos (pêndulo invertido 16 regras + benchmark não-separável demonstrando redução de regras FEMT vs TPMT), visualização 1D de h_r(·), malha/superfície simplicial Delaunay 2D (FEMT), bases U vs W, scree plot de valores singulares e mapa de calor de erro fora da grade",
         "Integrar promoção em 1 clique ao Workspace Dock (ADR-014) com atalho 'Registrar e Abrir em LMIs', recarga de receita via provenance.ts_derivation e exportação de scripts Python/MATLAB"
-      ]
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-TSMOD-04-F8-TS-MODELING-TAB-UI.md",
+      "acceptance_scope": "typescript_ui_ts_modeling_7_tabs_wcag_aa"
     },
     {
       "wp_id": "WP-TSMOD-05-F9-TS-MODELING-AUDIT-ORACLES",

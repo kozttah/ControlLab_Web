@@ -874,7 +874,8 @@ test("WP-PHASE6-01-F8-UX-HYGIENE-P0P1: cabeçalhos limpos, badge espaçado, Work
     ["statespace", "3. Espaço de Estados"],
     ["mimo_frequency", "4. Frequência MIMO"],
     ["fuzzy_ts", "5. Controle Fuzzy, TS e ANFIS"],
-    ["optimization_lmi", "6. LMIs, SDPs e Síntese Robusta"],
+    ["ts_modeling", "6. Obtenção de Modelos TS (Setor, TPMT & FEMT)"],
+    ["optimization_lmi", "7. LMIs, SDPs e Síntese Robusta"],
   ];
   for (const [tabId, expected] of expectedHeadings) {
     app.shell.switchTab(tabId);

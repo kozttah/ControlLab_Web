@@ -26,6 +26,7 @@ export const PROJECT_TAB_IDS = [
   "statespace",
   "mimo_frequency",
   "fuzzy_ts",
+  "ts_modeling",
   "optimization_lmi",
 ] as const;
 
@@ -65,9 +66,15 @@ export const PROJECT_TAB_METADATA: Record<
     shortLabel: "Fuzzy / TS",
     ownerFront: "F5",
   },
+  ts_modeling: {
+    id: "ts_modeling",
+    label: "6. Obtenção de Modelos TS (Setor, TPMT & FEMT)",
+    shortLabel: "Modelos TS",
+    ownerFront: "F5",
+  },
   optimization_lmi: {
     id: "optimization_lmi",
-    label: "6. LMIs, SDPs e Síntese Robusta",
+    label: "7. LMIs, SDPs e Síntese Robusta",
     shortLabel: "LMIs / SDP",
     ownerFront: "F6",
   },

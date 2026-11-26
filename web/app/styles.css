@@ -2786,3 +2786,37 @@ textarea {
   max-width: 100%;
 }
 
+
+/* Aba 6: Obtenção de Modelos TS (Setor, TPMT & FEMT) */
+.ts-guided-steps {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  color: var(--text-secondary, #334155);
+}
+.ts-guided-steps li[data-step-state="done"] {
+  font-weight: 600;
+}
+.ts-guided-steps li[data-step-state="done"]::marker {
+  content: "✓ ";
+}
+.ts-params,
+.ts-actions,
+.ts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+.ts-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+.ts-chart-card .chart-container {
+  overflow-x: auto;
+}
+.ts-modeling-chart-svg {
+  max-width: 100%;
+  height: auto;
+}

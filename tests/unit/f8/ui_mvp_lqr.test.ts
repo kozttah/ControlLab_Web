@@ -506,13 +506,13 @@ test("ToolDescriptor: descoberta dinâmica sem alterar roteamento global e selos
     const tabs = new ProjectTabsController({ client });
     const renderer = new ToolDescriptorRenderer();
 
-    // Todas as 6 abas existem e carregam descritores declarativos
-    assert.equal(PROJECT_TAB_IDS.length, 6);
+    // Todas as 7 abas existem e carregam descritores declarativos
+    assert.equal(PROJECT_TAB_IDS.length, 7);
     const lmiTab = tabs.getTabViewModel("optimization_lmi");
     const sdpSolveTool = lmiTab.tools.find(
       (t) => t.toolId === "optimization.solve",
     );
-    assert.ok(sdpSolveTool, "Aba 6 deve conter optimization.solve");
+    assert.ok(sdpSolveTool, "Aba 7 deve conter optimization.solve");
     // MockWorkerAdapter declara clarabel_cvxpy: { available: false, maturity: "unavailable_wasm" }
     assert.equal(sdpSolveTool.maturity.maturity, "unavailable_wasm");
     assert.equal(sdpSolveTool.maturity.available, false);

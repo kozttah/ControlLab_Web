@@ -625,6 +625,7 @@ def test_accessibility_keyboard_and_mobile_responsive(browser_harness):
         "statespace",
         "mimo_frequency",
         "fuzzy_ts",
+        "ts_modeling",
         "optimization_lmi",
     ]
 
@@ -644,6 +645,9 @@ def test_accessibility_keyboard_and_mobile_responsive(browser_harness):
     page.keyboard.press("End")
     assert page.locator('[role="tab"][aria-selected="true"]').get_attribute("data-tab-id") == "optimization_lmi"
     assert page.locator('[role="tab"][aria-selected="true"]').evaluate("node => node === document.activeElement")
+
+    page.keyboard.press("ArrowLeft")
+    assert page.locator('[role="tab"][aria-selected="true"]').get_attribute("data-tab-id") == "ts_modeling"
 
     page.keyboard.press("ArrowLeft")
     assert page.locator('[role="tab"][aria-selected="true"]').get_attribute("data-tab-id") == "fuzzy_ts"

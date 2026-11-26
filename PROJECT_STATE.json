@@ -7189,10 +7189,40 @@
       "acceptance_scope": "typescript_ui_ts_modeling_4_zones_custom_qlpv_wcag_aa"
     },
     {
+      "wp_id": "WP-TSMOD-02C-F5-FEMT-CENTERED-SUBSPACE",
+      "front": "f5-fuzzy-ts",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F5: Refinamento algébrico da FEMT (v1.2.0) — restrição estrita às entradas variantes, extração da coluna média amostral, SVD sobre o delta e aumento por peso uniforme 1/N_g sem coluna extra em SN-NN",
+      "allowed_paths": [
+        "control_lab/fuzzy/femt.py",
+        "tests/unit/f5/test_femt_engine.py"
+      ],
+      "dependencies": [
+        "WP-TSMOD-02B-F5-FEMT-ENGINE"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-05",
+        "R-21"
+      ],
+      "normative_tests": [
+        "T-TSMOD-05",
+        "T-TSMOD-08"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/test_femt_engine.py tests/unit/f1/test_ts_derivation_scripts.py -v",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Restringir estritamente o cálculo da FEMT (control_lab/fuzzy/femt.py, sem tocar em sector_nonlinearity.py nem tpmt.py) às entradas matriciais que variam com os parâmetros/estados (I_var), garantindo preservação exata bit-a-bit de todas as entradas constantes nos vértices (A_r, B_r, C_r, D_r)",
+        "Extrair a coluna média amostral sobre o grid antes da SVD, aplicar a SVD econômica somente sobre a matriz de flutuações centradas Delta X_var e aumentar a base com o elemento médio ponderado por 1/N_g (ortonormalizado em U_raw), garantindo estruturalmente rank_augmented == False em sn_nn_matrix e vértices físicos bem-condicionados no pêndulo invertido de 4 estados",
+        "Preservar compatibilidade integral com export_ts_derivation_script (Python/MATLAB), zero linalg.inv e erro nodal exato de Eckart-Young centrado"
+      ]
+    },
+    {
       "wp_id": "WP-TSMOD-05-F9-TS-MODELING-AUDIT-ORACLES",
       "front": "f9-integration-qa",
       "phase": "Phase10-TS-qLPV-Modeling",
-      "title": "F9: Auditoria independente da Fase 10 — oráculos analíticos (Setor 16 regras), tensoriais (TPMT) e elementos finitos simpliciais (FEMT), validação Pyodide Wasm real e E2E Playwright",
+      "title": "F9: Auditoria independente da Fase 10 — oráculos analíticos (Setor 16 regras), tensoriais (TPMT) e elementos finitos simpliciais centrados (FEMT v1.2.0), validação Pyodide Wasm real e E2E Playwright",
       "allowed_paths": [
         "tests/oracles/",
         "tests/metamorphic/",
@@ -7204,6 +7234,7 @@
         "README.md"
       ],
       "dependencies": [
+        "WP-TSMOD-02C-F5-FEMT-CENTERED-SUBSPACE",
         "WP-TSMOD-04-F8-TS-MODELING-TAB-UI"
       ],
       "requirement_ids": [
@@ -7228,7 +7259,7 @@
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
       "acceptance_requirements": [
-        "Oráculos independentes F9 validando T-TSMOD-01..08 sem circularidade (Setor 16 regras, HOSVD/HOOI/SN-NN/RNO-INO/CNO, e FEMT: otimalidade Eckart-Young, redução estrita N_r^FEMT < N_r^TPMT sob acoplamento e interpolação P1 Delaunay/Kuhn-Delaunay, zero linalg.inv/eval)",
+        "Oráculos independentes F9 validando T-TSMOD-01..08 sem circularidade (Setor 16 regras, HOSVD/HOOI/SN-NN/RNO-INO/CNO, e FEMT v1.2.0: preservação exata de entradas constantes, SVD centrada sobre o delta, rank_augmented == False em SN-NN, otimalidade Eckart-Young, redução estrita N_r^FEMT < N_r^TPMT sob acoplamento e interpolação P1 Delaunay/Kuhn-Delaunay, zero linalg.inv/eval)",
         "Prova de execução das 3 vias em Pyodide Wasm real no navegador (test_real_runtime.py) e fluxo E2E Aba 6 -> Workspace -> Aba 7 (LMIs PDC relaxadas) -> PathSim/.ctrlab",
         "Emissão dos handoffs normativos do Apêndice E e fechamento governado da Fase 10"
       ]

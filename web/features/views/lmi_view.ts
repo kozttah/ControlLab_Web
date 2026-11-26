@@ -808,18 +808,70 @@ export class LmiView {
 
       let convexity: TsConvexityValidationResult | null = null;
       if (obj.kind === "ts_measured" || obj.kind === "ts_partially_observed") {
-        const premNames = Array.isArray(ms.premise_variables)
-          ? (ms.premise_variables as unknown[]).map((x) => String(x)).filter(Boolean)
-          : Object.keys(bounds);
-        if (membershipFunctions.length > 0 && premNames.length > 0) {
-          convexity = validateConvexMembershipFunctions(
-            premNames.map((name) => ({
-              name,
-              min: bounds[name]?.[0] ?? -1,
-              max: bounds[name]?.[1] ?? 1,
-            })),
-            membershipFunctions,
-          );
+        const repKind = typeof ms.representation_kind === "string" ? ms.representation_kind : "";
+        if (repKind === "femt_simplicial" && isPlainObject(ms.femt_mesh) && Array.isArray(ms.femt_mesh.nodal_weights)) {
+          let minW = 1.0;
+          let maxErr = 0.0;
+          for (const row of ms.femt_mesh.nodal_weights as unknown[]) {
+            if (!Array.isArray(row)) continue;
+            let rowSum = 0.0;
+            for (const v of row) {
+              const nv = Number(v);
+              if (nv < minW) minW = nv;
+              rowSum += nv;
+            }
+            const err = Math.abs(rowSum - 1.0);
+            if (err > maxErr) maxErr = err;
+          }
+          const ok = minW >= -1e-9 && maxErr <= 1e-8;
+          convexity = {
+            valid: ok,
+            message: ok
+              ? `Partição simplicial P₁ verificada nos nós (min=${minW.toExponential(2)}, |∑h−1|=${maxErr.toExponential(2)}).`
+              : `Violação nos pesos nodais FEMT (min=${minW.toExponential(2)}, |∑h−1|=${maxErr.toExponential(2)}).`,
+            minWeight: minW,
+            maxSumError: maxErr,
+          };
+        } else if (repKind === "tpmt_interpolated" && Array.isArray(ms.tpmt_axes)) {
+          let minW = 1.0;
+          let maxErr = 0.0;
+          for (const ax of ms.tpmt_axes as unknown[]) {
+            if (!isPlainObject(ax) || !Array.isArray(ax.weights_table)) continue;
+            for (const row of ax.weights_table as unknown[]) {
+              if (!Array.isArray(row)) continue;
+              let rowSum = 0.0;
+              for (const v of row) {
+                const nv = Number(v);
+                if (nv < minW) minW = nv;
+                rowSum += nv;
+              }
+              const err = Math.abs(rowSum - 1.0);
+              if (err > maxErr) maxErr = err;
+            }
+          }
+          const ok = minW >= -1e-9 && maxErr <= 1e-8;
+          convexity = {
+            valid: ok,
+            message: ok
+              ? `Partição tensorial TPMT verificada por eixo (min=${minW.toExponential(2)}, |∑w−1|=${maxErr.toExponential(2)}).`
+              : `Violação na tabela de pesos TPMT (min=${minW.toExponential(2)}, |∑w−1|=${maxErr.toExponential(2)}).`,
+            minWeight: minW,
+            maxSumError: maxErr,
+          };
+        } else {
+          const premNames = Array.isArray(ms.premise_variables)
+            ? (ms.premise_variables as unknown[]).map((x) => String(x)).filter(Boolean)
+            : Object.keys(bounds);
+          if (membershipFunctions.length > 0 && premNames.length > 0) {
+            convexity = validateConvexMembershipFunctions(
+              premNames.map((name) => ({
+                name,
+                min: bounds[name]?.[0] ?? -1,
+                max: bounds[name]?.[1] ?? 1,
+              })),
+              membershipFunctions,
+            );
+          }
         }
       }
 

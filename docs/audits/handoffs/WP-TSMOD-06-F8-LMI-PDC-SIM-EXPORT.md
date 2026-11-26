@@ -13,7 +13,7 @@
 
 | Artefato F8 | SHA-256 | Papel na Entrega |
 |---|---|---|
-| `web/features/views/lmi_view.ts` | `05d1df10e66f4972c0336597fd1b249acfe191667359d18f6a91eab04c4b1eba` | Extração determinística dos ganhos recuperados (`K` para `StateSpace` LTI e `K[1]..K[N_r]` para `TSStateSpace`), detecção coerente de `feedback_sign`, botões `#btn-lmi-register-controller` e `#btn-lmi-export-pathsim` com invalidação automática se DSL ou sistema selecionado mudarem após a solução, e invocação passiva de `io.export_pathsim_script` (`code_executed=false`, bloqueio de `polytopic_uncertain` conforme `ADR-006`/`ADR-013`). |
+| `web/features/views/lmi_view.ts` | `d8d5620cd7c82ae17e83890c81ebcdc35578d7b75ad617398447a487454e75cd` | Extração determinística dos ganhos recuperados (`K` para `StateSpace` LTI e `K[1]..K[N_r]` para `TSStateSpace`), validação de convexidade sobre tabelas `femt_simplicial`/`tpmt_interpolated`, detecção coerente de `feedback_sign`, botões `#btn-lmi-register-controller` e `#btn-lmi-export-pathsim` com invalidação automática se DSL ou sistema selecionado mudarem após a solução, e invocação passiva de `io.export_pathsim_script` (`code_executed=false`, bloqueio de `polytopic_uncertain` conforme `ADR-006`/`ADR-013`). |
 | `tests/unit/f8/ts_modeling_view.test.ts` | `2177d8eb37e4368bbd411ab6de5b8e61aac244b665ab1e842fc126111c6acce8` | Teste ponta a ponta Aba 6 (derivação TS) -> Aba 7 (síntese PDC LMI) -> registro de `PDCController` no Workspace e exportação de script `PathSim 0.31.0` com verificação de estabilidade Hurwitz de malha fechada. |
 
 ---

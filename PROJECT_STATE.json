@@ -7222,10 +7222,41 @@
       ]
     },
     {
+      "wp_id": "WP-TSMOD-02D-F5-TPMT-CENTERED-SUBSPACE",
+      "front": "f5-fuzzy-ts",
+      "phase": "Phase10-TS-qLPV-Modeling",
+      "title": "F5: Refinamento algébrico da TPMT (v1.3.0) — restrição ao tensor compacto de entradas variantes, centralização modal na HOSVD/HOOI e aumento ortonormal por peso uniforme 1/G_d sem coluna extra em SN-NN",
+      "allowed_paths": [
+        "control_lab/fuzzy/tpmt.py",
+        "tests/unit/f5/test_tpmt_engine.py"
+      ],
+      "dependencies": [
+        "WP-TSMOD-02-F5-TPMT-ENGINE"
+      ],
+      "requirement_ids": [
+        "R-04",
+        "R-05",
+        "R-21"
+      ],
+      "normative_tests": [
+        "T-TSMOD-04",
+        "T-TSMOD-05",
+        "T-TSMOD-06"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/test_tpmt_engine.py tests/unit/f5/test_femt_engine.py tests/unit/f1/test_ts_derivation_scripts.py -v",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
+      "acceptance_requirements": [
+        "Restringir estritamente o pipeline derive_ts_tpmt (control_lab/fuzzy/tpmt.py, sem tocar em sector_nonlinearity.py nem femt.py) ao tensor compacto das entradas variantes I_var, garantindo preservação bit-a-bit de todas as entradas constantes nos vértices (A_r, B_r, C_r, D_r)",
+        "Implementar centralização modal P_perp^(d) na HOSVD e HOOI (com flag center_modes=True no pipeline TS mantendo center_modes=False retrocompatível para chamadas diretas), aumentando ortonormalmente cada base modal com u_0^(d) = (1/sqrt(G_d))*1_{G_d} e pré-condicionamento RMS para garantir estruturalmente rank_augmented == False em sn_nn_matrix em todos os modos mesmo sob truncamento manual ranks",
+        "Preservar compatibilidade integral com export_ts_derivation_script (Python/MATLAB), reamostragem 1D opcional, caso degenerado LTI (M_var == 0) e zero linalg.inv"
+      ]
+    },
+    {
       "wp_id": "WP-TSMOD-05-F9-TS-MODELING-AUDIT-ORACLES",
       "front": "f9-integration-qa",
       "phase": "Phase10-TS-qLPV-Modeling",
-      "title": "F9: Auditoria independente da Fase 10 — oráculos analíticos (Setor 16 regras), tensoriais (TPMT) e elementos finitos simpliciais centrados (FEMT v1.2.0), validação Pyodide Wasm real e E2E Playwright",
+      "title": "F9: Auditoria independente da Fase 10 — oráculos analíticos (Setor 16 regras), tensoriais centrados (TPMT v1.3.0) e elementos finitos simpliciais centrados (FEMT v1.2.0), validação Pyodide Wasm real e E2E Playwright",
       "allowed_paths": [
         "tests/oracles/",
         "tests/metamorphic/",
@@ -7238,6 +7269,7 @@
       ],
       "dependencies": [
         "WP-TSMOD-02C-F5-FEMT-CENTERED-SUBSPACE",
+        "WP-TSMOD-02D-F5-TPMT-CENTERED-SUBSPACE",
         "WP-TSMOD-04-F8-TS-MODELING-TAB-UI"
       ],
       "requirement_ids": [

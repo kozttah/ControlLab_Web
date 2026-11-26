@@ -4,7 +4,7 @@
 - **Frente Produtora**: `F8 (f8-ui-charts)`
 - **Frente Revisora**: `F9 (f9-integration-qa)`
 - **Commit Base Auditado**: `11ead9400436f46f2bfe9e1d0c5a16e5b7f50403`
-- **Veredito F9**: `ACCEPTED_BY_F9` (`accepted`)
+- **Parecer F9:** accepted (`ACCEPTED_BY_F9`)
 - **Data da Auditoria (UTC)**: `2026-11-26T03:02:00Z`
 
 ---
@@ -67,14 +67,14 @@ Nenhum arquivo em `control_lab/`, `web/bridge/`, `web/worker/`, `contracts/fixtu
 | 6 | Casos degenerados ou mal-condicionados foram testados (incluindo tentativa que deve falhar/avisar)? | Coberto para exportação/registro sem derivação prévia, ausência de `provenance.ts_derivation` na recarga, fallback de gráficos quando `sector_nonlinearity` não possui malha/scree 2D e rejeição de scripts não passivos (`code_executed !== false`). | CONFORME |
 | 7 | Nenhum `PyProxy` cruza `postMessage` e todo buffer binário segue o protocolo de transferência da Seção 8.4? | Comunicação exclusivamente via `TsModelingEngineClient` tipado; `tests/unit/f8` e `tests/security` aprovados sem vazamento. | CONFORME |
 | 8 | Se frente de UI (`F8`): estados `Fast-Preview` vs `Confirmado`, acessibilidade (WCAG 2.2 AA, teclado, `aria-live`) e bloqueio de exportação em preview estão cobertos? | Botões de registro e exportação permanecem `disabled` + `aria-disabled="true"` até haver derivação; SVGs possuem `role="img"`, `aria-label`, `<title>`, `<desc>`, paleta AA e tabelas alternativas; regiões `aria-live="polite"` e `announcer` presentes. | CONFORME |
-| 9 | Se frente de Otimização (`F6`): `solver_status` está separado de `audit_feasibility`, `certificate_status`, `conditioning` e `controller_validity`? | Não aplicável diretamente à Aba 6 (`F8`), porém `register(true)` preserva a integração e roteamento limpo para a Aba 7 (`optimization_lmi`). | N/A (CONFORME) |
+| 9 | Se frente de Otimização (`F6`): `solver_status` está separado de `audit_feasibility`, `certificate_status`, `conditioning` e `controller_validity`? | Não aplicável diretamente à Aba 6 (`F8`), porém `register(true)` preserva a integração e roteamento limpo para a Aba 7 (`optimization_lmi`). | N/A |
 | 10 | Todos os testes unitários da frente e testes normativos associados (`T-*`) passam localmente com zero skips indevidos? | `89/89` testes web `f8` (`node scripts/run_web_tests.mjs --scope f8`), `623/623` testes Python (`f1`, `f5`, `oracles`, `security`) e `npm --prefix web run build` aprovados com `0` falhas e `0` skips. | CONFORME |
 
 ---
 
 ## 5. Assinatura da Auditoria Independente F9
 
-- **Veredito F9**: `ACCEPTED_BY_F9` (`accepted`)
+- **Veredito F9**: accepted
 - **Revisor independente**: `f9-integration-qa`
 - **Commit SHA auditado**: `11ead9400436f46f2bfe9e1d0c5a16e5b7f50403`
 - **Data (UTC)**: `2026-11-26T03:02:00Z`

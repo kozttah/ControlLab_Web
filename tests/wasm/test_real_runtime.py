@@ -508,3 +508,167 @@ def test_wasm_phase9_05c_envelope_3072_and_n48_stabilization(browser_harness):
     browser_harness.record("phase9-05c-envelope-3072-wasm", evidence_05c)
 
 
+def test_wasm_phase10_ts_modeling_three_pathways_and_script_export(browser_harness):
+    """WP-TSMOD-05 real Chromium + Pyodide Wasm proof: Sector (16 rules), TPMT v1.3.0, FEMT v1.2.0 & script export."""
+    from control_lab.core.models import TSStateSpace
+
+    z1 = "(1 / (1.0 + 0.2 * sin(x3)^2))"
+    z2 = "cos(x3)"
+    z3 = "sinc_rad(x3)"
+    z4 = "(x4 * sin(x3))"
+    state_bounds = {"x1": [-2.0, 2.0], "x2": [-3.0, 3.0], "x3": [-0.6, 0.6], "x4": [-2.0, 2.0]}
+    direct_A = [
+        ["0", "1", "0", "0"],
+        ["0", "0", f"-1.962 * {z1} * {z2} * {z3}", f"0.1 * {z1} * {z4}"],
+        ["0", "0", "0", "1"],
+        ["0", "0", f"23.544 * {z1} * {z3}", f"-0.2 * {z1} * {z2} * {z4}"],
+    ]
+    direct_B = [["0"], [z1], ["0"], [f"-2.0 * {z1} * {z2}"]]
+    direct_C = [["1", "0", "0", "0"], ["0", "0", "1", "0"]]
+    direct_D = [["0"], ["0"]]
+
+    def _make_req(operation: str, payload: dict) -> dict:
+        return {
+            "api_version": "1.0",
+            "request_id": f"f9-wasm-tsmod-{operation.replace('.', '-')}",
+            "project_id": "f9-phase10-tsmod-wasm",
+            "project_revision": 1,
+            "operation": operation,
+            "payload": payload,
+            "options": {},
+            "timeout_policy": {"hard_timeout_ms": 60000},
+        }
+
+    def _assert_24_constants_bitwise(ts_dict: dict, label: str) -> None:
+        ts_obj = TSStateSpace.from_dict(ts_dict)
+        expected_C = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], dtype=np.float64)
+        expected_D = np.zeros((2, 1), dtype=np.float64)
+        const_A_zeros = [
+            (0, 0), (0, 2), (0, 3),
+            (1, 0), (1, 1),
+            (2, 0), (2, 1), (2, 2),
+            (3, 0), (3, 1),
+        ]
+        for r_idx, v in enumerate(ts_obj.vertices):
+            A_r = np.asarray(v["A"], dtype=np.float64)
+            B_r = np.asarray(v["B"], dtype=np.float64)
+            C_r = np.asarray(v["C"], dtype=np.float64)
+            D_r = np.asarray(v["D"], dtype=np.float64)
+            assert A_r[0, 1] == 1.0 and A_r[2, 3] == 1.0, f"{label} rule {r_idx} integrator drifted"
+            for i, j in const_A_zeros:
+                assert A_r[i, j] == 0.0, f"{label} rule {r_idx} A[{i},{j}]={A_r[i, j]}"
+            assert B_r[0, 0] == 0.0 and B_r[2, 0] == 0.0, f"{label} rule {r_idx} B const drifted"
+            assert np.array_equal(C_r, expected_C), f"{label} rule {r_idx} C drifted"
+            assert np.array_equal(D_r, expected_D), f"{label} rule {r_idx} D drifted"
+
+    # 1. Sector Nonlinearity (16 rules on 4-state inverted pendulum) in real Pyodide Wasm
+    sector_resp = browser_harness.rpc(
+        _make_req(
+            "fuzzy.derive_ts_sector",
+            {
+                "premises": [
+                    {"name": "z1", "expression": "1 / (1.0 + 0.2 * sin(x3)^2)", "measured": True},
+                    {"name": "z2", "expression": "cos(x3)", "measured": True},
+                    {"name": "z3", "expression": "sinc_rad(x3)", "measured": True},
+                    {"name": "z4", "expression": "x4 * sin(x3)", "measured": True},
+                ],
+                "state_bounds": state_bounds,
+                "A_expr": [
+                    ["0", "1", "0", "0"],
+                    ["0", "0", "-1.962 * z1 * z2 * z3", "0.1 * z1 * z4"],
+                    ["0", "0", "0", "1"],
+                    ["0", "0", "23.544 * z1 * z3", "-0.2 * z1 * z2 * z4"],
+                ],
+                "B_expr": [["0"], ["z1"], ["0"], ["-2.0 * z1 * z2"]],
+                "C_expr": direct_C,
+                "D_expr": direct_D,
+                "n_val_points": 64,
+            },
+        )
+    )
+    assert sector_resp["status"] == "success", sector_resp
+    assert sector_resp["result"]["num_rules"] == 16
+    sector_val_err = float(sector_resp["result"]["fidelity_certificate"]["max_abs_error"])
+    assert sector_val_err < 1e-12, f"Sector Wasm error too high: {sector_val_err}"
+    _assert_24_constants_bitwise(sector_resp["result"]["ts_state_space"], "wasm-sector")
+
+    # 2. TPMT v1.3.0 (modal centering, rank_augmented == [False, False], bitwise constants)
+    tpmt_resp = browser_harness.rpc(
+        _make_req(
+            "fuzzy.derive_ts_tpmt",
+            {
+                "state_bounds": state_bounds,
+                "A_expr": direct_A,
+                "B_expr": direct_B,
+                "C_expr": direct_C,
+                "D_expr": direct_D,
+                "grid_points": 9,
+                "ranks": [2, 2],
+                "hull_type": "CNO",
+                "n_val_points": 32,
+            },
+        )
+    )
+    assert tpmt_resp["status"] in ("success", "warning"), tpmt_resp
+    assert tpmt_resp["result"]["num_rules"] == 4
+    tpmt_aug = [ax["rank_augmented"] for ax in tpmt_resp["result"]["hull_diagnostics"]]
+    assert tpmt_aug == [False, False], tpmt_resp["result"]["hull_diagnostics"]
+    _assert_24_constants_bitwise(tpmt_resp["result"]["ts_state_space"], "wasm-tpmt")
+
+    # 3. FEMT v1.2.0 (varying subspace, rank_augmented == False, bitwise constants, kuhn_delaunay)
+    femt_resp = browser_harness.rpc(
+        _make_req(
+            "fuzzy.derive_ts_femt",
+            {
+                "state_bounds": state_bounds,
+                "A_expr": direct_A,
+                "B_expr": direct_B,
+                "C_expr": direct_C,
+                "D_expr": direct_D,
+                "grid_points": 9,
+                "hull_type": "CNO",
+                "mesh_kind": "kuhn_delaunay",
+                "n_val_points": 32,
+            },
+        )
+    )
+    assert femt_resp["status"] in ("success", "warning"), femt_resp
+    assert femt_resp["result"]["mesh_kind"] == "kuhn_delaunay"
+    assert femt_resp["result"]["hull_diagnostics"]["rank_augmented"] is False
+    assert femt_resp["result"]["hull_diagnostics"]["fallback_used"] is False
+    _assert_24_constants_bitwise(femt_resp["result"]["ts_state_space"], "wasm-femt")
+
+    # 4. Export offline Python derivation script through real Wasm RPC
+    export_resp = browser_harness.rpc(
+        _make_req(
+            "fuzzy.export_ts_derivation_script",
+            {
+                "model": femt_resp["result"]["ts_state_space"],
+                "language": "python",
+            },
+        )
+    )
+    assert export_resp["status"] == "success", export_resp
+    assert export_resp["result"]["language"] == "python"
+    assert export_resp["result"]["code_executed"] is False
+    compile(export_resp["result"]["script"], "<wasm ts derivation script>", "exec")
+
+    worker_stats = browser_harness.page.evaluate("() => app.client.getWorkerStats()")
+    assert worker_stats["pyproxy"]["activeProxies"] == 0, worker_stats
+
+    evidence_tsmod = {
+        "sector_rules": sector_resp["result"]["num_rules"],
+        "sector_val_max_error": sector_val_err,
+        "tpmt_rules": tpmt_resp["result"]["num_rules"],
+        "tpmt_rank_augmented": tpmt_aug,
+        "femt_rules": femt_resp["result"]["num_rules"],
+        "femt_mesh_kind": femt_resp["result"]["mesh_kind"],
+        "femt_rank_augmented": femt_resp["result"]["hull_diagnostics"]["rank_augmented"],
+        "export_script_compiled": True,
+        "active_proxies": worker_stats["pyproxy"]["activeProxies"],
+    }
+    print(f"[F9-WASM-PHASE10-TSMOD] {json.dumps(evidence_tsmod)}")
+    browser_harness.record("phase10-ts-modeling-wasm", evidence_tsmod)
+
+
+

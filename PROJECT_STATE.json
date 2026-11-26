@@ -29,7 +29,7 @@
       "2026-11-23": 1,
       "2026-11-24": 6,
       "2026-11-25": 5,
-      "2026-11-26": 5
+      "2026-11-26": 6
     }
   },
   "audit_reference": {
@@ -7329,7 +7329,10 @@
         "T-TSMOD-08"
       ],
       "acceptance_cmd": "npm --prefix web run build && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/ tests/unit/f1/ tests/oracles/test_ts_modeling_oracles.py tests/wasm/test_real_runtime.py -v && python3 scripts/project_governance.py",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-TSMOD-05-F9-TS-MODELING-AUDIT-ORACLES.md",
+      "acceptance_scope": "phase10_ts_modeling_independent_oracles_t_tsmod_01_to_08_pyodide_wasm_and_tab6_e2e",
       "origin_ref": "docs/architecture/ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md",
       "design_ref": "docs/architecture/ADR-014-workspace-centralized-system-definition.md",
       "acceptance_requirements": [

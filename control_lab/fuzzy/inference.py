@@ -23,7 +23,6 @@ from .membership import (
     evaluate_mf,
     extract_term_spec,
     linear,
-    normalize_mf_type,
 )
 
 _EPS = 1e-12
@@ -460,7 +459,7 @@ def evaluate(
                     t["name"]: np.asarray(evaluate_mf(*extract_term_spec(t)[:2], g2, complement=extract_term_spec(t)[2]), dtype=np.float64)
                     for t in v2["terms"]
                 }
-                agg_2d = np.zeros((grid_resolution, grid_resolution), dtype=np.float64)
+                agg_2d: np.ndarray = np.zeros((grid_resolution, grid_resolution), dtype=np.float64)
                 for r_idx, rule in enumerate(rules):
                     cons = rule["consequents"]
                     if n1 not in cons or n2 not in cons:
@@ -619,6 +618,7 @@ def evaluate_surface(
     *,
     input_axes: Sequence[str] | None = None,
     fixed_inputs: Mapping[str, float] | None = None,
+    output_name: str | None = None,
     n_points: int = 25,
     grid_resolution: int = 101,
 ) -> Result:
@@ -636,9 +636,22 @@ def evaluate_surface(
             axes = list(input_axes)
         if len(axes) not in (1, 2):
             raise ValidationError("evaluate_surface suporta 1 ou 2 eixos de entrada.")
+        if len(set(axes)) != len(axes):
+            raise ValidationError("Eixos de entrada em evaluate_surface devem ser distintos.")
         for ax in axes:
             if ax not in in_vars:
                 raise ValidationError(f"Eixo de entrada desconhecido em evaluate_surface: {ax!r}")
+
+        out_names = [v["name"] for v in fs.output_variables]
+        if output_name is None:
+            selected_output = out_names[0]
+        else:
+            if not isinstance(output_name, str) or output_name not in out_names:
+                raise ValidationError(
+                    message=f"Variável de saída desconhecida em evaluate_surface: {output_name!r}.",
+                    parameters={"output_name": output_name, "available_outputs": out_names},
+                )
+            selected_output = output_name
 
         base_in: dict[str, float] = {}
         for nm, v in in_vars.items():
@@ -647,7 +660,6 @@ def evaluate_surface(
             else:
                 base_in[nm] = 0.5 * (float(v["universe"][0]) + float(v["universe"][1]))
 
-        out_names = [v["name"] for v in fs.output_variables]
         zero_count = 0
 
         if len(axes) == 1:
@@ -672,6 +684,9 @@ def evaluate_surface(
                     "axes": axes,
                     "grids": {ax0: [float(v) for v in x0_grid.tolist()]},
                     "surfaces": surfaces,
+                    "outputs": surfaces,
+                    "output_name": selected_output,
+                    "Z": surfaces[selected_output],
                 },
                 assumptions={"inference_type": fs.inference_type},
                 diagnostics={"n_points": n_points, "zero_activation_points": zero_count},
@@ -721,6 +736,9 @@ def evaluate_surface(
                     ax1: [float(v) for v in x1_grid.tolist()],
                 },
                 "surfaces": surfaces_2d,
+                "outputs": surfaces_2d,
+                "output_name": selected_output,
+                "Z": surfaces_2d[selected_output],
             },
             assumptions={"inference_type": fs.inference_type},
             diagnostics={"n_points": n_points, "total_evaluations": n_points * n_points, "zero_activation_points": zero_count},

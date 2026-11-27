@@ -29,7 +29,8 @@
       "2026-11-23": 1,
       "2026-11-24": 6,
       "2026-11-25": 5,
-      "2026-11-26": 7
+      "2026-11-26": 7,
+      "2026-11-27": 1
     }
   },
   "audit_reference": {
@@ -7398,13 +7399,16 @@
         "T-ANFIS-01"
       ],
       "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/ -q",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.4",
       "acceptance_requirements": [
         "Estender fit_anfis em control_lab/fuzzy/anfis.py para aceitar múltiplas saídas Y (N×M, M>=1) com output_names, retornando FuzzySystem multi-saída e métricas RMSE/FIT por saída",
         "Suportar n_mfs heterogêneo por entrada (Sequence[int]) e tipo de função de pertinência configurável por entrada sem regressão na API existente (M=1)",
         "Validar avaliação pontual, superfície por fatia 2D (fixando demais entradas e escolhendo saída alvo) e serialização IEEE 1855-2016 FML para sistemas Fuzzy N-entradas × M-saídas"
-      ]
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX11-01-F5-FUZZY-ANFIS-MULTIIO.md",
+      "acceptance_scope": "f5_anfis_multi_output_heterogeneous_mfs_and_fuzzy_nxm_surface_fml"
     },
     {
       "wp_id": "WP-UX11-02-F7-FUZZY-ANFIS-CSV-BRIDGE",

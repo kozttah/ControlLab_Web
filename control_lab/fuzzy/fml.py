@@ -22,7 +22,7 @@ from control_lab.diagnostics import (
 )
 
 from .inference import _coerce_fuzzy_system, normalize_defuzz_method
-from .membership import extract_term_spec, normalize_mf_type
+from .membership import extract_term_spec
 
 DEFAULT_MAX_FML_BYTES: int = 2 * 1024 * 1024  # 2 MiB
 DEFAULT_MAX_XML_DEPTH: int = 32
@@ -826,8 +826,6 @@ def import_fml(
                 elif activation != ops["and"]:
                     raise SchemaUnsupportedError("Ativação TSK distinta da conjunção não é representável neste perfil.")
 
-            in_var_names = {v["name"] for v in input_vars}
-            out_var_names = {v["name"] for v in output_vars}
             in_var_ci = {v["name"].lower(): v["name"] for v in input_vars}
             out_var_ci = {v["name"].lower(): v["name"] for v in output_vars}
 
@@ -839,6 +837,8 @@ def import_fml(
                 if connector not in ("and", "or"):
                     raise SchemaUnsupportedError(f"Conector de regra FML não suportado: {connector!r}.")
                 w_str = _attr_ci(r_el, "weight", default="1.0")
+                if w_str is None:
+                    w_str = "1.0"
                 try:
                     weight = float(w_str)
                 except ValueError as exc:

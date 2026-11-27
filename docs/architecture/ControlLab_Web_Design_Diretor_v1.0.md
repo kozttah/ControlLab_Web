@@ -1,7 +1,7 @@
-# ControlLab Web — Documento Diretor de Design, UX e Arquitetura de Interface (CL-UX-DIR-001 v1.0.0)
+# ControlLab Web — Documento Diretor de Design, UX e Arquitetura de Interface (CL-UX-DIR-001 v1.1.0)
 
-**Status:** Proposta Normativa de Design & UX para Revisão (pré-refatoração F8)  
-**Fonte Normativa Subordinada a:** [ControlLab_Web_Documento_Diretor_v1.0.md](../../ControlLab_Web_Documento_Diretor_v1.0.md) (`CL-DIR-001 v1.0.0`)  
+**Status:** Especificação Normativa de Design & UX — Revisão v1.1.0 (Fase 11: Reavaliação Integral das 7 Abas)  
+**Fonte Normativa Subordinada a:** [ControlLab_Web_Documento_Diretor_v1.0.md](../../ControlLab_Web_Documento_Diretor_v1.0.md) (`CL-DIR-001 v1.0.0`) e [CL-TS-MOD-DIR-001 v1.3.0](ControlLab_Web_Modelagem_TS_qLPV_Diretor_v1.0.md)  
 **Protótipo Visual Associado:** Artefato interativo `controllab_ux_mockup.html`  
 **Referências de Domínio:** MATLAB System Identification App (`ident`), MATLAB Control System Designer (`sisotool`), [Laboratório Virtual Fuzzy Legado](../references/legacy_fuzzy_lab/index.html)
 
@@ -391,3 +391,62 @@ Antes de qualquer nova versão ser declarada pronta na página publicada, ela de
 3. **Fluxo entre abas em até 2 cliques:** Um modelo identificado na Aba 1 chega ao projeto SISO (Aba 2) ou LQR (Aba 3) por um único botão de ação explícita.
 4. **Gráficos autoexplicativos e exportáveis:** Todo gráfico tem título claro, legenda, unidades nos eixos e botões funcionais `SVG`, `PNG` e `CSV` (respeitando o bloqueio `R-23`).
 5. **Layout coeso em 1280×800 e 390×844:** Sem sobreposição de cards, sem controles órfãos e sem barra de rolagem horizontal na página.
+
+---
+
+## 9. Revisão v1.1.0 — Reavaliação Integral da Interface das 7 Abas (Fase 11)
+
+Após a conclusão da Fase 10 (separação da modelagem Takagi–Sugeno/qLPV para a nova **Aba 6 — `6. Obtenção de Modelos TS (Setor, TPMT & FEMT)`** e renumeração de LMIs para a **Aba 7 — `7. LMIs, SDPs e Síntese Robusta`**), foi realizada uma reavaliação ergonômica e científica completa das **7 bancadas**. As diretrizes abaixo passam a ser normativas para a **Fase 11 (`Phase11-UX-Ergonomics-And-MultiIO`)**:
+
+### 9.1 Princípio Transversal: Palco de Gráficos em Largura Total
+Em bancadas com múltiplos gráficos científicos (especialmente **Aba 1 — Identificação**, **Aba 2 — Frequência SISO**, **Aba 3 — Espaço de Estados** e **Aba 4 — Frequência MIMO**), dividir a tela horizontalmente entre coluna de parâmetros e grade de gráficos reduz excessivamente a área útil de leitura dos eixos, curvas e marcadores.
+- **Diretriz v1.1.0:** Os painéis de sintonia/parâmetros devem ser organizados em **faixa compacta acima ou abaixo** (com seções avançadas recolhíveis), liberando **100% da largura da bancada ativa** para o palco de gráficos (ex.: grade 2×2 ampla na Aba 2 e painéis lado a lado de alta legibilidade nas Abas 1, 3, 4 e 7).
+
+### 9.2 Aba 2 — Frequência SISO: Gráficos Amplos, Nyquist Interativo e Plano $z$ Discreto
+1. **Grade 2×2 em largura total:** Posicionar os controles do compensador $C(s)/C(z)$, atraso $\tau$ e grade de frequência em barra/painel compacto acima (ou abaixo) da grade 2×2, garantindo área ampla para **Bode**, **Nyquist**, **Lugar das Raízes** e **Resposta ao Degrau**.
+2. **Diagrama de Nyquist interativo enriquecido:**
+   - **Vetor de distância até o ponto crítico $(-1, 0)$:** Ao clicar sobre qualquer ponto $L(j\omega_0)$ da curva de Nyquist, desenhar sobre o gráfico o **segmento/vetor ligando $(-1, 0)$ a $L(j\omega_0)$** e exibir no datatip a distância euclidiana $d = |L(j\omega_0) + 1|$, a sensibilidade pontual $|S(j\omega_0)| = 1/d$ e a frequência $\omega_0$.
+   - **Anotações visuais das margens de estabilidade diretamente no diagrama:**
+     - **Margem de Fase (MF):** desenhar o círculo unitário $|L| = 1$, destacar o ponto de cruzamento de ganho $L(j\omega_{gc})$ e traçar o **arco angular** entre o eixo real negativo ($-180^\circ$) e $L(j\omega_{gc})$, indicando visualmente quanto o diagrama pode girar em fase antes de atingir $(-1, 0)$.
+     - **Margem de Ganho (MG):** destacar o ponto de cruzamento de fase $L(j\omega_{pc}) = (-1/K_{gm}, 0)$ e traçar o **segmento sobre o eixo real negativo** até $(-1, 0)$ com rótulo do fator multiplicativo de ganho (e valor em dB) admissível antes do cruzamento com $(-1, 0)$.
+3. **Lugar das Raízes no domínio discreto (`dt !== null`):**
+   - **Círculo unitário $|z| = 1$ sempre visível e centralizado:** Diferente do plano $s$ contínuo (que prioriza o semi-plano esquerdo $\text{Re}(s) \le 0$), quando a planta ou compensador for discreto o gráfico **deve centralizar a origem e o círculo de raio unitário $|z| = 1$** com **razão de aspecto 1:1** (sem distorção elíptica), expandindo os limites simetricamente apenas se houver polos/zeros fora do disco unitário.
+   - **Regiões heurísticas de 2ª ordem corretas no plano $z$ (`[Heurístico]`):** Em vez de reutilizar as retas/círculos do plano $s$, `web/charts/overlays.ts` e `web/charts/scientific_chart.ts` devem projetar as regiões pelo mapeamento exato $z = e^{s T_s}$ (com $T_s = \text{dt}$):
+     - **Amortecimento constante ($\zeta = \text{const}$):** espirais logarítmicas $z(\theta) = \exp\!\left(-\frac{\zeta}{\sqrt{1-\zeta^2}}|\theta|\right) e^{j\theta}$ para $\theta \in [-\pi, \pi]$;
+     - **Frequência natural constante ($\omega_n = \text{const}$, $\omega_n T_s \le \pi$):** arcos $z(\zeta) = \exp(-\zeta \omega_n T_s \pm j\omega_n T_s \sqrt{1-\zeta^2})$ para $\zeta \in [0, 1]$;
+     - **Tempo de acomodação ($T_{\text{set}} \approx 4/\sigma_0$):** círculo concêntrico de raio espectral constante $|z| = e^{-\sigma_0 T_s}$.
+     - Todas as regiões preservam obrigatoriamente o selo `[Heurístico]` e o aviso de verificação pela simulação temporal.
+
+### 9.3 Aba 4 — Frequência MIMO: Exibição Explícita do Controlador Sintetizado na Tela
+- Assim como o desacoplador de malha já exibe sua matriz de funções de transferência diretamente na interface (`formatDecouplerTransferMatrixHtml`), o resultado da síntese robusta **$\mathcal{H}_\infty$** (e demais controladores sintetizados na Aba 4) **deve ser escrito explicitamente na tela** em painel dedicado (matrizes de espaço de estados $A_k, B_k, C_k, D_k$ formatadas com precisão configurável, dimensões/polos do controlador e forma de transferência quando compacta, com ação de cópia), mantendo em paralelo o botão de registro no **Workspace Dock**.
+
+### 9.4 Aba 5 — Renomeação para `5. Controle Fuzzy e ANFIS`, Modelo Fuzzy $N \times M$ e ANFIS via CSV
+1. **Renomeação da Aba 5:** Como a derivação de modelos Takagi–Sugeno a partir de plantas qLPV possui agora a bancada dedicada **Aba 6 (`6. Obtenção de Modelos TS (Setor, TPMT & FEMT)`)**, a Aba 5 passa a chamar-se oficialmente **`5. Controle Fuzzy e ANFIS`** (`shortLabel: "Fuzzy & ANFIS"`), preservando internamente o seletor de inferência especialista **Mamdani** e **Sugeno (ordem 0/1)**.
+2. **Definição livre de $N$ entradas e $M$ saídas no Modelo Fuzzy:**
+   - Remover a limitação fixa de 2 entradas e 1 saída na UI: permitir ao usuário **adicionar/remover variáveis de entrada ($N \ge 1$) e de saída ($M \ge 1$)**, editar nome, universo $[u_{\min}, u_{\max}]$ e quantidade/tipo de funções de pertinência por variável;
+   - **Base de regras adaptativa:** manter a matriz 2D ergonômica quando $N = 2$ e oferecer um construtor tabular estruturado `SE (x₁ é T₁) E ... ENTÃO (y₁ é S₁, ...)` para qualquer $N \ge 1, M \ge 1$;
+   - **Superfície de controle configurável:** quando $N > 2$ ou $M > 1$, exibir seletores para o par de eixos $(x_a, x_b)$, valores fixos das demais entradas e variável de saída $y_k$ plotada.
+3. **ANFIS com importação livre de CSV, mapeamento de colunas e MFs por entrada:**
+   - Permitir upload/colagem de arquivo **`.csv`** (ou reutilização de `Dataset` do Workspace) com número arbitrário de colunas $C$;
+   - Exibir pré-visualização tabular das colunas detectadas para o usuário marcar livremente **quais colunas são Entradas ($X$)** e **quais colunas são Saídas ($Y$)** (incluindo múltiplas saídas, com suporte no motor `control_lab/fuzzy/anfis.py`);
+   - Permitir configurar **independentemente o número de funções de pertinência (`n_mfs[j]`) e tipo de MF** (`gaussian`, `bell`, etc.) para **cada entrada selecionada**, além de razão treino/validação, épocas e taxa de aprendizado.
+
+### 9.5 Reavaliação de Consistência nas Abas 1, 3, 6 e 7
+| Aba | Diagnóstico da Reavaliação | Melhorias Registradas para a Fase 11 |
+|---|---|---|
+| **Aba 1 — Identificação** | Controles laterais comprimem os gráficos de simulação livre e resíduos; importador CSV isolado do ANFIS. | Palco de gráficos em largura total (faixa superior de dados/estimação) + reaproveitamento do seletor de colunas CSV e círculo unitário centralizado nos polos discretos. |
+| **Aba 2 — Frequência SISO** | Grade 2×2 comprimida; Nyquist sem vetor ao $-1$ nem arcos de MG/MF; RLocus discreto foca semi-plano esquerdo e usa guias contínuas. | Grade 2×2 em largura total; Nyquist com vetor ao $-1$ + anotações gráficas de MG/MF; RLocus discreto centrado em $|z|=1$ (1:1) com espirais $\zeta$ e curvas $\omega_n T_s$ corretas. |
+| **Aba 3 — Espaço de Estados** | Mapa polo-zero discreto e layout dos gráficos podem ficar comprimidos junto às matrizes `Q/R/x0`. | Alinhar mapa polo-zero discreto com círculo unitário centralizado (1:1) + regiões discretas consistentes e palco de gráficos amplo. |
+| **Aba 4 — Frequência MIMO** | Desacoplador imprime matriz na tela, mas controlador $K_\infty$ sintetizado só era inspecionável após registrar no Workspace. | Exibir explicitamente na tela o controlador $K_\infty$ $(A_k, B_k, C_k, D_k)$ (e forma compacta) + gráficos de valores singulares/RGA em maior largura. |
+| **Aba 5 — Controle Fuzzy e ANFIS** | Nome ainda carrega `TS` (redundante com Aba 6); modelo fechado em 2×1; ANFIS sem upload CSV livre nem `n_mfs` por entrada. | Renomear aba para `5. Controle Fuzzy e ANFIS`; editor Fuzzy $N \times M$ livre; ANFIS com importação CSV, escolha livre de colunas $X$/$Y$ (multi-saída) e `n_mfs` individual por entrada. |
+| **Aba 6 — Modelos TS** | Fluxo recém-auditado (Fase 10) e bem resolvido. | Atualizar referências cruzadas ao novo nome da Aba 5 e manter coerência visual dos gráficos com a largura total da bancada. |
+| **Aba 7 — LMIs & SDPs** | Fluxo TS→PDC→PathSim funcional; exibição dos ganhos/variáveis recuperadas pode ficar mais legível e estruturada. | Exibir matrizes recuperadas ($K$, $K_r$, $P$, $Q$) em blocos matriciais formatados e copiáveis na tela + espectro $\lambda_{\min}$ em largura ampla. |
+
+### 9.6 Mapa de WorkPackages da Fase 11 (`Phase11-UX-Ergonomics-And-MultiIO`)
+1. `WP-UX11-01-F5-FUZZY-ANFIS-MULTIIO` (**F5**): suporte multi-saída ($M \ge 1$) e `n_mfs` heterogêneo por entrada em `control_lab/fuzzy/anfis.py`, mais validação $N \times M$ em `inference.py`/`fml.py`.
+2. `WP-UX11-02-F7-FUZZY-ANFIS-CSV-BRIDGE` (**F7**): contrato RPC em `pyodide_worker.py` e `mock_worker.ts` para `fuzzy.fit_anfis` multi-I/O (`n_mfs` por entrada, `output_names`) e `fuzzy.evaluate_surface` em fatias 2D de sistemas $N \times M$.
+3. `WP-UX11-03-F8-SISO-CHARTS-NYQUIST-DISCRETE-RLOCUS` (**F8**): layout de gráficos largos na Aba 2, Nyquist com vetor até $(-1, 0)$ e margens MG/MF desenhadas, e Lugar das Raízes / Mapa Polo-Zero discreto centrado no círculo unitário com regiões de 2ª ordem corretas no plano $z$.
+4. `WP-UX11-04-F8-MIMO-CONTROLLER-DISPLAY-AND-LAYOUT` (**F8**): exibição explícita na tela do controlador $K_\infty$ na Aba 4, harmonização de palco de gráficos amplo nas Abas 1, 3, 4 e 7, e exibição matricial limpa dos ganhos/variáveis recuperadas na Aba 7.
+5. `WP-UX11-05-F8-FUZZY-ANFIS-MULTIIO-UI` (**F8**): renomeação da Aba 5 para `5. Controle Fuzzy e ANFIS`, editor Fuzzy $N \times M$ livre e fluxo ANFIS completo via CSV (mapeamento livre de colunas $X$/$Y$ e `n_mfs` por entrada).
+6. `WP-UX11-06-F9-PHASE11-UX-MULTIIO-AUDIT` (**F9**): oráculos matemáticos do plano $z$ discreto e ANFIS multi-saída, além de suíte E2E Playwright cobrindo todas as melhorias da Fase 11.
+

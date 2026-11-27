@@ -3,7 +3,7 @@
   "spec_version": "1.0.0",
   "ux_design_reference": {
     "document_id": "CL-UX-DIR-001",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "path": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md",
     "queue_ref": "docs/audits/NEXT_QUEUE_UX_REFACTOR_2026-11-19.md",
     "approved_by_user_utc": "2026-11-19"
@@ -7371,6 +7371,213 @@
       "acceptance_requirements": [
         "Expor na Aba 7 (lmi_view.ts) botões em 1 clique para registrar o controlador sintetizado no Workspace (PDCController para TSStateSpace ts_measured/ts_partially_observed ou StateFeedbackController para StateSpace LTI) e exportar o script de simulação PathSim 0.31.0 (io.export_pathsim_script, ADR-013) com code_executed=false",
         "Validar por teste unitário F8 o fluxo completo Aba 6 (derivação TS) -> Aba 7 (síntese PDC LMI) -> registro do PDCController no Workspace e exportação do script PathSim (.py)"
+      ]
+    },
+    {
+      "wp_id": "WP-UX11-01-F5-FUZZY-ANFIS-MULTIIO",
+      "front": "f5-fuzzy-ts",
+      "phase": "Phase11-UX-Ergonomics-And-MultiIO",
+      "title": "F5: Suporte multi-saída (M>=1) e n_mfs heterogêneo por entrada no ANFIS e validação N×M no motor Fuzzy",
+      "allowed_paths": [
+        "control_lab/fuzzy/anfis.py",
+        "control_lab/fuzzy/inference.py",
+        "control_lab/fuzzy/fml.py",
+        "tests/unit/f5/"
+      ],
+      "dependencies": [
+        "WP-TSMOD-06-F8-LMI-PDC-SIM-EXPORT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-13",
+        "R-14"
+      ],
+      "normative_tests": [
+        "T-FZ-01",
+        "T-FZ-02",
+        "T-ANFIS-01"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f5/ -q",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.4",
+      "acceptance_requirements": [
+        "Estender fit_anfis em control_lab/fuzzy/anfis.py para aceitar múltiplas saídas Y (N×M, M>=1) com output_names, retornando FuzzySystem multi-saída e métricas RMSE/FIT por saída",
+        "Suportar n_mfs heterogêneo por entrada (Sequence[int]) e tipo de função de pertinência configurável por entrada sem regressão na API existente (M=1)",
+        "Validar avaliação pontual, superfície por fatia 2D (fixando demais entradas e escolhendo saída alvo) e serialização IEEE 1855-2016 FML para sistemas Fuzzy N-entradas × M-saídas"
+      ]
+    },
+    {
+      "wp_id": "WP-UX11-02-F7-FUZZY-ANFIS-CSV-BRIDGE",
+      "front": "f7-worker-bridge",
+      "phase": "Phase11-UX-Ergonomics-And-MultiIO",
+      "title": "F7: Contrato RPC Pyodide/Mock para ANFIS multi-I/O (n_mfs por entrada, output_names) e superfícies Fuzzy N×M",
+      "allowed_paths": [
+        "web/worker/pyodide_worker.py",
+        "web/bridge/mock_worker.ts",
+        "web/bridge/protocol.ts",
+        "tests/unit/f7/"
+      ],
+      "dependencies": [
+        "WP-UX11-01-F5-FUZZY-ANFIS-MULTIIO"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-13",
+        "R-20"
+      ],
+      "normative_tests": [
+        "T-RPC-01",
+        "T-ANFIS-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f7 && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f7/ -q",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.4",
+      "acceptance_requirements": [
+        "Encaminhar n_mfs por entrada (array de inteiros), mf_type por entrada, input_names e output_names (M>=1) em fuzzy.fit_anfis tanto no Pyodide Worker quanto no MockWorkerAdapter",
+        "Suportar seleção de par de entradas (x_axis, y_axis), valores fixos das demais entradas (fixed_inputs) e saída alvo (output_name) em fuzzy.evaluate_surface para modelos N×M"
+      ]
+    },
+    {
+      "wp_id": "WP-UX11-03-F8-SISO-CHARTS-NYQUIST-DISCRETE-RLOCUS",
+      "front": "f8-ui-charts",
+      "phase": "Phase11-UX-Ergonomics-And-MultiIO",
+      "title": "F8: Palco de gráficos largos na Aba 2 (SISO), Nyquist com vetor até -1 e margens MG/MF, e Lugar das Raízes discreto no plano z",
+      "allowed_paths": [
+        "web/features/views/siso_view.ts",
+        "web/features/views/statespace_view.ts",
+        "web/charts/scientific_chart.ts",
+        "web/charts/overlays.ts",
+        "web/app/styles.css",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-TSMOD-06-F8-LMI-PDC-SIM-EXPORT"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-09",
+        "R-23",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-FR-01",
+        "T-FR-02",
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.2",
+      "acceptance_requirements": [
+        "Reposicionar os controles da Aba 2 em faixa compacta acima/abaixo da grade 2×2 para que Bode, Nyquist, Lugar das Raízes e Degrau ocupem 100% da largura da bancada",
+        "No Nyquist interativo, desenhar o vetor de distância entre (-1, 0) e o ponto clicado L(jω0) exibindo |L(jω0)+1| e |S(jω0)|, além das anotações visuais da Margem de Fase (arco sobre |L|=1 até -180°) e Margem de Ganho (segmento sobre o eixo real negativo até -1)",
+        "No Lugar das Raízes e Mapa Polo-Zero discretos (dt !== null), centralizar o círculo unitário |z|=1 com razão de aspecto 1:1 e renderizar regiões heurísticas de 2ª ordem corretas no plano z (espirais logarítmicas de ζ constante, arcos de ωn·Ts constante e círculos de raio espectral e^(-σ0·Ts), sempre com selo [Heurístico])"
+      ]
+    },
+    {
+      "wp_id": "WP-UX11-04-F8-MIMO-CONTROLLER-DISPLAY-AND-LAYOUT",
+      "front": "f8-ui-charts",
+      "phase": "Phase11-UX-Ergonomics-And-MultiIO",
+      "title": "F8: Exibição explícita do controlador H∞ sintetizado na Aba 4 (MIMO) e harmonização de gráficos largos nas Abas 1, 3, 4 e 7",
+      "allowed_paths": [
+        "web/features/views/mimo_view.ts",
+        "web/features/views/identification_view.ts",
+        "web/features/views/statespace_view.ts",
+        "web/features/views/lmi_view.ts",
+        "web/app/styles.css",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-UX11-03-F8-SISO-CHARTS-NYQUIST-DISCRETE-RLOCUS"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-10",
+        "R-26",
+        "R-27"
+      ],
+      "normative_tests": [
+        "T-MIMO-01",
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.3",
+      "acceptance_requirements": [
+        "Exibir diretamente na tela da Aba 4 (em paridade com a matriz de transferência do desacoplador) as matrizes (A_k, B_k, C_k, D_k), dimensões, polos e ação de cópia do controlador K∞ sintetizado, mantendo o botão de registro no Workspace",
+        "Harmonizar o layout de palco de gráficos em largura total na Aba 1 (Identificação), Aba 3 (Espaço de Estados), Aba 4 (MIMO) e Aba 7 (LMIs), incluindo exibição matricial limpa e copiável dos ganhos/variáveis recuperadas na Aba 7"
+      ]
+    },
+    {
+      "wp_id": "WP-UX11-05-F8-FUZZY-ANFIS-MULTIIO-UI",
+      "front": "f8-ui-charts",
+      "phase": "Phase11-UX-Ergonomics-And-MultiIO",
+      "title": "F8: Renomeação da Aba 5 para 'Controle Fuzzy e ANFIS', editor Fuzzy N×M livre e fluxo ANFIS com importação CSV e MFs por entrada",
+      "allowed_paths": [
+        "web/app/tool_descriptor.ts",
+        "web/features/views/fuzzy_view.ts",
+        "web/features/views/ts_modeling_view.ts",
+        "web/app/styles.css",
+        "tests/unit/f8/"
+      ],
+      "dependencies": [
+        "WP-UX11-02-F7-FUZZY-ANFIS-CSV-BRIDGE"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-13",
+        "R-14",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-FZ-01",
+        "T-ANFIS-01",
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.4",
+      "acceptance_requirements": [
+        "Renomear oficialmente a Aba 5 em tool_descriptor.ts e referências da interface para '5. Controle Fuzzy e ANFIS' (shortLabel: 'Fuzzy & ANFIS'), preservando o seletor interno Mamdani/Sugeno",
+        "Permitir adicionar e remover livremente variáveis de entrada (N>=1) e de saída (M>=1) no editor Fuzzy, com matriz 2D de regras para N=2, construtor tabular estruturado SE...ENTÃO para N!=2 ou M>1 e seletor de fatia 2D + saída alvo na superfície de controle",
+        "Adicionar no painel ANFIS importação/colagem de arquivo .csv (ou Dataset do Workspace) com pré-visualização de colunas, escolha livre de colunas de entrada (X) e saída (Y, multi-saída) e configuração individual de número e tipo de pertinências por entrada"
+      ]
+    },
+    {
+      "wp_id": "WP-UX11-06-F9-PHASE11-UX-MULTIIO-AUDIT",
+      "front": "f9-integration-qa",
+      "phase": "Phase11-UX-Ergonomics-And-MultiIO",
+      "title": "F9: Oráculos independentes do plano z discreto e ANFIS multi-saída + auditoria E2E Playwright da Fase 11",
+      "allowed_paths": [
+        "tests/oracles/",
+        "tests/e2e/",
+        "docs/audits/handoffs/",
+        "PROJECT_STATE.json"
+      ],
+      "dependencies": [
+        "WP-UX11-04-F8-MIMO-CONTROLLER-DISPLAY-AND-LAYOUT",
+        "WP-UX11-05-F8-FUZZY-ANFIS-MULTIIO-UI"
+      ],
+      "requirement_ids": [
+        "R-02",
+        "R-09",
+        "R-10",
+        "R-13",
+        "R-26"
+      ],
+      "normative_tests": [
+        "T-FR-01",
+        "T-FR-02",
+        "T-MIMO-01",
+        "T-ANFIS-01",
+        "T-UI-01"
+      ],
+      "acceptance_cmd": "PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/oracles/ tests/e2e/ -q && PATH=\"/home/antigravity/.venv/bin:$PATH\" python3 scripts/project_governance.py",
+      "status": "PENDING",
+      "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.6",
+      "acceptance_requirements": [
+        "Validar por oráculo independente o mapeamento discreto z = exp(s*Ts) das regiões de 2ª ordem (espirais ζ, arcos ωn·Ts e raio espectral) e a coerência geométrica das anotações de MG/MF e distância até -1 no Nyquist",
+        "Validar por oráculo independente o treinamento ANFIS multi-saída com n_mfs heterogêneo por entrada",
+        "Validar em navegador real (Playwright) o layout de gráficos largos, clique no Nyquist com vetor até -1, RLocus discreto centrado em |z|=1, exibição explícita de K∞ na Aba 4, renomeação da Aba 5 e fluxo CSV->ANFIS multi-I/O"
       ]
     }
   ],

@@ -518,44 +518,53 @@ def sn_nn_matrix(
     g_len, r_orig = U_arr.shape
     ones_g = np.ones(g_len, dtype=np.float64)
 
-    alpha, _, _, _ = scipy_linalg.lstsq(U_arr, ones_g)
-    sn_res_inf = float(np.max(np.abs(U_arr @ alpha - ones_g)))
-    sn_res_l2 = float(np.linalg.norm(U_arr @ alpha - ones_g))
-
+    direct_sn_res_inf = float(np.max(np.abs(np.sum(U_arr, axis=1) - 1.0)))
     core_out = None if core is None else np.asarray(core, dtype=np.float64).copy()
 
-    if sn_res_inf <= sn_tol:
+    if direct_sn_res_inf <= sn_tol:
         rank_augmented = False
         r_prime = r_orig
-        if r_orig == 1:
-            T_sn = np.array([[float(alpha[0])]], dtype=np.float64)
-        else:
-            # Escolhe coluna pivô j_star = argmax |alpha| para garantir det(T_sn) = alpha[j_star] != 0
-            j_star = int(np.argmax(np.abs(alpha)))
-            if abs(float(alpha[j_star])) <= 1e-14:
-                raise NumericalInconclusiveError("Vetor de projeção SN nulo em sn_nn_matrix.")
-            T_sn = np.eye(r_orig, dtype=np.float64)
-            col_star = alpha.copy()
-            for j in range(r_orig):
-                if j != j_star:
-                    col_star[j] -= 1.0
-            T_sn[:, j_star] = col_star
-        U_sn = U_arr @ T_sn
-        if core_out is not None and mode is not None:
-            core_out = mode_inverse_product(core_out, T_sn, mode)
+        sn_res_inf = direct_sn_res_inf
+        sn_res_l2 = float(np.linalg.norm(np.sum(U_arr, axis=1) - 1.0))
+        T_sn = np.eye(r_orig, dtype=np.float64)
+        U_sn = U_arr.copy()
     else:
-        rank_augmented = True
-        r_prime = r_orig + 1
-        extra_col = 1.0 - np.sum(U_arr, axis=1, keepdims=True)
-        U_sn = np.hstack([U_arr, extra_col])
-        T_sn = np.eye(r_prime, dtype=np.float64)
-        if core_out is not None and mode is not None:
-            zero_shape = list(core_out.shape)
-            zero_shape[mode] = 1
-            core_out = np.concatenate(
-                [core_out, np.zeros(zero_shape, dtype=np.float64)],
-                axis=mode,
-            )
+        alpha, _, _, _ = scipy_linalg.lstsq(U_arr, ones_g)
+        sn_res_inf = float(np.max(np.abs(U_arr @ alpha - ones_g)))
+        sn_res_l2 = float(np.linalg.norm(U_arr @ alpha - ones_g))
+
+        if sn_res_inf <= sn_tol:
+            rank_augmented = False
+            r_prime = r_orig
+            if r_orig == 1:
+                T_sn = np.array([[float(alpha[0])]], dtype=np.float64)
+            else:
+                # Escolhe coluna pivô j_star = argmax |alpha| para garantir det(T_sn) = alpha[j_star] != 0
+                j_star = int(np.argmax(np.abs(alpha)))
+                if abs(float(alpha[j_star])) <= 1e-14:
+                    raise NumericalInconclusiveError("Vetor de projeção SN nulo em sn_nn_matrix.")
+                T_sn = np.eye(r_orig, dtype=np.float64)
+                col_star = alpha.copy()
+                for j in range(r_orig):
+                    if j != j_star:
+                        col_star[j] -= 1.0
+                T_sn[:, j_star] = col_star
+            U_sn = U_arr @ T_sn
+            if core_out is not None and mode is not None:
+                core_out = mode_inverse_product(core_out, T_sn, mode)
+        else:
+            rank_augmented = True
+            r_prime = r_orig + 1
+            extra_col = 1.0 - np.sum(U_arr, axis=1, keepdims=True)
+            U_sn = np.hstack([U_arr, extra_col])
+            T_sn = np.eye(r_prime, dtype=np.float64)
+            if core_out is not None and mode is not None:
+                zero_shape = list(core_out.shape)
+                zero_shape[mode] = 1
+                core_out = np.concatenate(
+                    [core_out, np.zeros(zero_shape, dtype=np.float64)],
+                    axis=mode,
+                )
 
     # Transformação NN exata via deslocamento afim e inversa fechada de Sherman–Morrison
     gamma = np.minimum(0.0, np.min(U_sn, axis=0))
@@ -1737,26 +1746,24 @@ def derive_ts_tpmt(
                     g_d, U_work = resample_basis_1d(g_d, U_work, resolved_resample[d], method=resample_method)
                 axis_grids.append(g_d)
 
-                # Pré-condicionamento RMS invariante a G_d (u0 = 1/sqrt(G_d) preservado sob reamostragem).
-                # Se a reamostragem reduziu o número de pontos abaixo do posto da base (posto deficiente),
-                # preserva a base direta para manter o replay exato em ts_derivation.py (ainda com rank_augmented=False).
+                # Pré-condicionamento RMS exato e invertível (det(M_sn) = (sqrt(G_d))^r_d > 0):
+                # como u0 = 1/sqrt(G_d) é invariante a qualquer reamostragem (mesmo se G'_d < r_d),
+                # U_sn_work = U_work @ M_sn soma identicamente 1 em toda linha e garante op_d @ 1 = 1
+                # independentemente da rotação arbitrária do espaço nulo da SVD.
                 r_d = int(U_work.shape[1])
-                if U_work.shape[0] >= r_d and int(np.linalg.matrix_rank(U_work)) == r_d:
-                    scale = math.sqrt(float(g_sizes[d]))
-                    if r_d == 1:
-                        M_sn = np.array([[scale]], dtype=np.float64)
-                    else:
-                        M_sn = np.zeros((r_d, r_d), dtype=np.float64)
-                        M_sn[0, 0] = scale
-                        M_sn[1:, 0] = -scale
-                        for k in range(1, r_d):
-                            M_sn[k, k] = scale
-
-                    U_sn_work = U_work @ M_sn
-                    core_var = mode_inverse_product(core_var, M_sn, d)
-                    op_d = scipy_linalg.solve(M_sn, op_d)
+                scale = math.sqrt(float(g_sizes[d]))
+                if r_d == 1:
+                    M_sn = np.array([[scale]], dtype=np.float64)
                 else:
-                    U_sn_work = U_work
+                    M_sn = np.zeros((r_d, r_d), dtype=np.float64)
+                    M_sn[0, 0] = scale
+                    M_sn[1:, 0] = -scale
+                    for k in range(1, r_d):
+                        M_sn[k, k] = scale
+
+                U_sn_work = U_work @ M_sn
+                core_var = mode_inverse_product(core_var, M_sn, d)
+                op_d = scipy_linalg.solve(M_sn, op_d)
 
                 W_sn, T_sn_nn, info_sn = sn_nn_matrix(U_sn_work, core=core_var, mode=d, sn_tol=sn_tol)
                 core_var = info_sn["core"]

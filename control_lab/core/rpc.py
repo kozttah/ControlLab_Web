@@ -1916,10 +1916,22 @@ def _handle_fuzzy(req: dict[str, Any], store: Any) -> dict[str, Any]:
             X_arr = X_arr.reshape(-1, 1)
         elif X_arr.ndim != 2:
             raise DimensionMismatchError(f"X deve ser 1D ou 2D (N, n_inputs), recebido {X_arr.ndim}D.")
-        y_arr = _coerce_array(payload["y"], name="y", ndim=1)
+        y_arr = _coerce_array(payload["y"], name="y")
+        if y_arr.ndim not in (1, 2) or (y_arr.ndim == 2 and y_arr.shape[1] < 1):
+            raise DimensionMismatchError(
+                f"y deve ser 1D (N,) ou 2D (N, n_outputs) com n_outputs >= 1, recebido {y_arr.ndim}D."
+            )
 
         n_mfs = payload.get("n_mfs", 2)
-        mf_type = str(payload.get("mf_type", "gaussian"))
+        mf_type_raw = payload.get("mf_type", "gaussian")
+        mf_type: str | list[str]
+        if isinstance(mf_type_raw, str):
+            mf_type = mf_type_raw
+        elif isinstance(mf_type_raw, (list, tuple)):
+            mf_type = [str(v) for v in mf_type_raw]
+        else:
+            raise ValidationError("mf_type deve ser string ou sequência de strings.")
+
         max_epochs_raw = payload.get("max_epochs", 30)
         if isinstance(max_epochs_raw, bool) or not isinstance(max_epochs_raw, int):
             raise ValidationError("max_epochs deve ser inteiro >= 1.")
@@ -1928,17 +1940,47 @@ def _handle_fuzzy(req: dict[str, Any], store: Any) -> dict[str, Any]:
         input_names = payload.get("input_names")
         output_name = str(payload.get("output_name", "y"))
 
-        res = fit_anfis(
-            X_arr,
-            y_arr,
-            n_mfs=n_mfs,
-            mf_type=mf_type,
-            max_epochs=max_epochs_raw,
-            learning_rate=learning_rate,
-            validation_split=validation_split,
-            input_names=input_names,
-            output_name=output_name,
-        )
+        fit_kwargs: dict[str, Any] = {
+            "n_mfs": n_mfs,
+            "mf_type": mf_type,
+            "max_epochs": max_epochs_raw,
+            "learning_rate": learning_rate,
+            "validation_split": validation_split,
+            "input_names": input_names,
+            "output_name": output_name,
+        }
+        if payload.get("output_names") is not None:
+            fit_kwargs["output_names"] = payload["output_names"]
+        if payload.get("X_val") is not None:
+            X_val_arr = _coerce_array(payload["X_val"], name="X_val")
+            if X_val_arr.ndim == 1:
+                X_val_arr = X_val_arr.reshape(-1, 1)
+            elif X_val_arr.ndim != 2:
+                raise DimensionMismatchError(
+                    f"X_val deve ser 1D ou 2D (N, n_inputs), recebido {X_val_arr.ndim}D."
+                )
+            fit_kwargs["X_val"] = X_val_arr
+        if payload.get("y_val") is not None:
+            y_val_arr = _coerce_array(payload["y_val"], name="y_val")
+            if y_val_arr.ndim not in (1, 2) or (y_val_arr.ndim == 2 and y_val_arr.shape[1] < 1):
+                raise DimensionMismatchError(
+                    f"y_val deve ser 1D (N,) ou 2D (N, n_outputs) com n_outputs >= 1, recebido {y_val_arr.ndim}D."
+                )
+            fit_kwargs["y_val"] = y_val_arr
+        if payload.get("early_stopping_patience") is not None:
+            patience_raw = payload["early_stopping_patience"]
+            if isinstance(patience_raw, bool) or not isinstance(patience_raw, int):
+                raise ValidationError("early_stopping_patience deve ser inteiro.")
+            fit_kwargs["early_stopping_patience"] = patience_raw
+        if payload.get("seed") is not None:
+            seed_raw = payload["seed"]
+            if isinstance(seed_raw, bool) or not isinstance(seed_raw, int):
+                raise ValidationError("seed deve ser inteiro.")
+            fit_kwargs["seed"] = seed_raw
+        if payload.get("rcond") is not None:
+            fit_kwargs["rcond"] = float(payload["rcond"])
+
+        res = fit_anfis(X_arr, y_arr, **fit_kwargs)
         if res.status != "failure" and res.data is not None and isinstance(res.data, Mapping):
             result_data = dict(res.data)
             fs_raw = result_data.get("fuzzy_system")
@@ -2001,10 +2043,14 @@ def _handle_fuzzy(req: dict[str, Any], store: Any) -> dict[str, Any]:
     elif op == "fuzzy.evaluate_surface" or (op == "fuzzy.evaluate" and "inputs" not in payload):
         n_pts = int(payload.get("n_points", payload.get("grid_points", 25)))
         grid_res = int(payload.get("grid_resolution", 101))
+        surface_output_name = payload.get("output_name")
+        if surface_output_name is not None and not isinstance(surface_output_name, str):
+            raise ValidationError("output_name em fuzzy.evaluate_surface deve ser string ou None.")
         res = evaluate_surface(
             system,
             input_axes=payload.get("input_axes"),
             fixed_inputs=payload.get("fixed_inputs"),
+            output_name=surface_output_name,
             n_points=n_pts,
             grid_resolution=grid_res,
         )

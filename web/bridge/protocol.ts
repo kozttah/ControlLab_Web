@@ -168,6 +168,39 @@ export interface RpcResponse {
   error: TypedError | null;
 }
 
+export interface FuzzySystemRef {
+  id: string;
+  revision: number;
+}
+
+export interface FuzzyFitAnfisPayload {
+  X: number[][];
+  y: number[] | number[][];
+  n_mfs?: number | number[];
+  mf_type?: string | string[];
+  input_names?: string[];
+  output_name?: string;
+  output_names?: string[];
+  max_epochs?: number;
+  learning_rate?: number;
+  validation_split?: number;
+  X_val?: number[][];
+  y_val?: number[] | number[][];
+  early_stopping_patience?: number;
+  seed?: number;
+  rcond?: number;
+}
+
+export interface FuzzyEvaluateSurfacePayload {
+  system?: Record<string, unknown>;
+  system_ref?: FuzzySystemRef;
+  input_axes?: string[];
+  fixed_inputs?: Record<string, number>;
+  output_name?: string;
+  n_points?: number;
+  grid_resolution?: number;
+}
+
 export type MaturityLevel =
   | "stable"
   | "beta"

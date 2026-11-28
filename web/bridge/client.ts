@@ -14,10 +14,14 @@ import {
   type CapabilityDescriptor,
   type EngineLifecycleState,
   type ExecutionMetrics,
+  type FuzzyEvaluateSurfacePayload,
+  type FuzzyFitAnfisPayload,
+  type FuzzySystemRef,
   type RpcRequest,
   type RpcResponse,
   type SolverProgress,
   type SolverProgressEvent,
+  type TimeoutPolicy,
 } from "./protocol.ts";
 import {
   TS_MODELING_OPERATIONS,
@@ -146,9 +150,27 @@ export type EngineClientEvent =
 export type EngineEventListener = (event: EngineClientEvent) => void;
 export type SolverProgressListener = (ev: SolverProgressEvent) => void;
 
+export interface FuzzyRpcContext {
+  request_id: string;
+  project_id: string;
+  project_revision: number;
+  options?: Record<string, unknown>;
+  timeout_policy?: TimeoutPolicy;
+}
+
 export interface ControlLabEngineClient {
   init(options?: EngineInitOptions): Promise<CapabilityDescriptor>;
   execute(request: RpcRequest, options?: ExecuteOptions): Promise<RpcResponse>;
+  fitAnfis?(
+    context: FuzzyRpcContext,
+    payload: FuzzyFitAnfisPayload,
+    options?: ExecuteOptions,
+  ): Promise<RpcResponse>;
+  evaluateFuzzySurface?(
+    context: FuzzyRpcContext,
+    payload: FuzzyEvaluateSurfacePayload,
+    options?: ExecuteOptions,
+  ): Promise<RpcResponse>;
   cancel(requestId: string, options?: CancelOptions): Promise<boolean>;
   registerObject(
     projectId: string,
@@ -622,6 +644,48 @@ export abstract class BaseEngineClient implements TsModelingEngineClient {
     return this.executeImmediate(rawRequest, options);
   }
 
+  public fitAnfis(
+    context: FuzzyRpcContext,
+    payload: FuzzyFitAnfisPayload,
+    options?: ExecuteOptions,
+  ): Promise<RpcResponse> {
+    return this.execute(
+      {
+        ...context,
+        api_version: RPC_API_VERSION,
+        operation: "fuzzy.fit_anfis",
+        payload: { ...payload },
+        options: context.options ?? {},
+        timeout_policy: context.timeout_policy ?? {
+          hard_timeout_ms: 60_000,
+          cancel_on_supersede: true,
+        },
+      },
+      options,
+    );
+  }
+
+  public evaluateFuzzySurface(
+    context: FuzzyRpcContext,
+    payload: FuzzyEvaluateSurfacePayload,
+    options?: ExecuteOptions,
+  ): Promise<RpcResponse> {
+    return this.execute(
+      {
+        ...context,
+        api_version: RPC_API_VERSION,
+        operation: "fuzzy.evaluate_surface",
+        payload: { ...payload },
+        options: context.options ?? {},
+        timeout_policy: context.timeout_policy ?? {
+          hard_timeout_ms: 30_000,
+          cancel_on_supersede: true,
+        },
+      },
+      options,
+    );
+  }
+
   public analyzeSectorPremises(
     context: TsModelingContext,
     payload: AnalyzeSectorPremisesPayload,
@@ -961,4 +1025,11 @@ export abstract class BaseEngineClient implements TsModelingEngineClient {
 }
 
 export { RPC_API_VERSION };
-export type { ExecutionMetrics, SolverProgress, SolverProgressEvent };
+export type {
+  ExecutionMetrics,
+  FuzzyEvaluateSurfacePayload,
+  FuzzyFitAnfisPayload,
+  FuzzySystemRef,
+  SolverProgress,
+  SolverProgressEvent,
+};

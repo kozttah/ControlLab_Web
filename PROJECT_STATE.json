@@ -30,7 +30,8 @@
       "2026-11-24": 6,
       "2026-11-25": 5,
       "2026-11-26": 7,
-      "2026-11-27": 1
+      "2026-11-27": 1,
+      "2026-11-28": 1
     }
   },
   "audit_reference": {
@@ -7416,9 +7417,11 @@
       "phase": "Phase11-UX-Ergonomics-And-MultiIO",
       "title": "F7: Contrato RPC Pyodide/Mock para ANFIS multi-I/O (n_mfs por entrada, output_names) e superfícies Fuzzy N×M",
       "allowed_paths": [
-        "web/worker/pyodide_worker.py",
-        "web/bridge/mock_worker.ts",
+        "control_lab/core/rpc.py",
+        "web/bridge/client.ts",
         "web/bridge/protocol.ts",
+        "web/worker/pyodide_worker.ts",
+        "tests/unit/f1/test_rpc_anfis.py",
         "tests/unit/f7/"
       ],
       "dependencies": [
@@ -7433,13 +7436,16 @@
         "T-RPC-01",
         "T-ANFIS-01"
       ],
-      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f7 && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f7/ -q",
-      "status": "PENDING",
+      "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f7 && PATH=\"/home/antigravity/.venv/bin:$PATH\" pytest tests/unit/f1/test_rpc_anfis.py -q",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.4",
       "acceptance_requirements": [
         "Encaminhar n_mfs por entrada (array de inteiros), mf_type por entrada, input_names e output_names (M>=1) em fuzzy.fit_anfis tanto no Pyodide Worker quanto no MockWorkerAdapter",
         "Suportar seleção de par de entradas (x_axis, y_axis), valores fixos das demais entradas (fixed_inputs) e saída alvo (output_name) em fuzzy.evaluate_surface para modelos N×M"
-      ]
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX11-02-F7-FUZZY-ANFIS-CSV-BRIDGE.md",
+      "acceptance_scope": "f7_rpc_and_bridge_anfis_multi_output_heterogeneous_mfs_and_fuzzy_surface_output_selection"
     },
     {
       "wp_id": "WP-UX11-03-F8-SISO-CHARTS-NYQUIST-DISCRETE-RLOCUS",

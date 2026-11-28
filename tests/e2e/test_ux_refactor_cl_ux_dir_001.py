@@ -1851,7 +1851,7 @@ def test_ux_workspace_first_system_definition_polytopic_ts_and_tab6(browser_harn
 
 def test_ux_phase9_cycle3_generic_recover_and_symmetric_fusion(browser_harness):
     """Test 15: Phase 9 Cycle 3 — Generic multi-recover display (P, K, trP) and symmetric doubly-quantified fusion badge on Tab 6."""
-    import re
+    import math
 
     page = mount_ui(browser_harness, "e2e-ux-phase9-cycle3", {"width": 1280, "height": 800})
 
@@ -1892,30 +1892,34 @@ def test_ux_phase9_cycle3_generic_recover_and_symmetric_fusion(browser_harness):
 
     rec_el = page.locator("#lmi-recovered-gain")
     rec_el.wait_for(state="visible")
-    rec_items = rec_el.locator(".lmi-recovered-item")
-    assert rec_items.count() >= 3, f"Expected at least 3 recovered items, got {rec_items.count()}"
+    def check_recovered_card(label, formula, rows=None, cols=None):
+        card = rec_el.locator(f'[data-lmi-matrix="{label}"]')
+        card.wait_for(state="visible")
+        assert card.count() == 1, f"Expected exactly one recovered card for {label}"
+        assert card.locator(".lmi-matrix-formula").inner_text() == f"({formula})"
+        if rows is None:
+            values = card.locator(".lmi-matrix-scalar-val code").all_inner_texts()
+            assert len(values) == 1, f"Expected one scalar value for {label}"
+        else:
+            table_rows = card.locator("table tbody tr")
+            assert table_rows.count() == rows, f"Unexpected matrix row count for {label}"
+            values = []
+            for idx in range(rows):
+                cells = table_rows.nth(idx).locator("td").all_inner_texts()
+                assert len(cells) == cols, f"Unexpected matrix column count for {label}"
+                values.extend(cells)
 
-    rec_texts = [rec_items.nth(idx).inner_text() for idx in range(rec_items.count())]
-    rec_joined = "\n".join(rec_texts)
-    assert "NaN" not in rec_joined and "Infinity" not in rec_joined and "aviso na recuperação" not in rec_joined, (
-        f"Unexpected non-finite or failed recover item in #lmi-recovered-gain: {rec_joined!r}"
-    )
+        for text in values:
+            value = float(text)
+            assert math.isfinite(value) and abs(value) < 1e12, f"Non-finite/exploded value for {label}: {text!r}"
+        return card.inner_text()
 
-    found_p = [t for t in rec_texts if "P" in t and "inv(Q)" in t and "trP" not in t and "K" not in t]
-    found_k = [t for t in rec_texts if "K" in t and "Y * inv(Q)" in t]
-    found_trp = [t for t in rec_texts if "trP" in t and "trace(P)" in t]
-    assert len(found_p) == 1, f"Expected P = inv(Q) item in #lmi-recovered-gain, got: {rec_texts}"
-    assert len(found_k) == 1, f"Expected K = Y * inv(Q) item in #lmi-recovered-gain, got: {rec_texts}"
-    assert len(found_trp) == 1, f"Expected trP = trace(P) item in #lmi-recovered-gain, got: {rec_texts}"
-
-    num_pattern = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?")
-    for label, text in (("P", found_p[0]), ("K", found_k[0]), ("trP", found_trp[0])):
-        value_part = text.split(":", 1)[-1]
-        nums = num_pattern.findall(value_part)
-        assert len(nums) >= 1, f"Expected finite numeric value for {label}, got: {text!r}"
-        for tok in nums:
-            val = float(tok)
-            assert val == val and abs(val) < 1e12, f"Non-finite/exploded value for {label}: {val}"
+    rec_texts = [
+        check_recovered_card("P", "inv(Q)", 2, 2),
+        check_recovered_card("K", "Y * inv(Q)", 1, 2),
+        check_recovered_card("trP", "trace(P)"),
+    ]
+    assert "aviso na recuperação" not in rec_el.inner_text()
 
     # 3. Load polytopic_2v example -> enter symmetric doubly-quantified DSL -> verify #lmi-fusion-badge & Pyodide solve
     page.select_option("#dock-example-select", "polytopic_2v")
@@ -1956,9 +1960,10 @@ def test_ux_phase9_cycle3_generic_recover_and_symmetric_fusion(browser_harness):
         f"Expected symmetric fusion badge '1 par simétrico fundido (5 → 4)', got: {fusion_badge_text!r}"
     )
 
-    fused_rec_text = page.locator("#lmi-recovered-gain").inner_text()
-    assert "K[1]" in fused_rec_text and "K[2]" in fused_rec_text
-    assert "NaN" not in fused_rec_text and "Infinity" not in fused_rec_text
+    fused_rec_text = "\n".join(
+        check_recovered_card(label, "Y[i] * inv(Q)", 1, 2) for label in ("K[1]", "K[2]")
+    )
+    assert "aviso na recuperação" not in rec_el.inner_text()
 
     browser_harness.record(
         "e2e-ux-phase9-cycle3",

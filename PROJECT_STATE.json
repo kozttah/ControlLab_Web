@@ -31,7 +31,7 @@
       "2026-11-25": 5,
       "2026-11-26": 7,
       "2026-11-27": 1,
-      "2026-11-28": 1
+      "2026-11-28": 2
     }
   },
   "audit_reference": {
@@ -7475,13 +7475,16 @@
         "T-UI-01"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.2",
       "acceptance_requirements": [
         "Reposicionar os controles da Aba 2 em faixa compacta acima/abaixo da grade 2×2 para que Bode, Nyquist, Lugar das Raízes e Degrau ocupem 100% da largura da bancada",
         "No Nyquist interativo, desenhar o vetor de distância entre (-1, 0) e o ponto clicado L(jω0) exibindo |L(jω0)+1| e |S(jω0)|, além das anotações visuais da Margem de Fase (arco sobre |L|=1 até -180°) e Margem de Ganho (segmento sobre o eixo real negativo até -1)",
         "No Lugar das Raízes e Mapa Polo-Zero discretos (dt !== null), centralizar o círculo unitário |z|=1 com razão de aspecto 1:1 e renderizar regiões heurísticas de 2ª ordem corretas no plano z (espirais logarítmicas de ζ constante, arcos de ωn·Ts constante e círculos de raio espectral e^(-σ0·Ts), sempre com selo [Heurístico])"
-      ]
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX11-03-F8-SISO-CHARTS-NYQUIST-DISCRETE-RLOCUS.md",
+      "acceptance_scope": "f8_siso_fullwidth_charts_nyquist_vector_margins_and_discrete_z_plane_rlocus_overlays"
     },
     {
       "wp_id": "WP-UX11-04-F8-MIMO-CONTROLLER-DISPLAY-AND-LAYOUT",

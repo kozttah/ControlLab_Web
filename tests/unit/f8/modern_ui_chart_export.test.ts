@@ -220,7 +220,8 @@ test("WP-AUDIT-FIX-F8-MODERN-UI-CHART-EXPORT: layout moderno, hierarquia de botÃ
   assert.ok(root.querySelector(".lqr-action-card") !== null);
   assert.ok(root.querySelector(".lqr-export-card") !== null);
   assert.ok(root.querySelectorAll(".typed-subcard").length === 3);
-  assert.ok(root.querySelectorAll(".workspace-two-col").length === 2);
+  assert.ok(root.querySelectorAll(".workspace-two-col").length >= 1);
+  assert.ok(root.querySelector(".siso-workbench-stack") !== null);
 
   // Switching to siso_frequency activates .single-main-col
   app.shell.switchTab("siso_frequency");

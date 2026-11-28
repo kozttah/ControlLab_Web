@@ -20,6 +20,7 @@ import {
 } from "../app/accessibility.ts";
 import type { ResultVerificationIndicator } from "../app/tool_descriptor.ts";
 import {
+  createSecondOrderRegionOverlay,
   generateOverlaySvgPath,
   type ChartViewport,
   type OverlayConfidenceClass,
@@ -207,6 +208,14 @@ export interface BodeChartModel extends ChartCommonMetadata {
   delay_representation: "none" | "exact" | "pade";
 }
 
+export interface NyquistStabilityMarginsMetadata {
+  gain_margin?: number | null;
+  gain_margin_db?: number | null;
+  phase_margin_deg?: number | null;
+  w_gc?: number | null;
+  w_pc?: number | null;
+}
+
 export interface NyquistChartModel extends ChartCommonMetadata {
   kind: "nyquist";
   dt: number | null;
@@ -214,6 +223,7 @@ export interface NyquistChartModel extends ChartCommonMetadata {
   re: readonly number[];
   im: readonly number[];
   delay_representation: "none" | "exact" | "pade";
+  margins?: NyquistStabilityMarginsMetadata | null;
 }
 
 export interface RootLocusChartModel extends ChartCommonMetadata {
@@ -519,6 +529,7 @@ export function buildNyquistChartModel(input: {
   re: readonly number[];
   im: readonly number[];
   delay_representation?: "none" | "exact" | "pade";
+  margins?: NyquistStabilityMarginsMetadata | null;
 }): NyquistChartModel {
   return {
     kind: "nyquist",
@@ -538,6 +549,7 @@ export function buildNyquistChartModel(input: {
     re: [...input.re],
     im: [...input.im],
     delay_representation: input.delay_representation ?? "none",
+    margins: input.margins ? { ...input.margins } : undefined,
   };
 }
 
@@ -731,6 +743,8 @@ export interface NyquistDatatipInspection {
   im: number;
   pxX: number;
   pxY: number;
+  distance_to_minus_one: number;
+  sensitivity_mag: number;
 }
 
 export interface RootLocusFrozenPole {
@@ -986,6 +1000,68 @@ export function renderBodeSvg(
   ].join("");
 }
 
+function computeCenteredDiscreteBounds(
+  allRe: readonly number[],
+  allIm: readonly number[],
+  plotW: number,
+  plotH: number,
+): { xBounds: AxisBounds; yBounds: AxisBounds } {
+  let maxAbs = 1.25;
+  for (const v of allRe) {
+    if (Number.isFinite(v) && Math.abs(v) > 1.15) {
+      maxAbs = Math.max(maxAbs, Math.abs(v) * 1.12);
+    }
+  }
+  for (const v of allIm) {
+    if (Number.isFinite(v) && Math.abs(v) > 1.15) {
+      maxAbs = Math.max(maxAbs, Math.abs(v) * 1.12);
+    }
+  }
+  const safeW = Math.max(1, plotW);
+  const safeH = Math.max(1, plotH);
+  let xHalf: number;
+  let yHalf: number;
+  if (safeW >= safeH) {
+    yHalf = maxAbs;
+    xHalf = maxAbs * (safeW / safeH);
+  } else {
+    xHalf = maxAbs;
+    yHalf = maxAbs * (safeH / safeW);
+  }
+  return {
+    xBounds: { min: -xHalf, max: xHalf, span: 2 * xHalf, isConstant: false },
+    yBounds: { min: -yHalf, max: yHalf, span: 2 * yHalf, isConstant: false },
+  };
+}
+
+function normalizeOverlayForDomain(
+  ov: RequirementOverlay,
+  dt: number | null,
+): RequirementOverlay {
+  if (
+    dt !== null &&
+    Number.isFinite(dt) &&
+    dt > 0 &&
+    ov.domain !== "discrete" &&
+    (ov.kind === "second_order_damping" ||
+      ov.kind === "second_order_natural_freq" ||
+      ov.kind === "second_order_settling_time" ||
+      ov.kind === "second_order_overshoot")
+  ) {
+    const cls = ov.classification === "estimated" ? "estimated" : "heuristic";
+    return createSecondOrderRegionOverlay({
+      id: ov.id,
+      zetaMin: ov.parameters.zeta_min,
+      wnMin: ov.kind === "second_order_natural_freq" ? ov.parameters.wn_min : undefined,
+      maxOvershootPct: ov.parameters.max_overshoot_pct,
+      maxSettlingTimeS: ov.parameters.max_settling_time_s,
+      dt,
+      classification: cls,
+    });
+  }
+  return ov;
+}
+
 function computeNyquistGeometry(
   model: NyquistChartModel,
   options?: { widthPx?: number; heightPx?: number },
@@ -999,8 +1075,8 @@ function computeNyquistGeometry(
   const plotW = widthPx - padLeft - padRight;
   const plotH = heightPx - padTop - padBottom;
 
-  const allRe = [-1, 0, ...model.re.filter(Number.isFinite)];
-  const allIm = [0, ...model.im.filter(Number.isFinite)];
+  const allRe = [-1, 0, 1, ...model.re.filter(Number.isFinite)];
+  const allIm = [-1, 0, 1, ...model.im.filter(Number.isFinite)];
   const xBounds = computeSafeAxisBounds(allRe, 0.15);
   const yBounds = computeSafeAxisBounds(allIm, 0.15);
 
@@ -1058,13 +1134,20 @@ export function inspectNyquistAtSvgPoint(
   }
 
   if (bestIdx < 0) return null;
+  const bestRe = model.re[bestIdx];
+  const bestIm = model.im[bestIdx];
+  const distToMinusOne = Math.hypot(bestRe + 1, bestIm);
+  const sensitivityMag =
+    distToMinusOne > 1e-12 ? 1 / distToMinusOne : Number.POSITIVE_INFINITY;
   return {
     sampleIndex: bestIdx,
     omega: model.omega[bestIdx],
-    re: model.re[bestIdx],
-    im: model.im[bestIdx],
+    re: bestRe,
+    im: bestIm,
     pxX: bestPxX,
     pxY: bestPxY,
+    distance_to_minus_one: distToMinusOne,
+    sensitivity_mag: sensitivityMag,
   };
 }
 
@@ -1076,6 +1159,7 @@ export function renderNyquistSvg(
     decimals?: number;
     selectedSampleIndex?: number | null;
     themeMode?: AccessibilityThemeMode;
+    margins?: NyquistStabilityMarginsMetadata | null;
   },
 ): string {
   const decimals = options?.decimals ?? 3;
@@ -1096,6 +1180,96 @@ export function renderNyquistSvg(
   const zeroX = toPxX(0);
   const zeroY = toPxY(0);
 
+  // 1. Círculo unitário |L(jω)| = 1
+  const unitRx = Math.abs(toPxX(1) - zeroX);
+  const unitRy = Math.abs(toPxY(1) - zeroY);
+  const unitCircleSvg = `<ellipse cx="${zeroX.toFixed(2)}" cy="${zeroY.toFixed(2)}" rx="${unitRx.toFixed(2)}" ry="${unitRy.toFixed(2)}" fill="none" stroke="${theme.chartAxis}" stroke-dasharray="4 4" stroke-width="1.2" opacity="0.65" data-nyquist-annotation="unit-circle" aria-label="Círculo unitário |L(jω)| = 1"><title>Círculo unitário |L(jω)| = 1</title></ellipse>`;
+
+  // 2. Anotações visuais de Margem de Fase (MF) e Margem de Ganho (MG)
+  const margins = options?.margins ?? model.margins ?? null;
+  let phaseMarginSvg = "";
+  let gainMarginSvg = "";
+
+  if (margins) {
+    const pmDeg = margins.phase_margin_deg;
+    if (typeof pmDeg === "number" && Number.isFinite(pmDeg)) {
+      const pmRad = (pmDeg * Math.PI) / 180;
+      const phiGcRad = -Math.PI + pmRad;
+      const gcRe = Math.cos(phiGcRad);
+      const gcIm = Math.sin(phiGcRad);
+      const gcPxX = toPxX(gcRe);
+      const gcPxY = toPxY(gcIm);
+
+      const arcSteps = 24;
+      const arcCmds: string[] = [];
+      for (let i = 0; i <= arcSteps; i += 1) {
+        const theta = -Math.PI + (pmRad * i) / arcSteps;
+        const ax = toPxX(Math.cos(theta));
+        const ay = toPxY(Math.sin(theta));
+        arcCmds.push(`${i === 0 ? "M" : "L"} ${ax.toFixed(2)} ${ay.toFixed(2)}`);
+      }
+      const midTheta = -Math.PI + pmRad / 2;
+      const lblX = toPxX(1.14 * Math.cos(midTheta));
+      const lblY = toPxY(1.14 * Math.sin(midTheta));
+      const pmLabel = `MF = ${formatNumericDisplay(pmDeg, Math.min(decimals, 1))}°`;
+      const wgcInfo =
+        typeof margins.w_gc === "number" && Number.isFinite(margins.w_gc)
+          ? ` (ω_gc = ${formatNumericDisplay(margins.w_gc, decimals)} rad/s)`
+          : "";
+
+      phaseMarginSvg = [
+        `<g data-nyquist-annotation="phase-margin">`,
+        `<path d="${arcCmds.join(" ")}" fill="none" stroke="${theme.chartOverlayExact}" stroke-width="2.4"><title>${escapeHtml(pmLabel + wgcInfo)}</title></path>`,
+        `<line x1="${zeroX.toFixed(1)}" y1="${zeroY.toFixed(1)}" x2="${gcPxX.toFixed(1)}" y2="${gcPxY.toFixed(1)}" stroke="${theme.chartOverlayExact}" stroke-dasharray="3 2" stroke-width="1.2" opacity="0.85" />`,
+        `<circle cx="${gcPxX.toFixed(1)}" cy="${gcPxY.toFixed(1)}" r="4.5" fill="${theme.chartOverlayExact}" stroke="${theme.surface}" stroke-width="1.5"><title>Cruzamento de ganho |L(jω_gc)| = 1 | ${escapeHtml(pmLabel + wgcInfo)}</title></circle>`,
+        `<text x="${lblX.toFixed(1)}" y="${lblY.toFixed(1)}" font-size="10.5" font-weight="bold" fill="${theme.chartOverlayExact}" text-anchor="middle">${escapeHtml(pmLabel)}</text>`,
+        `</g>`,
+      ].join("");
+    }
+
+    let kGm: number | null = null;
+    if (
+      typeof margins.gain_margin === "number" &&
+      Number.isFinite(margins.gain_margin) &&
+      margins.gain_margin > 1e-6
+    ) {
+      kGm = margins.gain_margin;
+    } else if (
+      typeof margins.gain_margin_db === "number" &&
+      Number.isFinite(margins.gain_margin_db)
+    ) {
+      const lin = 10 ** (margins.gain_margin_db / 20);
+      if (Number.isFinite(lin) && lin > 1e-6) {
+        kGm = lin;
+      }
+    }
+
+    if (kGm !== null) {
+      const gmDb =
+        typeof margins.gain_margin_db === "number" && Number.isFinite(margins.gain_margin_db)
+          ? margins.gain_margin_db
+          : 20 * Math.log10(kGm);
+      const pcRe = -1 / kGm;
+      const pcPxX = toPxX(pcRe);
+      const pcPxY = toPxY(0);
+      const midX = (pcPxX + critX) / 2;
+      const gmLabel = `MG = ${formatNumericDisplay(gmDb, Math.min(decimals, 1))} dB (×${formatNumericDisplay(kGm, Math.min(decimals, 2))})`;
+      const wpcInfo =
+        typeof margins.w_pc === "number" && Number.isFinite(margins.w_pc)
+          ? ` (ω_pc = ${formatNumericDisplay(margins.w_pc, decimals)} rad/s)`
+          : "";
+
+      gainMarginSvg = [
+        `<g data-nyquist-annotation="gain-margin">`,
+        `<line x1="${pcPxX.toFixed(1)}" y1="${pcPxY.toFixed(1)}" x2="${critX.toFixed(1)}" y2="${critY.toFixed(1)}" stroke="${theme.chartOpenLoop}" stroke-width="3"><title>${escapeHtml(gmLabel + wpcInfo)}</title></line>`,
+        `<circle cx="${pcPxX.toFixed(1)}" cy="${pcPxY.toFixed(1)}" r="4.5" fill="${theme.chartOpenLoop}" stroke="${theme.surface}" stroke-width="1.5"><title>Cruzamento de fase (-1/K_gm, 0) | ${escapeHtml(gmLabel + wpcInfo)}</title></circle>`,
+        `<text x="${midX.toFixed(1)}" y="${(pcPxY + 16).toFixed(1)}" font-size="10.5" font-weight="bold" fill="${theme.chartOpenLoop}" text-anchor="middle">${escapeHtml(gmLabel)}</text>`,
+        `</g>`,
+      ].join("");
+    }
+  }
+
+  // 3. Datatip interativo com vetor de distância até (-1, j0)
   let datatipSvg = "";
   const selIdx = options?.selectedSampleIndex;
   if (
@@ -1111,15 +1285,25 @@ export function renderNyquistSvg(
     if (Number.isFinite(r) && Number.isFinite(im)) {
       const dx = toPxX(r);
       const dy = toPxY(im);
+      const dist = Math.hypot(r + 1, im);
+      const sens = dist > 1e-12 ? 1 / dist : Number.POSITIVE_INFINITY;
+      const midX = (critX + dx) / 2;
+      const midY = (critY + dy) / 2 - 7;
+      const distLabel = `d = ${formatNumericDisplay(dist, decimals)}`;
+      const sensStr = Number.isFinite(sens) ? formatNumericDisplay(sens, decimals) : "∞";
       datatipSvg = [
         `<g data-layer="datatip" data-sample-index="${selIdx}">`,
-        `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="5.5" fill="${theme.accent}" stroke="${theme.surface}" stroke-width="2"><title>ω=${formatNumericDisplay(w, decimals)} rad/s | L(jω)=${formatNumericDisplay(r, decimals)} ${im >= 0 ? "+" : "-"} j${formatNumericDisplay(Math.abs(im), decimals)}</title></circle>`,
+        `<g data-nyquist-annotation="distance-vector" data-distance="${dist.toFixed(6)}" data-sensitivity="${Number.isFinite(sens) ? sens.toFixed(6) : "Infinity"}">`,
+        `<line x1="${critX.toFixed(1)}" y1="${critY.toFixed(1)}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${theme.accent}" stroke-width="2" stroke-dasharray="5 3"><title>Distância até (-1, j0): d = ${escapeHtml(formatNumericDisplay(dist, decimals))} | |S(jω)| = ${escapeHtml(sensStr)}</title></line>`,
+        `<text x="${midX.toFixed(1)}" y="${midY.toFixed(1)}" font-size="10.5" font-weight="bold" fill="${theme.accent}" text-anchor="middle">${escapeHtml(distLabel)}</text>`,
+        `</g>`,
+        `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="5.5" fill="${theme.accent}" stroke="${theme.surface}" stroke-width="2"><title>ω=${formatNumericDisplay(w, decimals)} rad/s | L(jω)=${formatNumericDisplay(r, decimals)} ${im >= 0 ? "+" : "-"} j${formatNumericDisplay(Math.abs(im), decimals)} | d=${formatNumericDisplay(dist, decimals)} | |S|=${sensStr}</title></circle>`,
         `</g>`,
       ].join("");
     }
   }
 
-  const desc = `Diagrama de Nyquist de ${model.title}. Ponto crítico (-1, j0) destacado. Atraso: ${model.delay_representation}.`;
+  const desc = `Diagrama de Nyquist de ${model.title}. Círculo unitário |L(jω)|=1 e ponto crítico (-1, j0) destacados. Atraso: ${model.delay_representation}.`;
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeHtml(model.title)}" class="scientific-chart-svg nyquist-chart" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}" data-chart-id="${escapeHtml(model.chart_id)}">`,
@@ -1129,7 +1313,10 @@ export function renderNyquistSvg(
     `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="none" stroke="${theme.chartGrid}" stroke-width="1" />`,
     `<line x1="${padLeft}" y1="${zeroY.toFixed(1)}" x2="${padLeft + plotW}" y2="${zeroY.toFixed(1)}" stroke="${theme.chartGrid}" stroke-width="1" />`,
     `<line x1="${zeroX.toFixed(1)}" y1="${padTop}" x2="${zeroX.toFixed(1)}" y2="${padTop + plotH}" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    unitCircleSvg,
     `<polyline fill="none" stroke="${theme.chartClosedLoop}" stroke-width="2" points="${pts.join(" ")}" data-layer="nyquist-curve" />`,
+    phaseMarginSvg,
+    gainMarginSvg,
     `<g data-critical-point="minus-one">`,
     `<circle cx="${critX.toFixed(1)}" cy="${critY.toFixed(1)}" r="5" fill="${theme.chartOverlayHeuristic}" stroke="#fff" stroke-width="1.5" />`,
     `<text x="${(critX - 6).toFixed(1)}" y="${(critY - 8).toFixed(1)}" font-size="11" font-weight="bold" fill="${theme.chartOverlayHeuristic}" text-anchor="end">(-1, j0)</text>`,
@@ -1169,13 +1356,17 @@ function computeRootLocusGeometry(
     allRe.push(...b.real.filter(Number.isFinite));
     allIm.push(...b.imag.filter(Number.isFinite));
   }
-  if (model.dt !== null) {
-    allRe.push(-1, 1);
-    allIm.push(-1, 1);
-  }
 
-  const xBounds = computeSafeAxisBounds(allRe, 0.15);
-  const yBounds = computeSafeAxisBounds(allIm, 0.15);
+  let xBounds: AxisBounds;
+  let yBounds: AxisBounds;
+  if (model.dt !== null) {
+    const centered = computeCenteredDiscreteBounds(allRe, allIm, plotW, plotH);
+    xBounds = centered.xBounds;
+    yBounds = centered.yBounds;
+  } else {
+    xBounds = computeSafeAxisBounds(allRe, 0.15);
+    yBounds = computeSafeAxisBounds(allIm, 0.15);
+  }
 
   const vp: ChartViewport = {
     widthPx,
@@ -1322,7 +1513,8 @@ export function renderRootLocusSvg(
   }
 
   const overlaysSvg = model.overlays
-    .map((ov) => {
+    .map((rawOv) => {
+      const ov = normalizeOverlayForDomain(rawOv, model.dt);
       const g = generateOverlaySvgPath(ov, vp);
       const col =
         ov.classification === "exact"
@@ -1370,8 +1562,17 @@ export function renderRootLocusSvg(
 
   const zeroX = toPxX(0);
   const zeroY = toPxY(0);
+  const isDiscrete = model.dt !== null;
+  const unitCircleSvg = isDiscrete
+    ? (() => {
+        const rx = Math.abs(toPxX(1) - zeroX);
+        const ry = Math.abs(toPxY(1) - zeroY);
+        return `<ellipse cx="${zeroX.toFixed(4)}" cy="${zeroY.toFixed(4)}" rx="${rx.toFixed(4)}" ry="${ry.toFixed(4)}" fill="none" stroke="${theme.chartAxis}" stroke-dasharray="4 4" stroke-width="1.5" data-unit-circle="true" aria-label="Círculo unitário |z|=1"><title>Círculo unitário |z| = 1</title></ellipse>`;
+      })()
+    : "";
+  const axisVar = isDiscrete ? "z" : "s";
 
-  const desc = `Lugar das Raízes (Root Locus) de ${model.title}. ${model.branches.length} ramos.`;
+  const desc = `Lugar das Raízes (Root Locus) de ${model.title}. ${model.branches.length} ramos.${isDiscrete ? " Plano-z discreto com círculo unitário |z|=1 centrado." : ""}`;
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeHtml(model.title)}" class="scientific-chart-svg root-locus-chart" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}" data-chart-id="${escapeHtml(model.chart_id)}">`,
@@ -1381,14 +1582,15 @@ export function renderRootLocusSvg(
     `<rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="none" stroke="${theme.chartGrid}" stroke-width="1" />`,
     `<line x1="${padLeft}" y1="${zeroY.toFixed(1)}" x2="${padLeft + plotW}" y2="${zeroY.toFixed(1)}" stroke="${theme.chartGrid}" stroke-width="1" />`,
     `<line x1="${zeroX.toFixed(1)}" y1="${padTop}" x2="${zeroX.toFixed(1)}" y2="${padTop + plotH}" stroke="${theme.chartGrid}" stroke-width="1" />`,
+    unitCircleSvg,
     overlaysSvg,
     ...branchPolylines,
     ...poleSvgs,
     ...zeroSvgs,
     frozenDatatipSvg,
     `<text x="${padLeft}" y="20" font-size="13" font-weight="bold" fill="${theme.textPrimary}">${escapeHtml(formatChartHeadingTitle(model.title, model.series_semantics))}</text>`,
-    `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Im(s)</text>`,
-    `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Re(s)</text>`,
+    `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Im(${axisVar})</text>`,
+    `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${heightPx - 10}" text-anchor="middle" font-size="11" fill="${theme.textSecondary}">Re(${axisVar})</text>`,
     `</svg>`,
   ].join("");
 }
@@ -1683,28 +1885,36 @@ export function renderPoleZeroSvg(
   collect(model.preview_poles);
   collect(model.zeros);
 
-  if (model.dt !== null) {
-    allRe.push(-1, 1);
-    allIm.push(-1, 1);
-  }
+  const padLeftPx = 64;
+  const padRightPx = 24;
+  const padTopPx = 40;
+  const padBottomPx = 54;
+  const plotW = widthPx - padLeftPx - padRightPx;
+  const plotH = heightPx - padTopPx - padBottomPx;
 
-  const xBounds = computeSafeAxisBounds(allRe, 0.15);
-  const yBounds = computeSafeAxisBounds(allIm, 0.15);
+  let xBounds: AxisBounds;
+  let yBounds: AxisBounds;
+  if (model.dt !== null) {
+    const centered = computeCenteredDiscreteBounds(allRe, allIm, plotW, plotH);
+    xBounds = centered.xBounds;
+    yBounds = centered.yBounds;
+  } else {
+    xBounds = computeSafeAxisBounds(allRe, 0.15);
+    yBounds = computeSafeAxisBounds(allIm, 0.15);
+  }
 
   const vp: ChartViewport = {
     widthPx,
     heightPx,
-    padLeftPx: 64,
-    padRightPx: 24,
-    padTopPx: 40,
-    padBottomPx: 54,
+    padLeftPx,
+    padRightPx,
+    padTopPx,
+    padBottomPx,
     xMin: xBounds.min,
     xMax: xBounds.max,
     yMin: yBounds.min,
     yMax: yBounds.max,
   };
-  const plotW = vp.widthPx - vp.padLeftPx - vp.padRightPx;
-  const plotH = vp.heightPx - vp.padTopPx - vp.padBottomPx;
 
   const toPxX = (x: number) => mapCoord(x, vp.xMin, xBounds.span, vp.padLeftPx, plotW, false);
   const toPxY = (y: number) => mapCoord(y, vp.yMin, yBounds.span, vp.padTopPx, plotH, true);
@@ -1720,7 +1930,8 @@ export function renderPoleZeroSvg(
         : theme.chartOverlayHeuristic;
 
   const overlaysSvg = model.overlays
-    .map((ov) => {
+    .map((rawOv) => {
+      const ov = normalizeOverlayForDomain(rawOv, model.dt);
       const g = generateOverlaySvgPath(ov, vp);
       const col = overlayColor(ov.classification);
       return `<path d="${g.pathD}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="${g.strokeDasharray}" data-overlay-id="${escapeHtml(ov.id)}" data-overlay-class="${escapeHtml(ov.classification)}"><title>${escapeHtml(g.ariaDescription)}</title></path>`;
@@ -1773,7 +1984,7 @@ export function renderPoleZeroSvg(
           const cy = toPxY(0);
           const rx = Math.abs(toPxX(1) - cx);
           const ry = Math.abs(toPxY(1) - cy);
-          return `<ellipse cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${ry.toFixed(2)}" fill="none" stroke="${theme.chartAxis}" stroke-dasharray="4 4" stroke-width="1.5" aria-label="Círculo unitário |z|=1" />`;
+          return `<ellipse cx="${cx.toFixed(4)}" cy="${cy.toFixed(4)}" rx="${rx.toFixed(4)}" ry="${ry.toFixed(4)}" fill="none" stroke="${theme.chartAxis}" stroke-dasharray="4 4" stroke-width="1.5" data-unit-circle="true" aria-label="Círculo unitário |z|=1" />`;
         })()
       : "";
 

@@ -244,9 +244,14 @@ export function createSecondOrderRegionOverlay(params: {
   wnMin?: number;
   maxOvershootPct?: number;
   maxSettlingTimeS?: number;
+  dt?: number | null;
   classification?: "heuristic" | "estimated";
 }): RequirementOverlay {
   const classification = params.classification ?? "heuristic";
+  const isDiscrete =
+    typeof params.dt === "number" && Number.isFinite(params.dt) && params.dt > 0;
+  const dtVal = isDiscrete ? (params.dt as number) : null;
+
   let zeta = params.zetaMin;
   if (zeta === undefined && params.maxOvershootPct !== undefined) {
     const mp = params.maxOvershootPct / 100;
@@ -255,6 +260,14 @@ export function createSecondOrderRegionOverlay(params: {
       zeta = Math.sqrt((lnMp * lnMp) / (Math.PI * Math.PI + lnMp * lnMp));
     }
   }
+  const hasZeta =
+    params.zetaMin !== undefined ||
+    params.maxOvershootPct !== undefined ||
+    (params.wnMin === undefined && params.maxSettlingTimeS === undefined);
+  const hasWn = params.wnMin !== undefined;
+  const hasSettlingTime =
+    params.maxSettlingTimeS !== undefined && params.maxSettlingTimeS > 0;
+
   const effectiveZeta = zeta ?? 0.5;
   if (!Number.isFinite(effectiveZeta) || effectiveZeta < 0 || effectiveZeta >= 1) {
     throw new ControlLabBridgeError(
@@ -264,7 +277,7 @@ export function createSecondOrderRegionOverlay(params: {
   }
 
   let wn = params.wnMin;
-  if (wn === undefined && params.maxSettlingTimeS !== undefined && params.maxSettlingTimeS > 0) {
+  if (wn === undefined && hasSettlingTime && params.maxSettlingTimeS !== undefined) {
     wn = 4 / (Math.max(1e-6, effectiveZeta) * params.maxSettlingTimeS);
   }
   const effectiveWn = wn ?? 1.0;
@@ -282,40 +295,67 @@ export function createSecondOrderRegionOverlay(params: {
   if (params.zetaMin !== undefined || params.maxOvershootPct !== undefined) {
     labelParts.push(`ζ >= ${effectiveZeta.toFixed(2)}`);
   }
-  if (params.wnMin !== undefined || params.maxSettlingTimeS !== undefined) {
+  if (params.wnMin !== undefined) {
     labelParts.push(`ω_n >= ${effectiveWn.toFixed(2)} rad/s`);
   }
+  if (hasSettlingTime && params.maxSettlingTimeS !== undefined) {
+    labelParts.push(`T_s <= ${params.maxSettlingTimeS.toFixed(2)} s`);
+  }
+
+  const sigma0 =
+    hasSettlingTime && params.maxSettlingTimeS !== undefined
+      ? 4 / params.maxSettlingTimeS
+      : undefined;
+  const spectralRadiusTs =
+    isDiscrete && dtVal !== null && sigma0 !== undefined
+      ? Math.exp(-sigma0 * dtVal)
+      : undefined;
+
+  const domainTag = isDiscrete && dtVal !== null ? ` plano-z (dt=${dtVal}s)` : "";
+  const defaultLabel = `Região 2ª ordem${domainTag} [Heurístico] (${labelParts.join(", ") || `ζ >= ${effectiveZeta.toFixed(2)}`})`;
 
   return createRequirementOverlay({
-    id: params.id ?? `overlay-2nd-order-${kind}`,
-    label:
-      params.label ??
-      `Região 2ª ordem (${labelParts.join(", ") || `ζ >= ${effectiveZeta.toFixed(2)}`})`,
+    id: params.id ?? `overlay-2nd-order-${kind}${isDiscrete ? "-discrete" : ""}`,
+    label: params.label ?? defaultLabel,
     kind,
     classification,
-    domain: "continuous",
+    domain: isDiscrete ? "discrete" : "continuous",
     parameters: {
       zeta_min: effectiveZeta,
       wn_min: effectiveWn,
+      has_zeta: hasZeta ? 1 : 0,
+      has_wn: hasWn ? 1 : 0,
+      ...(dtVal !== null ? { dt: dtVal } : {}),
       ...(params.maxOvershootPct !== undefined
         ? { max_overshoot_pct: params.maxOvershootPct }
         : {}),
       ...(params.maxSettlingTimeS !== undefined
         ? { max_settling_time_s: params.maxSettlingTimeS }
         : {}),
+      ...(spectralRadiusTs !== undefined
+        ? { spectral_radius_ts: spectralRadiusTs }
+        : {}),
     },
-    mathematical_basis:
-      "Aproximação geométrica de polo dominante de 2ª ordem sem zeros finitos nem saturação.",
+    mathematical_basis: isDiscrete
+      ? "Mapeamento discreto z = exp(s·dt) de aproximação geométrica de polo dominante de 2ª ordem (espiral logarítmica ζ, curva ω_n constante, raio espectral T_s)."
+      : "Aproximação geométrica de polo dominante de 2ª ordem sem zeros finitos nem saturação.",
     caveats: [
       "Não constitui garantia exata em sistemas de ordem > 2, com zeros próximos ou saturação de atuador.",
       "Critérios temporais efetivos (overshoot, T_s) devem ser conferidos na simulação numérica.",
     ],
     geometry_hint: {
-      shape: "wedge",
+      shape:
+        isDiscrete && hasSettlingTime && !hasZeta && !hasWn
+          ? "disk"
+          : "wedge",
       boundary_values: {
         zeta_min: effectiveZeta,
         wn_min: effectiveWn,
         theta_rad: Math.acos(effectiveZeta),
+        ...(dtVal !== null ? { dt: dtVal } : {}),
+        ...(spectralRadiusTs !== undefined
+          ? { center_real: 0, center_imag: 0, radius: spectralRadiusTs }
+          : {}),
       },
     },
   });
@@ -391,11 +431,50 @@ export function evaluatePolesAgainstOverlay(
     } else if (SECOND_ORDER_HEURISTIC_KINDS.has(overlay.kind)) {
       const zetaMin = overlay.parameters.zeta_min ?? 0;
       const wnMin = overlay.parameters.wn_min ?? 0;
-      const wn = Math.hypot(re, im);
-      const actualZeta = wn > 0 ? -re / wn : re < 0 ? 1 : -1;
-      const zetaMargin = actualZeta - zetaMin;
-      const wnMargin = wnMin > 0 ? wn - wnMin : 0;
-      margin = Math.min(zetaMargin, wnMargin);
+      const dt = overlay.parameters.dt ?? overlay.geometry_hint.boundary_values.dt;
+      const maxSettlingTimeS = overlay.parameters.max_settling_time_s;
+      const hasZeta =
+        overlay.parameters.has_zeta !== undefined
+          ? overlay.parameters.has_zeta > 0
+          : overlay.kind === "second_order_damping" || overlay.kind === "second_order_overshoot";
+      const hasWn =
+        overlay.parameters.has_wn !== undefined
+          ? overlay.parameters.has_wn > 0
+          : overlay.kind === "second_order_natural_freq";
+      const hasTs = typeof maxSettlingTimeS === "number" && Number.isFinite(maxSettlingTimeS) && maxSettlingTimeS > 0;
+
+      if (overlay.domain === "discrete" && typeof dt === "number" && Number.isFinite(dt) && dt > 0) {
+        const r = Math.hypot(re, im);
+        if (r >= 1) {
+          margin = Math.min(-1e-12, 1 - r);
+        } else if (r <= 1e-15) {
+          // Polo deadbeat na origem z = 0 (decaimento infinito)
+          margin = 1;
+        } else {
+          const sRe = Math.log(r) / dt;
+          const sIm = Math.atan2(im, re) / dt;
+          const sMag = Math.hypot(sRe, sIm);
+          const zetaEq = sMag > 0 ? -sRe / sMag : 1;
+          const subMargins: number[] = [1 - r];
+          if (hasZeta) {
+            subMargins.push(zetaEq - zetaMin);
+          }
+          if (hasWn && wnMin > 0) {
+            subMargins.push(sMag - wnMin);
+          }
+          if (hasTs) {
+            const rTs = Math.exp(-(4 / maxSettlingTimeS) * dt);
+            subMargins.push(rTs - r);
+          }
+          margin = Math.min(...subMargins);
+        }
+      } else {
+        const wn = Math.hypot(re, im);
+        const actualZeta = wn > 0 ? -re / wn : re < 0 ? 1 : -1;
+        const zetaMargin = actualZeta - zetaMin;
+        const wnMargin = wnMin > 0 ? wn - wnMin : 0;
+        margin = Math.min(zetaMargin, wnMargin);
+      }
     } else {
       margin = -re;
     }
@@ -450,7 +529,93 @@ export function generateOverlaySvgPath(
   const yBottom = vp.heightPx - vp.padBottomPx;
 
   let pathD = "";
-  if (overlay.geometry_hint.shape === "half_plane") {
+  const discreteDt =
+    overlay.domain === "discrete"
+      ? (overlay.parameters.dt ?? overlay.geometry_hint.boundary_values.dt)
+      : undefined;
+
+  if (
+    SECOND_ORDER_HEURISTIC_KINDS.has(overlay.kind) &&
+    overlay.domain === "discrete" &&
+    typeof discreteDt === "number" &&
+    Number.isFinite(discreteDt) &&
+    discreteDt > 0
+  ) {
+    const parts: string[] = [];
+    const zetaMin = overlay.parameters.zeta_min ?? overlay.geometry_hint.boundary_values.zeta_min ?? 0.5;
+    const wnMin = overlay.parameters.wn_min ?? overlay.geometry_hint.boundary_values.wn_min ?? 0;
+    const maxSettlingTimeS = overlay.parameters.max_settling_time_s;
+    const hasZeta =
+      overlay.parameters.has_zeta !== undefined
+        ? overlay.parameters.has_zeta > 0
+        : overlay.kind === "second_order_damping" || overlay.kind === "second_order_overshoot";
+    const hasWn =
+      overlay.parameters.has_wn !== undefined
+        ? overlay.parameters.has_wn > 0
+        : overlay.kind === "second_order_natural_freq";
+    const hasTs =
+      typeof maxSettlingTimeS === "number" && Number.isFinite(maxSettlingTimeS) && maxSettlingTimeS > 0;
+
+    // 1. Espiral logarítmica exata de amortecimento constante ζ no plano z:
+    //    z(θ) = exp(-(ζ / sqrt(1 - ζ²)) * |θ|) * exp(j * θ), θ ∈ [-π, π]
+    if (hasZeta && zetaMin >= 0 && zetaMin < 1) {
+      const ratio = zetaMin / Math.sqrt(Math.max(1e-12, 1 - zetaMin * zetaMin));
+      const nSamples = 120;
+      const cmds: string[] = [];
+      for (let i = 0; i <= nSamples; i += 1) {
+        const theta = -Math.PI + (2 * Math.PI * i) / nSamples;
+        const r = Math.exp(-ratio * Math.abs(theta));
+        const zRe = r * Math.cos(theta);
+        const zIm = r * Math.sin(theta);
+        const px = mapXToPx(zRe, vp);
+        const py = mapYToPx(zIm, vp);
+        cmds.push(`${i === 0 ? "M" : "L"} ${px.toFixed(2)} ${py.toFixed(2)}`);
+      }
+      cmds.push("Z");
+      parts.push(cmds.join(" "));
+    }
+
+    // 2. Curva exata de frequência natural constante ω_n no plano z:
+    //    z(ζ) = exp(-ζ * ω_n * dt ± j * ω_n * dt * sqrt(1 - ζ²)), ζ ∈ [0, 1]
+    if (hasWn && wnMin > 0 && wnMin * discreteDt <= Math.PI) {
+      const wnDt = wnMin * discreteDt;
+      const nHalf = 48;
+      const cmds: string[] = [];
+      // Arco superior: ζ de 0 até 1 (do círculo unitário até o eixo real)
+      for (let i = 0; i <= nHalf; i += 1) {
+        const zt = i / nHalf;
+        const r = Math.exp(-zt * wnDt);
+        const ang = wnDt * Math.sqrt(Math.max(0, 1 - zt * zt));
+        const px = mapXToPx(r * Math.cos(ang), vp);
+        const py = mapYToPx(r * Math.sin(ang), vp);
+        cmds.push(`${i === 0 ? "M" : "L"} ${px.toFixed(2)} ${py.toFixed(2)}`);
+      }
+      // Arco inferior: ζ de 1 de volta a 0
+      for (let i = nHalf - 1; i >= 0; i -= 1) {
+        const zt = i / nHalf;
+        const r = Math.exp(-zt * wnDt);
+        const ang = -wnDt * Math.sqrt(Math.max(0, 1 - zt * zt));
+        const px = mapXToPx(r * Math.cos(ang), vp);
+        const py = mapYToPx(r * Math.sin(ang), vp);
+        cmds.push(`L ${px.toFixed(2)} ${py.toFixed(2)}`);
+      }
+      parts.push(cmds.join(" "));
+    }
+
+    // 3. Círculo concêntrico de raio espectral |z| = exp(-(4 / T_s) * dt)
+    if (hasTs) {
+      const rTs = Math.exp(-(4 / maxSettlingTimeS) * discreteDt);
+      const cx = mapXToPx(0, vp);
+      const cy = mapYToPx(0, vp);
+      const rx = Math.abs(mapXToPx(rTs, vp) - cx);
+      const ry = Math.abs(mapYToPx(rTs, vp) - cy);
+      parts.push(
+        `M ${(cx + rx).toFixed(2)} ${cy.toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 1 0 ${(cx - rx).toFixed(2)} ${cy.toFixed(2)} A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 1 0 ${(cx + rx).toFixed(2)} ${cy.toFixed(2)} Z`,
+      );
+    }
+
+    pathD = parts.join(" ");
+  } else if (overlay.geometry_hint.shape === "half_plane") {
     const maxReal = overlay.geometry_hint.boundary_values.max_real ?? 0;
     const xLine = Math.min(xRight, Math.max(xLeft, mapXToPx(maxReal, vp)));
     // Região proibida à direita da reta Re(λ) = maxReal

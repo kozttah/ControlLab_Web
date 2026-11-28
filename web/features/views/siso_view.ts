@@ -40,6 +40,7 @@ import {
   type RootLocusChartModel,
   type RootLocusDatatipInspection,
 } from "../../charts/scientific_chart.ts";
+import { createSecondOrderRegionOverlay } from "../../charts/overlays.ts";
 import type { RegisteredTypedObject } from "../typed_workspace.ts";
 
 export interface SisoViewOptions {
@@ -165,15 +166,19 @@ export function renderSisoViewHtml(): string {
     `</div>`,
     `<button type="button" id="btn-siso-open-mimo" class="touch-control btn-primary" data-action="siso-open-mimo">Abrir na Aba 4 — Análise MIMO →</button>`,
     `</div>`,
-    `<div class="workspace-two-col">`,
-    `<div class="workspace-controls-col">`,
-    `<div class="subcard tool-field" id="siso-compensator-tuner">`,
-    `<div class="panel-actions"><button type="button" id="btn-siso-eval-all" class="touch-control btn-primary" data-action="siso-eval-all">Atualizar 4 Gráficos SISO (Bode / Nyquist / LR / Degrau)</button></div>`,
+    `<div class="siso-workbench-stack">`,
+    `<div class="siso-controls-bar">`,
+    `<div class="subcard tool-field siso-tuner-bar" id="siso-compensator-tuner">`,
+    `<div class="siso-tuner-main-row">`,
+    `<div class="siso-tuner-slider-group">`,
     `<label id="siso-gain-slider-label" for="siso-gain-slider">Sintonia do Compensador C(s) = K</label>`,
     `<div id="siso-gain-slider" class="touch-control lqr-slider siso-slider" data-action="siso-gain-slider"></div>`,
     `<p id="siso-tuner-status" class="siso-tuner-status">Pré-visualiza no arraste; confirma no motor Python ao soltar.</p>`,
-    `<div class="panel-actions">`,
+    `</div>`,
+    `<div class="siso-tuner-actions-group">`,
+    `<button type="button" id="btn-siso-eval-all" class="touch-control btn-primary" data-action="siso-eval-all">Atualizar 4 Gráficos SISO (Bode / Nyquist / LR / Degrau)</button>`,
     `<button type="button" id="btn-siso-edit-compensator" class="touch-control btn-secondary" data-action="siso-open-comp-modal">Editar Compensador C(s)...</button>`,
+    `<div class="siso-feedback-sign-field">`,
     `<label for="siso-feedback-sign">Sinal da Realimentação</label>`,
     `<select id="siso-feedback-sign" class="touch-control" data-action="siso-select-feedback-sign" aria-label="Sinal da realimentação">`,
     `<option value="negative">Negativa (1 + K·G = 0)</option>`,
@@ -181,8 +186,11 @@ export function renderSisoViewHtml(): string {
     `</select>`,
     `</div>`,
     `</div>`,
+    `</div>`,
+    `</div>`,
     `<details id="siso-advanced-params-details" class="siso-advanced-details" open>`,
     `<summary class="siso-advanced-summary">Parâmetros de Grade, Atraso Padé &amp; Degrau</summary>`,
+    `<div class="siso-advanced-grid">`,
     `<div class="subcard tool-field">`,
     `<label>Parâmetros de Resposta em Frequência (Bode / Nyquist / Margens)</label>`,
     `<div class="siso-params-compact-grid">`,
@@ -226,9 +234,10 @@ export function renderSisoViewHtml(): string {
     `<button type="button" id="btn-siso-eval-step" class="touch-control btn-primary" data-action="siso-eval-step">Avaliar Degrau SISO</button>`,
     `</div>`,
     `</div>`,
+    `</div>`,
     `</details>`,
     `</div>`,
-    `<div class="workspace-results-col">`,
+    `<div class="siso-results-stage">`,
     `<div id="siso-diagnostics-panel" class="diagnostics-panel" aria-live="polite"></div>`,
     `<div class="siso-charts-grid">`,
     `<div class="chart-card">`,
@@ -237,7 +246,7 @@ export function renderSisoViewHtml(): string {
     renderSisoExportBarHtml("siso-bode-chart-slot", "Bode"),
     `</div>`,
     `<div class="chart-card">`,
-    `<div id="siso-nyquist-chart-slot" class="chart-container chart-interactive-slot" title="Clique sobre a curva de Nyquist para inspecionar ω e L(jω)"></div>`,
+    `<div id="siso-nyquist-chart-slot" class="chart-container chart-interactive-slot" title="Clique sobre a curva de Nyquist para inspecionar ω, L(jω), distância até -1 e sensibilidade |S(jω)|"></div>`,
     `<div id="siso-nyquist-datatip" class="chart-datatip-bar" aria-live="polite" hidden></div>`,
     renderSisoExportBarHtml("siso-nyquist-chart-slot", "Nyquist"),
     `</div>`,
@@ -1104,15 +1113,28 @@ export class SisoView {
   }
 
   private renderNyquistSlotAndTip(): void {
-    const model = this.shell.getSisoWorkspace().getNyquistChartModel();
+    const sisoWorkspace = this.shell.getSisoWorkspace();
+    const model = sisoWorkspace.getNyquistChartModel();
+    const marginsView = sisoWorkspace.getMarginsView();
     const decimals = this.shell.getDisplayDecimals();
     const themeMode = this.shell.getThemeMode();
+    const nyquistMargins = marginsView
+      ? {
+          gain_margin: marginsView.critical_gain_margin_linear,
+          gain_margin_db: marginsView.critical_gain_margin_db,
+          phase_margin_deg: marginsView.critical_phase_margin_deg,
+          w_gc: marginsView.critical_omega_gc,
+          w_pc: marginsView.critical_omega_pc,
+        }
+      : model?.margins ?? null;
+
     if (this.nyquistChartSlotEl) {
       this.nyquistChartSlotEl.innerHTML = model
         ? renderNyquistSvg(model, {
             decimals,
             selectedSampleIndex: this.selectedNyquistTip?.sampleIndex ?? null,
             themeMode,
+            margins: nyquistMargins,
           })
         : "";
     }
@@ -1121,8 +1143,12 @@ export class SisoView {
         const t = this.selectedNyquistTip;
         const imSign = t.im >= 0 ? "+" : "-";
         const imAbs = formatNumericDisplay(Math.abs(t.im), decimals);
+        const distStr = formatNumericDisplay(t.distance_to_minus_one, decimals);
+        const sensStr = Number.isFinite(t.sensitivity_mag)
+          ? formatNumericDisplay(t.sensitivity_mag, decimals)
+          : "∞";
         this.nyquistDatatipEl.innerHTML = [
-          `<span class="datatip-readout"><strong>Datatip Nyquist:</strong> ω = <code>${escapeHtml(formatNumericDisplay(t.omega, decimals))}</code> rad/s | L(jω) = <code>${escapeHtml(formatNumericDisplay(t.re, decimals))} ${imSign} j·${escapeHtml(imAbs)}</code></span>`,
+          `<span class="datatip-readout"><strong>Datatip Nyquist:</strong> ω = <code>${escapeHtml(formatNumericDisplay(t.omega, decimals))}</code> rad/s | L(jω) = <code>${escapeHtml(formatNumericDisplay(t.re, decimals))} ${imSign} j·${escapeHtml(imAbs)}</code> | Distância até -1: <code>d = |L + 1| = ${escapeHtml(distStr)}</code> | Sensibilidade pontual: <code>|S(jω)| = 1/d = ${escapeHtml(sensStr)}</code></span>`,
           `<button type="button" id="btn-siso-nyquist-clear-tip" class="touch-control btn-secondary btn-small" data-action="siso-clear-nyquist-tip">Limpar</button>`,
         ].join("");
         setElHidden(this.nyquistDatatipEl, false);
@@ -1140,7 +1166,30 @@ export class SisoView {
   }
 
   private renderRootLocusSlotAndTip(): void {
-    const model = this.shell.getSisoWorkspace().getRootLocusChartModel();
+    const rawModel = this.shell.getSisoWorkspace().getRootLocusChartModel();
+    const model: RootLocusChartModel | null =
+      rawModel && rawModel.dt !== null && rawModel.dt > 0
+        ? {
+            ...rawModel,
+            overlays: rawModel.overlays.map((ov) =>
+              ov.domain !== "discrete" &&
+              (ov.kind === "second_order_damping" ||
+                ov.kind === "second_order_natural_freq" ||
+                ov.kind === "second_order_settling_time" ||
+                ov.kind === "second_order_overshoot")
+                ? createSecondOrderRegionOverlay({
+                    id: ov.id,
+                    zetaMin: ov.parameters.zeta_min,
+                    wnMin: ov.kind === "second_order_natural_freq" ? ov.parameters.wn_min : undefined,
+                    maxOvershootPct: ov.parameters.max_overshoot_pct,
+                    maxSettlingTimeS: ov.parameters.max_settling_time_s,
+                    dt: rawModel.dt,
+                    classification: ov.classification === "estimated" ? "estimated" : "heuristic",
+                  })
+                : ov,
+            ),
+          }
+        : rawModel;
     const decimals = this.shell.getDisplayDecimals();
     const themeMode = this.shell.getThemeMode();
     if (this.rlChartSlotEl) {

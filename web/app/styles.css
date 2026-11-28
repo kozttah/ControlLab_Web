@@ -651,7 +651,7 @@ textarea {
   min-width: 0;
   margin: 0;
   display: grid;
-  grid-template-columns: minmax(280px, 1.05fr) minmax(320px, 1.35fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   padding: 0;
   align-items: start;
@@ -660,6 +660,24 @@ textarea {
 .controllab-main.single-main-col,
 .controllab-main.tab-identification {
   grid-template-columns: minmax(0, 1fr);
+}
+
+#controllab-charts-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+#controllab-charts-panel > details,
+#controllab-charts-panel > #experiments-compare-panel,
+#controllab-charts-panel > #obs-sim-chart-card {
+  grid-column: 1 / -1;
+}
+
+#controllab-charts-panel .chart-container svg {
+  width: 100%;
+  height: auto;
 }
 
 .panel-card {
@@ -712,6 +730,36 @@ textarea {
   flex-direction: column;
   gap: 0.65rem;
   min-width: 0;
+}
+
+/* Aba 1: Palco de gráficos em largura total (CL-UX-DIR-001 v1.1.0 Seção 9.1 & 9.5) */
+.ident-workbench-stack,
+.ident-results-stage,
+.ss-workbench-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.ident-controls-bar,
+.ident-charts-grid,
+.ss-top-controls-grid,
+.ss-editors-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.ident-charts-grid .chart-container svg {
+  width: 100%;
+  height: auto;
+}
+
+.ident-promote-actions {
+  align-items: center;
 }
 
 .siso-charts-grid {
@@ -1730,6 +1778,125 @@ textarea {
   border-color: var(--accent);
 }
 
+.mimo-workbench-grid .chart-container svg,
+.mimo-hinf-card .chart-container svg,
+#lmi-spectrum-chart-slot svg {
+  width: 100%;
+  height: auto;
+}
+
+/* Exibição explícita de matrizes K∞ (Aba 4) e matrizes recuperadas LMI (Aba 7) */
+.mimo-controller-display {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.65rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.mimo-controller-display-head,
+.lmi-recovered-matrices-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mimo-controller-display-title h5,
+.lmi-recovered-matrices-head h5 {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.94rem;
+  color: var(--text-primary);
+}
+
+.mimo-controller-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.mimo-controller-poles {
+  margin: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.mimo-controller-matrices-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.lmi-recovered-matrices-display {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.lmi-matrices-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+  align-items: start;
+}
+
+.mimo-matrix-card,
+.lmi-matrix-card {
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  padding: 0.55rem 0.65rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mimo-matrix-card-head,
+.lmi-matrix-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.mimo-matrix-scroll,
+.lmi-matrix-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.mimo-matrix-table,
+.lmi-matrix-table {
+  width: auto;
+  min-width: 100%;
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.mimo-matrix-empty {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}
+
+.lmi-matrix-scalar-val {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.lmi-matrix-formula {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.tabular-num {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 /* Aba 5: Bancada Fuzzy / TS */
 .fuzzy-main-grid,
 .fuzzy-workbench-grid {
@@ -2505,6 +2672,12 @@ textarea {
   color: var(--text-secondary);
 }
 
+@media (min-width: 820px) {
+  .mimo-controller-matrices-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 900px) {
   .siso-charts-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2515,12 +2688,29 @@ textarea {
   .lmi-sys-grid {
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   }
+
+  .ident-controls-bar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  }
+
+  .ident-charts-grid,
+  #controllab-charts-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 1024px) {
+  .ss-top-controls-grid {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  }
+
+  .ss-editors-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+
   .mimo-workbench-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.45fr) minmax(290px, 1fr);
+    grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.9fr);
     gap: 0.85rem;
     align-items: start;
   }
@@ -2540,10 +2730,16 @@ textarea {
     align-items: start;
   }
 
-  .lmi-editor-split,
-  .lmi-results-split {
+  .lmi-editor-split {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: start;
+  }
+
+  .lmi-results-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.85rem;
     align-items: start;
   }

@@ -31,7 +31,7 @@
       "2026-11-25": 5,
       "2026-11-26": 7,
       "2026-11-27": 1,
-      "2026-11-28": 2
+      "2026-11-28": 3
     }
   },
   "audit_reference": {
@@ -7513,12 +7513,15 @@
         "T-UI-01"
       ],
       "acceptance_cmd": "npm --prefix web run typecheck && PATH=\"/home/antigravity/.venv/bin:$PATH\" node scripts/run_web_tests.mjs --scope f8 && npm --prefix web run build",
-      "status": "PENDING",
+      "status": "ACCEPTED_BY_F9",
       "origin_ref": "docs/architecture/ControlLab_Web_Design_Diretor_v1.0.md#9.3",
       "acceptance_requirements": [
         "Exibir diretamente na tela da Aba 4 (em paridade com a matriz de transferência do desacoplador) as matrizes (A_k, B_k, C_k, D_k), dimensões, polos e ação de cópia do controlador K∞ sintetizado, mantendo o botão de registro no Workspace",
         "Harmonizar o layout de palco de gráficos em largura total na Aba 1 (Identificação), Aba 3 (Espaço de Estados), Aba 4 (MIMO) e Aba 7 (LMIs), incluindo exibição matricial limpa e copiável dos ganhos/variáveis recuperadas na Aba 7"
-      ]
+      ],
+      "f9_review": "accepted",
+      "handoff_ref": "docs/audits/handoffs/WP-UX11-04-F8-MIMO-CONTROLLER-DISPLAY-AND-LAYOUT.md",
+      "acceptance_scope": "f8_mimo_hinf_controller_explicit_display_and_fullwidth_chart_stages_tabs_1_3_4_7"
     },
     {
       "wp_id": "WP-UX11-05-F8-FUZZY-ANFIS-MULTIIO-UI",

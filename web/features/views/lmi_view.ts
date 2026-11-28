@@ -404,6 +404,67 @@ function rawTensorTo2D(raw: unknown, fallback: number[][]): number[][] {
   return tensorTo2DArray(raw as unknown as RealTensor);
 }
 
+export interface LmiNamedMatrix {
+  label: string;
+  formula?: string;
+  mat: DenseMatrixValue;
+  isScalar?: boolean;
+}
+
+export function formatLmiMatricesCopyText(
+  items: readonly LmiNamedMatrix[],
+  decimals: number,
+): string {
+  return items
+    .map((item) => {
+      const { mat, isScalar } = item;
+      if ((isScalar || (mat.rows === 1 && mat.cols === 1)) && mat.data.length === 1) {
+        return `${item.label} = ${formatNumericDisplay(mat.data[0], decimals)}`;
+      }
+      const rows = formatMatrixDisplay(mat.data, mat.rows, mat.cols, decimals);
+      const body = rows.map((r) => `  [${r.join(", ")}]`).join(",\n");
+      return `${item.label} = [\n${body}\n]`;
+    })
+    .join("\n\n");
+}
+
+function renderLmiMatrixCardHtml(
+  title: string,
+  plainKey: string,
+  formula: string | null,
+  mat: DenseMatrixValue,
+  decimals: number,
+  isScalar = false,
+): string {
+  const formulaHtml = formula ? ` <code class="lmi-matrix-formula">(${escapeHtml(formula)})</code>` : "";
+  if ((isScalar || (mat.rows === 1 && mat.cols === 1)) && mat.data.length === 1) {
+    const valStr = formatNumericDisplay(mat.data[0], decimals);
+    return [
+      `<div class="lmi-matrix-card lmi-matrix-card-scalar" data-lmi-matrix="${escapeHtml(plainKey)}">`,
+      `<div class="lmi-matrix-card-head"><div><strong>${escapeHtml(title)}</strong>${formulaHtml}</div><span class="badge">escalar</span></div>`,
+      `<div class="lmi-matrix-scalar-val tabular-num"><code>${escapeHtml(valStr)}</code></div>`,
+      `</div>`,
+    ].join("");
+  }
+  const formattedRows = formatMatrixDisplay(mat.data, mat.rows, mat.cols, decimals);
+  const tbodyRows = formattedRows
+    .map(
+      (row) =>
+        `<tr>${row.map((cell) => `<td class="tabular-num">${escapeHtml(cell)}</td>`).join("")}</tr>`,
+    )
+    .join("");
+  return [
+    `<div class="lmi-matrix-card" data-lmi-matrix="${escapeHtml(plainKey)}">`,
+    `<div class="lmi-matrix-card-head"><div><strong>${escapeHtml(title)}</strong>${formulaHtml}</div><span class="badge">${mat.rows}×${mat.cols}</span></div>`,
+    `<div class="lmi-matrix-scroll">`,
+    `<table class="accessible-data-table lmi-matrix-table" aria-label="Matriz ${escapeHtml(title)} (${mat.rows} por ${mat.cols})">`,
+    `<tbody>${tbodyRows}</tbody>`,
+    `</table>`,
+    `</div>`,
+    `</div>`,
+  ].join("");
+}
+
 export function renderLmiViewHtml(): string {
   const templateOptions = LMI_DSL_TEMPLATES.map(
     (tpl) =>
@@ -2781,22 +2842,17 @@ export class LmiView {
     }
 
     if (this.recoveredGainEl) {
-      const formatValue = (mat: DenseMatrixValue, isScalar = false): string => {
-        if ((isScalar || (mat.rows === 1 && mat.cols === 1)) && mat.data.length === 1) {
-          return formatNumericDisplay(mat.data[0], decimals);
-        }
-        return formatMatrixDisplay(mat.data, mat.rows, mat.cols, decimals)
-          .map((r) => `[${r.join(", ")}]`)
-          .join("; ");
-      };
+      const copyItems: LmiNamedMatrix[] = [];
+      const primaryCardsHtml: string[] = [];
+      const warningItemsHtml: string[] = [];
 
       const objHtml =
         s.objective !== null
-          ? `<div class="lmi-recovered-item"><strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code></div>`
+          ? `<div class="lmi-recovered-item"><strong>Objetivo:</strong> <code class="tabular-num">${formatNumericDisplay(s.objective, decimals)}</code></div>`
           : "";
 
       if (s.recoveredEntries.length > 0) {
-        const rowsHtml = s.recoveredEntries.map((entry) => {
+        for (const entry of s.recoveredEntries) {
           const isK = entry.label === "K" || /^K\[/.test(entry.label);
           const isL = entry.label === "L" || /^L\[/.test(entry.label);
           const displayLabel = isK
@@ -2805,68 +2861,159 @@ export class LmiView {
               ? `Ganho do observador ${entry.label}`
               : entry.label;
           if (!entry.ok || !entry.value) {
-            return `<div class="lmi-recovered-item warning-callout" role="status"><strong>${escapeHtml(displayLabel)}</strong> <code>(${escapeHtml(entry.formula)})</code>: aviso na recuperação — ${escapeHtml(entry.error ?? "expressão não avaliada")}</div>`;
+            warningItemsHtml.push(
+              `<div class="lmi-recovered-item warning-callout" role="status"><strong>${escapeHtml(displayLabel)}</strong> <code>(${escapeHtml(entry.formula)})</code>: aviso na recuperação — ${escapeHtml(entry.error ?? "expressão não avaliada")}</div>`,
+            );
+          } else {
+            copyItems.push({
+              label: entry.label,
+              formula: entry.formula,
+              mat: entry.value,
+              isScalar: Boolean(entry.isScalar),
+            });
+            primaryCardsHtml.push(
+              renderLmiMatrixCardHtml(
+                displayLabel,
+                entry.label,
+                entry.formula,
+                entry.value,
+                decimals,
+                Boolean(entry.isScalar),
+              ),
+            );
           }
-          const formatted = formatValue(entry.value, Boolean(entry.isScalar));
-          return `<div class="lmi-recovered-item"><strong>${escapeHtml(displayLabel)}</strong> <code>(${escapeHtml(entry.formula)})</code>: <code>${escapeHtml(formatted)}</code></div>`;
-        });
-        this.recoveredGainEl.innerHTML = `<div class="lmi-recovered-list">${rowsHtml.join("")}${objHtml}</div>`;
-      } else if (s.recoveredK || (s.recoveredIndexedK && s.recoveredIndexedK.length > 0) || (s.recoveredIndexedL && s.recoveredIndexedL.length > 0)) {
-        const parts: string[] = [];
+        }
+      } else if (
+        s.recoveredK ||
+        (s.recoveredIndexedK && s.recoveredIndexedK.length > 0) ||
+        (s.recoveredIndexedL && s.recoveredIndexedL.length > 0)
+      ) {
         if (s.recoveredIndexedK && s.recoveredIndexedK.length > 0) {
-          parts.push(
-            ...s.recoveredIndexedK.map(
-              (item) =>
-                `<strong>Ganho recuperado ${escapeHtml(item.label)}:</strong> <code>${escapeHtml(formatValue(item.mat))}</code>`,
-            ),
-          );
+          for (const item of s.recoveredIndexedK) {
+            copyItems.push({ label: item.label, mat: item.mat });
+            primaryCardsHtml.push(
+              renderLmiMatrixCardHtml(
+                `Ganho recuperado ${item.label}`,
+                item.label,
+                null,
+                item.mat,
+                decimals,
+              ),
+            );
+          }
         }
         if (s.recoveredIndexedL && s.recoveredIndexedL.length > 0) {
-          parts.push(
-            ...s.recoveredIndexedL.map(
-              (item) =>
-                `<strong>Ganho do observador ${escapeHtml(item.label)}:</strong> <code>${escapeHtml(formatValue(item.mat))}</code>`,
+          for (const item of s.recoveredIndexedL) {
+            copyItems.push({ label: item.label, mat: item.mat });
+            primaryCardsHtml.push(
+              renderLmiMatrixCardHtml(
+                `Ganho do observador ${item.label}`,
+                item.label,
+                null,
+                item.mat,
+                decimals,
+              ),
+            );
+          }
+        }
+        if (primaryCardsHtml.length === 0 && s.recoveredK) {
+          copyItems.push({ label: "K", formula: "Y * inv(Q)", mat: s.recoveredK });
+          primaryCardsHtml.push(
+            renderLmiMatrixCardHtml(
+              "Ganho recuperado K = Y Q⁻¹",
+              "K",
+              null,
+              s.recoveredK,
+              decimals,
             ),
           );
         }
-        const kHtml =
-          parts.length > 0
-            ? parts.join(" | ")
-            : `<strong>Ganho recuperado K = Y Q⁻¹:</strong> <code>${escapeHtml(formatValue(s.recoveredK!))}</code>`;
-        const scalarHtml =
-          s.recoveredScalars && s.recoveredScalars.length > 0
-            ? s.recoveredScalars
-                .map(
-                  (sc) =>
-                    ` | <strong>${escapeHtml(sc.name)}:</strong> <code>${formatNumericDisplay(sc.value, decimals)}</code>`,
-                )
-                .join("")
-            : "";
-        const objInline =
-          s.objective !== null
-            ? ` | <strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code>`
-            : "";
-        this.recoveredGainEl.innerHTML = `<p>${kHtml}${scalarHtml}${objInline}</p>`;
-      } else if (s.solvedVariables.length > 0) {
-        const varsHtml = s.solvedVariables
-          .map(
-            (v) =>
-              `<div class="lmi-recovered-item"><strong>${escapeHtml(v.name)}</strong> (${v.mat.rows}×${v.mat.cols}): <code>${escapeHtml(formatValue(v.mat))}</code></div>`,
-          )
-          .join("");
-        this.recoveredGainEl.innerHTML = `<details class="lmi-solved-vars-details" open><summary>Variáveis de decisão obtidas (${s.solvedVariables.length})</summary><div class="lmi-recovered-list">${varsHtml}${objHtml}</div></details>`;
+        if (s.recoveredScalars && s.recoveredScalars.length > 0) {
+          for (const sc of s.recoveredScalars) {
+            const scMat: DenseMatrixValue = { rows: 1, cols: 1, data: [sc.value] };
+            copyItems.push({ label: sc.name, mat: scMat, isScalar: true });
+            primaryCardsHtml.push(
+              renderLmiMatrixCardHtml(sc.name, sc.name, null, scMat, decimals, true),
+            );
+          }
+        }
+      }
+
+      const decisionVarCardsHtml: string[] = [];
+      if (s.solvedVariables.length > 0) {
+        for (const v of s.solvedVariables) {
+          if (!copyItems.some((ci) => ci.label === v.name)) {
+            copyItems.push({ label: v.name, mat: v.mat });
+          }
+          decisionVarCardsHtml.push(
+            renderLmiMatrixCardHtml(v.name, v.name, null, v.mat, decimals),
+          );
+        }
+      }
+
+      const copyBtnHtml =
+        copyItems.length > 0
+          ? `<button type="button" id="btn-lmi-copy-matrices" class="touch-control btn-secondary btn-small" data-action="lmi-copy-matrices">Copiar Matrizes</button>`
+          : "";
+
+      const sectionsHtml: string[] = [];
+      if (primaryCardsHtml.length > 0 || warningItemsHtml.length > 0) {
+        sectionsHtml.push(
+          `<div class="lmi-recovered-matrices-head"><h5>Ganhos &amp; Expressões Recuperadas</h5>${copyBtnHtml}</div>`,
+        );
+        if (primaryCardsHtml.length > 0) {
+          sectionsHtml.push(`<div class="lmi-matrices-grid">${primaryCardsHtml.join("")}</div>`);
+        }
+        if (warningItemsHtml.length > 0) {
+          sectionsHtml.push(`<div class="lmi-recovered-list">${warningItemsHtml.join("")}</div>`);
+        }
+        if (objHtml) sectionsHtml.push(objHtml);
+        if (decisionVarCardsHtml.length > 0) {
+          sectionsHtml.push(
+            `<details class="lmi-solved-vars-details"><summary>Variáveis de decisão obtidas (${s.solvedVariables.length})</summary><div class="lmi-matrices-grid">${decisionVarCardsHtml.join("")}</div></details>`,
+          );
+        }
+      } else if (decisionVarCardsHtml.length > 0) {
+        sectionsHtml.push(
+          `<div class="lmi-recovered-matrices-head"><h5>Variáveis de Decisão Obtidas (${s.solvedVariables.length})</h5>${copyBtnHtml}</div>`,
+        );
+        sectionsHtml.push(
+          `<details class="lmi-solved-vars-details" open><summary>Variáveis de decisão obtidas (${s.solvedVariables.length})</summary><div class="lmi-matrices-grid">${decisionVarCardsHtml.join("")}</div>${objHtml}</details>`,
+        );
       } else {
         const objInline =
           s.objective !== null
             ? ` | <strong>Objetivo:</strong> <code>${formatNumericDisplay(s.objective, decimals)}</code>`
             : "";
-        this.recoveredGainEl.innerHTML = `<p><strong>Ganho K:</strong> N/D para esta formulação${objInline}</p>`;
+        sectionsHtml.push(`<p><strong>Ganho K:</strong> N/D para esta formulação${objInline}</p>`);
       }
 
       const regCtrl = this.getLastRegisteredController();
-      if (regCtrl) {
-        const regBadge = `<div class="lmi-registered-controller-status"><span class="badge badge-stable">Controlador Registrado no Workspace</span> <code>${escapeHtml(String(regCtrl.id))}#r${Number(regCtrl.revision)}</code> (${escapeHtml(String(regCtrl.kind))}, <code>feedback_sign=${escapeHtml(String(regCtrl.feedback_sign))}</code>)</div>`;
-        this.recoveredGainEl.innerHTML += regBadge;
+      const regBadge = regCtrl
+        ? `<div class="lmi-registered-controller-status"><span class="badge badge-stable">Controlador Registrado no Workspace</span> <code>${escapeHtml(String(regCtrl.id))}#r${Number(regCtrl.revision)}</code> (${escapeHtml(String(regCtrl.kind))}, <code>feedback_sign=${escapeHtml(String(regCtrl.feedback_sign))}</code>)</div>`
+        : "";
+
+      this.recoveredGainEl.innerHTML = `<div id="lmi-recovered-matrices-display" class="lmi-recovered-matrices-display">${sectionsHtml.join("")}${regBadge}</div>`;
+
+      if (copyItems.length > 0) {
+        const copyText = formatLmiMatricesCopyText(copyItems, decimals);
+        this.recoveredGainEl
+          .querySelector<HTMLElement>("#btn-lmi-copy-matrices")
+          ?.addEventListener("click", () => {
+            try {
+              const nav = typeof navigator !== "undefined" ? navigator : null;
+              if (nav?.clipboard && typeof nav.clipboard.writeText === "function") {
+                void nav.clipboard.writeText(copyText).catch(() => {
+                  // Safe fallback in restricted/headless contexts
+                });
+              }
+            } catch {
+              // Safe fallback when clipboard API is unavailable
+            }
+            this.shell
+              .getAnnouncer()
+              .announce("Matrizes LMI recuperadas copiadas.", "polite", "status");
+          });
       }
     }
 

@@ -140,6 +140,7 @@ interface MimoHinfSnapshot {
   } | null;
   svModel: SingularValuesChartModel;
   controller: Record<string, unknown> | null;
+  closedLoopPoles: Array<{ re: number; im: number }>;
 }
 
 function setElHidden(el: Element | null | undefined, hidden: boolean): void {
@@ -420,6 +421,221 @@ function extractComplexPoles(raw: unknown): Array<{ re: number; im: number }> {
     return reArr.map((re, idx) => ({ re: Number(re ?? 0), im: Number(imArr[idx] ?? 0) }));
   }
   return [];
+}
+
+export interface ExtractedHinfController {
+  id: string;
+  kind: string;
+  A: number[][] | null;
+  B: number[][] | null;
+  C: number[][] | null;
+  D: number[][] | null;
+  nStates: number;
+  nInputs: number;
+  nOutputs: number;
+  dt: number | null;
+  feedbackSign: string | null;
+  poles: Array<{ re: number; im: number }>;
+}
+
+export function extractHinfControllerMatrices(
+  controller: Record<string, unknown> | null,
+): ExtractedHinfController | null {
+  if (!controller) return null;
+
+  const sources: Record<string, unknown>[] = [controller];
+  if (isPlainObject(controller.matrices)) sources.push(controller.matrices);
+  if (isPlainObject(controller.state_space)) {
+    sources.push(controller.state_space);
+    if (isPlainObject(controller.state_space.matrices)) {
+      sources.push(controller.state_space.matrices);
+    }
+  }
+  if (isPlainObject(controller.controller)) {
+    sources.push(controller.controller);
+    if (isPlainObject(controller.controller.matrices)) {
+      sources.push(controller.controller.matrices);
+    }
+  }
+
+  const pickMat = (...keys: string[]): number[][] | null => {
+    for (const src of sources) {
+      for (const key of keys) {
+        if (src[key] !== undefined && src[key] !== null) {
+          const mat = extractReal2DMatrix(src[key]);
+          if (mat && mat.length > 0) return mat;
+        }
+      }
+    }
+    return null;
+  };
+
+  const A = pickMat("Ac", "A", "A_k");
+  const B = pickMat("Bc", "B", "B_k");
+  const C = pickMat("Cc", "C", "C_k");
+  const D = pickMat("Dc", "D", "D_k");
+
+  if (!A && !B && !C && !D) return null;
+
+  const nStates =
+    A?.length ??
+    B?.length ??
+    (C?.[0]?.length ?? (typeof controller.n_states === "number" ? controller.n_states : 0));
+  const nInputs =
+    B?.[0]?.length ??
+    D?.[0]?.length ??
+    (typeof controller.n_inputs === "number" ? controller.n_inputs : 0);
+  const nOutputs =
+    C?.length ??
+    D?.length ??
+    (typeof controller.n_outputs === "number" ? controller.n_outputs : 0);
+
+  let dt: number | null = null;
+  for (const src of sources) {
+    if (typeof src.dt === "number" && Number.isFinite(src.dt)) {
+      dt = src.dt;
+      break;
+    }
+  }
+
+  const id =
+    typeof controller.id === "string" && controller.id.trim().length > 0
+      ? controller.id.trim()
+      : typeof controller.name === "string" && controller.name.trim().length > 0
+        ? controller.name.trim()
+        : "K∞";
+  const kind = typeof controller.kind === "string" ? controller.kind : "DynamicController";
+  const feedbackSign = typeof controller.feedback_sign === "string" ? controller.feedback_sign : null;
+  const poles = extractComplexPoles(controller.poles);
+
+  return {
+    id,
+    kind,
+    A,
+    B,
+    C,
+    D,
+    nStates,
+    nInputs,
+    nOutputs,
+    dt,
+    feedbackSign,
+    poles,
+  };
+}
+
+function formatMatrixCopyBlock(name: string, mat: number[][] | null, decimals: number): string {
+  if (!mat || mat.length === 0) return `${name} = []`;
+  const rows = mat.map(
+    (row) => `  [${row.map((v) => formatNumericDisplay(v, decimals)).join(", ")}]`,
+  );
+  return `${name} = [\n${rows.join(",\n")}\n]`;
+}
+
+export function formatHinfControllerCopyText(
+  controller: Record<string, unknown> | null,
+  decimals: number,
+): string {
+  const info = extractHinfControllerMatrices(controller);
+  if (!info) return "";
+  const domainStr = info.dt === null ? "Contínuo (s)" : `Discreto (dt=${info.dt} s)`;
+  return [
+    `# Controlador H∞ ${info.id} (n_k=${info.nStates}, m_k=${info.nInputs}, p_k=${info.nOutputs}, ${domainStr})`,
+    formatMatrixCopyBlock("A_k", info.A, decimals),
+    formatMatrixCopyBlock("B_k", info.B, decimals),
+    formatMatrixCopyBlock("C_k", info.C, decimals),
+    formatMatrixCopyBlock("D_k", info.D, decimals),
+  ].join("\n");
+}
+
+function renderMatrixCardHtml(
+  symbolHtml: string,
+  plainName: string,
+  mat: number[][] | null,
+  decimals: number,
+): string {
+  if (!mat || mat.length === 0) {
+    return [
+      `<div class="mimo-matrix-card" data-controller-matrix="${escapeHtml(plainName)}">`,
+      `<div class="mimo-matrix-card-head"><strong>${symbolHtml}</strong><span class="badge">0×0</span></div>`,
+      `<p class="mimo-matrix-empty">Matriz vazia</p>`,
+      `</div>`,
+    ].join("");
+  }
+  const rows = mat.length;
+  const cols = mat[0]?.length ?? 0;
+  const bodyRows = mat
+    .map((row) => {
+      const cells = row
+        .map((v) => `<td class="tabular-num">${escapeHtml(formatNumericDisplay(v, decimals))}</td>`)
+        .join("");
+      return `<tr>${cells}</tr>`;
+    })
+    .join("");
+  return [
+    `<div class="mimo-matrix-card" data-controller-matrix="${escapeHtml(plainName)}">`,
+    `<div class="mimo-matrix-card-head"><strong>${symbolHtml}</strong><span class="badge">${rows}×${cols}</span></div>`,
+    `<div class="mimo-matrix-scroll">`,
+    `<table class="accessible-data-table mimo-matrix-table" aria-label="Matriz ${escapeHtml(plainName)} do controlador K∞ (${rows} por ${cols})">`,
+    `<tbody>${bodyRows}</tbody>`,
+    `</table>`,
+    `</div>`,
+    `</div>`,
+  ].join("");
+}
+
+export function formatHinfControllerMatricesHtml(
+  controller: Record<string, unknown> | null,
+  decimals: number,
+  closedLoopPoles?: ReadonlyArray<{ re: number; im: number }>,
+): string {
+  const info = extractHinfControllerMatrices(controller);
+  if (!info) return "";
+
+  const domainLabel = info.dt === null ? "Contínuo" : `Discreto (dt=${info.dt} s)`;
+  const polesToShow = info.poles.length > 0 ? info.poles : (closedLoopPoles ?? []);
+  const polesLabel = info.poles.length > 0 ? "Polos de K∞" : "Polos em malha fechada";
+  const polesHtml =
+    polesToShow.length > 0
+      ? `<p class="mimo-controller-poles"><strong>${polesLabel}:</strong> <code class="tabular-num">${escapeHtml(
+          polesToShow
+            .slice(0, 10)
+            .map((p) =>
+              Math.abs(p.im) > 1e-6
+                ? `${formatNumericDisplay(p.re, decimals)} ${p.im >= 0 ? "+" : "−"} j${formatNumericDisplay(Math.abs(p.im), decimals)}`
+                : formatNumericDisplay(p.re, decimals),
+            )
+            .join(", ") + (polesToShow.length > 10 ? " …" : ""),
+        )}</code></p>`
+      : "";
+
+  const fbBadge = info.feedbackSign
+    ? `<span class="badge">Realimentação: ${escapeHtml(info.feedbackSign)}</span>`
+    : "";
+
+  return [
+    `<div id="mimo-hinf-controller-display" class="subcard mimo-controller-display" aria-label="Matrizes do controlador H∞ K∞ sintetizado">`,
+    `<div class="mimo-controller-display-head">`,
+    `<div class="mimo-controller-display-title">`,
+    `<h5>Controlador Sintetizado K<sub>∞</sub> (Espaço de Estados)</h5>`,
+    `<div class="mimo-controller-meta">`,
+    `<span class="badge badge-stable">${escapeHtml(info.id)}</span>`,
+    `<span class="badge">n<sub>k</sub>=${info.nStates}, m<sub>k</sub>=${info.nInputs}, p<sub>k</sub>=${info.nOutputs}</span>`,
+    `<span class="badge">${escapeHtml(domainLabel)}</span>`,
+    fbBadge,
+    `</div>`,
+    `</div>`,
+    `<button type="button" id="btn-mimo-copy-hinf-matrices" class="touch-control btn-secondary btn-small" data-action="mimo-copy-hinf-matrices">Copiar Matrizes K∞</button>`,
+    `</div>`,
+    polesHtml,
+    `<div class="mimo-controller-matrices-grid">`,
+    renderMatrixCardHtml("A<sub>k</sub>", "A_k", info.A, decimals),
+    renderMatrixCardHtml("B<sub>k</sub>", "B_k", info.B, decimals),
+    renderMatrixCardHtml("C<sub>k</sub>", "C_k", info.C, decimals),
+    renderMatrixCardHtml("D<sub>k</sub>", "D_k", info.D, decimals),
+    `</div>`,
+    `</div>`,
+  ].join("");
 }
 
 export function buildCoupledMimo2x2ExampleDto(): Record<string, unknown> {
@@ -1493,6 +1709,7 @@ export class MimoView {
         controller: isPlainObject(res.controller)
           ? (res.controller as Record<string, unknown>)
           : null,
+        closedLoopPoles: extractComplexPoles(res.closed_loop_poles),
       };
 
       this.shell
@@ -1503,6 +1720,28 @@ export class MimoView {
     } catch (err: unknown) {
       this.shell.presentError(err);
     }
+  }
+
+  private copyHinfMatrices(): void {
+    if (!this.hinfSnapshot?.controller) return;
+    const text = formatHinfControllerCopyText(
+      this.hinfSnapshot.controller,
+      this.shell.getDisplayDecimals(),
+    );
+    if (!text) return;
+    try {
+      const nav = typeof navigator !== "undefined" ? navigator : null;
+      if (nav?.clipboard && typeof nav.clipboard.writeText === "function") {
+        void nav.clipboard.writeText(text).catch(() => {
+          // Safe fallback in restricted/headless contexts
+        });
+      }
+    } catch {
+      // Safe fallback when clipboard API is unavailable
+    }
+    this.shell
+      .getAnnouncer()
+      .announce("Matrizes A_k, B_k, C_k, D_k do controlador K∞ copiadas.", "polite", "status");
   }
 
   public async registerHinfController(): Promise<void> {
@@ -2090,11 +2329,24 @@ export class MimoView {
         );
       }
 
+      const controllerDisplayHtml = formatHinfControllerMatricesHtml(
+        h.controller,
+        decimals,
+        h.closedLoopPoles,
+      );
+
       this.hinfSummaryEl.innerHTML = [
         `<p>${badge} <strong>γ atingido:</strong> <code>${escapeHtml(gammaStr)}</code> | <strong>||T_zw||∞ (grade):</strong> <code>${escapeHtml(normStr)}</code></p>`,
         proofParts.length > 0 ? `<p id="mimo-hinf-status">${proofParts.join(" | ")}</p>` : "",
         `<p><strong>Planta Generalizada P(s):</strong> <code>${escapeHtml(gpStr)}</code></p>`,
+        controllerDisplayHtml,
       ].join("");
+
+      this.hinfSummaryEl
+        .querySelector<HTMLElement>("#btn-mimo-copy-hinf-matrices")
+        ?.addEventListener("click", () => {
+          this.copyHinfMatrices();
+        });
     }
 
     if (this.hinfChartSlotEl) {

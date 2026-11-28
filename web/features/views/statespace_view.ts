@@ -561,7 +561,7 @@ export function renderStatespaceViewHtml(initialDims: { n: number; m: number; p:
     .join("");
 
   return [
-    `<section id="statespace-workspace-panel" aria-label="Espaço de Estados / LQR (Aba 3)">`,
+    `<section id="statespace-workspace-panel" class="ss-workbench-stack" aria-label="Espaço de Estados / LQR (Aba 3)">`,
     `<div id="ss-workspace-plant-bar" class="subcard ss-workspace-plant-bar" role="region" aria-label="Planta ativa do Workspace">`,
     `<div id="ss-workspace-plant-summary" class="ss-workspace-plant-summary"></div>`,
     `<div class="panel-actions">`,
@@ -571,6 +571,7 @@ export function renderStatespaceViewHtml(initialDims: { n: number; m: number; p:
     `</div>`,
     `<div id="lqr-kpi-cards" class="lqr-kpi-cards" role="region" aria-label="Indicadores LQR"></div>`,
     `<div id="lqr-pbh-badges" class="lqr-pbh-badges" role="region" aria-label="Diagnóstico estrutural PBH e método Riccati"></div>`,
+    `<div class="ss-top-controls-grid">`,
     `<div class="lqr-interactive-bar lqr-action-card subcard">`,
     `<div class="lqr-status-row"><p>Status: <strong id="lqr-status-text"></strong></p></div>`,
     `<div id="lqr-q-slider" class="touch-control lqr-slider" data-action="lqr-slider"></div>`,
@@ -611,6 +612,8 @@ export function renderStatespaceViewHtml(initialDims: { n: number; m: number; p:
     `<div class="tool-field"><label for="pvm-u-max">Limite superior u_max (número ou vetor JSON)</label><input id="pvm-u-max" type="text" value="1" disabled /></div>`,
     `</details>`,
     `</section>`,
+    `</div>`,
+    `<div class="ss-editors-grid">`,
     `<section id="lqr-matrix-editor" class="lqr-matrix-editor subcard" aria-label="Editor Matricial Interativo LQR">`,
     `<div class="lqr-matrix-editor-header">`,
     `<h3>Parâmetros de Projeto LQR (Pesos Q, R, x0) &amp; Matrizes da Planta</h3>`,
@@ -679,6 +682,7 @@ export function renderStatespaceViewHtml(initialDims: { n: number; m: number; p:
     `</div>`,
     `<div id="obs-results-summary" class="obs-results-summary" role="region" aria-label="Resultados do Observador e LQG"></div>`,
     `</section>`,
+    `</div>`,
     `<div id="lqr-json-advanced" class="lqr-json-advanced subcard">`,
     `<h4>Entrada Avançada via JSON</h4>`,
     `<div class="tool-field">`,
